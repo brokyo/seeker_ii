@@ -19,14 +19,16 @@ local Channel = include('lib/channel')
 -----------------
 -- Core Config --
 -----------------
-SEEKER_DEBUG = false -- N.B: This is global and should be turned off when not developing 
+SEEKER_DEBUG = true -- N.B: This is global and should be turned off when not developing 
 local NUM_CHANNELS = 4
 
 local channels = {}
+local selected_channel = 1
 
 function init()
     init_header()
     init_channels(NUM_CHANNELS)
+    redraw()
 end
 
 function init_header()
@@ -38,9 +40,44 @@ function init_channels(channel_count)
         channels[i] = Channel.new(i)
         channels[i]:add_params(i)
     end
-
-    tab.print(channels[1])
 end
+
+function enc(n, d)
+    if n == 1 then
+        -- Change selected channel
+        selected_channel = util.clamp(selected_channel + d, 1, NUM_CHANNELS)
+        redraw()
+    end
+end
+
+function key(n, z)
+    if n == 2 and z == 1 then
+        -- Toggle channel state
+        if channels[selected_channel].running then
+            channels[selected_channel]:stop_channel(selected_channel)
+        else
+            channels[selected_channel]:start(selected_channel)
+        end
+        redraw()
+    end
+end
+
+function redraw()
+    screen.clear()
+    
+    -- Draw channel info
+    screen.move(64, 32)
+    screen.level(15)
+    screen.text_center("Channel " .. selected_channel)
+    
+    -- Draw status
+    screen.move(64, 42)
+    screen.level(channels[selected_channel].running and 15 or 3)
+    screen.text_center(channels[selected_channel].running and "Running" or "Stopped")
+    
+    screen.update()
+end
+
 -- Create Config Params & Load Into Norns UI
 
 -- MAJOR CONFIG: Global Settings
