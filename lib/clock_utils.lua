@@ -1,3 +1,13 @@
+--[[
+  clock_utils.lua
+  Clock division and timing utilities for Seeker II
+
+  Handles:
+  - Clock division definitions
+  - Division string to numeric value conversion
+  - Parameter index to time value mapping
+]]--
+
 local clock_utils = {}
 
 -- Clock divisions in order (for params/display)

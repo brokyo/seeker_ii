@@ -1,4 +1,21 @@
--- channel.lua
+--[[
+  channel.lua
+  Core channel functionality for Seeker II
+
+  Handles:
+  - Channel state management (start/stop)
+  - Clock division and sync
+  - Pulse behaviors (simple, strum, burst)
+  - Parameter management
+
+  Dependencies:
+  - utils.lua: Debug and utility functions
+  - theory_utils.lua: Musical timing constants
+  - clock_utils.lua: Clock division handling
+  - params_manager.lua: Parameter visibility management
+  - default_channel_params.lua: Default parameter values
+]]--
+
 -- All logic relates to the channel
 
 local utils = include('lib/utils')

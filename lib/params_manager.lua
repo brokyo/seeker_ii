@@ -1,4 +1,13 @@
--- params_manager.lua
+--[[
+  params_manager.lua
+  Parameter visibility and UI management for Seeker II
+
+  Handles:
+  - Parameter group visibility control
+  - Channel-specific parameter grouping
+  - Behavior-based parameter visibility updates
+]]--
+
 -- Handles parameter visibility and UI-related parameter behavior
 
 local params_manager = {}

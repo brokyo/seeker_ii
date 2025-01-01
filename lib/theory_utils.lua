@@ -1,4 +1,13 @@
--- theory_utils.lua
+--[[
+  theory_utils.lua
+  Musical theory and timing utilities for Seeker II
+
+  Handles:
+  - Clock division definitions
+  - Musical note length definitions
+  - Note name mappings
+]]--
+
 -- Commonly reused musical stuff
 
 local theory_utils = {}

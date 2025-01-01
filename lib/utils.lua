@@ -1,4 +1,13 @@
--- utils.lua
+--[[
+  utils.lua
+  General utility functions for Seeker II
+
+  Handles:
+  - Debug logging with timing information
+  - Table deep copying
+  - Time difference tracking between events
+]]--
+
 -- Convenience methods
 
 local utils = {}
