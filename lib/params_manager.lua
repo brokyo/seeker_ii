@@ -12,53 +12,52 @@
 
 local params_manager = {}
 
--- Parameter group visibility helpers
-function params_manager.show_params(param_ids)
-    for _, id in ipairs(param_ids) do
-        params:show(id)
+-- Parameter groups for each behavior
+local PULSE_PARAMS = {}
+local STRUM_PARAMS = {
+    "strum_header_",
+    "strum_duration_",
+    "strum_pulses_",
+    "strum_clustering_",
+    "strum_variation_"
+}
+local BURST_PARAMS = {
+    "burst_header_",
+    "burst_window_",
+    "burst_style_"
+}
+
+function params_manager.hide_params(channel_id, param_list)
+    for _, param_base in ipairs(param_list) do
+        local param_id = param_base .. channel_id
+        if params:lookup_param(param_id) then
+            params:hide(param_id)
+        end
     end
 end
 
-function params_manager.hide_params(param_ids)
-    for _, id in ipairs(param_ids) do
-        params:hide(id)
+function params_manager.show_params(channel_id, param_list)
+    for _, param_base in ipairs(param_list) do
+        local param_id = param_base .. channel_id
+        if params:lookup_param(param_id) then
+            params:show(param_id)
+        end
     end
 end
 
--- Channel-specific parameter groups
-function params_manager.get_strum_params(channel_id)
-    return {
-        "strum_header_" .. channel_id,
-        "strum_duration_" .. channel_id,
-        "strum_pulses_" .. channel_id,
-        "strum_clustering_" .. channel_id,
-        "strum_variation_" .. channel_id
-    }
-end
-
-function params_manager.get_burst_params(channel_id)
-    return {
-        "burst_header_" .. channel_id,
-        "burst_window_" .. channel_id,
-        "burst_count_" .. channel_id,
-        "burst_distribution_" .. channel_id
-    }
-end
-
--- Update visibility based on behavior
 function params_manager.update_behavior_visibility(channel_id, behavior)
     -- Hide all behavior-specific params first
-    params_manager.hide_params(params_manager.get_strum_params(channel_id))
-    params_manager.hide_params(params_manager.get_burst_params(channel_id))
+    params_manager.hide_params(channel_id, STRUM_PARAMS)
+    params_manager.hide_params(channel_id, BURST_PARAMS)
     
-    -- Show params based on selected behavior
+    -- Show the params for the selected behavior
     if behavior == 2 then  -- Strum
-        params_manager.show_params(params_manager.get_strum_params(channel_id))
+        params_manager.show_params(channel_id, STRUM_PARAMS)
     elseif behavior == 3 then  -- Burst
-        params_manager.show_params(params_manager.get_burst_params(channel_id))
+        params_manager.show_params(channel_id, BURST_PARAMS)
     end
     
-    -- Rebuild menu to reflect changes
+    -- Force menu rebuild to reflect changes
     _menu.rebuild_params()
 end
 

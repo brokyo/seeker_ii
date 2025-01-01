@@ -6,39 +6,146 @@
 ------------------------
 -- External Libraries --
 ------------------------
--- local nb = require("circuits/lib/nb/lib/nb")
--- local nb_voices = {}
+local nb = require("nb/lib/nb")
+local musicutil = require("musicutil")
 
 ------------------------
 -- Internal Libraries --
 ------------------------
--- local clock_utils = require('lib/clock_utils')
--- local paramquencer = require('lib/paramquenver')
 local Channel = include('lib/channel')
+local theory_utils = include('lib/theory_utils')
+local utils = include('lib/utils')
+local params_manager = include('lib/params_manager')
 
 -----------------
 -- Core Config --
 -----------------
-SEEKER_DEBUG = true -- N.B: This is global and should be turned off when not developing 
+SEEKER_DEBUG = true -- For event tables and musical debugging 
+SEEKER_VERBOSE = false -- For detailed event logging
 local NUM_CHANNELS = 4
 
 local channels = {}
 local selected_channel = 1
 
 function init()
-    init_header()
+    -- Initialize timing for logging
+    utils.init_timing()
+    
+    -- Initialize N.B
+    nb:init()
+    
+    -- Initialize channels
     init_channels(NUM_CHANNELS)
+    
+    -- Add global parameters
+    add_global_config()
+    
+    -- Add N.B player parameters
+    nb:add_player_params()
+    
+    -- Initialize UI state
+    init_ui_state()
+    
+    -- Initial screen draw
     redraw()
 end
 
-function init_header()
-    params:add_separator("seeker_app_header", "Seeker")
+function add_global_config()
+    params:add_separator("seeker_app_header", "Seeker Config")
+    
+    -- Global Tuning Configuration
+    params:add_group("Tuning", 4)
+    
+    -- Key selection
+    params:add {
+        type = "option",
+        id = "global_key",
+        name = "Key",
+        options = theory_utils.note_names,
+        default = 1,
+        action = function(value)
+            utils.debug_print("Global key set to " .. theory_utils.note_names[value])
+            -- Regenerate notes for all channels
+            for i = 1, NUM_CHANNELS do
+                if channels[i] then
+                    channels[i]:generate_chord_notes(i)
+                end
+            end
+        end
+    }
+    
+    -- Scale selection
+    local scale_names = {}
+    for i = 1, #musicutil.SCALES do
+        table.insert(scale_names, musicutil.SCALES[i].name)
+    end
+    
+    params:add {
+        type = "option",
+        id = "global_scale",
+        name = "Scale",
+        options = scale_names,
+        default = 1,
+        action = function(value)
+            utils.debug_print("Global scale set to " .. scale_names[value])
+            -- Regenerate notes for all channels
+            for i = 1, NUM_CHANNELS do
+                if channels[i] then
+                    channels[i]:generate_chord_notes(i)
+                end
+            end
+        end
+    }
+    
+    -- Transposition (useful for quick key changes)
+    params:add {
+        type = "number",
+        id = "global_transpose",
+        name = "Transpose",
+        min = -12,
+        max = 12,
+        default = 0,
+        action = function(value)
+            utils.debug_print("Global transpose set to " .. value)
+            -- Regenerate notes for all channels
+            for i = 1, NUM_CHANNELS do
+                if channels[i] then
+                    channels[i]:generate_chord_notes(i)
+                end
+            end
+        end
+    }
+    
+    -- Root octave offset (useful for overall register control)
+    params:add {
+        type = "number",
+        id = "global_octave",
+        name = "Octave",
+        min = -2,
+        max = 2,
+        default = 0,
+        action = function(value)
+            utils.debug_print("Global octave set to " .. value)
+            -- Regenerate notes for all channels
+            for i = 1, NUM_CHANNELS do
+                if channels[i] then
+                    channels[i]:generate_chord_notes(i)
+                end
+            end
+        end
+    }
 end
 
 function init_channels(channel_count)
+    -- First add all parameters for all channels
     for i = 1, channel_count do
         channels[i] = Channel.new(i)
         channels[i]:add_params(i)
+    end
+    
+    -- Then update visibility for all channels
+    for i = 1, channel_count do
+        params_manager.update_behavior_visibility(i, 1)  -- 1 is the default "Pulse" behavior
     end
 end
 
@@ -78,67 +185,7 @@ function redraw()
     screen.update()
 end
 
--- Create Config Params & Load Into Norns UI
-
--- MAJOR CONFIG: Global Settings
--- Global: Scale
--- Global: Key
-
--- MAJOR CONFIG: Voice
--- Voice: N.B Player
-
--- MAJOR CONFIG: Rhythm
--- Clock Source: Internal, Crow Port 1, Crow Port 2
--- Clock Mod; /16 > *16
--- Clock Pulse Behavior: Pulse, Burst, Strum
--- Clock Pulse Length: 0% > 95%
--- Rhythm > Bust Config Section [Only If Burst Selected]
--- Burst Count: 0 > 12
--- Burst Trigger Interval: 1/32 > *4
--- Burst Randomization Amount: 0% > 10%
--- Burst Rhythm: Even, Dotted, Triplet, Swing
--- Rhythm > Strum Config Section [Only if Config Selected]
--- Strum Duration: 1/32 > *4
--- Strum Pulse Count: 0 > 12
--- Strum Clustering Percent: 0% > 100%
--- Strum Clustering Variation: 0% > 100%
--- Burst Rhythm: Even, Dotted, Triplet, Swing 
-
--- MAJOR CONFIG: Tones
--- Arpeggiator Type: Chord, Cluster
--- Arpeggiator Root Note: MIDI Value 0 > 127 [Show as (Note)(Octave)] 
--- Arpeggiator Style: Up, Down, Ping Pong, Random, Looping Random
--- Arpeggiator Step: - 5 > 5
--- Looping Random Length: 0 > 16 [Only If Selected]
--- Tones > Chord Config [Only If Selected]
--- Chord Root: [In Scale Notes]
--- Chord Root Octave: [1 > 7]
--- Chord Root Inversion: 0 > 3
--- Note Count: 1 > 12
--- Tones > Cluster Config
--- Cluster Root: [In Scale Notes]
--- Cluster Root Octave: 1 > 7
--- Cluster Interval Length: 0 > 16
-
--- MAJOR CONFIG: Expression
--- Expression > Velocity Config
--- Velocity Type: Alternate, Ramp Up, Ramp Down, Sine, Flat
--- Max Velocity: 0 > 127
--- Min Velocity: 0 > 127
--- Humanize: true > false
--- Expression > Duration Config
--- Duration Type: Pulse Length, Aleatoric
--- Aleatoric Config: Chance
--- Aleatoric 1/8 Chance: 0 > 10
--- Aleatoric 1/4 Chance: 0 > 10
--- Aleatoric 1/2 Chance: 0 > 10
--- Aleatoric 1 Chance: 0 > 10
--- Aleatoric 2 Chance: 0 > 10
--- Aleatoric 4 Chance: 0 > 10
-
--- MAJOR CONFIG: Paramquencer
--- Paramquencer Active: True > False
--- Paramquencer Lane: 1 > 4
--- Pulses Per Step: 1 > 64
--- Param: [R>B: Burst Count, R>B: Trigger Interval, R>B: Rhythm, R>S: Pulse Count, R>S: Clustering Percentage, R>S: Clustering Variation, R>S: Rhythm, T>A: Arp Style, T>A: Arp Step, T>A: T>Ch: Root Note, T>Ch: Root Octave, T>Ch: Chord Inversion, T>Ch: Note Count. T>Cl: Root Note, T>Cl: Root Octave, T>Cl: Interval Length]
-
+function init_ui_state()
+    -- Initialize UI state variables
+    selected_channel = 1
+end
