@@ -1,4 +1,4 @@
--- Seeker Next
+-- Seeker
 -- 
 -- Textural generation channels
 -- awakening.systems
@@ -19,17 +19,24 @@ local Channel = include('lib/channel')
 -----------------
 -- Core Config --
 -----------------
-local channels = {}
+SEEKER_DEBUG = false -- N.B: This is global and should be turned off when not developing 
 local NUM_CHANNELS = 4
 
+local channels = {}
+
 function init()
+    init_header()
     init_channels(NUM_CHANNELS)
+end
+
+function init_header()
+    params:add_separator("seeker_app_header", "Seeker")
 end
 
 function init_channels(channel_count)
     for i = 1, channel_count do
         channels[i] = Channel.new(i)
-        channels[i]:add_params()
+        channels[i]:add_params(i)
     end
 
     tab.print(channels[1])

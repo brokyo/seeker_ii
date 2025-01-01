@@ -16,4 +16,10 @@ function utils.deep_copy(orig)
     return copy
 end
 
+function utils.debug_print(msg)
+    if SEEKER_DEBUG then
+      print(msg)
+    end
+  end
+
 return utils
