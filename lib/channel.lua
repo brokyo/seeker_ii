@@ -307,9 +307,62 @@ end
 function Channel:add_expression_params(channel_id)
     -- Count:
     -- 1 separator
-    -- Total: 1 parameter
-    params:add_group("expression_" .. channel_id, "Expression", 1)
-    params:add_separator("expression_header_" .. channel_id, "Expression (Coming Soon)")
+    -- 4 parameters (preset, period, min, max)
+    -- Total: 5 parameters
+    params:add_group("expression_" .. channel_id, "Expression", 5)
+    params:add_separator("expression_header_" .. channel_id, "Expression")
+    
+    params:add {
+        type = "option",
+        id = "velocity_preset_" .. channel_id,
+        name = "Velocity Pattern",
+        options = {"Static", "Rise", "Fall", "Steps"},
+        default = 1,
+        action = function(value)
+            if SEEKER_VERBOSE then
+                utils.debug_print("Channel " .. channel_id .. " velocity preset set to " .. ({"Static", "Rise", "Fall", "Steps"})[value])
+            end
+            -- Reset any preset-specific state
+            self.expression_state = self.expression_state or {}
+            self.expression_state[channel_id] = {}
+        end
+    }
+    
+    params:add {
+        type = "control",
+        id = "velocity_period_" .. channel_id,
+        name = "Pattern Period",
+        controlspec = controlspec.new(0.25, 32, 'exp', 0.25, 4, 'b'),
+        action = function(value)
+            if SEEKER_VERBOSE then
+                utils.debug_print("Channel " .. channel_id .. " velocity period set to " .. value .. " beats")
+            end
+        end
+    }
+    
+    params:add {
+        type = "control",
+        id = "velocity_min_" .. channel_id,
+        name = "Min Velocity",
+        controlspec = controlspec.new(0, 127, 'lin', 1, 32, ''),
+        action = function(value)
+            if SEEKER_VERBOSE then
+                utils.debug_print("Channel " .. channel_id .. " min velocity set to " .. value)
+            end
+        end
+    }
+    
+    params:add {
+        type = "control",
+        id = "velocity_max_" .. channel_id,
+        name = "Max Velocity",
+        controlspec = controlspec.new(0, 127, 'lin', 1, 96, ''),
+        action = function(value)
+            if SEEKER_VERBOSE then
+                utils.debug_print("Channel " .. channel_id .. " max velocity set to " .. value)
+            end
+        end
+    }
 end
 
 function Channel:add_rhythm_params(channel_id)
@@ -815,12 +868,104 @@ function Channel:get_next_note(channel_id)
     return note
 end
 
+local function sign(x)
+    if x > 0 then
+        return 1
+    elseif x < 0 then
+        return -1
+    else
+        return 0
+    end
+end
+
+function Channel:calculate_velocity(channel_id)
+    local preset = params:get("velocity_preset_" .. channel_id)
+    local period = params:get("velocity_period_" .. channel_id)
+    local min_vel = params:get("velocity_min_" .. channel_id) / 127
+    local max_vel = params:get("velocity_max_" .. channel_id) / 127
+    
+    -- Initialize expression state for this channel if needed
+    self.expression_state = self.expression_state or {}
+    self.expression_state[channel_id] = self.expression_state[channel_id] or {}
+    local state = self.expression_state[channel_id]
+    
+    -- Get current beat
+    local current_beat = clock.get_beats()
+    
+    -- Calculate phase (0 to 1) within the period
+    local phase = (current_beat % period) / period
+    
+    -- Start with normalized velocity (0-1)
+    local norm_velocity = 1.0  -- Default to max for static
+    
+    if preset == 1 then  -- Static
+        norm_velocity = 1.0  -- Always use max velocity
+        
+    elseif preset == 2 then  -- Rise
+        norm_velocity = phase
+        
+    elseif preset == 3 then  -- Fall
+        norm_velocity = 1 - phase
+        
+    elseif preset == 4 then  -- Steps
+        -- Generate new random steps at start of period
+        if not state.steps or phase < (state.last_phase or 0) then
+            state.steps = {}
+            for i = 1, 8 do  -- 8 steps per period
+                state.steps[i] = math.random()  -- Full range for steps
+            end
+        end
+        state.last_phase = phase
+        
+        -- Find current step
+        local step_index = math.floor(phase * 8) + 1
+        norm_velocity = state.steps[step_index]
+    end
+    
+    -- Scale normalized velocity to min/max range
+    local velocity = util.linlin(0, 1, min_vel, max_vel, norm_velocity)
+    
+    -- Debug velocity calculation if enabled
+    if SEEKER_VERBOSE then
+        utils.debug_table("----------------------------------------", channel_id)
+        utils.debug_table("Velocity Calculation:", channel_id)
+        utils.debug_table(string.format(
+            "Beat: %.2f, Period: %.2f, Phase: %.2f", 
+            current_beat, period, phase
+        ), channel_id)
+        utils.debug_table(string.format(
+            "Preset: %s, Range: %d-%d",
+            ({"Static", "Rise", "Fall", "Steps"})[preset],
+            min_vel * 127,
+            max_vel * 127
+        ), channel_id)
+        utils.debug_table(string.format(
+            "Normalized: %.2f, Final: %.2f",
+            norm_velocity,
+            velocity
+        ), channel_id)
+        if preset == 4 and state.steps then
+            utils.debug_table(string.format(
+                "Steps: %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f, %.2f",
+                table.unpack(state.steps)
+            ), channel_id)
+        end
+        utils.debug_table("----------------------------------------", channel_id)
+    end
+    
+    return velocity
+end
+
 function Channel:trigger_note(channel_id, note)
     local player = params:lookup_param("channel_voice_" .. channel_id):get_player()
     if player then
-        player:play_note(note, 1.0, 0.1)  -- velocity 1.0, duration 0.1s
+        local velocity = self:calculate_velocity(channel_id)
+        player:play_note(note, velocity, 0.1)
         if SEEKER_VERBOSE then
-            utils.debug_print(string.format("Triggered note %d", note), channel_id)
+            utils.debug_print(string.format(
+                "Triggered note %d with velocity %.2f",
+                note, velocity
+            ), channel_id)
     end
   end
 end
