@@ -26,6 +26,7 @@ local NUM_CHANNELS = 4
 
 local channels = {}
 local selected_channel = 1
+local PSET_FILE = _path.data .. "seeker_ii/last.pset"
 
 function init()
     -- Initialize timing for logging
@@ -46,32 +47,29 @@ function init()
     -- Initialize UI state
     init_ui_state()
     
-    -- Set up preset system
-    params:add_separator("presets", "Presets")
-    params:add_group("pset", "Preset Management", 2)
-    params:add{
-        type = "file",
-        id = "pset_load",
-        name = "Load Preset",
-        path = _path.data .. "seeker_ii/presets",
-        action = function(file) 
-            params:read(file)
-            utils.debug_print("Loaded preset: " .. file)
-        end
-    }
-    params:add{
-        type = "file",
-        id = "pset_save", 
-        name = "Save Preset",
-        path = _path.data .. "seeker_ii/presets",
-        action = function(file)
-            params:write(file)
-            utils.debug_print("Saved preset: " .. file)
-        end
-    }
+    -- Create data directory if it doesn't exist
+    os.execute("mkdir -p " .. _path.data .. "seeker_ii")
     
-    -- Create presets directory if it doesn't exist
-    os.execute("mkdir -p " .. _path.data .. "seeker_ii/presets")
+    -- Set up auto-save
+    params:add_group("auto_save", "Auto Save", 1)
+    params:add_option("auto_save", "Auto Save", {"Off", "On"}, 2)
+    
+    -- Set up auto-save on parameter changes
+    params.action_write = function(filename, name, number)
+        -- Only auto-save if:
+        -- 1. Auto-save is enabled
+        -- 2. The current write isn't already our auto-save file
+        if params:get("auto_save") == 2 and filename ~= PSET_FILE then
+            params:write(PSET_FILE)
+            utils.debug_print("Auto-saved preset")
+        end
+    end
+    
+    -- Load last preset if it exists
+    if util.file_exists(PSET_FILE) then
+        params:read(PSET_FILE)
+        utils.debug_print("Loaded last preset")
+    end
     
     -- Initial screen draw
     redraw()
@@ -80,7 +78,7 @@ end
 -- Preset callbacks
 function cleanup()
     -- Save current state as last.pset
-    params:write(_path.data .. "seeker_ii/presets/last.pset")
+    params:write(PSET_FILE)
 end
 
 function add_global_config()
