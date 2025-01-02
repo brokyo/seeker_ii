@@ -1,12 +1,5 @@
 # Seeker II Test Plan
 
-## 1. Clock & Timing Tests
-
-### A. Basic Clock Division
-- Test each division (1/16, 1/8, 1/4, etc.)
-- Verify timing accuracy
-- Run multiple channels at different divisions
-
 ### B. Strum Behavior
 - Test different strum durations (1/8, 1/4, etc.)
 - Verify clustering behavior (0, 50, 100)
