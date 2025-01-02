@@ -4,6 +4,17 @@ local default_channel_params = {
     -- MAJOR CONFIG: Voice
     -- voice_player = {},                -- Options: Available N.B Player
     
+    -- MAJOR CONFIG: Duration
+    duration_mode = "Fixed",           -- Options: "Fixed", "Pattern", "Aleatoric"
+    duration_base = 9,                -- Index into note_lengths (9 = "1" beat)
+    duration_variance = 0,            -- Percentage of variance (0-100)
+    duration_variance_style = "Random", -- Options: "Random", "Locked Random", "Drift", "Breathe"
+    duration_min = 5,                 -- Index into note_lengths (5 = "1/4" beat)
+    duration_max = 13,                -- Index into note_lengths (13 = "2" beats)
+    duration_pattern = {1},           -- Pattern of duration multipliers
+    duration_pattern_length = 1,      -- Length of duration pattern
+    duration_locked_length = 16,      -- Length of locked random sequence
+    
     -- MAJOR CONFIG: Rhythm
     clock_source = "Internal",         -- Options: "Internal", "Crow Port 1", "Crow Port 2"
     clock_mod = 1,                     -- Clock mult/div (e.g., 1 for no modulation, 1/16, 16, etc.)

@@ -373,6 +373,121 @@ function Channel:add_rhythm_params(channel_id)
     params:add_separator("rhythm_header_" .. channel_id, "Rhythm (Coming Soon)")
 end
 
+function Channel:add_duration_params(channel_id)
+    -- Count:
+    -- 1 separator (Duration Config)
+    -- 3 base parameters (mode, base, humanize)
+    -- 1 separator (Pattern Config)
+    -- 4 pattern parameters (length, shape, min, max)
+    -- Total: 9 parameters
+    params:add_group("duration_" .. channel_id, "Duration", 9)
+    params:add_separator("duration_header_" .. channel_id, "Duration Config")
+    
+    params:add {
+        type = "option",
+        id = "duration_mode_" .. channel_id,
+        name = "Mode",
+        options = {"Fixed", "Pattern"},
+        default = 1,
+        action = function(value)
+            utils.debug_print("Channel " .. channel_id .. " duration mode set to " .. ({"Fixed", "Pattern"})[value])
+            params_manager.update_duration_visibility(channel_id, value)
+        end
+    }
+    
+    params:add {
+        type = "option",
+        id = "duration_base_" .. channel_id,
+        name = "Base Duration",
+        options = theory_utils.note_lengths,
+        default = 9,  -- "1" beat
+        action = function(value)
+            local length = theory_utils.get_note_length(value)
+            utils.debug_print("Channel " .. channel_id .. " base duration set to " .. length)
+        end
+    }
+    
+    params:add {
+        type = "number",
+        id = "duration_variance_" .. channel_id,
+        name = "Variance",
+        min = 0,
+        max = 25,
+        default = 0,
+        action = function(value)
+            utils.debug_print("Channel " .. channel_id .. " variance set to " .. value .. "%")
+        end
+    }
+    
+    -- Pattern mode parameters
+    params:add_separator("duration_pattern_header_" .. channel_id, "Pattern Config")
+    
+    params:add {
+        type = "number",
+        id = "duration_pattern_length_" .. channel_id,
+        name = "Pattern Length",
+        min = 2,
+        max = 16,
+        default = 4,
+        action = function(value)
+            utils.debug_print("Channel " .. channel_id .. " pattern length set to " .. value)
+            -- Reset pattern state when length changes
+            if self.duration_state and self.duration_state[channel_id] then
+                self.duration_state[channel_id].pattern_position = 1
+            end
+        end
+    }
+    
+    params:add {
+        type = "option",
+        id = "duration_pattern_shape_" .. channel_id,
+        name = "Pattern Shape",
+        options = {
+            "Pendulum",    -- Long-short alternation
+            "Mountain",    -- Build up and down
+            "Valley",      -- Drop down and up
+            "Steps",       -- Random but repeating sequence
+            "Gather",      -- Short to long progression
+            "Scatter"      -- Long to short progression
+        },
+        default = 1,
+        action = function(value)
+            utils.debug_print("Channel " .. channel_id .. " pattern shape set to " .. ({"Pendulum", "Mountain", "Valley", "Steps", "Gather", "Scatter"})[value])
+            -- Generate new random pattern ONLY for Steps
+            if value == 4 then  -- Steps
+                self:generate_locked_duration_sequence(channel_id)
+            end
+        end
+    }
+    
+    params:add {
+        type = "option",
+        id = "duration_min_" .. channel_id,
+        name = "Min Duration",
+        options = theory_utils.note_lengths,
+        default = 5,  -- "1/4" beat
+        action = function(value)
+            local length = theory_utils.get_note_length(value)
+            utils.debug_print("Channel " .. channel_id .. " min duration set to " .. length)
+        end
+    }
+    
+    params:add {
+        type = "option",
+        id = "duration_max_" .. channel_id,
+        name = "Max Duration",
+        options = theory_utils.note_lengths,
+        default = 13,  -- "2" beats
+        action = function(value)
+            local length = theory_utils.get_note_length(value)
+            utils.debug_print("Channel " .. channel_id .. " max duration set to " .. length)
+        end
+    }
+    
+    -- Set initial visibility based on default mode (Fixed)
+    params_manager.update_duration_visibility(channel_id, 1)
+end
+
 function Channel:add_params(channel_id)
     -- Main channel section
     params:add_separator("channel_header_" .. channel_id, "Seeker: Channel " .. channel_id)
@@ -380,6 +495,7 @@ function Channel:add_params(channel_id)
     -- Add all parameter groups
     self:add_clock_params(channel_id)
     self:add_voice_params(channel_id)
+    self:add_duration_params(channel_id)  -- Add duration params
     self:add_arp_params(channel_id)
     self:add_expression_params(channel_id)
     self:add_rhythm_params(channel_id)
@@ -439,7 +555,7 @@ function Channel:generate_strum_timing(channel_id)
     ), channel_id)
 
     local pulse_times = {}
-    local min_time = 0.001 -- Minimum time in seconds (1ms)
+    local min_time = 0.005 -- Increased minimum time to 5ms for better reliability
     
     -- Position-based clustering
     for i = 1, num_pulses do
@@ -451,75 +567,45 @@ function Channel:generate_strum_timing(channel_id)
             local cluster_strength = (33 - clustering) / 33  -- 1 at 0, 0 at 33
             t = total_duration * (normalized_index * (1 - cluster_strength) + 
                 math.pow(normalized_index, 3) * cluster_strength)
-            utils.debug_print(string.format(
-                "Early cluster: index=%.2f, strength=%.2f, t=%.3fs",
-                normalized_index, cluster_strength, t
-            ), channel_id)
         elseif clustering > 66 then
             -- Cluster near end
             local cluster_strength = (clustering - 66) / 33  -- 0 at 66, 1 at 100
             t = total_duration * (normalized_index * (1 - cluster_strength) + 
                 math.pow(normalized_index, 1/3) * cluster_strength)
-            utils.debug_print(string.format(
-                "Late cluster: index=%.2f, strength=%.2f, t=%.3fs",
-                normalized_index, cluster_strength, t
-            ), channel_id)
         else
             -- Even spacing
             t = total_duration * normalized_index
-            utils.debug_print(string.format(
-                "Even spacing: index=%.2f, t=%.3fs",
-                normalized_index, t
-            ), channel_id)
         end
         
         -- Add human-like variation
         if variation > 0 then
-            -- More variation in the middle, less at start/end
-            -- variance_shape peaks at middle (sin(π/2) = 1) and drops at ends (sin(0) = sin(π) = 0)
             local variance_shape = math.sin(normalized_index * math.pi)
-            
-            -- Maximum possible shift is total_duration/num_pulses * (variation/100)
-            -- This ensures variation stays proportional to spacing between pulses
             local max_variation = total_duration * (variation/100) / num_pulses
-            
-            -- Generate random shift between -max_variation/2 and +max_variation/2
             local raw_shift = (math.random() - 0.5) * max_variation
-            
-            -- Apply shape to reduce variation at start/end
             local variation_amount = raw_shift * variance_shape
-            
-            if SEEKER_VERBOSE then
-                utils.debug_print(string.format(
-                    "Variation details for pulse %d:\n" ..
-                    "  - Position in sequence: %.2f (0=start, 1=end)\n" ..
-                    "  - Shape multiplier: %.2f (0=no variation, 1=full)\n" ..
-                    "  - Max allowed shift: ±%.3fs\n" ..
-                    "  - Raw random shift: %.3fs\n" ..
-                    "  - Final shift after shape: %.3fs",
-                    i, normalized_index, variance_shape, 
-                    max_variation/2, raw_shift, variation_amount
-                ), channel_id)
-            end
-            
             t = t + variation_amount
         end
         
-        t = math.max(min_time, math.min(t, total_duration))
+        -- Ensure first event has enough delay to be triggered
+        if i == 1 then
+            t = math.max(min_time, t)
+        end
+        
+        -- Ensure last event doesn't exceed total duration
+        if i == num_pulses then
+            t = math.min(t, total_duration)
+        end
+        
         table.insert(pulse_times, t)
     end
     
     -- Sort to maintain forward motion
     table.sort(pulse_times)
     
-    -- Ensure minimum spacing for playability
+    -- Ensure minimum spacing between events
     for i = 2, #pulse_times do
         if pulse_times[i] - pulse_times[i-1] < min_time then
             pulse_times[i] = pulse_times[i-1] + min_time
-            utils.debug_print(string.format(
-                "Adjusted spacing: pulse %d moved to %.3fs (min spacing)",
-                i, pulse_times[i]
-            ), channel_id)
         end
     end
 
@@ -527,12 +613,12 @@ function Channel:generate_strum_timing(channel_id)
     if SEEKER_DEBUG then
         utils.debug_table("Event sequence:", channel_id)
         utils.debug_table(string.format(
-            "%-6s %-8s %s", 
-            "Event", "Time", "Note"
+            "%-6s %-8s %-12s %s", 
+            "Event", "Time", "Duration", "Note"
         ), channel_id)
         utils.debug_table(string.format(
-            "%-6s %-8s %s", 
-            "-----", "----", "----"
+            "%-6s %-8s %-12s %s", 
+            "-----", "----", "--------", "----"
         ), channel_id)
         
         -- Make a copy of arp state for preview
@@ -547,14 +633,14 @@ function Channel:generate_strum_timing(channel_id)
         for i, t in ipairs(pulse_times) do
             local note = self:preview_next_note(channel_id, preview_state)
             local note_name = musicutil.note_num_to_name(note)
+            local duration = self:calculate_duration(channel_id, t)  -- Pass the event offset
             
             utils.debug_table(string.format(
-                "%-6d %-8.3f %d (%s)", 
-                i, t, note, note_name
+                "%-6d %-8.3f %-12.3f %d (%s)", 
+                i, t, duration, note, note_name
             ), channel_id)
         end
         utils.debug_table("----------------------------------------", channel_id)
-        utils.debug_table("", channel_id)  -- Empty line
     end
 
     return pulse_times
@@ -574,6 +660,11 @@ function Channel:generate_burst_timing(channel_id)
 
     local event_times = {}
     local min_time = 0.001 -- Minimum time in seconds
+    
+    -- Reset pattern position for this burst
+    if self.duration_state and self.duration_state[channel_id] then
+        self.duration_state[channel_id].pattern_position = 1
+    end
     
     if style == 1 then -- Spray
         -- Like throwing a handful of pebbles: more chaotic at start, settling at end
@@ -712,12 +803,12 @@ function Channel:generate_burst_timing(channel_id)
     if SEEKER_DEBUG then
         utils.debug_table("Event sequence:", channel_id)
         utils.debug_table(string.format(
-            "%-6s %-8s %s", 
-            "Event", "Time", "Note"
+            "%-6s %-8s %-12s %s", 
+            "Event", "Time", "Duration", "Note"
         ), channel_id)
         utils.debug_table(string.format(
-            "%-6s %-8s %s", 
-            "-----", "----", "----"
+            "%-6s %-8s %-12s %s", 
+            "-----", "----", "--------", "----"
         ), channel_id)
         
         -- Make a copy of arp state for preview
@@ -732,10 +823,12 @@ function Channel:generate_burst_timing(channel_id)
         for i, t in ipairs(event_times) do
             local note = self:preview_next_note(channel_id, preview_state)
             local note_name = musicutil.note_num_to_name(note)
+            -- Calculate duration with normalized position based on event index
+            local duration = self:calculate_duration(channel_id, t)
             
             utils.debug_table(string.format(
-                "%-6d %-8.3f %d (%s)", 
-                i, t, note, note_name
+                "%-6d %-8.3f %-12.3f %d (%s)", 
+                i, t, duration, note, note_name
             ), channel_id)
         end
         utils.debug_table("----------------------------------------", channel_id)
@@ -956,18 +1049,19 @@ function Channel:calculate_velocity(channel_id)
     return velocity
 end
 
-function Channel:trigger_note(channel_id, note)
+function Channel:trigger_note(channel_id, note, event_offset)
     local player = params:lookup_param("channel_voice_" .. channel_id):get_player()
     if player then
         local velocity = self:calculate_velocity(channel_id)
-        player:play_note(note, velocity, 0.1)
+        local duration = self:calculate_duration(channel_id, event_offset)
+        player:play_note(note, velocity, duration)
         if SEEKER_VERBOSE then
             utils.debug_print(string.format(
-                "Triggered note %d with velocity %.2f",
-                note, velocity
+                "Triggered note %d with velocity %.2f and duration %.3f beats",
+                note, velocity, duration
             ), channel_id)
+        end
     end
-  end
 end
 
 function Channel:pulse_channel(channel_id)
@@ -979,6 +1073,8 @@ function Channel:pulse_channel(channel_id)
     if SEEKER_DEBUG then
         local behavior_names = {"Pulse", "Strum", "Burst"}
         local clock_div = clock_utils.get_division(params:get("clock_mod_" .. channel_id))
+        local mode = params:get("duration_mode_" .. channel_id)
+        
         utils.debug_table("", channel_id)  -- Empty line
         utils.debug_table("----------------------------------------", channel_id)
         utils.debug_table(string.format(
@@ -986,170 +1082,64 @@ function Channel:pulse_channel(channel_id)
             behavior_names[behavior],
             clock_div
         ), channel_id)
+
+        if mode == 1 then  -- Fixed mode
+            local variance = params:get("duration_variance_" .. channel_id)
+            utils.debug_table(string.format(
+                "Duration: Mode=Fixed, Variance=%d%%",
+                variance
+            ), channel_id)
+        else  -- Pattern mode
+            local pattern_length = params:get("duration_pattern_length_" .. channel_id)
+            local pattern_shape = params:get("duration_pattern_shape_" .. channel_id)
+            local min_idx = params:get("duration_min_" .. channel_id)
+            local max_idx = params:get("duration_max_" .. channel_id)
+            local min_beats = theory_utils.get_note_length(min_idx)
+            local max_beats = theory_utils.get_note_length(max_idx)
+            
+            utils.debug_table(string.format(
+                "Duration: Mode=Pattern, Shape=%s, Length=%d",
+                ({"Pendulum", "Mountain", "Valley", "Steps", "Gather", "Scatter"})[pattern_shape],
+                pattern_length
+            ), channel_id)
+            utils.debug_table(string.format(
+                "Range: %s to %s",
+                min_beats,
+                max_beats
+            ), channel_id)
+        end
         utils.debug_table("----------------------------------------", channel_id)
-        utils.debug_table("", channel_id)  -- Empty line
-    end
-    
-    -- Track timing between pulses
-    if SEEKER_VERBOSE then
-        self.last_pulse_time = utils.debug_time_diff("Channel Pulse", self.last_pulse_time, channel_id)
     end
     
     if behavior == 1 then  -- Pulse
-        if SEEKER_VERBOSE then utils.debug_print("Simple Pulse", channel_id) end
         local note = self:get_next_note(channel_id)
+        local duration = self:calculate_duration(channel_id)
+        local note_name = musicutil.note_num_to_name(note)
+        
+        -- Show event table for all pulses
         if SEEKER_DEBUG then
-            local note_name = musicutil.note_num_to_name(note)
             utils.debug_table("Event sequence:", channel_id)
             utils.debug_table(string.format(
-                "%-6s %-8s %s", 
-                "Event", "Time", "Note"
+                "%-6s %-8s %-12s %s", 
+                "Event", "Time", "Duration", "Note"
             ), channel_id)
             utils.debug_table(string.format(
-                "%-6s %-8s %s", 
-                "-----", "----", "----"
+                "%-6s %-8s %-12s %s", 
+                "-----", "----", "--------", "----"
             ), channel_id)
+            
             utils.debug_table(string.format(
-                "%-6d %-8.3f %d (%s)", 
-                1, 0.0, note, note_name
+                "%-6d %-8.3f %-12.3f %d (%s)", 
+                1, 0.0, duration, note, note_name
             ), channel_id)
             utils.debug_table("----------------------------------------", channel_id)
-            utils.debug_table("", channel_id)  -- Empty line
         end
+        
         self:trigger_note(channel_id, note)
     elseif behavior == 2 then  -- Strum
-        local strum_timing = self:generate_strum_timing(channel_id)
-        local start_time = current_time
-        local start_beat = current_beat
-        local last_event_time = nil
-        local note_count = #self.arp_state[channel_id].current_notes
-        local strum_events = #strum_timing
-
-        if SEEKER_DEBUG then
-            local duration_idx = params:get("strum_duration_" .. channel_id)
-            local duration_beats = theory_utils.get_note_length(duration_idx)
-            local clustering = params:get("strum_clustering_" .. channel_id)
-            local variation = params:get("strum_variation_" .. channel_id)
-            utils.debug_table(string.format(
-                "Strum Settings: Events=%d, Window=%s, Shape=%d%%, Feel=%d%%",
-                strum_events, duration_beats, clustering, variation
-            ), channel_id)
-            utils.debug_table("----------------------------------------", channel_id)
-            utils.debug_table("", channel_id)  -- Empty line
-            
-            -- Preview the strum sequence
-            utils.debug_table("Event sequence:", channel_id)
-            utils.debug_table(string.format(
-                "%-6s %-8s %s", 
-                "Event", "Time", "Note"
-            ), channel_id)
-            utils.debug_table(string.format(
-                "%-6s %-8s %s", 
-                "-----", "----", "----"
-            ), channel_id)
-            
-            -- Make a copy of arp state for preview
-            local preview_state = {
-                current_index = self.arp_state[channel_id].current_index,
-                current_notes = self.arp_state[channel_id].current_notes,
-                direction = self.arp_state[channel_id].direction,
-                random_sequence = self.arp_state[channel_id].random_sequence
-            }
-            
-            -- Preview and log each event
-            for i, t in ipairs(strum_timing) do
-                local note = self:preview_next_note(channel_id, preview_state)
-                local note_name = musicutil.note_num_to_name(note)
-                
-                utils.debug_table(string.format(
-                    "%-6d %-8.3f %d (%s)", 
-                    i, t, note, note_name
-                ), channel_id)
-            end
-            utils.debug_table("----------------------------------------", channel_id)
-            utils.debug_table("", channel_id)  -- Empty line
-        end
-        
-        -- Schedule each strum event
-        for i, t in ipairs(strum_timing) do
-            clock.run(function()
-                clock.sync(start_beat + t / clock.get_beat_sec())
-                if SEEKER_VERBOSE then
-                    last_event_time = utils.debug_time_diff(string.format(
-                        "Strum Event %d/%d (arp pos: %d/%d)", 
-                        i, strum_events,
-                        self.arp_state[channel_id].current_index,
-                        note_count
-                    ), last_event_time, channel_id)
-                end
-                local note = self:get_next_note(channel_id)
-                self:trigger_note(channel_id, note)
-            end)
-        end
+        self:initiate_strum(channel_id, current_time, current_beat)
     elseif behavior == 3 then  -- Burst
-        local burst_timing = self:generate_burst_timing(channel_id)
-        local start_time = current_time
-        local start_beat = current_beat
-        local last_event_time = nil
-
-        if SEEKER_DEBUG then
-            local window_idx = params:get("burst_window_" .. channel_id)
-            local window_beats = theory_utils.get_note_length(window_idx)
-            local style = ({"Spray", "Accelerate", "Decelerate", "Crescendo", "Cascade", "Pulse", "Bounce", "Chaos"})[params:get("burst_style_" .. channel_id)]
-            utils.debug_table(string.format(
-                "Burst Settings: Style=%s, Window=%s, Events=%d",
-                style, window_beats, #burst_timing
-            ), channel_id)
-            utils.debug_table("----------------------------------------", channel_id)
-            utils.debug_table("", channel_id)  -- Empty line
-            
-            -- Preview the burst sequence
-            utils.debug_table("Event sequence:", channel_id)
-            utils.debug_table(string.format(
-                "%-6s %-8s %s", 
-                "Event", "Time", "Note"
-            ), channel_id)
-            utils.debug_table(string.format(
-                "%-6s %-8s %s", 
-                "-----", "----", "----"
-            ), channel_id)
-            
-            -- Make a copy of arp state for preview
-            local preview_state = {
-                current_index = self.arp_state[channel_id].current_index,
-                current_notes = self.arp_state[channel_id].current_notes,
-                direction = self.arp_state[channel_id].direction,
-                random_sequence = self.arp_state[channel_id].random_sequence
-            }
-            
-            -- Preview and log each event
-            for i, t in ipairs(burst_timing) do
-                local note = self:preview_next_note(channel_id, preview_state)
-                local note_name = musicutil.note_num_to_name(note)
-                
-                utils.debug_table(string.format(
-                    "%-6d %-8.3f %d (%s)", 
-                    i, t, note, note_name
-                ), channel_id)
-            end
-            utils.debug_table("----------------------------------------", channel_id)
-            utils.debug_table("", channel_id)  -- Empty line
-        end
-        
-        -- Schedule each burst event
-        for i, t in ipairs(burst_timing) do
-            clock.run(function()
-                clock.sync(start_beat + t / clock.get_beat_sec())
-                if SEEKER_VERBOSE then
-                    last_event_time = utils.debug_time_diff(string.format(
-                        "Burst Event %d/%d", 
-                        i, #burst_timing
-                    ), last_event_time, channel_id)
-                end
-                local note = self:get_next_note(channel_id)
-                self:trigger_note(channel_id, note)
-            end)
-        end
+        self:initiate_burst(channel_id, current_time, current_beat)
     end
 end
 
@@ -1409,6 +1399,314 @@ function Channel:preview_next_note(channel_id, preview_state)
     end
     
     return note
+end
+
+-- Initialize duration state
+function Channel:init_duration_state(channel_id)
+    if not self.duration_state then
+        self.duration_state = {}
+    end
+    self.duration_state[channel_id] = {
+        pattern_position = 1,  -- Always start at position 1
+        last_duration = nil,
+        drift_value = 0,
+        breathe_phase = 0
+    }
+    
+    -- Reset pattern position when initializing state
+    if params:get("duration_mode_" .. channel_id) == 2 then  -- Pattern mode
+        self.duration_state[channel_id].pattern_position = 1
+    end
+end
+
+function Channel:generate_locked_duration_sequence(channel_id)
+    if not self.duration_state or not self.duration_state[channel_id] then
+        self:init_duration_state(channel_id)
+    end
+    local state = self.duration_state[channel_id]
+    
+    -- Get sequence length from pattern length parameter
+    local sequence_length = params:get("duration_pattern_length_" .. channel_id)
+    
+    -- Get min/max indices for note lengths
+    local min_idx = params:get("duration_min_" .. channel_id)
+    local max_idx = params:get("duration_max_" .. channel_id)
+    
+    -- Ensure min_idx is not greater than max_idx
+    if min_idx > max_idx then
+        min_idx, max_idx = max_idx, min_idx
+    end
+    
+    -- Create array of available note lengths between min and max
+    local available_lengths = {}
+    for i = min_idx, max_idx do
+        local beats = theory_utils.get_note_length(i)
+        table.insert(available_lengths, {idx = i, beats = beats})
+    end
+    
+    -- Generate new sequence of note length indices
+    state.locked_sequence = {}
+    
+    for i = 1, sequence_length do
+        -- Pick a random note length from available options
+        local choice = math.random(#available_lengths)
+        table.insert(state.locked_sequence, available_lengths[choice].idx)
+    end
+    
+    if SEEKER_DEBUG then
+        utils.debug_table("Generated new locked random sequence:", channel_id)
+        local sequence_preview = {}
+        for i, idx in ipairs(state.locked_sequence) do
+            table.insert(sequence_preview, theory_utils.get_note_length(idx))
+        end
+        utils.debug_table(table.concat(sequence_preview, ", "), channel_id)
+        
+        -- Also show the available lengths we chose from
+        local available_preview = {}
+        for _, length in ipairs(available_lengths) do
+            table.insert(available_preview, theory_utils.get_note_length(length.idx))
+        end
+        utils.debug_table("Available lengths: " .. table.concat(available_preview, ", "), channel_id)
+    end
+end
+
+function Channel:calculate_duration(channel_id, event_offset)
+    local mode = params:get("duration_mode_" .. channel_id)
+    local base_idx = params:get("duration_base_" .. channel_id)
+    local base_beats = theory_utils.get_note_length(base_idx)
+    local base_value = load("return " .. base_beats)()
+    
+    -- Initialize duration state if needed
+    if not self.duration_state or not self.duration_state[channel_id] then
+        self:init_duration_state(channel_id)
+    end
+    local state = self.duration_state[channel_id]
+    
+    -- Start with base duration
+    local duration = base_value
+    
+    if mode == 1 then  -- Fixed mode
+        duration = base_value
+    else  -- Pattern mode
+        local min_idx = params:get("duration_min_" .. channel_id)
+        local max_idx = params:get("duration_max_" .. channel_id)
+        local min_beats = load("return " .. theory_utils.get_note_length(min_idx))()
+        local max_beats = load("return " .. theory_utils.get_note_length(max_idx))()
+        local pattern_length = params:get("duration_pattern_length_" .. channel_id)
+        local pattern_shape = params:get("duration_pattern_shape_" .. channel_id)
+        
+        -- Normalize position to 0-1 range
+        local normalized_pos = (state.pattern_position - 1) / pattern_length
+        
+        -- Calculate duration based on pattern shape
+        if pattern_shape == 1 then  -- Pendulum
+            -- True alternating pattern
+            local is_long = (state.pattern_position % 2) == 1
+            duration = is_long and max_beats or min_beats
+            
+        elseif pattern_shape == 2 then  -- Mountain
+            -- Peak in the middle
+            local peak_pos = math.abs(normalized_pos - 0.5) * 2  -- 0->1->0
+            duration = util.linlin(0, 1, max_beats, min_beats, peak_pos)
+            
+        elseif pattern_shape == 3 then  -- Valley
+            -- Dip in the middle
+            local valley_pos = math.abs(normalized_pos - 0.5) * 2  -- 0->1->0
+            duration = util.linlin(0, 1, min_beats, max_beats, valley_pos)
+            
+        elseif pattern_shape == 4 then  -- Steps
+            -- Use or generate locked sequence
+            if not state.locked_sequence then
+                self:generate_locked_duration_sequence(channel_id)
+            end
+            -- Get note length from sequence
+            local length_idx = state.locked_sequence[state.pattern_position]
+            local beats = theory_utils.get_note_length(length_idx)
+            duration = load("return " .. beats)()
+            
+            -- Validate against min/max range
+            duration = math.max(min_beats, math.min(max_beats, duration))
+            
+        elseif pattern_shape == 5 then  -- Gather
+            -- Progressive gathering: short to long durations
+            duration = util.linlin(0, 1, min_beats, max_beats, normalized_pos)
+            
+        elseif pattern_shape == 6 then  -- Scatter
+            -- Progressive scattering: long to short durations
+            duration = util.linlin(0, 1, max_beats, min_beats, normalized_pos)
+        end
+        
+        -- Advance pattern position
+        state.pattern_position = state.pattern_position + 1
+        if state.pattern_position > pattern_length then
+            state.pattern_position = 1
+        end
+    end
+    
+    -- Apply variance (now used in both modes)
+    local variance = params:get("duration_variance_" .. channel_id)
+    if variance > 0 then
+        local variance_amount = duration * (variance / 100)
+        duration = duration + (math.random() * 2 - 1) * variance_amount
+    end
+    
+    -- Ensure duration is positive and reasonable
+    duration = math.max(0.01, duration)
+    return duration
+end
+
+function Channel:initiate_strum(channel_id, current_time, current_beat)
+    local strum_timing = self:generate_strum_timing(channel_id)
+    local start_time = current_time
+    local last_event_time = nil
+    local note_count = #self.arp_state[channel_id].current_notes
+    local strum_events = #strum_timing
+
+    -- Log initial state
+    utils.debug_table("========== STRUM DEBUG ==========", channel_id)
+    utils.debug_table(string.format(
+        "Initial State: index=%d/%d, direction=%d",
+        self.arp_state[channel_id].current_index,
+        note_count,
+        self.arp_state[channel_id].direction
+    ), channel_id)
+    utils.debug_table("Available notes:", channel_id)
+    for i, note in ipairs(self.arp_state[channel_id].current_notes) do
+        utils.debug_table(string.format(
+            "  [%d] MIDI %d (%s)",
+            i, note, musicutil.note_num_to_name(note)
+        ), channel_id)
+    end
+    utils.debug_table("--------------------------------", channel_id)
+
+    if SEEKER_DEBUG then
+        local duration_idx = params:get("strum_duration_" .. channel_id)
+        local duration_beats = theory_utils.get_note_length(duration_idx)
+        local clustering = params:get("strum_clustering_" .. channel_id)
+        local variation = params:get("strum_variation_" .. channel_id)
+        utils.debug_table(string.format(
+            "Strum Settings: Events=%d, Window=%s, Shape=%d%%, Feel=%d%%",
+            strum_events, duration_beats, clustering, variation
+        ), channel_id)
+        utils.debug_table("----------------------------------------", channel_id)
+    end
+    
+    -- Store current arp state
+    local original_index = self.arp_state[channel_id].current_index
+    local original_direction = self.arp_state[channel_id].direction
+    
+    -- Get all notes before scheduling to maintain sequence
+    local notes_to_play = {}
+    for i = 1, #strum_timing do
+        local note = self:get_next_note(channel_id)
+        table.insert(notes_to_play, note)
+    end
+    
+    -- Reset state for next strum
+    self.arp_state[channel_id].current_index = original_index
+    self.arp_state[channel_id].direction = original_direction
+
+    -- Schedule all events in a single clock function
+    clock.run(function()
+        -- Initial sync to next beat
+        clock.sync(1)
+        
+        -- Play each note at its scheduled time
+        for i, t in ipairs(strum_timing) do
+            if i > 1 then  -- Don't sleep before the first event
+                clock.sleep(t - strum_timing[i-1])
+            end
+            
+            utils.debug_table(string.format(
+                "Event %d/%d - Playing note %d (%s) at offset %.3fs",
+                i, strum_events,
+                notes_to_play[i],
+                musicutil.note_num_to_name(notes_to_play[i]),
+                t
+            ), channel_id)
+            
+            self:trigger_note(channel_id, notes_to_play[i], t)
+        end
+    end)
+    
+    utils.debug_table("========== END STRUM DEBUG ==========", channel_id)
+end
+
+function Channel:initiate_burst(channel_id, current_time, current_beat)
+    local burst_timing = self:generate_burst_timing(channel_id)
+    local start_time = current_time
+    local last_event_time = nil
+    local note_count = #self.arp_state[channel_id].current_notes
+    local burst_events = #burst_timing
+
+    -- Log initial state
+    utils.debug_table("========== BURST DEBUG ==========", channel_id)
+    utils.debug_table(string.format(
+        "Initial State: index=%d/%d, direction=%d",
+        self.arp_state[channel_id].current_index,
+        note_count,
+        self.arp_state[channel_id].direction
+    ), channel_id)
+    utils.debug_table("Available notes:", channel_id)
+    for i, note in ipairs(self.arp_state[channel_id].current_notes) do
+        utils.debug_table(string.format(
+            "  [%d] MIDI %d (%s)",
+            i, note, musicutil.note_num_to_name(note)
+        ), channel_id)
+    end
+    utils.debug_table("--------------------------------", channel_id)
+
+    if SEEKER_DEBUG then
+        local window_idx = params:get("burst_window_" .. channel_id)
+        local window_beats = theory_utils.get_note_length(window_idx)
+        local style = params:get("burst_style_" .. channel_id)
+        local style_names = {"Spray", "Accelerate", "Decelerate", "Crescendo", "Cascade", "Pulse", "Bounce", "Chaos"}
+        utils.debug_table(string.format(
+            "Burst Settings: Events=%d, Window=%s, Style=%s",
+            burst_events, window_beats, style_names[style]
+        ), channel_id)
+        utils.debug_table("----------------------------------------", channel_id)
+    end
+    
+    -- Store current arp state
+    local original_index = self.arp_state[channel_id].current_index
+    local original_direction = self.arp_state[channel_id].direction
+    
+    -- Get all notes before scheduling to maintain sequence
+    local notes_to_play = {}
+    for i = 1, #burst_timing do
+        local note = self:get_next_note(channel_id)
+        table.insert(notes_to_play, note)
+    end
+    
+    -- Reset state for next burst
+    self.arp_state[channel_id].current_index = original_index
+    self.arp_state[channel_id].direction = original_direction
+
+    -- Schedule all events in a single clock function
+    clock.run(function()
+        -- Initial sync to next beat
+        clock.sync(1)
+        
+        -- Play each note at its scheduled time
+        for i, t in ipairs(burst_timing) do
+            if i > 1 then  -- Don't sleep before the first event
+                clock.sleep(t - burst_timing[i-1])
+            end
+            
+            utils.debug_table(string.format(
+                "Event %d/%d - Playing note %d (%s) at offset %.3fs",
+                i, burst_events,
+                notes_to_play[i],
+                musicutil.note_num_to_name(notes_to_play[i]),
+                t
+            ), channel_id)
+            
+            self:trigger_note(channel_id, notes_to_play[i], t)
+        end
+    end)
+    
+    utils.debug_table("========== END BURST DEBUG ==========", channel_id)
 end
 
 return Channel

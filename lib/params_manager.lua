@@ -46,15 +46,93 @@ function params_manager.show_params(channel_id, param_list)
 end
 
 function params_manager.update_behavior_visibility(channel_id, behavior)
-    -- Hide all behavior-specific params first
-    params_manager.hide_params(channel_id, STRUM_PARAMS)
-    params_manager.hide_params(channel_id, BURST_PARAMS)
+    -- Hide/show strum parameters
+    local strum_params = {
+        "strum_duration_" .. channel_id,
+        "strum_pulses_" .. channel_id,
+        "strum_clustering_" .. channel_id,
+        "strum_variation_" .. channel_id
+    }
     
-    -- Show the params for the selected behavior
-    if behavior == 2 then  -- Strum
-        params_manager.show_params(channel_id, STRUM_PARAMS)
-    elseif behavior == 3 then  -- Burst
-        params_manager.show_params(channel_id, BURST_PARAMS)
+    -- Hide/show burst parameters
+    local burst_params = {
+        "burst_window_" .. channel_id,
+        "burst_style_" .. channel_id
+    }
+    
+    -- First hide all parameters
+    for _, param in ipairs(strum_params) do
+        params:hide(param)
+    end
+    for _, param in ipairs(burst_params) do
+        params:hide(param)
+    end
+    
+    -- Then show only the relevant ones based on behavior
+    if behavior == 2 then  -- Strum mode
+        for _, param in ipairs(strum_params) do
+            params:show(param)
+        end
+    elseif behavior == 3 then  -- Burst mode
+        for _, param in ipairs(burst_params) do
+            params:show(param)
+        end
+    end
+    
+    -- Force menu rebuild to reflect changes
+    _menu.rebuild_params()
+end
+
+function params_manager.update_duration_visibility(channel_id, mode)
+    -- Fixed mode parameters
+    local fixed_params = {}
+    
+    -- Pattern mode parameters
+    local pattern_params = {
+        "duration_pattern_header_" .. channel_id,
+        "duration_pattern_length_" .. channel_id,
+        "duration_pattern_shape_" .. channel_id,
+        "duration_min_" .. channel_id,
+        "duration_max_" .. channel_id
+    }
+    
+    -- Common parameters (shown in both modes)
+    local common_params = {
+        "duration_variance_" .. channel_id
+    }
+    
+    -- Hide all parameters first
+    for _, param in ipairs(fixed_params) do
+        if params:lookup_param(param) then
+            params:hide(param)
+        end
+    end
+    for _, param in ipairs(pattern_params) do
+        if params:lookup_param(param) then
+            params:hide(param)
+        end
+    end
+    
+    -- Show common parameters
+    for _, param in ipairs(common_params) do
+        if params:lookup_param(param) then
+            params:show(param)
+        end
+    end
+    
+    -- Show mode-specific parameters
+    if mode == 1 then  -- Fixed mode
+        for _, param in ipairs(fixed_params) do
+            if params:lookup_param(param) then
+                params:show(param)
+            end
+        end
+    else  -- Pattern mode
+        for _, param in ipairs(pattern_params) do
+            if params:lookup_param(param) then
+                params:show(param)
+            end
+        end
     end
     
     -- Force menu rebuild to reflect changes

@@ -18,8 +18,20 @@
 - I wonder if these should have note duration too
 
 - * Presets *
-- I would love to be able to save all of my settings. I know Norns has a system for this and it would make testing so much more rapid.
+- I still have to manually load the PSET. Can we automate this so –it loads on start?
 
+**Expression**
+- Should have sine pattern
+
+**Arpeggiation**
+- Should really just have pattern style/step stuff
+- Chord should be its own group
+
+**Chord**
+- Should cover whole scale and chords. Don't know how to do thiss
+
+**Musicality/Paramquencer**
+- Should we explore key changes?
 
 - Note duration also needs to come soon.
 - The Arpeggiator param is overloaded, arpeggiation and note space need to be distinct ideas
