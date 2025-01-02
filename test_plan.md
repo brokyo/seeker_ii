@@ -88,6 +88,37 @@
   - Paramquencer step visualization
   - Basic control for start/stop
 
+### C. Grid Visualization Tests
+1. Scale/Note Mapping
+   - Test different scales (major, minor, etc.) for correct degree mapping
+   - Verify octave relationships and positioning
+   - Check out-of-bounds indication for notes above/below range
+   - Test scale degree to grid position alignment
+
+2. Multi-Channel Operation
+   - Run multiple channels simultaneously
+   - Verify note visualization in correct channel sections
+   - Test start/stop functionality per channel
+   - Check for visual interference between channels
+
+3. Performance Edge Cases
+   - Test Strum mode with multiple simultaneous notes
+   - Test Burst mode with rapid note visualization
+   - Verify proper clearing of note-off events
+   - Check system performance with all channels active
+
+4. Scale/Key Changes
+   - Change global key during playback
+   - Modify global scale during playback
+   - Test octave shifts using global octave parameter
+   - Verify visualization updates correctly
+
+5. Visual Feedback
+   - Evaluate brightness levels for all states
+   - Test out-of-bounds flash rate
+   - Check visibility of simultaneous notes
+   - Verify start/stop button feedback
+
 ## 5. Paramquencer Development
 
 ### A. Core Functionality

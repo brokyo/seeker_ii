@@ -1,4 +1,47 @@
-# Seeker II Build Plan
+# Build Plan
+
+## Grid Integration
+✓ Basic start/stop functionality
+✓ Channel state visualization
+✓ Scale degree visualization
+✓ Chord quality display
+✓ Out-of-bounds indication
+
+### Next Steps
+1. Visual Enhancements
+   - Implement trail visualization system
+   - Apply consistently across modes:
+     - Pulse: Simple note fades
+     - Burst: Pattern density trails
+     - Strum: Motion visualization
+
+2. Critical Fixes
+   - Fix seventh calculation for Major/Augmented
+   - Review strum note ordering
+   - Address startup parameter collisions
+
+3. Future Features
+   - Pattern step visualization
+   - Abstract pattern activity display
+   - Consider additional visual feedback:
+    - Velocity indication
+    - Pattern position
+    - Parameter changes
+
+## Design Guidelines
+- Maintain consistent visual language
+- Show theoretical positions over literal notes
+- Use brightness levels meaningfully:
+  - DIM (2): Available positions
+  - PULSE (8): Active states
+  - BRIGHT (15): Current notes
+  - OUT_OF_BOUNDS (4): Edge cases
+
+## Musical Considerations
+- Focus on functional representation
+- Balance accuracy with usability
+- Consider musical context in visualization
+- Maintain visual rhythm and flow
 
 ## Completed
 1. ~Basic Channel System~

@@ -38,6 +38,7 @@ function Channel.new(id)
     self.running = false
     self.clock_id = nil
     self.pulse_callbacks = {}
+    self.note_callbacks = {}  -- Add note callbacks
 
     local defaults = utils.deep_copy(default_channel_params)
     for k, v in pairs(defaults) do
@@ -50,6 +51,11 @@ end
 -- Add a callback to be triggered on each pulse
 function Channel:add_pulse_callback(callback)
     table.insert(self.pulse_callbacks, callback)
+end
+
+-- Add a callback to be triggered when notes start/stop
+function Channel:add_note_callback(callback)
+    table.insert(self.note_callbacks, callback)
 end
 
 function Channel:add_clock_params(channel_id)
@@ -1060,6 +1066,20 @@ function Channel:trigger_note(channel_id, note, event_offset)
     if player then
         local velocity = self:calculate_velocity(channel_id)
         local duration = self:calculate_duration(channel_id, event_offset)
+        
+        -- Trigger note callbacks (start)
+        for _, callback in ipairs(self.note_callbacks) do
+            callback(channel_id, note, true)
+        end
+        
+        -- Schedule note-off callback
+        clock.run(function()
+            clock.sleep(duration * clock.get_beat_sec())
+            for _, callback in ipairs(self.note_callbacks) do
+                callback(channel_id, note, false)
+            end
+        end)
+        
         player:play_note(note, velocity, duration)
         if SEEKER_VERBOSE then
             utils.debug_print(string.format(

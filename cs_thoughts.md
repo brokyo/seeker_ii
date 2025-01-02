@@ -145,4 +145,44 @@ The goal is to maintain a growing understanding of our approach to creative musi
 7. What role should presets play in pattern systems?
 8. How can we maintain musical coherence across pattern changes?
 9. What are the ideal pattern lengths for different musical contexts?
-10. How can we better visualize pattern relationships? 
+10. How can we better visualize pattern relationships?
+
+## Grid Visualization Insights
+- Theoretical vs Actual Position:
+  - When visualizing musical concepts, theoretical position (scale degree) often more useful than actual position
+  - Example: showing ♭3 in position 3 maintains visual consistency while being musically accurate
+  - Trade-off between absolute accuracy and functional representation
+
+- Visual Language Consistency:
+  - Important to maintain consistent visual metaphors across different modes
+  - Example: using same positions for scale degrees regardless of alterations
+  - Helps build intuitive understanding of musical relationships
+
+- State Management:
+  - Grid needs to track multiple types of state:
+    - Note on/off events
+    - Visual feedback (pulses, flashes)
+    - Position calculations
+  - Consider using dedicated state objects for complex UI
+
+## Musical Theory Implementation
+- Interval Mapping:
+  - Need clear system for mapping intervals in different contexts
+  - Example: handling both major (11) and minor (10) sevenths
+  - Consider using lookup tables for clarity
+
+- Enharmonic Equivalence:
+  - Same pitch can have different musical meanings (E♭ vs D#)
+  - Implementation should focus on musical function over absolute pitch
+  - Grid visualization reflects this by showing theoretical position
+
+## UI/UX Patterns
+- Visual Feedback:
+  - Multiple levels of brightness create hierarchy
+  - Flashing/pulsing indicates temporary states
+  - Out-of-bounds indication helps with spatial awareness
+
+- Grid Layout:
+  - Consistent spacing between channels
+  - Clear visual separation of functions
+  - Bottom row reserved for controls 

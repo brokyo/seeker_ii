@@ -38,4 +38,68 @@
 - Scale mask implementation
 - Multiple channel visualization
 - Keyboard input functionality
-- Visual feedback for different play modes (strum, burst, etc.) 
+- Visual feedback for different play modes (strum, burst, etc.)
+
+# Grid Implementation Thoughts
+
+## Core Principles
+- Grid as musical visualization surface
+- Balance between information and clarity
+- Consistent visual language across modes
+
+## Technical Learnings
+1. Note Position Mapping
+   - Use theoretical positions for musical clarity
+   - Handle altered notes (♭3, ♭5, etc.) in theoretical positions
+   - Account for global modifiers (key, transpose, octave)
+   - Map MIDI notes to grid positions thoughtfully
+
+2. Visual Feedback Systems
+   - Use multiple brightness levels meaningfully
+   - Implement timeouts for temporary states
+   - Consider animation frame rates (30fps sufficient)
+   - Handle edge cases (out-of-bounds) clearly
+
+3. State Management
+   - Track active notes per channel
+   - Manage visual feedback timing
+   - Handle note on/off events cleanly
+   - Consider using dedicated state objects
+
+## Design Patterns
+1. Brightness Hierarchy
+   - DIM (2): Available/potential
+   - PULSE (8): Active states
+   - BRIGHT (15): Current events
+   - OUT_OF_BOUNDS (4): Edge indicators
+
+2. Layout Organization
+   - Channel separation with consistent width
+   - Bottom row for controls
+   - Vertical axis for scale degrees
+   - Horizontal axis for octaves
+
+3. Visual Metaphors
+   - Brightness for immediacy
+   - Position for musical function
+   - Flashing for attention
+   - Consistent across modes
+
+## Future Directions
+1. Animation Systems
+   - Trail visualization for note history
+   - Smooth transitions between states
+   - Pattern motion representation
+   - Density indication for bursts
+
+2. Additional Information
+   - Velocity visualization
+   - Pattern position indication
+   - Parameter change feedback
+   - Abstract pattern display
+
+3. Interaction Possibilities
+   - Direct note input
+   - Parameter control
+   - Pattern manipulation
+   - Visual feedback for changes 
