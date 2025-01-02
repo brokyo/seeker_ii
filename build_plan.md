@@ -13,29 +13,34 @@
    - ~Variance system~
    - ~Debug output~
 
+3. ~Preset System~
+   - ~Auto-save functionality~
+   - ~Auto-load last state~
+   - ~Integration with system PSET menu~
+
 ## In Progress
-1. Expression System
+1. Grid Integration
+   - Basic start/stop buttons
+   - Channel section layout
+   - Visual feedback for running state
+
+2. Expression System
    - Velocity patterns
    - Pattern-based modulation
    - Cross-parameter relationships
 
-2. Burst System
+3. Burst System
    - Configurable event counts
    - Pattern-based density
    - Style refinements
 
 ## Next Steps
-1. Grid Integration
+1. Advanced Grid Features
    - Pattern visualization
-   - Basic control interface
    - Event monitoring
+   - Full control interface
 
-2. Preset System
-   - Save/load functionality
-   - Musical presets
-   - Pattern variations
-
-3. Paramquencer Development
+2. Paramquencer Development
    - Chord progression sequencing
    - Parameter modulation
    - Pattern coordination

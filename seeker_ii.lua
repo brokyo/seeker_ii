@@ -16,6 +16,7 @@ local Channel = include('lib/channel')
 local theory_utils = include('lib/theory_utils')
 local utils = include('lib/utils')
 local params_manager = include('lib/params_manager')
+local GridUI = include('lib/grid_ui')
 
 -----------------
 -- Core Config --
@@ -70,6 +71,19 @@ function init()
         params:read(PSET_FILE)
         utils.debug_print("Loaded last preset")
     end
+    
+    -- Initialize grid UI
+    GridUI.init(channels)
+    
+    -- Set up clock callbacks
+    clock.run(function()
+        while true do
+            clock.sync(1/4) -- Sync to quarter notes
+            GridUI.set_pulse(true)
+            clock.sleep(0.1) -- Pulse duration
+            GridUI.set_pulse(false)
+        end
+    end)
     
     -- Initial screen draw
     redraw()

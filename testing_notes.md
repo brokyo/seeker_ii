@@ -1,6 +1,10 @@
 - * General Ideas *
 - Should it just all be presets rather than this super configurable stuff?
 - Should we drop all of the /4, /2, *2 duration clock mod shit and just use the b system from expression?
+- Always check Norns docs (monome.org/docs/norns/api/) for idiomatic solutions:
+  ✓ Using metro for timing instead of clock.run/sleep
+  ✓ Leveraging built-in modules where possible
+  - Future reference for timing, grid, UI patterns
 
 - *Velocity Testing*
 - Pulse or Wave patterns
@@ -10,8 +14,12 @@
 - It will also be so much easier than struggling with the logging and I'm sure clogging memory
 
 - * Grid UI *
-- Very much need a way to start and stop patterns from the grid. Too much back-and-forth with the encoders
-- Should the grid somehow show all the things happening in the pattern system? Grid as visualization rather than control surface.
+✓ Start/stop patterns from grid implemented
+✓ Visual pulse feedback for active channels
+- Future ideas:
+  - Show melodic/rhythmic activity
+  - Paramquencer step visualization
+  - Abstract pattern visualization
 
 - * Burst *
 - Presets are great, but we should be able to select size (num pulses) too. Small, medium, large

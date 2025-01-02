@@ -37,6 +37,7 @@ function Channel.new(id)
     self.id = id
     self.running = false
     self.clock_id = nil
+    self.pulse_callbacks = {}
 
     local defaults = utils.deep_copy(default_channel_params)
     for k, v in pairs(defaults) do
@@ -44,6 +45,11 @@ function Channel.new(id)
     end
 
     return self
+end
+
+-- Add a callback to be triggered on each pulse
+function Channel:add_pulse_callback(callback)
+    table.insert(self.pulse_callbacks, callback)
 end
 
 function Channel:add_clock_params(channel_id)
@@ -1065,6 +1071,11 @@ function Channel:trigger_note(channel_id, note, event_offset)
 end
 
 function Channel:pulse_channel(channel_id)
+    -- Trigger pulse callbacks
+    for _, callback in ipairs(self.pulse_callbacks) do
+        callback(channel_id)
+    end
+
     local behavior = params:get("clock_pulse_behavior_" .. channel_id)
     local current_beat = clock.get_beats()
     local current_time = os.time()
@@ -1707,6 +1718,25 @@ function Channel:initiate_burst(channel_id, current_time, current_beat)
     end)
     
     utils.debug_table("========== END BURST DEBUG ==========", channel_id)
+end
+
+function Channel:add_pulse_callback(callback)
+    table.insert(self.pulse_callbacks, callback)
+end
+
+function Channel:remove_pulse_callback(callback)
+    for i, cb in ipairs(self.pulse_callbacks) do
+        if cb == callback then
+            table.remove(self.pulse_callbacks, i)
+            break
+        end
+    end
+end
+
+function Channel:trigger_pulse_callbacks()
+    for _, callback in ipairs(self.pulse_callbacks) do
+        callback(self.id)
+    end
 end
 
 return Channel
