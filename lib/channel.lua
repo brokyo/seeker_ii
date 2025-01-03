@@ -1733,6 +1733,9 @@ function Channel:initiate_burst(channel_id, current_time, current_beat)
                 t
             ), channel_id)
             
+            -- Trigger pulse callback for visual feedback
+            self:trigger_pulse_callbacks()
+            
             self:trigger_note(channel_id, notes_to_play[i], t)
         end
     end)

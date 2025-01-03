@@ -80,6 +80,12 @@
       - Burst mode: Trail shows burst shape
       - Strum mode: Shows strum motion
     - Consistent visual language across modes
+    - TODO: Tie trail fade times to clock:
+      - Use clock_mod parameter to scale fade time
+      - Longer divisions = longer trails
+      - Maintains visual relationship with musical time
+      - Example: 1/4 = one beat trail, 1/2 = two beat trail
+      - Consider using clock.get_beat_sec() for timing
 - Future ideas:
   - Show melodic/rhythmic activity
   - Paramquencer step visualization
@@ -122,3 +128,16 @@
   - Expected: C-E-G-C-E-G (ascending)
   - Getting: G-G-E-C-C-E (scrambled)
   - Need to fix note ordering in strum playback
+
+Grid Visualization Notes:
+- ✓ Grid start buttons now pulse with clock events
+- ✓ Note trails implemented with different timings for each mode:
+  - Pulse: 0.5s fade
+  - Burst: 0.2s fade (quick for rapid events)
+  - Strum: 0.8s fade (longer for fluid visuals)
+- Future consideration: Explore syncing trail times with clock divisions
+  - Could make trails more musical but needs careful implementation
+  - Initial attempt was too complex, revisit when core features are stable
+- Future consideration: Represent strum duration as fraction instead of beats
+  - Current beat-based window is unintuitive
+  - Fraction representation might be more musical
