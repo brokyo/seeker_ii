@@ -16,9 +16,9 @@ local default_channel_params = {
     duration_locked_length = 16,      -- Length of locked random sequence
     
     -- MAJOR CONFIG: Rhythm
-    clock_source = "Internal",         -- Options: "Internal", "Crow Port 1", "Crow Port 2"
-    clock_mod = 1,                     -- Clock mult/div (e.g., 1 for no modulation, 1/16, 16, etc.)
-    clock_pulse_behavior = "Pulse",    -- Options: "Pulse", "Burst", "Strum"
+    clock_source = 1,                   -- Internal clock source
+    clock_mod = 7,                      -- Clock division (1/4 note by default)
+    clock_pulse_behavior = 1,           -- Pulse behavior (1=pulse, 2=strum, 3=burst)
     clock_pulse_length = 50,           -- Percentage (0 to 99)
     
     -- -- Burst Configuration

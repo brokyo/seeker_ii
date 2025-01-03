@@ -62,13 +62,9 @@ end
 function Channel:add_clock_params(channel_id)
     -- Count:
     -- 1 separator (Clock Config)
-    -- 3 parameters (source, mod, behavior)
-    -- 1 separator (Strum Config)
-    -- 4 strum parameters (duration, pulses, clustering, variation)
-    -- 1 separator (Burst Config)
-    -- 2 burst parameters (window, style)
-    -- Total: 12 parameters
-    params:add_group("clock_" .. channel_id, "Clock", 12)
+    -- 2 parameters (source, division)
+    -- Total: 3 parameters
+    params:add_group("clock_" .. channel_id, "Clock", 3)
     params:add_separator("clock_section_header_" .. channel_id, "Clock Config")
     
     params:add {
@@ -84,15 +80,15 @@ function Channel:add_clock_params(channel_id)
     
     params:add {
         id = "clock_mod_" .. channel_id,
-        name = "Clock Mod",
+        name = "Clock Division",
         type = "option",
         options = clock_utils.divisions,
-        default = 9,
+        default = 7,  -- 1/4 note
         action = function(value)
             local division = clock_utils.get_division(value)
-            utils.debug_print("Channel " .. channel_id .. " clock mod set to " .. division)
+            utils.debug_print("Channel " .. channel_id .. " clock division set to " .. division)
             
-            -- Update lattice division for all channels
+            -- Update lattice division for this channel
             local sync_time = clock_utils.index_to_time(value)
             self.lattice_manager.set_division(channel_id, sync_time)
             if SEEKER_DEBUG then
@@ -100,15 +96,28 @@ function Channel:add_clock_params(channel_id)
             end
         end
     }
+end
+
+function Channel:add_event_params(channel_id)
+    -- Count:
+    -- 1 separator (Event Config)
+    -- 1 behavior parameter
+    -- 1 separator (Strum Config)
+    -- 4 strum parameters
+    -- 1 separator (Burst Config)
+    -- 2 burst parameters
+    -- Total: 10 parameters
+    params:add_group("event_" .. channel_id, "Event", 10)
+    params:add_separator("event_section_header_" .. channel_id, "Event Config")
     
     params:add {
         id = "clock_pulse_behavior_" .. channel_id,
-        name = "Clock Pulse Behavior",
+        name = "Event Type",
         type = "option",
         options = {"Pulse", "Strum", "Burst"},
         default = 1,
         action = function(value)
-            utils.debug_print("Channel " .. channel_id .. " pulse behavior set to " .. ({"Pulse", "Strum", "Burst"})[value])
+            utils.debug_print("Channel " .. channel_id .. " event type set to " .. ({"Pulse", "Strum", "Burst"})[value])
             params_manager.update_behavior_visibility(channel_id, value)
         end
     }
@@ -197,6 +206,9 @@ function Channel:add_clock_params(channel_id)
             utils.debug_print("Channel " .. channel_id .. " burst style set to " .. value)
         end
     }
+    
+    -- Set initial visibility based on default event type (Pulse)
+    params_manager.update_behavior_visibility(channel_id, 1)
 end
 
 function Channel:add_voice_params(channel_id)
@@ -514,8 +526,9 @@ function Channel:add_params(channel_id)
     
     -- Add all parameter groups
     self:add_clock_params(channel_id)
+    self:add_event_params(channel_id)  -- Add event params
     self:add_voice_params(channel_id)
-    self:add_duration_params(channel_id)  -- Add duration params
+    self:add_duration_params(channel_id)
     self:add_arp_params(channel_id)
     self:add_expression_params(channel_id)
     self:add_rhythm_params(channel_id)
@@ -1134,15 +1147,15 @@ function Channel:pulse_channel(channel_id)
     -- Show basic settings at pulse time
     if SEEKER_DEBUG then
         local behavior_names = {"Pulse", "Strum", "Burst"}
-        local clock_div = clock_utils.get_division(params:get("clock_mod_" .. channel_id))
+        local clock_division = clock_utils.get_division(params:get("clock_mod_" .. channel_id))
         local mode = params:get("duration_mode_" .. channel_id)
         
         utils.debug_table("", channel_id)  -- Empty line
         utils.debug_table("----------------------------------------", channel_id)
         utils.debug_table(string.format(
-            "Channel Settings: Mode=%s, Clock=%s", 
+            "Channel Settings: Mode=%s, Division=%s", 
             behavior_names[behavior],
-            clock_div
+            clock_division
         ), channel_id)
         
         if mode == 1 then  -- Fixed mode

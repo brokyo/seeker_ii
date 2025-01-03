@@ -1,0 +1,117 @@
+{
+  "project_state": {
+    "last_updated": "2024-01-21",
+    "current_milestone": "event_system_refinement",
+    "working_components": [
+      {
+        "name": "lattice_timing",
+        "status": "stable",
+        "key_files": ["lib/lattice_manager.lua", "lib/channel.lua", "lib/clock_utils.lua"],
+        "recent_changes": "Implemented musical divisions (1/32 to 32)"
+      },
+      {
+        "name": "grid_ui",
+        "status": "stable",
+        "key_files": ["lib/grid_ui.lua"],
+        "recent_changes": "Added visual feedback for timing"
+      },
+      {
+        "name": "event_system",
+        "status": "functional",
+        "key_files": ["lib/channel.lua"],
+        "recent_changes": "Implemented basic strum and burst behaviors"
+      }
+    ],
+    "in_progress": [
+      {
+        "name": "event_behavior_refinement",
+        "status": "planning",
+        "key_files": ["lib/channel.lua"],
+        "blocking_issues": []
+      }
+    ],
+    "known_issues": [
+      {
+        "component": "param_system",
+        "description": "Persistence issues with certain parameters",
+        "key_files": ["lib/params_manager.lua"],
+        "priority": "medium"
+      }
+    ]
+  },
+  "architecture": {
+    "core_modules": {
+      "lattice_manager": {
+        "purpose": "Central timing coordinator",
+        "dependencies": ["lattice"],
+        "key_concepts": [
+          "division-centric timing",
+          "shared sprockets",
+          "channel registration"
+        ]
+      },
+      "channel": {
+        "purpose": "Musical voice management",
+        "dependencies": ["lattice_manager", "params_manager"],
+        "key_concepts": [
+          "note generation",
+          "timing registration",
+          "behavior modes",
+          "strum and burst patterns"
+        ]
+      },
+      "grid_ui": {
+        "purpose": "Visual interface",
+        "dependencies": ["channel"],
+        "key_concepts": [
+          "visual feedback",
+          "note trails",
+          "channel control"
+        ]
+      }
+    },
+    "key_decisions": [
+      {
+        "decision": "musical_divisions",
+        "status": "implemented",
+        "rationale": "Better alignment with Lattice, more intuitive for users",
+        "replaces": "clock_mod"
+      },
+      {
+        "decision": "shared_sprockets",
+        "status": "implemented",
+        "rationale": "Perfect sync between channels using same division"
+      },
+      {
+        "decision": "event_parameter_organization",
+        "status": "implemented",
+        "rationale": "Cleaner UI, better parameter visibility management"
+      }
+    ]
+  },
+  "development_focus": {
+    "current": [
+      {
+        "feature": "event_behavior_refinement",
+        "priority": "high",
+        "dependencies": ["channel"],
+        "status": "planning"
+      }
+    ],
+    "next": [
+      {
+        "feature": "param_persistence",
+        "priority": "medium",
+        "dependencies": ["params_manager"],
+        "status": "planned"
+      },
+      {
+        "feature": "channel_reset",
+        "priority": "medium",
+        "dependencies": ["lattice_manager", "channel"],
+        "status": "planned",
+        "description": "Global reset button to sync all channels"
+      }
+    ]
+  }
+} 

@@ -112,13 +112,7 @@ local function get_trail_time(channel_id, mode)
     local clock_mod_value = params:get("clock_mod_" .. channel_id)
     local division = clock_utils.get_division(clock_mod_value)
     -- Convert division string to number (e.g., "1/4" -> 0.25)
-    local beats
-    if division:find("/") then
-        local num, denom = division:match("(%d+)/(%d+)")
-        beats = tonumber(num) / tonumber(denom)
-    else
-        beats = tonumber(division)
-    end
+    local beats = clock_utils.division_lookup[division]
     
     -- Convert beats to seconds
     local base_time = beats * clock.get_beat_sec()

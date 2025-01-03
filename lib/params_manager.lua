@@ -69,41 +69,42 @@ function params_manager.show_params(channel_id, param_list)
     end
 end
 
-function params_manager.update_behavior_visibility(channel_id, behavior)
-    -- Hide/show strum parameters
-    local strum_params = {
-        "strum_duration_" .. channel_id,
-        "strum_pulses_" .. channel_id,
-        "strum_clustering_" .. channel_id,
-        "strum_variation_" .. channel_id
-    }
+function params_manager.update_behavior_visibility(channel_id, value)
+    -- Get parameter IDs for this channel
+    local strum_header = "strum_header_" .. channel_id
+    local strum_duration = "strum_duration_" .. channel_id
+    local strum_pulses = "strum_pulses_" .. channel_id
+    local strum_clustering = "strum_clustering_" .. channel_id
+    local strum_variation = "strum_variation_" .. channel_id
     
-    -- Hide/show burst parameters
-    local burst_params = {
-        "burst_window_" .. channel_id,
-        "burst_style_" .. channel_id
-    }
+    local burst_header = "burst_header_" .. channel_id
+    local burst_window = "burst_window_" .. channel_id
+    local burst_style = "burst_style_" .. channel_id
     
-    -- First hide all parameters
-    for _, param in ipairs(strum_params) do
-        params:hide(param)
+    -- Hide all behavior-specific parameters first
+    params:hide(strum_header)
+    params:hide(strum_duration)
+    params:hide(strum_pulses)
+    params:hide(strum_clustering)
+    params:hide(strum_variation)
+    
+    params:hide(burst_header)
+    params:hide(burst_window)
+    params:hide(burst_style)
+    
+    -- Show only the parameters for the selected behavior
+    if value == 2 then  -- Strum
+        params:show(strum_header)
+        params:show(strum_duration)
+        params:show(strum_pulses)
+        params:show(strum_clustering)
+        params:show(strum_variation)
+    elseif value == 3 then  -- Burst
+        params:show(burst_header)
+        params:show(burst_window)
+        params:show(burst_style)
     end
-    for _, param in ipairs(burst_params) do
-        params:hide(param)
-    end
     
-    -- Then show only the relevant ones based on behavior
-    if behavior == 2 then  -- Strum mode
-        for _, param in ipairs(strum_params) do
-            params:show(param)
-        end
-    elseif behavior == 3 then  -- Burst mode
-        for _, param in ipairs(burst_params) do
-            params:show(param)
-        end
-    end
-    
-    -- Force menu rebuild to reflect changes
     _menu.rebuild_params()
 end
 
