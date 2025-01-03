@@ -16,9 +16,10 @@
      - Strum: Motion visualization
 
 2. Critical Fixes
+   - ✓ Parameter ID collision on "auto_save"
+   - ✓ Startup error with set_pulse (nil value)
    - Fix seventh calculation for Major/Augmented
    - Review strum note ordering
-   - Address startup parameter collisions
 
 3. Future Features
    - Pattern step visualization
@@ -108,53 +109,58 @@
 
 ### 1. Clock System Rebuild
 - Separate clock division from behavior modes
+- Core concept: Maintain per-channel pulse configuration, but express event timing as fractions
 - New structure:
   ```
   Clock
-  - Division (1/1, 1/2, etc.)
+  - Division (per-channel, as today)
   - Global timing control
   
-  Behavior Modes (independent section)
-  - Mode selection (Pulse/Strum/Burst)
-  - Timing relative to clock pulse:
-    - Strum: Length as fraction (1/4, 1/2 of pulse)
-    - Burst: Window as fraction
-    - Pulse: Single events
+  Event Timing (as fractions of pulse)
+  - Strum: Length as fraction (1/4, 1/2 of pulse)
+  - Burst: Window as fraction
+  - Pulse: Single events
   ```
 - Benefits:
   - Clearer relationship between timing elements
   - More musical approach to subdivisions
   - Simpler mental model for users
-- Future possibilities:
-  - Pattern-based clock divisions
-  - Polyrhythmic relationships between channels
-  - More complex timing relationships
+  - Natural polyrhythm support through clock mod
+- Implementation Notes:
+  - Use existing music_utils for fraction handling
+  - Visual feedback through existing grid pulse/illumination
+  - No new parameter types needed
 
 ### 2. Note System Restructure
 - Split current arpeggiator into distinct concepts:
   ```
   Note Pool
-  - Selection mode (Chord/Custom/Scale)
-  - Note collection management
-  - Range and octave control
+  - Modes:
+    1. Chord-based (current system)
+    2. Grid-selected (scale degree approach)
+  - Implementation:
+    - Enter/exit selection mode via params binary trigger
+    - Toggle notes on/off in grid
+    - Audio feedback using channel's MIDI settings
+    - Visual indication of edit mode
   
-  Pattern Engine
-  - Movement style (Up/Down/Random etc.)
-  - Step control
-  - Direction and range limits
+  Pattern Engine (source-agnostic)
+  - Takes note collection from pool
+  - Handles ordering/playback
+  - Current random/locked-random modes
+  - Future expansion possible
   ```
-- Grid-based note selection:
-  - Direct note input mode
-  - Visual feedback of available notes
-  - Pattern preview possibility
+- Grid Integration:
+  - Maintain consistent grid layout
+  - Scale degree approach for note selection
+  - All three octaves available
+  - Toggle-based note selection
+  - Audio preview on press
 - Benefits:
   - More flexible note selection
   - Clearer separation of concerns
   - Better foundation for future features
-- Future possibilities:
-  - Scale masks for note filtering
-  - Probability per note
-  - Note relationships and rules
+  - Maintains consistent UI model
 
 ### 3. Pattern Evolution
 - Enhanced burst algorithms:

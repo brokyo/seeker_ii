@@ -32,8 +32,8 @@ params_manager.PARAM_PREFIX = "sk2_"
 
 -- Helper function to safely get parameter values with error logging
 params_manager.safe_get_param = function(id)
-    local param = params:lookup_param(id)
-    if param == nil then
+    local success, param = pcall(function() return params:lookup_param(id) end)
+    if not success or param == nil then
         print("ERROR: Attempted to access nil parameter: " .. id)
         return nil
     end
@@ -42,8 +42,8 @@ end
 
 -- Helper function to safely set parameter values with error logging
 params_manager.safe_set_param = function(id, value)
-    local param = params:lookup_param(id)
-    if param == nil then
+    local success, param = pcall(function() return params:lookup_param(id) end)
+    if not success or param == nil then
         print("ERROR: Attempted to set nil parameter: " .. id)
         return false
     end

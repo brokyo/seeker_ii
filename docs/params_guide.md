@@ -1,65 +1,72 @@
 # Seeker II Parameter Guide
 
-## Duration Parameters
+## Duration Controls
 
-### Fixed Mode
-- **Base Duration**: The fundamental note length (1/16 to 16 beats)
-- **Variance**: Adds subtle timing variations (0-25%) for human feel
+### Mode
+- **Fixed**: Notes have a consistent length with optional variation
+- **Pattern**: Notes follow a repeating sequence of lengths
+- **Aleatoric**: Note lengths are chosen randomly within a range
 
-### Pattern Mode
-- **Pattern Length**: Number of steps in the sequence (2-16)
-- **Pattern Shape**:
-  - Pendulum: Alternates between long and short durations
-  - Mountain: Builds up to peak then falls
-  - Valley: Drops down then rises back
-  - Steps: Random but repeating sequence of note lengths
-  - Gather: Progresses from short to long durations
-  - Scatter: Progresses from long to short durations
-- **Min/Max Duration**: Sets the range for pattern variation
+### Base Duration
+Sets the fundamental length of notes. Options range from very short (1/16 note) to very long (whole notes and beyond). This is your starting point for shaping the feel of a pattern.
 
-## Clock Parameters
+### Variance (0-100%)
+How much the duration can change from the base value. At 0%, notes are exactly the base duration. Higher values allow more variation.
 
-### Basic Configuration
-- **Source**: Internal or external clock
-- **Division**: Musical timing divisions (1/16 to 16)
-- **Behavior**: Pulse, Strum, or Burst
+### Variance Style
+- **Random**: Each note's length varies unpredictably
+- **Locked Random**: Creates a repeating pattern of variations
+- **Drift**: Smoothly wanders between longer and shorter notes
+- **Breathe**: Creates a natural ebb and flow, like breathing
 
-### Strum Configuration
-- **Window**: Total time for strum sequence
-- **Events**: Number of notes in sequence (2-12)
-- **Motion**: Energy distribution (0-100)
-- **Feel**: Timing variation amount (0-100)
-
-### Burst Configuration
-- **Window**: Total time for burst sequence
-- **Style**: 
-  - Spray: Scattered, wild distribution
-  - Accelerate: Building momentum
-  - Decelerate: Slowing down
-  - Crescendo: Building intensity
-  - Cascade: Three overlapping waves
-  - Pulse: Steady pairs with variation
-  - Bounce: Decaying rebounds
-  - Chaos: Order meets randomness
-
-## Voice Parameters
-- **Voice**: Selected output for the channel
-
-## Arpeggiation Parameters
-
-### Chord Selection
-- **Degree**: Scale position (I through VII)
-- **Quality**: Major, Minor, Diminished, Augmented
-- **Extension**: None, 7th, 9th, 11th, 13th
-- **Inversion**: Root, First, Second, Third
-- **Start Octave**: Base octave (0-8)
-- **Note Count**: Total notes in sequence (3-12)
+### Min/Max Duration
+When using Aleatoric mode, these set the shortest and longest possible note lengths. Think of it as setting boundaries for randomization.
 
 ### Pattern
-- **Style**: Up, Down, Up-Down, Random, Random-Lock
-- **Step**: Note-to-note distance (-4 to 4)
+For Pattern mode, enter numbers to create a sequence of duration multipliers. For example:
+- "1": All notes are base duration
+- "1 2": Alternates between normal and double length
+- "1 0.5 2": Cycles through normal, half, and double length
 
-## Expression Parameters
-- **Pattern**: Static, Rise, Fall, Steps
-- **Period**: Pattern length in beats (0.25-32)
-- **Min/Max**: Velocity range (0-127) 
+## Musical Effects
+
+Different settings create distinct musical effects:
+
+### Tight Rhythmic
+- Mode: Fixed
+- Base Duration: 1/8 or 1/16
+- Low variance (0-10%)
+
+### Organic Melody
+- Mode: Fixed
+- Base Duration: 1/4 or 1/2
+- Variance: 20-40%
+- Style: Drift or Breathe
+
+### Atmospheric
+- Mode: Fixed or Aleatoric
+- Base Duration: 1 or longer
+- Variance: 50-100%
+- Style: Breathe
+
+### Textural
+- Mode: Pattern
+- Base Duration: 1/4
+- Pattern: Mix of short and long values
+- Or use Locked Random for repeating organic patterns
+
+## Tips
+
+- Start with Fixed mode and no variance to establish your basic pattern
+- Add small amounts of variance (10-20%) to make patterns feel more natural
+- Use Locked Random when you want organic feel but need predictability
+- Breathe style works well for ambient or atmospheric sounds
+- Pattern mode is great for creating specific rhythmic phrases
+- Remember that duration affects how notes blend together - longer notes create more overlap
+
+## Common Issues
+
+- If notes feel too choppy, try increasing the base duration
+- If notes are blending too much, reduce duration or add variance
+- For clearer rhythms, use Fixed mode with low/no variance
+- If timing feels off, check that your base duration aligns with your musical timing 

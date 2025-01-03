@@ -1215,15 +1215,35 @@ function Channel:get_chord_intervals(quality, extension)
     }
     
     local extension_intervals = {
-        ["7"] = {10},
-        ["9"] = {10, 14},
-        ["11"] = {10, 14, 17},
-        ["13"] = {10, 14, 17, 21}
+        ["7"] = {
+            Major = {11},    -- Major seventh
+            Minor = {10},    -- Minor seventh
+            Diminished = {9}, -- Diminished seventh
+            Augmented = {11}  -- Major seventh for augmented
+        },
+        ["9"] = {
+            Major = {11, 14},
+            Minor = {10, 14},
+            Diminished = {9, 14},
+            Augmented = {11, 14}
+        },
+        ["11"] = {
+            Major = {11, 14, 17},
+            Minor = {10, 14, 17},
+            Diminished = {9, 14, 17},
+            Augmented = {11, 14, 17}
+        },
+        ["13"] = {
+            Major = {11, 14, 17, 21},
+            Minor = {10, 14, 17, 21},
+            Diminished = {9, 14, 17, 21},
+            Augmented = {11, 14, 17, 21}
+        }
     }
     
     local intervals = utils.deep_copy(base_intervals[quality])
     if extension ~= "None" then
-        for _, interval in ipairs(extension_intervals[extension]) do
+        for _, interval in ipairs(extension_intervals[extension][quality]) do
             table.insert(intervals, interval)
         end
     end
