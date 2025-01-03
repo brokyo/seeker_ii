@@ -27,6 +27,30 @@ local BURST_PARAMS = {
     "burst_style_"
 }
 
+-- Add prefix to all parameter IDs to avoid collisions
+params_manager.PARAM_PREFIX = "sk2_"
+
+-- Helper function to safely get parameter values with error logging
+params_manager.safe_get_param = function(id)
+    local param = params:lookup_param(id)
+    if param == nil then
+        print("ERROR: Attempted to access nil parameter: " .. id)
+        return nil
+    end
+    return params:get(id)
+end
+
+-- Helper function to safely set parameter values with error logging
+params_manager.safe_set_param = function(id, value)
+    local param = params:lookup_param(id)
+    if param == nil then
+        print("ERROR: Attempted to set nil parameter: " .. id)
+        return false
+    end
+    params:set(id, value)
+    return true
+end
+
 function params_manager.hide_params(channel_id, param_list)
     for _, param_base in ipairs(param_list) do
         local param_id = param_base .. channel_id

@@ -52,15 +52,15 @@ function init()
     os.execute("mkdir -p " .. _path.data .. "seeker_ii")
     
     -- Set up auto-save
-    params:add_group("auto_save", "Auto Save", 1)
-    params:add_option("auto_save", "Auto Save", {"Off", "On"}, 2)
+    params:add_group("seeker_ii_auto_save_group", "Auto Save", 1)
+    params:add_option("seeker_ii_auto_save", "Auto Save", {"Off", "On"}, 2)
     
     -- Set up auto-save on parameter changes
     params.action_write = function(filename, name, number)
         -- Only auto-save if:
         -- 1. Auto-save is enabled
         -- 2. The current write isn't already our auto-save file
-        if params:get("auto_save") == 2 and filename ~= PSET_FILE then
+        if params:get("seeker_ii_auto_save") == 2 and filename ~= PSET_FILE then
             params:write(PSET_FILE)
             utils.debug_print("Auto-saved preset")
         end
@@ -84,6 +84,12 @@ function init()
             GridUI.set_pulse(false)
         end
     end)
+    
+    -- Run error tests if in debug mode
+    if SEEKER_DEBUG then
+        local test_errors = include('lib/test_errors')
+        test_errors.run_tests()
+    end
     
     -- Initial screen draw
     redraw()
