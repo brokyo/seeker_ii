@@ -181,30 +181,15 @@ function GridUI.init(channels)
                     end
                 end
                 
-                -- Add new trail immediately for burst mode
-                if mode == 3 then  -- Burst mode
-                    local trail = {
-                        note = note,
-                        start_time = util.time(),
-                        brightness = BRIGHT,
-                        fade_time = fade_time
-                    }
-                    table.insert(note_trails[channel_id], trail)
-                    GridUI.redraw()
-                else
-                    -- Add new trail after tiny delay for other modes
-                    clock.run(function()
-                        clock.sleep(1/120)  -- Tiny delay for visual pop
-                        local trail = {
-                            note = note,
-                            start_time = util.time(),
-                            brightness = BRIGHT,
-                            fade_time = fade_time
-                        }
-                        table.insert(note_trails[channel_id], trail)
-                        GridUI.redraw()
-                    end)
-                end
+                -- Add new trail immediately for all modes
+                local trail = {
+                    note = note,
+                    start_time = util.time(),
+                    brightness = BRIGHT,
+                    fade_time = fade_time
+                }
+                table.insert(note_trails[channel_id], trail)
+                GridUI.redraw()
                 
                 -- Check for out of bounds
                 local pos, is_out = note_to_grid_pos(note, channel_id)

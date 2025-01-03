@@ -296,10 +296,10 @@ function Channel:add_arp_params(channel_id)
         type = "option",
         id = "arp_style_" .. channel_id,
         name = "Style",
-        options = {"Up", "Down", "Up-Down", "Random", "Random-Lock"},
+        options = {"Up", "Down", "Up-Down", "Down-Up", "Random", "Random-Lock"},
         default = 1,
         action = function(value)
-            utils.debug_print("Channel " .. channel_id .. " arp style set to " .. ({"Up", "Down", "Up-Down", "Random", "Random-Lock"})[value])
+            utils.debug_print("Channel " .. channel_id .. " arp style set to " .. ({"Up", "Down", "Up-Down", "Down-Up", "Random", "Random-Lock"})[value])
         end
     }
     
@@ -860,7 +860,7 @@ function Channel:get_next_note(channel_id)
     local notes = state.current_notes
     local style = params:get("arp_style_" .. channel_id)
     local step_size = params:get("arp_step_" .. channel_id)
-    local style_names = {"Up", "Down", "Up-Down", "Random", "Random-Lock"}
+    local style_names = {"Up", "Down", "Up-Down", "Down-Up", "Random", "Random-Lock"}
     
     if SEEKER_VERBOSE then
         utils.debug_print(string.format(
@@ -897,18 +897,37 @@ function Channel:get_next_note(channel_id)
         note = notes[state.current_index]
         -- Use step size direction for up-down movement
         next_index = state.current_index + (math.abs(step_size) * state.direction)
+        
+        -- Handle direction changes without repeating notes
         if next_index > #notes then
             state.direction = -1
-            -- Calculate wrap position for upward overflow
-            next_index = #notes - (next_index - #notes - 1)
+            -- Skip the last note we just played by moving one more step
+            next_index = #notes - 1
             if SEEKER_VERBOSE then utils.debug_print("Up-Down pattern reversing direction (going down)", channel_id) end
         elseif next_index < 1 then
             state.direction = 1
-            -- Calculate wrap position for downward overflow
-            next_index = 1 + math.abs(next_index)
+            -- Skip the first note we just played by moving one more step
+            next_index = 2
             if SEEKER_VERBOSE then utils.debug_print("Up-Down pattern reversing direction (going up)", channel_id) end
         end
-    elseif style == 4 then  -- Random
+    elseif style == 4 then  -- Down-Up
+        note = notes[state.current_index]
+        -- Use step size direction for down-up movement
+        next_index = state.current_index + (math.abs(step_size) * state.direction)
+        
+        -- Handle direction changes without repeating notes
+        if next_index > #notes then
+            state.direction = -1
+            -- Skip the last note we just played by moving one more step
+            next_index = #notes - 1
+            if SEEKER_VERBOSE then utils.debug_print("Down-Up pattern reversing direction (going down)", channel_id) end
+        elseif next_index < 1 then
+            state.direction = 1
+            -- Skip the first note we just played by moving one more step
+            next_index = 2
+            if SEEKER_VERBOSE then utils.debug_print("Down-Up pattern reversing direction (going up)", channel_id) end
+        end
+    elseif style == 5 then  -- Random
         next_index = math.random(#notes)
         note = notes[next_index]
         if SEEKER_VERBOSE then utils.debug_print("Random pattern jumping to position " .. next_index, channel_id) end
@@ -1626,6 +1645,28 @@ function Channel:initiate_strum(channel_id, current_time, current_beat)
     local original_index = self.arp_state[channel_id].current_index
     local original_direction = self.arp_state[channel_id].direction
     
+    -- Set starting position based on arp style
+    local style = params:get("arp_style_" .. channel_id)
+    if style == 2 then  -- Down
+        self.arp_state[channel_id].current_index = #self.arp_state[channel_id].current_notes
+    elseif style == 3 then  -- Up-Down
+        -- Start from bottom if going up, top if going down
+        if self.arp_state[channel_id].direction == 1 then
+            self.arp_state[channel_id].current_index = 1
+        else
+            self.arp_state[channel_id].current_index = #self.arp_state[channel_id].current_notes
+        end
+    elseif style == 4 then  -- Down-Up
+        -- Start from top if going down, bottom if going up
+        if self.arp_state[channel_id].direction == -1 then
+            self.arp_state[channel_id].current_index = #self.arp_state[channel_id].current_notes
+        else
+            self.arp_state[channel_id].current_index = 1
+        end
+    else
+        self.arp_state[channel_id].current_index = 1
+    end
+    
     -- Get all notes before scheduling to maintain sequence
     local notes_to_play = {}
     for i = 1, #strum_timing do
@@ -1633,7 +1674,7 @@ function Channel:initiate_strum(channel_id, current_time, current_beat)
         table.insert(notes_to_play, note)
     end
     
-    -- Reset state for next strum
+    -- Restore original arp state
     self.arp_state[channel_id].current_index = original_index
     self.arp_state[channel_id].direction = original_direction
 
@@ -1732,9 +1773,6 @@ function Channel:initiate_burst(channel_id, current_time, current_beat)
                 musicutil.note_num_to_name(notes_to_play[i]),
                 t
             ), channel_id)
-            
-            -- Trigger pulse callback for visual feedback
-            self:trigger_pulse_callbacks()
             
             self:trigger_note(channel_id, notes_to_play[i], t)
         end

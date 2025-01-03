@@ -37,6 +37,10 @@
     - Currently treats burst as single event
     - First note stays lit for entire burst duration
     - Doesn't show individual note rhythm
+  - Trail retrigger needed in all modes:
+    - Currently only retriggering in burst mode
+    - Need to apply same logic to strum and pulse
+    - Will improve visual feedback across all modes
   - Proposed visualization approaches:
     1. Individual Note Pulses:
        - Each note gets brief pulse (like start button)
@@ -104,6 +108,10 @@
 **Arpeggiation**
 - Should really just have pattern style/step stuff
 - Chord should be its own group
+- Added Down-Up mode to complement Up-Down
+- Fixed note repetition at direction changes in Up-Down and Down-Up modes
+  - Now plays C-E-G-E-C instead of C-E-G-G-E-C
+  - More musical and natural sounding arpeggios
 
 **Chord**
 - Should cover whole scale and chords. Don't know how to do thiss
