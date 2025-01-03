@@ -32,13 +32,14 @@ local Channel = {}
 Channel.__index = Channel
 
 -- Constructor for new instances
-function Channel.new(id)
+function Channel.new(id, lattice_manager)
     local self = setmetatable({}, Channel)
     self.id = id
     self.running = false
     self.clock_id = nil
     self.pulse_callbacks = {}
     self.note_callbacks = {}  -- Add note callbacks
+    self.lattice_manager = lattice_manager  -- Store the lattice manager instance
 
     local defaults = utils.deep_copy(default_channel_params)
     for k, v in pairs(defaults) do
@@ -71,36 +72,43 @@ function Channel:add_clock_params(channel_id)
     params:add_separator("clock_section_header_" .. channel_id, "Clock Config")
     
     params:add {
-      id = "clock_source_" .. channel_id,
-      name = "Clock Source",
-      type = "option",
-      options = {"internal", "external"},
+        id = "clock_source_" .. channel_id,
+        name = "Clock Source",
+        type = "option",
+        options = {"internal", "external"},
         default = 1,
-      action = function(value)
-        utils.debug_print("Channel " .. channel_id .. " clock source set to " .. (value == 1 and "internal" or "external"))
-      end
+        action = function(value)
+            utils.debug_print("Channel " .. channel_id .. " clock source set to " .. (value == 1 and "internal" or "external"))
+        end
     }
-  
+    
     params:add {
-      id = "clock_mod_" .. channel_id,
-      name = "Clock Mod",
-      type = "option",
+        id = "clock_mod_" .. channel_id,
+        name = "Clock Mod",
+        type = "option",
         options = clock_utils.divisions,
         default = 9,
-      action = function(value)
+        action = function(value)
             local division = clock_utils.get_division(value)
-        utils.debug_print("Channel " .. channel_id .. " clock mod set to " .. division)
-      end
+            utils.debug_print("Channel " .. channel_id .. " clock mod set to " .. division)
+            
+            -- Update lattice division for all channels
+            local sync_time = clock_utils.index_to_time(value)
+            self.lattice_manager.set_division(channel_id, sync_time)
+            if SEEKER_DEBUG then
+                utils.debug_print("Updated Channel " .. channel_id .. " lattice division to: " .. sync_time)
+            end
+        end
     }
-  
+    
     params:add {
-      id = "clock_pulse_behavior_" .. channel_id,
-      name = "Clock Pulse Behavior",
-      type = "option",
-      options = {"Pulse", "Strum", "Burst"},
+        id = "clock_pulse_behavior_" .. channel_id,
+        name = "Clock Pulse Behavior",
+        type = "option",
+        options = {"Pulse", "Strum", "Burst"},
         default = 1,
-      action = function(value)
-        utils.debug_print("Channel " .. channel_id .. " pulse behavior set to " .. ({"Pulse", "Strum", "Burst"})[value])
+        action = function(value)
+            utils.debug_print("Channel " .. channel_id .. " pulse behavior set to " .. ({"Pulse", "Strum", "Burst"})[value])
             params_manager.update_behavior_visibility(channel_id, value)
         end
     }
@@ -161,11 +169,11 @@ function Channel:add_clock_params(channel_id)
     params:add {
         id = "burst_window_" .. channel_id,
         name = "Burst Window",
-      type = "option",
+        type = "option",
         options = theory_utils.note_lengths,
         default = 5,
-      action = function(value)
-        local length = theory_utils.get_note_length(value)
+        action = function(value)
+            local length = theory_utils.get_note_length(value)
             utils.debug_print("Channel " .. channel_id .. " burst window set to " .. length)
         end
     }
@@ -312,7 +320,7 @@ function Channel:add_arp_params(channel_id)
         default = 1,
         action = function(value)
             utils.debug_print("Channel " .. channel_id .. " arp step size set to " .. value)
-      end
+        end
     }
 end
 
@@ -514,42 +522,42 @@ function Channel:add_params(channel_id)
 end
 
 function Channel:start(channel_id)
-  if not self.running then
-    utils.debug_print("Starting Channel", channel_id)
-    self.running = true
-    self.last_pulse_time = nil
-    
-    -- Initialize arp state and generate initial notes
-    self:init_arp_state(channel_id)
-    self:generate_chord_notes(channel_id)
-    
-    self.clock_id = clock.run(function()
-      while self.running do
-        -- Trigger the channel's pulse action here
-        self:pulse_channel(channel_id)
-        -- Get the clock time directly from param index
-        local clock_mod_value = params:get("clock_mod_" .. channel_id)
-        local sync_time = clock_utils.index_to_time(clock_mod_value)
-        -- Log the wait time
-        if SEEKER_VERBOSE then
-            utils.debug_print(string.format("Waiting %.3f beats", sync_time), channel_id)
+    if not self.running then
+        utils.debug_print("Starting Channel", channel_id)
+        self.running = true
+        self.last_pulse_time = nil
+        
+        -- Initialize arp state and generate initial notes
+        self:init_arp_state(channel_id)
+        self:generate_chord_notes(channel_id)
+        
+        -- Use lattice for all channels
+        if SEEKER_DEBUG then
+            utils.debug_print("Using lattice timing for Channel " .. channel_id)
         end
-        -- Wait for the channel's modified time interval
-        clock.sync(sync_time)
-      end
-    end)
-  end
+        
+        -- Set initial division before starting
+        local clock_mod_value = params:get("clock_mod_" .. channel_id)
+        local division = clock_utils.index_to_time(clock_mod_value)
+        self.lattice_manager.set_division(channel_id, division)
+        
+        if SEEKER_DEBUG then
+            utils.debug_print("Channel " .. channel_id .. " initial division: " .. division)
+        end
+        
+        -- Start the channel with lattice
+        self.lattice_manager.start_channel(channel_id, function()
+            self:pulse_channel(channel_id)
+        end)
+    end
 end
 
 function Channel:stop_channel(channel_id)
-  if self.running then
-    utils.debug_print("Stopping Channel", channel_id)
-    self.running = false
-    if self.clock_id then
-      clock.cancel(self.clock_id)
-      self.clock_id = nil
+    if self.running then
+        utils.debug_print("Stopping Channel", channel_id)
+        self.running = false
+        self.lattice_manager.stop_channel(channel_id)
     end
-  end
 end
 
 function Channel:generate_strum_timing(channel_id)
@@ -1110,6 +1118,10 @@ function Channel:trigger_note(channel_id, note, event_offset)
 end
 
 function Channel:pulse_channel(channel_id)
+    if SEEKER_DEBUG then
+        utils.debug_print("Channel " .. channel_id .. " pulse triggered")
+    end
+
     -- Trigger pulse callbacks
     for _, callback in ipairs(self.pulse_callbacks) do
         callback(channel_id)
@@ -1128,11 +1140,11 @@ function Channel:pulse_channel(channel_id)
         utils.debug_table("", channel_id)  -- Empty line
         utils.debug_table("----------------------------------------", channel_id)
         utils.debug_table(string.format(
-            "Channel Settings: Mode=%s, Clock=1/%s", 
+            "Channel Settings: Mode=%s, Clock=%s", 
             behavior_names[behavior],
             clock_div
         ), channel_id)
-
+        
         if mode == 1 then  -- Fixed mode
             local variance = params:get("duration_variance_" .. channel_id)
             utils.debug_table(string.format(

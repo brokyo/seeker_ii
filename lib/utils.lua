@@ -31,7 +31,7 @@ function utils.format_beat(beat)
 end
 
 function utils.debug_print(message, channel_id)
-    if SEEKER_VERBOSE then
+    if SEEKER_DEBUG then
         local current_beat = clock.get_beats()
         local prefix = string.format("[CH%d %d] ", 
             channel_id or 0,

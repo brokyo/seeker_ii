@@ -1,9 +1,14 @@
--- Grid UI module for Seeker II
-local GridUI = {}
+--[[
+  grid_ui.lua
+  Grid interface for Seeker II
+]]--
 
-local g = grid.connect()
+local grid = require("grid")
+local utils = include("lib/utils")
 local musicutil = require("musicutil")
-local clock_utils = include('lib/clock_utils')
+local clock_utils = include("lib/clock_utils")
+
+local GridUI = {}
 
 -- Constants
 local BRIGHT = 15
@@ -26,6 +31,7 @@ local GRID_COLS = 3
 local CHANNEL_WIDTH = 4
 
 -- State
+local g = nil  -- Will be set if grid is connected
 local channel_pulses = {}
 local pulse_metros = {}
 local active_notes = {}  -- Tracks currently playing notes per channel
@@ -130,14 +136,21 @@ end
 function GridUI.init(channels)
     GridUI.channels = channels
     
-    -- Connect grid key handler
-    g.key = GridUI.key
-    
-    -- Set up grid redraw metro
-    GridUI.metro = metro.init()
-    GridUI.metro.time = 1/GRID_FPS
-    GridUI.metro.event = GridUI.redraw
-    GridUI.metro:start()
+    -- Try to connect to grid
+    g = grid.connect()
+    if g.device then  -- Only set up grid if we have one connected
+        -- Connect grid key handler
+        g.key = GridUI.key
+        
+        -- Set up grid redraw metro
+        GridUI.metro = metro.init()
+        GridUI.metro.time = 1/GRID_FPS
+        GridUI.metro.event = GridUI.redraw
+        GridUI.metro:start()
+    else
+        print("No grid connected - grid UI disabled")
+        return
+    end
     
     -- Initialize state for each channel
     for i = 1, #channels do
@@ -161,6 +174,8 @@ function GridUI.init(channels)
         
         -- Add note callback to track playing notes
         channels[i]:add_note_callback(function(channel_id, note, is_start)
+            if not g then return end  -- Skip if no grid
+            
             -- Get current mode
             local mode = params:get("clock_pulse_behavior_" .. channel_id)
             local fade_time = mode == 3 and TRAIL_FADE_TIME.burst or
@@ -216,6 +231,8 @@ function GridUI.init(channels)
 end
 
 function GridUI.key(x, y, z)
+    if not g then return end  -- Skip if no grid
+    
     -- Calculate which section we're in (1-4)
     local section = math.ceil(x/CHANNEL_WIDTH)
     
@@ -240,7 +257,7 @@ function GridUI.key(x, y, z)
 end
 
 function GridUI.redraw()
-    if not g then return end
+    if not g or not g.device then return end  -- Skip if no grid
     
     g:all(0) -- clear grid
     
@@ -310,8 +327,17 @@ end
 local global_pulse = false
 
 function GridUI.set_pulse(state)
+    if not g then return end  -- Skip if no grid
+    
     global_pulse = state
     GridUI.redraw()
+end
+
+-- Add cleanup function
+function GridUI.cleanup()
+    if GridUI.metro then
+        GridUI.metro:stop()
+    end
 end
 
 return GridUI 

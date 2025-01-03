@@ -17,6 +17,7 @@ local theory_utils = include('lib/theory_utils')
 local utils = include('lib/utils')
 local params_manager = include('lib/params_manager')
 local GridUI = include('lib/grid_ui')
+local LatticeManager = include('lib/lattice_manager')
 
 -----------------
 -- Core Config --
@@ -33,11 +34,26 @@ function init()
     -- Initialize timing for logging
     utils.init_timing()
     
+    -- Run error tests if in debug mode
+    if SEEKER_DEBUG then
+        local test_errors = include('lib/test_errors')
+        test_errors.run_tests()
+    end
+    
     -- Initialize N.B
     nb:init()
     
-    -- Initialize channels
-    init_channels(NUM_CHANNELS)
+    -- Initialize lattice system BEFORE channels
+    if not LatticeManager.init() then
+        utils.debug_print("ERROR: Failed to initialize LatticeManager")
+        return
+    end
+    if SEEKER_DEBUG then
+        utils.debug_print("Successfully initialized LatticeManager")
+    end
+    
+    -- Initialize channels AFTER lattice
+    init_channels(NUM_CHANNELS, LatticeManager)
     
     -- Add global parameters
     add_global_config()
@@ -84,15 +100,6 @@ function init()
             GridUI.set_pulse(false)
         end
     end)
-    
-    -- Run error tests if in debug mode
-    if SEEKER_DEBUG then
-        local test_errors = include('lib/test_errors')
-        test_errors.run_tests()
-    end
-    
-    -- Initial screen draw
-    redraw()
 end
 
 -- Preset callbacks
@@ -187,10 +194,10 @@ function add_global_config()
     }
 end
 
-function init_channels(channel_count)
+function init_channels(channel_count, lattice_manager)
     -- First add all parameters for all channels
     for i = 1, channel_count do
-        channels[i] = Channel.new(i)
+        channels[i] = Channel.new(i, lattice_manager)
         channels[i]:add_params(i)
     end
     

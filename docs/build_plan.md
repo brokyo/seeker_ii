@@ -1,303 +1,307 @@
-# Build Plan
+# Seeker II Build Plan
 
-## Grid Integration
-✓ Basic start/stop functionality
-✓ Channel state visualization
-✓ Scale degree visualization
-✓ Chord quality display
-✓ Out-of-bounds indication
+## Core Philosophy
+
+### 1. Musical Intent
+- Each feature must serve a clear musical purpose
+- Focus on expressive timing and rhythm control
+- Maintain musical coherence across all channels
+- Prioritize features that enhance live performance and composition
+
+### 2. Code Architecture
+- Clear separation of concerns between modules
+- Consistent module patterns across codebase
+- Explicit state management
+- Predictable timing behavior
+- No global state except through dedicated managers
+
+### 3. Error Handling
+- Graceful degradation when things go wrong
+- Clear error messages for debugging
+- Protection against common failure modes
+- Automatic recovery where possible
+
+## Learnings from Previous Implementation
+
+### What Worked Well
+1. Channel-based architecture for independent voice control
+2. Grid UI visualization for note feedback
+3. Chord generation system with quality-specific intervals
+4. Parameter management system with prefixes
+5. Test-driven development approach for critical components
+
+### Missteps and Corrections
+1. Incorrect seventh intervals in chord generation
+   - Fixed by implementing quality-specific seventh intervals
+   - Added proper handling for Major7 and Augmented7 chords
+
+2. Initial timing implementation issues
+   - Clock.run approach led to drift and sync problems
+   - Need for centralized timing control became apparent
+
+3. Module dependency management
+   - Confusion between require/include for core vs local modules
+   - Need for consistent module loading patterns
+
+4. Grid UI implementation
+   - Initial implementation mixed concerns
+   - Need for better separation between display and logic
+
+## Implementation Philosophy
+
+### 1. Module Structure
+- Each module should be self-contained
+- Clear public interface
+- Private functions prefixed with underscore
+- Consistent return pattern for module tables
+- Example:
+```lua
+local MyModule = {}
+local private_state = {}
+
+function MyModule.init(params)
+    -- Initialization logic
+end
+
+function MyModule.public_method()
+    -- Public interface
+end
+
+local function _private_helper()
+    -- Private helper
+end
+
+return MyModule
+```
+
+### 2. State Management
+- State should be owned by a single module
+- State changes should be explicit and trackable
+- Use callbacks for state change notifications
+- Avoid global state
+
+### 3. Timing System
+- Centralized timing control through LatticeManager
+- Two types of timing:
+  1. Pulse sprocket: Main musical timing (quarter notes, etc)
+  2. Events sprocket: Sub-pulse events (strums, bursts)
+- All timing derived from single source of truth
+- Clear hierarchy of timing relationships
+
+### 4. Error Handling Pattern
+```lua
+function safe_operation(params)
+    if not validate_params(params) then
+        return nil, "Invalid parameters"
+    end
+    
+    local success, result = pcall(function()
+        -- Operation logic
+    end)
+    
+    if not success then
+        return nil, "Operation failed: " .. result
+    end
+    
+    return result
+end
+```
+
+## Implementation Plan
+
+### Phase 1: Core Timing System
+1. Create LatticeManager
+   - Initialize main lattice
+   - Methods for creating/managing sprockets
+   - Clear cleanup handling
+
+2. Channel Integration
+   - Convert one channel to use lattice
+   - Test thoroughly
+   - Apply learnings to other channels
+
+3. Testing Points
+   - Basic timing accuracy
+   - Multi-channel sync
+   - Start/stop behavior
+   - Edge cases (very fast/slow divisions)
+
+### Phase 2: Event System
+1. Implement Events Sprocket
+   - Sub-pulse timing control
+   - Event queuing system
+   - Priority handling
+
+2. Integration with Channel
+   - Convert strum/burst to use events
+   - Maintain musical coherence
+   - Test timing accuracy
+
+### Phase 3: Grid UI Enhancement
+1. Separate Display Logic
+   - Clear update triggers
+   - Efficient redraw strategy
+   - Better visual feedback
+
+2. Add New Features
+   - Better out-of-bounds indication
+   - More informative visualizations
+   - Performance optimizations
+
+## Testing Strategy
+
+### 1. Unit Tests
+- Test each module in isolation
+- Focus on edge cases
+- Verify error handling
+
+### 2. Integration Tests
+- Test module interactions
+- Verify timing accuracy
+- Check resource usage
+
+### 3. Musical Tests
+- Verify musical coherence
+- Test expressiveness
+- Check timing feel
+
+## Future Considerations
+
+### 1. Performance
+- Monitor CPU usage
+- Optimize hot paths
+- Consider batching updates
+
+### 2. Extensibility
+- Plan for future features
+- Keep interfaces flexible
+- Document extension points
+
+### 3. User Experience
+- Clear error messages
+- Intuitive parameter names
+- Consistent behavior
+
+## Implementation Notes
+
+### Current Status
+- Chord generation fixed and tested
+- Basic grid UI implementation working
+- Ready to begin lattice integration
 
 ### Next Steps
-1. Visual Enhancements
-   - Implement trail visualization system
-   - Apply consistently across modes:
-     - Pulse: Simple note fades
-     - Burst: Pattern density trails
-     - Strum: Motion visualization
+1. Create clean LatticeManager implementation
+2. Convert one channel to use lattice
+3. Test thoroughly
+4. Apply to remaining channels
 
-2. Critical Fixes
-   - ✓ Parameter ID collision on "auto_save"
-   - ✓ Startup error with set_pulse (nil value)
-   - Fix seventh calculation for Major/Augmented
-   - Review strum note ordering
+### Critical Points
+- Maintain musical timing accuracy
+- Ensure clean error handling
+- Keep code organized and documented
+- Test each step thoroughly
 
-3. Future Features
-   - Pattern step visualization
-   - Abstract pattern activity display
-   - Consider additional visual feedback:
-    - Velocity indication
-    - Pattern position
-    - Parameter changes
+## Clock Philosophy
 
-## Design Guidelines
-- Maintain consistent visual language
-- Show theoretical positions over literal notes
-- Use brightness levels meaningfully:
-  - DIM (2): Available positions
-  - PULSE (8): Active states
-  - BRIGHT (15): Current notes
-  - OUT_OF_BOUNDS (4): Edge cases
+### 1. Timing Hierarchy
+- Main lattice is the single source of truth
+- All musical events derive from this foundation
+- Clear parent-child relationships between timing elements
+- No independent timing sources to prevent drift
 
-## Musical Considerations
-- Focus on functional representation
-- Balance accuracy with usability
-- Consider musical context in visualization
-- Maintain visual rhythm and flow
+### 2. Musical Time vs. System Time
+- Think in musical divisions, not milliseconds
+- All timing expressed as musical fractions (1/4, 1/8, etc.)
+- System handles conversion to real time
+- Maintain musical coherence across tempo changes
 
-## Completed
-1. ~Basic Channel System~
-   - ~Channel start/stop~
-   - ~Basic clock division~
-   - ~Parameter framework~
+### 3. Event Timing Model
+```lua
+Timing Hierarchy:
+└── Main Lattice (global tempo)
+    ├── Channel Pulse Sprockets (divisions)
+    │   └── Note Events (on/off)
+    └── Event Sprockets (sub-pulse)
+        ├── Strum Events (note spread)
+        └── Burst Events (note clusters)
+```
 
-2. ~Duration System~
-   - ~Fixed and Pattern modes~
-   - ~Musical pattern shapes~
-   - ~Integration with Strum/Burst~
-   - ~Variance system~
-   - ~Debug output~
+### 4. Clock Behaviors
+- Pulse Mode: Simple division-based timing
+  - Clean, predictable note placement
+  - Direct relationship to tempo
+  - Ideal for rhythmic patterns
 
-3. ~Preset System~
-   - ~Auto-save functionality~
-   - ~Auto-load last state~
-   - ~Integration with system PSET menu~
+- Strum Mode: Organic note spread
+  - Notes distributed within pulse window
+  - Natural acceleration/deceleration
+  - Musical direction changes
 
-## In Progress
-1. Grid Integration
-   - Basic start/stop buttons
-   - Channel section layout
-   - Visual feedback for running state
+- Burst Mode: Note clustering
+  - Dense note groups within pulse
+  - Physics-based note distribution
+  - Natural dynamic feel
 
-2. Expression System
-   - Velocity patterns
-   - Pattern-based modulation
-   - Cross-parameter relationships
+### 5. Timing Precision
+- All events quantized to nearest possible timing
+- No events scheduled beyond reasonable precision
+- Clear handling of timing conflicts
+- Graceful behavior at tempo extremes
 
-3. Burst System
-   - Configurable event counts
-   - Pattern-based density
-   - Style refinements
+## Parameter Management
 
-## Next Steps
-1. Advanced Grid Features
-   - Pattern visualization
-   - Event monitoring
-   - Full control interface
+### 1. Parameter Hierarchy
+```lua
+Global Parameters
+├── Musical Context
+│   ├── Key
+│   ├── Scale
+│   └── Tempo
+└── Global Controls
+    ├── Transpose
+    └── Octave
 
-2. Paramquencer Development
-   - Chord progression sequencing
-   - Parameter modulation
-   - Pattern coordination
+Channel Parameters
+├── Core Musical
+│   ├── Chord Degree
+│   ├── Chord Quality
+│   └── Extensions
+├── Timing
+│   ├── Division
+│   ├── Behavior Mode
+│   └── Sync Mode
+└── Expression
+    ├── Velocity
+    ├── Duration
+    └── Pattern
+```
 
-## Future Features
-1. Advanced Timing
-   - Euclidean patterns
-   - Polyrhythmic support
-   - Groove templates
+### 2. Parameter Relationships
+- Clear parent-child dependencies
+- Explicit update propagation
+- Cached derived values
+- Efficient change notification
 
-2. Musical Development
-   - Scale-based progression
-   - Textural generation
-   - Effect integration
+### 3. Parameter Persistence
+- Automatic state saving
+- Clean serialization
+- Safe deserialization
+- Version compatibility
 
-3. Interface Evolution
-   - Interactive event tables
-   - Musical notation
-   - Real-time visualization
+### 4. Parameter Modulation
+- Clear modulation paths
+- Rate-limited updates
+- Priority system for conflicts
+- Predictable behavior
 
-## Architectural Improvements
+### 5. Parameter Validation
+- Type checking
+- Range validation
+- Dependency verification
+- Clear error messages
 
-### 1. Clock System Rebuild
-- Separate clock division from behavior modes
-- Core concept: Maintain per-channel pulse configuration, but express event timing as fractions
-- New structure:
-  ```
-  Clock
-  - Division (per-channel, as today)
-  - Global timing control
-  
-  Event Timing (as fractions of pulse)
-  - Strum: Length as fraction (1/4, 1/2 of pulse)
-  - Burst: Window as fraction
-  - Pulse: Single events
-  ```
-- Benefits:
-  - Clearer relationship between timing elements
-  - More musical approach to subdivisions
-  - Simpler mental model for users
-  - Natural polyrhythm support through clock mod
-- Implementation Notes:
-  - Use existing music_utils for fraction handling
-  - Visual feedback through existing grid pulse/illumination
-  - No new parameter types needed
-
-### 2. Note System Restructure
-- Split current arpeggiator into distinct concepts:
-  ```
-  Note Pool
-  - Modes:
-    1. Chord-based (current system)
-    2. Grid-selected (scale degree approach)
-  - Implementation:
-    - Enter/exit selection mode via params binary trigger
-    - Toggle notes on/off in grid
-    - Audio feedback using channel's MIDI settings
-    - Visual indication of edit mode
-  
-  Pattern Engine (source-agnostic)
-  - Takes note collection from pool
-  - Handles ordering/playback
-  - Current random/locked-random modes
-  - Future expansion possible
-  ```
-- Grid Integration:
-  - Maintain consistent grid layout
-  - Scale degree approach for note selection
-  - All three octaves available
-  - Toggle-based note selection
-  - Audio preview on press
-- Benefits:
-  - More flexible note selection
-  - Clearer separation of concerns
-  - Better foundation for future features
-  - Maintains consistent UI model
-
-### 3. Pattern Evolution
-- Enhanced burst algorithms:
-  - More physically-modeled behaviors
-  - Musical presets (small/medium/large)
-  - Style refinements:
-    - Natural bounce physics
-    - Organic wave patterns
-    - Heartbeat-like pulses
-
-- Refined strum patterns:
-  - Guitar-like accelerations
-  - Natural direction changes
-  - Dynamic clustering
-
-- Expression system expansion:
-  - New pattern types (sine, breath, waves)
-  - Cross-parameter relationships
-  - Musical presets combining:
-    - Duration patterns
-    - Velocity shapes
-    - Note selection
-    - Movement styles
-
-### 4. Paramquencer Development
-- Multi-parameter sequencing:
-  - Independent timing per parameter
-  - Pattern-based parameter changes
-  - Musical relationships between parameters
-
-- Core parameters to sequence:
-  - Chord progressions
-  - Extensions/inversions
-  - Note pool size/range
-  - Pattern variations
-
-- Musical development tools:
-  - Textural evolution
-  - Harmonic progression
-  - Rhythmic development
-  - Timbral exploration
-
-## Implementation Priority
-1. Critical fixes (startup errors, chord generation)
-2. Clock system rebuild (foundation for better timing)
-3. Note system restructure (enabling more musical possibilities)
-4. Pattern evolution (refining musical output)
-5. Paramquencer development (adding compositional depth)
-
-## Expanded Musical Possibilities
-
-### 1. Advanced Note Pool System
-- Multiple collection modes:
-  ```
-  Chord-based: Current harmonic system
-  Grid-selected: Arbitrary note selection
-  Scale-based: Full scale availability
-  Hybrid: Combine multiple sources
-  ```
-- Per-note properties:
-  - Play probability
-  - Velocity weighting
-  - Duration tendencies
-  - Relative importance in pattern
-- Applications:
-  - Complex harmonic textures
-  - Evolving timbral landscapes
-  - Dynamic pattern density
-
-### 2. Inter-Channel Relationships
-- Pattern interactions:
-  - Complementary rhythmic patterns
-  - Shared note pools with different behaviors
-  - Cross-channel pattern influences
-- Musical applications:
-  - Call and response
-  - Rhythmic counterpoint
-  - Harmonic development
-  - Textural layering
-
-### 3. Musical Preset System
-- Context-aware presets:
-  ```
-  Ambient: Long divisions, wide pools, slow evolution
-  Rhythmic: Tight timing, focused notes, clear patterns
-  Textural: Shifting patterns, fluid note collections
-  ```
-- Preset categories:
-  - Time-based (rhythmic relationships)
-  - Note-based (harmonic relationships)
-  - Pattern-based (behavioral relationships)
-- Benefits:
-  - Quick musical results
-  - Starting points for exploration
-  - Educational value for understanding system
-
-### 4. Performative Grid Controls
-- Scene system in bottom row:
-  ```
-  Minimal Layout (preferred):
-  [Scene A] [Scene B] [Start]
-  or
-  [Start] [Scene A] [Scene B]
-  
-  Alternative:
-  Could use full column for more scenes,
-  but intentional limitation might be more musical
-  ```
-- Scene contents:
-  - Core musical parameters:
-    - Chord degree and quality
-    - Inversion state
-    - Extension settings
-  - Optional parameters:
-    - Note range/octave
-    - Behavior mode
-  
-- Interaction design:
-  - Hold to store current state
-  - Tap to recall
-  - Visual feedback:
-    - Dim: Empty scene
-    - Medium: Stored scene
-    - Bright: Active scene
-  - Could preview stored chord in grid above when held
-
-- Musical applications:
-  - Quick switching between chord voicings
-  - A/B pattern development
-  - Tension/release through inversions
-  - Simple progressions through degree changes
-  - Performative parameter changes
-
-- Benefits of limitation:
-  - More manageable in performance
-  - Creates clear musical relationships
-  - Forces intentional scene design
-  - Maintains playability focus
-
-These expansions could help bridge the gap between technical capability and musical expression, making the system both more powerful and more immediately musical.
+### 6. Musical Parameter Design
+- All parameters serve clear musical purpose
+- Intuitive naming and organization
+- Consistent value ranges
+- Musical default values
