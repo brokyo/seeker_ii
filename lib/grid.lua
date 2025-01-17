@@ -5,7 +5,9 @@ local GridUI = {}
 local g = grid.connect()
 local params_manager = include('/lib/params_manager')
 local theory = include('/lib/theory_utils')
-local reflection_manager = nil  -- Will be set during init
+local MotifRecorder = include('/lib/motif_recorder')
+local logger = include("/lib/logger")
+local Motif = include('lib/motif')
 
 --------------------------------------------------
 -- Initialization
@@ -19,11 +21,15 @@ local BRIGHTNESS = {
   inactive = 0
 }
 
-function GridUI.init(skeys_instance, reflection_mgr)
+function GridUI.init(skeys_instance, conductor, motif_recorder)
   -- Store MXSamples instance
   GridUI.skeys = skeys_instance
-  -- Store reflection manager instance
-  reflection_manager = reflection_mgr
+  
+  -- Store conductor reference
+  GridUI.conductor = conductor
+  
+  -- Store motif recorder reference
+  GridUI.motif_recorder = motif_recorder
   
   -- Initialize musical state
   GridUI.root_note = params:get("root_note")
@@ -32,13 +38,19 @@ function GridUI.init(skeys_instance, reflection_mgr)
   
   -- Check if grid is connected, set up any initial state
   if g.device then
-    print("Grid connected: " .. g.device.name)
+    logger.status({
+      event = "grid_connected",
+      device = g.device.name
+    }, "⬖ ▣ ▣")
+    
     -- Set up the key callback
     g.key = function(x, y, z)
       GridUI.key(x, y, z)
     end
   else
-    print("No grid connected")
+    logger.status({
+      event = "grid_connection_failed"
+    }, "⬖ ▣ ▣")
   end
 end
 
@@ -54,11 +66,25 @@ end
 
 -- Handle recording controls
 function GridUI.handle_record_toggle(x, y, z)
-  if x == 4 and y == 1 and z == 1 then  -- Record button at x=4, row 1
-    if reflection_manager.is_recording() then
-      reflection_manager.stop_recording()
+  if x == 4 and y == 1 and z == 1 then
+    if not GridUI.motif_recorder.is_recording then
+      GridUI.motif_recorder:startRecording()
+      logger.status({
+        event = "grid_recording_started"
+      }, "⬖ ▣ ▣")
     else
-      reflection_manager.start_recording()
+      local notes = GridUI.motif_recorder:stopRecording()
+      
+      -- Add the notes to the conductor
+      GridUI.conductor:add_motif({
+        notes = notes,
+        engine = GridUI.skeys
+      })
+      
+      logger.debug({
+        event = "motif_recorded",
+        motif = notes
+      }, "! !")
     end
   end
 end
@@ -66,11 +92,13 @@ end
 -- Handle playback controls
 function GridUI.handle_playback_toggle(x, y, z)
   if x == 5 and y == 1 and z == 1 then  -- Play button at x=5, row 1
-    local pattern = reflection_manager.patterns.main
-    if pattern.play == 1 then
-      reflection_manager.stop_playback()
+    -- Toggle playback of all motifs
+    if GridUI.is_playing then
+      GridUI.conductor:stop_all()
+      GridUI.is_playing = false
     else
-      reflection_manager.start_playback()
+      GridUI.conductor:start_all()
+      GridUI.is_playing = true
     end
   end
 end
@@ -78,11 +106,11 @@ end
 -- Handle clear pattern
 function GridUI.handle_clear_pattern(x, y, z)
   if x == 12 and y == 1 and z == 1 then  -- Clear button at x=12, row 1
-    reflection_manager.clear_pattern()
+
   end
 end
 
--- Record a note when a key is pressed during recording
+-- Handle note record
 function GridUI.handle_note_record(x, y, z)
   if x >= 4 and x <= 12 and y >= 6 and y <= 8 then
     local pitch = theory.grid_to_note(x, y)
@@ -96,15 +124,28 @@ function GridUI.handle_note_record(x, y, z)
           midi = pitch,
           velocity = velocity
         })
+        -- Record note if recording
+        if GridUI.motif_recorder.is_recording then
+          GridUI.motif_recorder:onNoteOn(pitch, velocity, {x=x, y=y})
+        end
       else
         GridUI.skeys:off({
           name = params:string("instrument"),
           midi = pitch
         })
+        -- Record note off if recording
+        if GridUI.motif_recorder.is_recording then
+          GridUI.motif_recorder:onNoteOff(pitch)
+        end
       end
       
-      -- Record if we're in recording mode
-      reflection_manager.record_note(pitch, velocity, x, y)
+      logger.music({
+        event = z == 1 and "note_on" or "note_off",
+        n = pitch,
+        v = velocity,
+        pos = string.format("%d,%d", x, y),
+        recording = GridUI.motif_recorder.is_recording
+      }, "▓▓")
     end
   end
 end
@@ -139,14 +180,14 @@ end
 
 -- Draw the pattern controls
 function GridUI.draw_pattern_lanes()
-  local pattern = reflection_manager.patterns.main
-  
   -- Draw record button (x=4)
-  local rec_brightness = reflection_manager.is_recording() and BRIGHTNESS.high or BRIGHTNESS.medium
+  local rec_brightness = GridUI.motif_recorder.is_recording 
+    and BRIGHTNESS.high or BRIGHTNESS.medium
   g:led(4, 1, rec_brightness)
   
   -- Draw play button (x=5)
-  local play_brightness = pattern.play == 1 and BRIGHTNESS.high or BRIGHTNESS.medium
+  local play_brightness = GridUI.is_playing 
+    and BRIGHTNESS.high or BRIGHTNESS.medium
   g:led(5, 1, play_brightness)
   
   -- Draw clear button (x=12)
