@@ -4,6 +4,42 @@ This document lists common development issues encountered in Norns/Lua developme
 
 ## Module Communication & Dependencies
 
+### Module Import Checklist
+
+**Problem**: Missing imports are a common source of "attempt to index nil value" errors:
+```lua
+-- ui.lua
+local UI = {}
+
+function UI.some_function()
+  logger.status({  -- Error: logger not imported!
+    event = "something_happened"
+  })
+end
+```
+
+**Solution**: Use an import checklist when creating/modifying modules:
+1. List required dependencies at top of file
+2. Check for common services:
+   - logger (if using logging)
+   - params (if using parameters)
+   - util (if using utility functions)
+3. Document dependencies in module header
+
+```lua
+-- ui.lua
+-- Dependencies:
+--   lib/logger.lua - Logging system
+--   lib/params.lua - Parameter management
+--   lib/util.lua   - Utility functions
+
+local logger = include('lib/logger')
+local params = include('lib/params')
+local util = include('lib/util')
+
+local UI = {}
+```
+
 ### Module Instance Management
 
 **Problem**: When multiple modules need to share a stateful service/manager, using `include()` in each module can create separate instances:
@@ -45,6 +81,16 @@ Benefits:
 - Easier to test with mock instances
 - Avoids hidden state synchronization issues
 - Clear initialization order
+
+**Warning Signs**:
+- Using include() to get references to stateful modules
+- Adding callback systems for module communication
+- Modules needing to "find" each other
+
+**Questions to Ask**:
+1. "Could this be passed in through init()?"
+2. "Are we creating hidden dependencies?"
+3. "Is there a simpler parent-child relationship?"
 
 ### Circular Dependencies and Module Communication
 
@@ -130,130 +176,3 @@ local mxsamples = include("mx.samples/lib/mx.samples")
 -- This might fail if parameters aren't fully initialized
 params:get("some_engine_param")  
 ```
-
-**Solution**: Ensure engine parameters are fully initialized before access:
-```lua
-engine.name = "MxSamples"
-local mxsamples = include("mx.samples/lib/mx.samples")
--- Create engine instance first
-local skeys = mxsamples:new()  -- This adds engine parameters
--- Then initialize your own parameters
-params:add_separator("MY_PARAMS")
--- Now safe to access engine parameters
-params:get("some_engine_param")
-```
-
-## Grid Management
-
-### Grid Updates
-
-**Problem**: Grid display not updating when parameters change.
-
-**Solution**: Always call `grid:refresh()` after LED changes and ensure redraw is triggered by relevant parameter changes:
-```lua
-function GridUI.redraw()
-  -- Update LEDs
-  GridUI.draw_keyboard()
-  GridUI.draw_pattern_lane()
-  g:refresh()  -- Critical!
-end
-```
-
-### Grid Event Handling
-
-**Problem**: Grid events not being captured.
-
-**Solution**: Ensure grid key callback is properly set in initialization:
-```lua
-if g.device then
-  g.key = function(x, y, z)
-    GridUI.key(x, y, z)
-  end
-end
-```
-
-### Initialization Order and Dependencies
-
-**Problem**: Complex initialization dependencies between modules can lead to circular dependencies and "nil value" errors:
-```lua
--- Trying to initialize everything at once leads to dependency cycles
-function init()
-  grid_ui.init()      -- Needs params for initial state
-  params.init()       -- Actions try to update grid
-  reflection.init()   -- Grid needs this to work
-end
-```
-
-**Solution**: Layer initialization in clear dependency order, from core systems outward:
-```lua
-function init()
-  -- 1. Core systems (no dependencies)
-  audio_engine.init()
-  
-  -- 2. State/parameter system (depends on core only)
-  params:init()
-  params:read()
-  params:bang()
-  
-  -- 3. Business logic (depends on core/params)
-  pattern_manager.init()
-  
-  -- 4. UI layer (can depend on everything)
-  grid_ui.init()
-  screen_ui.init()
-end
-```
-
-Benefits:
-- Each layer only initializes after its dependencies
-- Clear separation of concerns
-- Easier to track dependency flow
-- Prevents circular initialization issues
-- Makes dependencies explicit and visible
-
-Common layers (from inside out):
-1. Core systems (audio, clock)
-2. State management (parameters, settings)
-3. Business logic (pattern management, sequencing)
-4. UI and interaction (grid, screen, MIDI)
-
-### Debugging Dependencies
-
-When facing initialization or dependency errors, ask these questions:
-
-1. "Do these modules actually need each other?"
-   - Challenge assumed dependencies
-   - Look for accidental coupling
-   - Consider if the dependency is bidirectional or one-way
-
-2. "What's the simplest thing that needs to happen first?"
-   - Identify core systems that have no dependencies
-   - Look for modules that only depend on core systems
-   - UI usually depends on everything - it should come last
-
-3. "Could this be initialized earlier?"
-   - Parameters often can be initialized right after core systems
-   - Business logic usually only needs core + parameters
-   - UI callbacks/actions can be registered after everything else
-
-Example debugging process:
-```lua
--- Initial problematic code
-function init()
-  grid_ui.init()      -- Fails: needs params
-  pattern_system.init()
-  params.init()
-end
-
--- Ask: "What actually needs what?"
--- Answer: params don't need anything else
--- New working code
-function init()
-  params.init()       -- No dependencies!
-  pattern_system.init()
-  grid_ui.init()      -- Now params exist
-end
-```
-
-## More to come...
-This document will be updated as we encounter and solve more development challenges. 

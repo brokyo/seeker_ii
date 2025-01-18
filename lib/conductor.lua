@@ -1,168 +1,163 @@
 -- conductor.lua
+-- Conductor is responsible for:
+-- 1. Managing when motifs play (clock/timing)
+-- 2. Controlling how motifs are transformed
+-- 3. Synchronizing multiple motifs
+-- 4. Managing playback state
 
-local logger = include("/lib/logger")
 local Motif = include('lib/motif')
-
--- This Conductor manages multiple Motif objects. 
--- Eventually you might add "stage" logic, transforms, or cross-motif interaction. 
 
 local Conductor = {}
 Conductor.__index = Conductor
 
+-- Default settings
+local DEFAULT_TRANSFORM_WAIT = 8  -- Wait 8 bars between transform sequences
+
+--------------------------------------------------
+-- Constructor & State Management
+--------------------------------------------------
+
 function Conductor.new(args)
   local c = setmetatable({}, Conductor)
   
-  -- A table to hold all active motifs
-  c.motifs = {}
+  -- Voice slots for UI organization
+  -- TODO: This will be replaced with a proper voice management system
+  -- that separates UI state from playback logic
+  c.voices = {}
+  for i = 1,4 do
+    c.voices[i] = {
+      motif = nil,
+      is_playing = false
+    }
+  end
   
-  -- If you want to use Lattice for scheduling:
-  --   local lattice = require("lattice")
-  --   c.lattice = lattice:new({
-  --     ppqn = 96,        -- or your preferred pulses per quarter note
-  --     autostart = false -- we'll manually start it 
-  --   })
-
-  -- Or if you prefer the simpler "clock" approach, store any references here:
-  --   c.clock = args.clock or nil
-
-  logger.status({
-    event = "conductor_created",
-    args = args
-  })
-
+  -- Clock and Playback State
+  c.master_clock = nil        -- Main clock coroutine ID
+  c.playing_motifs = {}       -- Tracks active motifs and their state
+  -- playing_motifs structure:
+  -- {
+  --   [motif_id] = {
+  --     motif = <motif_object>,
+  --     loop_count = 0,           -- How many times has this motif looped
+  --     pattern_loops = 0,        -- Loops in current transform stage
+  --     playback_speed = 1.0,     -- Relative to global tempo
+  --     current_transform = 1,    -- Index in transform sequence
+  --     transform_sequence = {},  -- Sequence of transforms to apply
+  --     timing_mode = "free",    -- "free" for human timing, "grid" for quantized
+  --     grid_division = 1/16,    -- If grid timing, what division to use
+  --     wait_bars = DEFAULT_TRANSFORM_WAIT  -- Bars to wait between transforms
+  --   }
+  -- }
+  
+  -- Transform Management
+  -- Each motif can have a sequence of transforms
+  -- Transform sequence structure:
+  -- {
+  --   {
+  --     transform = function,     -- Transform function to apply
+  --     params = {},             -- Parameters for this transform
+  --     after_loops = number,    -- How many loops to play this version
+  --     sync_with = {motif_ids}, -- Optional: Other motifs to sync with
+  --   }
+  -- }
+  -- Transform function signature:
+  -- function(motif, params) -> transformed_motif
+  -- Common params might include:
+  -- - transpose_amount
+  -- - inversion_point
+  -- - playback_rate
+  -- - quantization_amount
+  
   return c
 end
 
 --------------------------------------------------
--- Add / Remove Motifs
+-- Clock Management
 --------------------------------------------------
 
---- Add a Motif to the Conductor
--- @param motif (Motif) the motif to manage
-function Conductor:add_motif(args)
-  local motif = Motif.new(args)
-  table.insert(self.motifs, motif)
-  logger.status({
-    event = "motif_added",
-    total_motifs = #self.motifs
-  })
+-- Start the master clock
+function Conductor:start_clock()
+  if self.master_clock then clock.cancel(self.master_clock) end
+  
+  self.master_clock = clock.run(function()
+    while true do
+      local now = clock.get_beats()
+      
+      -- Process each playing motif
+      for id, pm in pairs(self.playing_motifs) do
+        -- TODO: Handle timing based on mode:
+        -- For free timing:
+        -- - Calculate exact time to next note using note.time
+        -- - Use clock.sleep() for precise delays
+        --
+        -- For grid timing:
+        -- - Quantize to grid_division
+        -- - Use clock.sync() for rigid timing
+        --
+        -- At pattern boundaries:
+        -- - Increment pattern_loops
+        -- - If pattern_loops >= current_transform.after_loops
+        --   - Wait wait_bars if this isn't the first transform
+        --   - Apply next transform
+        --   - Reset pattern_loops
+        --   - Advance current_transform (loop back to 1 if at end)
+      end
+      
+      -- Sleep a very small amount to prevent tight loop
+      clock.sleep(0.001)
+    end
+  end)
 end
 
---- Remove a Motif by index
-function Conductor:remove_motif(index)
-  if index < 1 or index > #self.motifs then return end
-  table.remove(self.motifs, index)
-  logger.status({
-    event = "motif_removed",
-    index = index,
-    total_motifs = #self.motifs
-  })
+-- Add a motif to the playback system
+function Conductor:play_motif(motif_id, opts)
+  -- TODO: opts will include:
+  -- - playback_speed
+  -- - transform_sequence
+  -- - timing_mode ("free" or "grid")
+  -- - grid_division (if grid mode)
+  -- - wait_bars (optional, defaults to DEFAULT_TRANSFORM_WAIT)
 end
 
---------------------------------------------------
--- Start / Stop All (Global)
---------------------------------------------------
-
---- Start all motifs playing
-function Conductor:start_all()
-  logger.status({
-    event = "start_all_motifs",
-    count = #self.motifs
-  })
-
-  for i, motif in ipairs(self.motifs) do
-    self:start_motif(i)
-  end
-
-  -- If using Lattice, start it here:
-  -- if self.lattice then
-  --   self.lattice:start()
-  -- end
+-- Add a transform to a motif's sequence
+function Conductor:add_transform(motif_id, transform_fn, params, opts)
+  -- TODO: opts will include:
+  -- - after_loops: number of loops to wait
+  -- - sync_with: optional array of other motif_ids to sync with
+  -- params: transform-specific parameters
 end
 
---- Stop all motifs
-function Conductor:stop_all()
-  logger.status({
-    event = "stop_all_motifs",
-    count = #self.motifs
-  })
-
-  for i, motif in ipairs(self.motifs) do
-    self:stop_motif(i)
-  end
-
-  -- If using Lattice:
-  -- if self.lattice then
-  --   self.lattice:stop()
-  -- end
+-- Schedule synchronized transforms across multiple motifs
+function Conductor:sync_transform(motif_ids, transform_fn, params, after_loops)
+  -- Helper to add the same transform to multiple motifs
+  -- Will ensure they all transform together after the specified number of loops
 end
 
 --------------------------------------------------
--- Start / Stop Individual Motifs
+-- Motif Management
 --------------------------------------------------
 
---- Start a single motif by index
-function Conductor:start_motif(index)
-  local m = self.motifs[index]
-  if not m then 
-    logger.status({
-      event = "motif_start_failed",
-      index = index,
-      reason = "invalid_index"
-    })
-    return 
-  end
-
-  logger.music({
-    event = "motif_started",
-    index = index,
-    loop_count = m.loop_count
-  })
-
-  m.loop_count = 0
-  m:play()  -- The timing logic is handled inside the motif's play() method
-end
-
---- Stop a single motif by index
-function Conductor:stop_motif(index)
-  local m = self.motifs[index]
-  if not m then 
-    logger.status({
-      event = "motif_stop_failed",
-      index = index,
-      reason = "invalid_index"
-    })
-    return 
+function Conductor:create_motif(voice_num, recorded_data)
+  -- Debug print the recorded data
+  print("▼ Creating Motif for Lane " .. voice_num .. " ▼")
+  for i, note in ipairs(recorded_data) do
+    local note_info = string.format("Note %d: pitch=%d time=%.2f dur=%.2f", 
+      i, note.pitch, note.time, note.duration)
+    if note.pos then
+      note_info = note_info .. string.format(" pos=(%d,%d)", note.pos.x, note.pos.y)
+    end
+    print(note_info)
   end
   
-  m:stop()  -- Stop the clock-based playback
+  local motif = Motif.new({
+    notes = recorded_data,
+    voice = voice_num
+  })
   
-  logger.music({
-    event = "motif_stopped",
-    index = index,
-    final_loop_count = m.loop_count
-  })
-end
-
---------------------------------------------------
--- Future Hooks: Cross-Motif Logic, Stage Management
---------------------------------------------------
-
--- For instance:
-function Conductor:on_motif_finished(motif_index)
-  logger.flow({
-    event = "motif_finished",
-    index = motif_index,
-    loop_count = self.motifs[motif_index].loop_count
-  })
-  -- e.g., trigger next motif or transform
-end
-
-function Conductor:create_motif(notes, engine)
-  return Motif.new({
-    notes = notes,
-    engine = engine
-  })
+  -- Store in voice slot
+  self.voices[voice_num].motif = motif
+  
+  return motif
 end
 
 return Conductor

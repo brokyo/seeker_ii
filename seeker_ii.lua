@@ -1,43 +1,44 @@
 -- seeker_ii.lua
--- Main entry point for Seeker II.
+-- awakening.systems
 
 engine.name = "MxSamples"
 
--- 1. Require libraries
+-- Libraries
 local mxsamples = include("mx.samples/lib/mx.samples")  -- Sample playback engine
 local grid_ui          = include("/lib/grid")
 local ui               = include("/lib/ui")
 local transformations  = include("/lib/transformations")
-local logger           = include("/lib/logger")
 local params_manager = include('/lib/params_manager')
 local Conductor = include('lib/conductor')
-local MotifRecorder = include('lib/motif_recorder')
 local Motif = include('lib/motif')
 
--- 2. Global state references
-local skeys = nil              -- MXSamples instance
+-- Global state
+_seeker = {
+  focused_voice = 1,       -- Currently focused voice (1-4)
+  skeys = nil,           -- MxSamples instance
+  conductor = nil        -- Conductor instance
+}
 
 --------------------------------------------------
 -- Norns lifecycle functions
 --------------------------------------------------
 
 function init()
-  -- 1. Core audio setup
-  skeys = mxsamples:new()
+  -- Core audio setup
+  _seeker.skeys = mxsamples:new()
+  _seeker.conductor = Conductor.new({})
   
-  -- 2. Parameter system
-  params_manager.init_musical_params(skeys)
+  -- Parameter system (before anything tries to access params)
+  params_manager.init_params()  -- No need to pass skeys/conductor anymore
   params:read()
   params:bang()
-    
-  -- Create core components
-  local conductor = Conductor.new({})
-  local motif_recorder = MotifRecorder.new({})
   
-  -- 4. UI layer
-  grid_ui.init(skeys, conductor, motif_recorder, Motif)  -- Pass recorder as dependency
-  ui.init()
-  grid_ui.post_init()
+  -- Components that need params
+  local ui_instance = ui.init()  -- No need to pass conductor
+  local grid_ui = grid_ui.init()  -- No need to pass skeys/conductor
+  
+  -- Passing UI to grid
+  ui_instance.grid_ui = grid_ui
   
   -- 5. Start clock for pattern playback
   clock.run(function()
@@ -53,12 +54,10 @@ function key(n, z)
 end
 
 function enc(n, d)
-  -- 1. Basic navigation or parameter changes 
   ui.enc(n, d)
 end
 
 function redraw()
-  -- 1. Draw the current state (active pattern, loop counts, etc.)
   screen.clear()
   ui.redraw()
   grid_ui.redraw()
@@ -66,6 +65,5 @@ function redraw()
 end
 
 function cleanup()
-  -- Save parameter values before exiting
   params:write()
 end

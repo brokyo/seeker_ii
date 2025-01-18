@@ -1,95 +1,100 @@
+-- Import required music utilities
 local musicutil = require("musicutil")
 
 local params_manager = {}
 
--- Store callbacks for different parameter changes
-local callbacks = {
-  scale_change = {},
-  root_note_change = {},
-  octave_change = {}
-}
-
--- Helper to register callbacks
-function params_manager.on_scale_change(callback_fn)
-  print("Registering scale change callback")
-  table.insert(callbacks.scale_change, callback_fn)
-end
-
-function params_manager.on_root_note_change(callback_fn)
-  print("Registering root note change callback")
-  table.insert(callbacks.root_note_change, callback_fn)
-end
-
-function params_manager.on_octave_change(callback_fn)
-  print("Registering octave change callback")
-  table.insert(callbacks.octave_change, callback_fn)
-end
-
-function params_manager.init_musical_params(skeys)
-  local grid_ui = include('lib/grid')
-  local theory = include('lib/theory_utils')
-  
-  -- Musical parameters
-  params:add_group("MUSICAL", 3)
-  
-  -- Root note selection (0-11 representing C through B)
-  params:add_option("root_note", "Root Note", 
-    {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 
-    1)
-  
-  -- Scale selection
-  local scale_names = {}
-  for i = 1, #musicutil.SCALES do
-    scale_names[i] = musicutil.SCALES[i].name
-  end
-  params:add_option("scale_type", "Scale", scale_names, 1)
-  
-  -- Base octave selection
-  params:add_number("base_octave", "Base Octave", 1, 7, 3)
-  
-  -- Sound parameters
-  params:add_group("SOUND", 1)
+-- Helper function to get sorted list of instruments
+function params_manager.get_instrument_list()
   local instruments = {}
-  for k,v in pairs(skeys.instrument) do
+  for k,v in pairs(_seeker.skeys.instrument) do
     table.insert(instruments, k)
   end
   table.sort(instruments)
-  params:add_option("instrument", "Instrument", instruments, 1)
+  return instruments
 end
 
--- Register parameter actions after all initialization is complete
-function params_manager.register_actions()
+-------------------------------------------
+-- Initialize all parameters for the synth
+-------------------------------------------
+function params_manager.init_params()
   local grid_ui = include('lib/grid')
   local theory = include('lib/theory_utils')
   
+  -------------------------------------------
+  -- MUSICAL PARAMETERS GROUP
+  -------------------------------------------
+  params:add_group("MUSICAL", 3)
+  
+  -- Root note selection (C through B)
+  -- Updates grid UI and keyboard layout when changed
+  params:add_option("root_note", "Root Note", 
+    {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 
+    1)
   params:set_action("root_note", function(value)
-    print("Root note changed to: " .. (value - 1))
     grid_ui.root_note = value
     grid_ui.redraw()
     theory.print_keyboard_layout()
   end)
   
+  -- Scale selection from musicutil.SCALES
+  -- Updates grid UI and keyboard layout when changed
+  local scale_names = {}
+  for i = 1, #musicutil.SCALES do
+    scale_names[i] = musicutil.SCALES[i].name
+  end
+  params:add_option("scale_type", "Scale", scale_names, 1)
   params:set_action("scale_type", function(value)
-    print("Scale type changed to: " .. scale_names[value])
     grid_ui.scale_type = value
     grid_ui.redraw()
     theory.print_keyboard_layout()
   end)
   
-  params:set_action("base_octave", function(value)
-    print("Base octave changed to: " .. value)
-    grid_ui.base_octave = value
-    grid_ui.redraw()
-    theory.print_keyboard_layout()
-  end)
-end
-
--- Helper function to convert root note option (1-12) to MIDI note number
-function params_manager.get_current_root_midi_note()
-  local root = (params:get("root_note") - 1)  -- Convert from 1-based index to 0-based note value
-  local octave = params:get("base_octave")
-  -- MIDI note 60 is middle C (C3), so we offset our octave calculation
-  return root + ((octave + 2) * 12)  -- +2 to align with standard MIDI octave numbering
+  -- Base octave selection (1-7, default 3)
+  params:add_number("base_octave", "Base Octave", 1, 7, 3)
+  
+  -------------------------------------------
+  -- SOUND PARAMETERS GROUP
+  -------------------------------------------
+  params:add_group("SOUND", 1)
+  -- Global instrument selection
+  local instruments = params_manager.get_instrument_list()
+  params:add_option("instrument", "Instrument", instruments, 1)
+  
+  -------------------------------------------
+  -- VOICE-SPECIFIC PARAMETERS
+  -- Creates 4 identical voice groups with:
+  -- - Instrument selection
+  -- - Octave selection
+  -------------------------------------------
+  for i = 1,4 do
+    params:add_group("VOICE " .. i, 2)
+    
+    -- Instrument selection for this voice
+    -- Updates global instrument if this voice is selected
+    local instruments = params_manager.get_instrument_list()
+    params:add_option("voice_" .. i .. "_instrument", "Instrument", instruments, 1)
+    params:set_action("voice_" .. i .. "_instrument", function(value)
+      if _seeker.focused_voice == i then
+        params:set("instrument", value)
+      end
+      if _seeker.conductor and _seeker.conductor.voices[i] then
+        _seeker.conductor.voices[i].instrument = instruments[value]  -- Store actual name
+      end
+    end)
+    
+    -- Octave selection for this voice (1-7, default 3)
+    -- Updates grid UI if this voice is selected
+    params:add_number("voice_" .. i .. "_octave", "Octave", 1, 7, 3)
+    params:set_action("voice_" .. i .. "_octave", function(value)
+      if _seeker.focused_voice == i then
+        grid_ui.base_octave = value
+        grid_ui.redraw()
+      end
+      if _seeker.conductor and _seeker.conductor.voices[i] then
+        _seeker.conductor.voices[i].octave = value
+      end
+    end)
+  end
 end
 
 return params_manager 

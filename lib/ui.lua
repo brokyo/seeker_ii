@@ -1,23 +1,19 @@
 -- ui.lua
 -- Manages Norns screen drawing, encoder/key handling for page navigation, etc.
 
-local UI = {}
-
---------------------------------------------------
--- State
---------------------------------------------------
-
-local current_page = 1
-local total_pages = 2 -- example (1: playback, 2: transformations, etc.)
+local UI = {
+  pages = {"VOICE", "PATTERN", "CONFIG"},
+  current_page = 1,
+  grid_ui = nil,   -- Will store grid_ui reference
+  voice_change_callbacks = {}  -- New: callbacks for voice changes
+}
 
 --------------------------------------------------
 -- Initialization
 --------------------------------------------------
 
 function UI.init()
-  -- 1. Define Norns parameters if needed
-  --    e.g. params:add_option("transform_type", "Transform Type", {"transpose","partial","random"}, 1)
-  -- 2. Set up any state for multiple pages
+  return UI  -- Return the instance
 end
 
 --------------------------------------------------
@@ -27,15 +23,16 @@ end
 function UI.key(n, z)
   -- 1. If we need to handle page switching or advanced UI logic
   if n == 3 and z == 1 then
-    current_page = current_page % total_pages + 1
+    UI.current_page = UI.current_page % #UI.pages + 1
   end
 end
 
 function UI.enc(n, d)
-  -- 1. Example: if n == 1, navigate pages; if n == 2 or 3, adjust a parameter
   if n == 1 then
-    current_page = util.clamp(current_page + d, 1, total_pages)
+    local new_voice = util.clamp(_seeker.focused_voice + d, 1, 4)
+    UI.select_voice(new_voice)  -- Use new select_voice function
   end
+  -- ... other encoder handling
 end
 
 --------------------------------------------------
@@ -43,23 +40,42 @@ end
 --------------------------------------------------
 
 function UI.redraw()
-  if current_page == 1 then
-    UI.draw_playback_page()
-  else
-    UI.draw_transformations_page()
+  screen.clear()
+  screen.level(15)
+  
+  -- Show current voice prominently
+  screen.move(0, 10)
+  screen.text("Voice " .. _seeker.focused_voice)
+  
+  -- Show voice state
+  if _seeker.conductor then  -- Check for conductor
+    local voice = _seeker.conductor.voices[_seeker.focused_voice]
+    if voice then
+      screen.move(0, 20)
+      screen.text(voice.is_recording and "Recording" or 
+                 voice.is_playing and "Playing" or 
+                 "Stopped")
+    end
   end
+  
+  screen.update()
 end
 
-function UI.draw_playback_page()
-  -- 1. Show info about the current pattern, loops, etc.
-  screen.move(10, 20)
-  screen.text("Playback Page")
+-- Add callback registration
+function UI.on_voice_change(callback)
+  table.insert(UI.voice_change_callbacks, callback)
 end
 
-function UI.draw_transformations_page()
-  -- 1. Show info about transformations, parameters
-  screen.move(10, 20)
-  screen.text("Transformations Page")
+-- Update voice selection with callback notifications
+function UI.select_voice(new_voice)
+  if new_voice ~= _seeker.focused_voice then
+    _seeker.focused_voice = new_voice
+    -- Notify all callbacks
+    for _, callback in ipairs(UI.voice_change_callbacks) do
+      callback(new_voice)
+    end
+    UI.redraw()
+  end
 end
 
 return UI

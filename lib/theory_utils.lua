@@ -3,9 +3,12 @@
 
 local musicutil = require('musicutil')
 local params_manager = include('/lib/params_manager')
+
+-- Create the theory utilities table
 local theory = {}
 
 -- Interval definitions (semitones from root)
+-- Maps grid position offsets (-4 to +4) to musical intervals
 theory.INTERVALS = {
   [-4] = { semitones = 5, name = 'P4' },  -- Perfect 4th
   [-3] = { semitones = 3, name = 'm3' },  -- Minor 3rd
@@ -18,13 +21,13 @@ theory.INTERVALS = {
   [4]  = { semitones = 7, name = 'P5' }   -- Perfect 5th
 }
 
--- Debug function to print the entire keyboard layout
+-- Debug utility to visualize the current keyboard layout
+-- Prints MIDI note numbers and note names for each grid position
 function theory.print_keyboard_layout()
   local root_note = params:get("root_note")
   local scale_type = params:get("scale_type")
-  local base_octave = params:get("base_octave")
+  local base_octave = params:get("voice_" .. _seeker.focused_voice .. "_octave")
   
-  -- Get root note name from the option value (1-12)
   local root_names = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
   local root_name = root_names[root_note]
   
@@ -52,21 +55,19 @@ function theory.print_keyboard_layout()
   print("")
 end
 
--- Returns the importance level of an interval in the current scale
+-- Determines how important an interval is in the current scale
+-- Used for visual feedback on the grid
 -- Returns: 'primary' (root/fifth), 'secondary' (in scale), or 'tertiary' (chromatic)
 function theory.get_interval_importance(interval, scale_index)
-  -- Get the interval definition
   local interval_def = theory.INTERVALS[interval]
   if not interval_def then return 'tertiary' end
   
-  -- Special cases
-  if interval == 0 then return 'primary' end  -- Root
-  if interval == 4 or interval == -4 then return 'primary' end  -- Perfect 5th/4th
+  -- Root note and perfect intervals are primary
+  if interval == 0 then return 'primary' end  
+  if interval == 4 or interval == -4 then return 'primary' end  
   
-  -- Get the current scale's intervals
+  -- Check if interval exists in the current scale
   local scale = musicutil.SCALES[scale_index].intervals
-  
-  -- Check if the interval's semitones are in the scale
   for _, scale_note in ipairs(scale) do
     if scale_note == interval_def.semitones then
       return 'secondary'
@@ -76,43 +77,40 @@ function theory.get_interval_importance(interval, scale_index)
   return 'tertiary'
 end
 
--- Converts grid coordinates to MIDI note number based on current musical parameters
+-- Converts grid x,y coordinates to a MIDI note number
+-- Takes into account current root note, scale, and octave settings
 function theory.grid_to_note(x, y)
-  -- Get musical parameters from params
-  local root_midi = params_manager.get_current_root_midi_note()
+  local root = (params:get("root_note") - 1)
+  local octave = params:get("voice_" .. _seeker.focused_voice .. "_octave")
+  local root_midi = root + ((octave + 2) * 12)
   local scale_type = params:get("scale_type")
-  local base_octave = params:get("base_octave")
     
-  -- Calculate octave offset based on row
-  -- Row 6 is +1 octave, Row 8 is -1 octave from base
+  -- Calculate octave offset based on grid row
   local octave_offset = 0
   if y == 6 then
-    octave_offset = 12
+    octave_offset = 12     -- Top row: +1 octave
   elseif y == 8 then
-    octave_offset = -12
+    octave_offset = -12    -- Bottom row: -1 octave
   end
   
-  -- Generate scale starting from an octave below
+  -- Generate two octaves of the scale starting from an octave below
   local scale_start = root_midi + octave_offset - 12
   local scale_notes = musicutil.generate_scale(scale_start, scale_type, 2)
     
-  -- x=8 is our root note, which should be in the middle of our scale
-  -- Calculate offset from root (-4 to +4)
+  -- Map grid position to scale degree
+  -- x=8 is the root note (middle of grid)
   local offset = x - 8
-  
-  -- The root note is at the start of the second octave
   local root_index = math.floor(#scale_notes/2) + 1
   local target_index = root_index + offset
   
-  -- Ensure we stay within bounds
+  -- Ensure index stays within bounds
   if target_index < 1 then target_index = 1 end
   if target_index > #scale_notes then target_index = #scale_notes end
   
-  local note = scale_notes[target_index]
-  return note
+  return scale_notes[target_index]
 end
 
--- Converts importance level to grid brightness
+-- Maps importance levels to grid LED brightness values
 function theory.importance_to_brightness(importance, brightness_levels)
   if importance == 'primary' then
     return brightness_levels.high
@@ -121,6 +119,11 @@ function theory.importance_to_brightness(importance, brightness_levels)
   else
     return brightness_levels.low
   end
+end
+
+-- Converts a MIDI note number to a note name with octave
+function theory.note_to_name(note)
+  return musicutil.note_num_to_name(note, true)  -- true to include octave
 end
 
 return theory 
