@@ -26,7 +26,7 @@ theory.INTERVALS = {
 function theory.print_keyboard_layout()
   local root_note = params:get("root_note")
   local scale_type = params:get("scale_type")
-  local base_octave = params:get("voice_" .. _seeker.focused_voice .. "_octave")
+  local octave = theory.get_octave()
   
   local root_names = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
   local root_name = root_names[root_note]
@@ -34,7 +34,7 @@ function theory.print_keyboard_layout()
   print(string.format("\nKeyboard Layout for %s in %s (base octave: %d):", 
     root_name,
     musicutil.SCALES[scale_type].name,
-    base_octave))
+    octave))
     
   for y = 6, 8 do
     local row = ""
@@ -81,7 +81,7 @@ end
 -- Takes into account current root note, scale, and octave settings
 function theory.grid_to_note(x, y)
   local root = (params:get("root_note") - 1)
-  local octave = params:get("voice_" .. _seeker.focused_voice .. "_octave")
+  local octave = theory.get_octave()
   local root_midi = root + ((octave + 2) * 12)
   local scale_type = params:get("scale_type")
     
@@ -124,6 +124,12 @@ end
 -- Converts a MIDI note number to a note name with octave
 function theory.note_to_name(note)
   return musicutil.note_num_to_name(note, true)  -- true to include octave
+end
+
+-- Get the current octave setting for the focused lane
+function theory.get_octave()
+  local lane = _seeker.conductor.lanes[_seeker.focused_lane]
+  return lane:get_param("octave")
 end
 
 return theory 

@@ -14,9 +14,10 @@ local Motif = include('lib/motif')
 
 -- Global state
 _seeker = {
-  focused_voice = 1,       -- Currently focused voice (1-4)
+  focused_lane = 1,       -- Currently focused lane (1-4)
   skeys = nil,           -- MxSamples instance
-  conductor = nil        -- Conductor instance
+  conductor = nil,        -- Conductor instance
+  tests = nil            -- Will be loaded after initialization
 }
 
 --------------------------------------------------
@@ -40,6 +41,17 @@ function init()
   -- Passing UI to grid
   ui_instance.grid_ui = grid_ui
   
+  -- Load tests after everything is initialized
+  _seeker.tests = include('tests/timing_tests')
+  
+  -- Set up separate grid redraw metro at 30fps
+  local grid_metro = metro.init()
+  grid_metro.time = 1/30
+  grid_metro.event = function()
+    grid_ui.redraw()
+  end
+  grid_metro:start()
+  
   -- 5. Start clock for pattern playback
   clock.run(function()
     while true do
@@ -49,7 +61,6 @@ function init()
 end
 
 function key(n, z)
-
   ui.key(n, z)
 end
 
@@ -60,7 +71,6 @@ end
 function redraw()
   screen.clear()
   ui.redraw()
-  grid_ui.redraw()
   screen.update()
 end
 

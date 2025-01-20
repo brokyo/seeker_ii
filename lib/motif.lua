@@ -1,13 +1,14 @@
 -- motif.lua
--- A Motif is a pure data container for musical sequences
--- Responsibilities:
---   1. Store note data in separate arrays for pitch, time, and UI properties
---   2. Provide simple access to stored data
--- Non-responsibilities (handled by Conductor):
---   1. Sorting/ordering of notes
---   2. Time quantization
---   3. Pattern transformations
---   4. Playback logic
+-- A Motif is a smart data container for musical sequences
+-- Core Responsibilities:
+--   1. Store and maintain the genesis (original) state of a musical pattern
+--   2. Provide access to current working state
+--   3. Support basic state transitions (reset, transform application)
+-- Non-responsibilities:
+--   1. Deciding when/how to transform (Conductor's job)
+--   2. Transform sequencing and coordination
+--   3. Pattern playback logic
+--   4. Stage management
 
 local musicutil = require("musicutil")
 
@@ -19,35 +20,37 @@ Motif.__index = Motif
 --------------------------------------------------
 
 -- Creates a new Motif instance
--- @param args.notes (optional) Initial note data to store. Will use if we load saved motifs
+-- @param opts.notes (optional) Initial note data to store
 -- Note: Each note should have {pitch, velocity, time, duration, pos?}
-function Motif.new(args)
+function Motif.new(opts)
   local m = setmetatable({}, Motif)
-  args = args or {}
-
-  -- Initialize all property arrays
-  -- Pitch domain: What notes are played
-  m.pitches = {}    -- Array of MIDI note numbers
-  m.velocities = {} -- Array of note velocities (0-127)
   
-  -- Time domain: When notes are played
-  m.times = {}      -- Array of start times in beats
-  m.durations = {}  -- Array of note lengths in beats
+  -- Initialize genesis state (never modified)
+  m.genesis = {
+    pitches = {},
+    velocities = {},
+    times = {},
+    durations = {},
+    grid_positions = {},
+    total_duration = 0,
+    note_count = 0
+  }
   
-  -- UI domain: Visual feedback data
-  m.grid_positions = {}  -- Array of {x,y} pairs for grid positions
+  -- Initialize current state (modified by transforms)
+  m.pitches = {}
+  m.velocities = {}
+  m.times = {}
+  m.durations = {}
+  m.grid_positions = {}
+  m.total_duration = 0
+  m.note_count = 0
+  m.lane = opts.lane
   
-  -- Metadata
-  -- since it's more about playback than data storage
-  m.total_duration = 0   -- Length of sequence in beats
-  m.note_count = 0       -- Number of notes stored
-  m.start_beat = nil     -- When recording started (if recorded)
-
-  -- Store any provided notes
-  if args.notes and #args.notes > 0 then
-    m:store_notes(args.notes)
+  -- Store initial notes if provided
+  if opts.notes then
+    m:store_notes(opts.notes)
   end
-
+  
   return m
 end
 
@@ -55,10 +58,10 @@ end
 -- Event Storage
 --------------------------------------------------
 
--- Stores an array of note events into separate property arrays
+-- Store notes in genesis state
 -- @param notes Array of note events to store
--- Note: This replaces any existing data - it's not additive
-function Motif:store_notes(notes)
+-- Note: This replaces any existing genesis data
+function Motif:store_genesis(notes)
   -- Validate note structure
   for i, note in ipairs(notes) do
     assert(type(note.pitch) == "number", string.format("Note %d: pitch must be a number", i))
@@ -70,29 +73,53 @@ function Motif:store_notes(notes)
       assert(type(note.pos.y) == "number", string.format("Note %d: pos.y must be a number", i))
     end
   end
-
-  self.note_count = #notes
-  self.total_duration = 0
+  
+  -- Store genesis state
+  self.genesis.note_count = #notes
+  self.genesis.total_duration = 0
   
   for i, note in ipairs(notes) do
-    -- Store musical properties
-    self.pitches[i] = note.pitch
-    self.velocities[i] = note.velocity
-    self.times[i] = note.time
-    self.durations[i] = note.duration
-    
-    -- Store grid position if available
-    -- WARN: As we accept MIDI from a keyboard we'll need to figure out something here
+    self.genesis.pitches[i] = note.pitch
+    self.genesis.velocities[i] = note.velocity
+    self.genesis.times[i] = note.time
+    self.genesis.durations[i] = note.duration
     if note.pos then
-      self.grid_positions[i] = {x = note.pos.x, y = note.pos.y}
+      self.genesis.grid_positions[i] = {x = note.pos.x, y = note.pos.y}
     end
     
-    -- Update total duration
+    -- Update genesis duration
     local note_end = note.time + note.duration
-    if note_end > self.total_duration then
-      self.total_duration = note_end
+    self.genesis.total_duration = math.max(self.genesis.total_duration, note_end)
+  end
+end
+
+-- Initialize working state from genesis
+function Motif:init_from_genesis()
+  self.note_count = self.genesis.note_count
+  self.total_duration = self.genesis.total_duration
+  
+  for i = 1, self.genesis.note_count do
+    self.pitches[i] = self.genesis.pitches[i]
+    self.velocities[i] = self.genesis.velocities[i]
+    self.times[i] = self.genesis.times[i]
+    self.durations[i] = self.genesis.durations[i]
+    if self.genesis.grid_positions[i] then
+      self.grid_positions[i] = {
+        x = self.genesis.grid_positions[i].x,
+        y = self.genesis.grid_positions[i].y
+      }
     end
   end
+end
+
+-- Stores an array of note events into separate property arrays
+-- @param notes Array of note events to store
+-- Note: This replaces any existing data - it's not additive
+function Motif:store_notes(notes)
+  -- Store in genesis first
+  self:store_genesis(notes)
+  -- Then initialize working state
+  self:init_from_genesis()
 end
 
 --------------------------------------------------
@@ -130,9 +157,60 @@ end
 function Motif:get_metadata()
   return {
     total_duration = self.total_duration,
-    note_count = self.note_count,
-    start_beat = self.start_beat
+    note_count = self.note_count
   }
+end
+
+--------------------------------------------------
+-- Transform System
+--------------------------------------------------
+
+-- Reset notes back to genesis state
+-- Used when returning to stage 1 or clearing transforms
+function Motif:reset_to_genesis()
+  self:init_from_genesis()
+end
+
+-- Apply a transform function to the current state
+-- Note: This is a low-level mechanism. Transform sequencing and coordination
+-- is handled by the Conductor. This function simply applies the given transform
+-- to the current state.
+-- @param transform_fn Function that takes arrays of note properties and params
+-- @param params Parameters to pass to the transform function
+-- @param mode Either "genesis" (transform from original) or "compound" (build on current)
+function Motif:apply_transform(transform_fn, params, mode)
+  mode = mode or "genesis"  -- Default to genesis-based transforms
+  
+  -- Get the source state for the transform
+  local source = {
+    pitches = mode == "genesis" and self.genesis.pitches or self.pitches,
+    velocities = mode == "genesis" and self.genesis.velocities or self.velocities,
+    times = mode == "genesis" and self.genesis.times or self.times,
+    durations = mode == "genesis" and self.genesis.durations or self.durations,
+    grid_positions = mode == "genesis" and self.genesis.grid_positions or self.grid_positions,
+    total_duration = mode == "genesis" and self.genesis.total_duration or self.total_duration,
+    note_count = mode == "genesis" and self.genesis.note_count or self.note_count
+  }
+  
+  -- Apply the transform
+  local result = transform_fn(source, params)
+  
+  -- Update current state with transformed values
+  self.pitches = result.pitches
+  self.velocities = result.velocities
+  self.times = result.times
+  self.durations = result.durations
+  self.grid_positions = result.grid_positions
+  
+  -- Recalculate metadata
+  self.note_count = #self.pitches
+  self.total_duration = 0
+  for i = 1, self.note_count do
+    local note_end = self.times[i] + self.durations[i]
+    if note_end > self.total_duration then
+      self.total_duration = note_end
+    end
+  end
 end
 
 return Motif

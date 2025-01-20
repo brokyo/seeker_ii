@@ -8,34 +8,40 @@
 
 local GridUI = {}
 local g = grid.connect()
-local theory = include('/lib/theory_utils')
-local MotifRecorder = include('/lib/motif_recorder')
-local params_manager = include('/lib/params_manager')
+local theory = include('lib/theory_utils')
+local MotifRecorder = include('lib/motif_recorder')
+local params_manager = include('lib/params_manager')
+local lane_utils = include('lib/lane_utils')
+local grid_animations = include('lib/grid_animations')
 
 --------------------------------------------------
 -- Constants & Configuration
 -- Good: Clear separation of configuration from logic
 --------------------------------------------------
 
-local BRIGHTNESS = {
-  high = 12,
-  medium = 8,
-  low = 5,
-  inactive = 0
-}
-
 local GRID = {
+  width = 16,
+  height = 8,
+  lane_count = 4,
+  brightness = {
+    high = 15,
+    medium = 8,
+    low = 2,
+    off = 0
+  },
   recording_column = 4,
   playback_column = 5,
   clear_column = 13,
   pattern_start = 7,
   pattern_end = 10,
   keyboard_row_start = 6,
-  voice_count = 4
+  fps = 144
 }
 
--- SMELL: Global state within a module
+-- WARN: Global state within a module
 local motif_recorder = MotifRecorder.new({})
+
+local redraw_metro = nil
 
 --------------------------------------------------
 -- Initialization
@@ -47,12 +53,29 @@ function GridUI.init()
     g.key = function(x, y, z)
       GridUI.key(x, y, z)
     end
-    GridUI.redraw()
+    
+    -- Initialize animations
+    grid_animations.init(g)
+    
+    -- Set up continuous redraw
+    redraw_metro = metro.init()
+    redraw_metro.time = 1/GRID.fps
+    redraw_metro.event = function()
+      GridUI.redraw()
+    end
+    redraw_metro:start()
   else
     print("⬖ Grid Connect failed")
   end
 
   return GridUI
+end
+
+function GridUI.cleanup()
+  if redraw_metro then
+    redraw_metro:stop()
+  end
+  grid_animations.cleanup()
 end
 
 --------------------------------------------------
@@ -63,15 +86,15 @@ end
 -- Record button handler
 function GridUI.handle_record_toggle(x, y, z)
   if x == GRID.recording_column and z == 1 then
-    local voice_num = y
+    local lane_num = y
     
     if not motif_recorder.is_recording then
       motif_recorder:start_recording()
-      print(string.format("● Recording Started | Lane %d ●", voice_num))
+      print(string.format("● Recording Started | Lane %d ●", lane_num))
     else
       local recorded_data = motif_recorder:stop_recording()
-      _seeker.conductor:create_motif(voice_num, recorded_data)
-      print(string.format("▣ Recording Stopped | Lane %d ▣", voice_num))
+      _seeker.conductor:create_motif(lane_num, recorded_data)
+      print(string.format("▣ Recording Stopped | Lane %d ▣", lane_num))
     end
   end
 end
@@ -80,13 +103,13 @@ end
 -- Clean: Simple toggle between play/stop
 function GridUI.handle_playback_toggle(x, y, z)
   if x == GRID.playback_column and z == 1 then
-    local voice_num = y
-    local voice = _seeker.conductor.voices[voice_num]
+    local lane_num = y
+    local lane = _seeker.conductor.lanes[lane_num]
     
-    if voice.is_playing then
-      _seeker.conductor:stop_voice(voice_num)
+    if lane.is_playing then
+      _seeker.conductor:stop_lane(lane_num)
     else
-      _seeker.conductor:play_voice(voice_num)
+      _seeker.conductor:play_lane(lane_num)
     end
     
     GridUI.redraw()
@@ -97,12 +120,12 @@ end
 -- TODO: I need to decide what to do with clearing. Is that a matter for the motif or a matter for the conductor?
 function GridUI.handle_clear_pattern(x, y, z)
   if x == GRID.clear_column and z == 1 then
-    local voice_num = y
+    local lane_num = y
     
-    -- If recording on this voice, stop and discard
-    if _seeker.conductor.voices[voice_num].is_recording then
+    -- If recording on this lane, stop and discard
+    if _seeker.conductor.lanes[lane_num].is_recording then
       motif_recorder:stop_recording()
-      _seeker.conductor:clear_pattern(voice_num)
+      _seeker.conductor:clear_pattern(lane_num)
       print("▣ Recording Cleared ▣")
     end
   end
@@ -115,28 +138,23 @@ end
 
 -- Direct note playback for live performance
 -- Keeps this separate from conductor's pattern playback responsibilities
-function GridUI.play_live_note(voice_num, note, z)
-  if not voice_num then return end
+function GridUI.play_live_note(lane_num, note, z)
+  if not lane_num then return end
   
-  -- Get voice-specific instrument name
-  local instrument_id = params:get("voice_" .. voice_num .. "_instrument")
-  local instruments = params_manager.get_instrument_list()
-  local instrument_name = instruments[instrument_id]
+  -- Get lane's instrument name
+  local instrument_name = lane_utils.get_lane_instrument(lane_num)
   
-  -- Play through mx.samples using explicit note on/off
-  -- NB: Hardcoded velocity of 127
   if z == 1 then
     print(string.format("♫ NOTE ON: %s | %d", theory.note_to_name(note), note))
     _seeker.skeys:on({
-      name=instrument_name,
-      midi=note,
-      velocity=127
+      name = instrument_name,
+      midi = note,
+      velocity = 127
     })
-  elseif z == 0 then
-    -- print(string.format("♫ NOTE OFF: %s (MIDI: %d)", theory.note_to_name(note), note))
+  else
     _seeker.skeys:off({
-      name=instrument_name,
-      midi=note
+      name = instrument_name,
+      midi = note
     })
   end
 end
@@ -166,7 +184,7 @@ function GridUI.key(x, y, z)
         local velocity = z == 1 and 127 or 0
         
         -- Always handle live playback at key level
-        GridUI.play_live_note(_seeker.focused_voice, pitch, z)
+        GridUI.play_live_note(_seeker.focused_lane, pitch, z)
         
         -- Handle recording separately
         GridUI.handle_note_record(x, y, z, pitch, velocity)
@@ -177,7 +195,7 @@ function GridUI.key(x, y, z)
     return
   end
 
-  if y <= GRID.voice_count then
+  if y <= GRID.lane_count then
     GridUI.handle_record_toggle(x, y, z)
     GridUI.handle_playback_toggle(x, y, z)
     GridUI.handle_clear_pattern(x, y, z)
@@ -202,7 +220,7 @@ function GridUI.draw_keyboard()
       -- How dynamic can we make this? Today it matches scale... can it eventually suggest notes?
       local interval = x - 8  -- Center on x=8 (-4 to +4 range)
       local importance = theory.get_interval_importance(interval, current_scale)
-      local brightness = theory.importance_to_brightness(importance, BRIGHTNESS)
+      local brightness = theory.importance_to_brightness(importance, GRID.brightness)
       g:led(x, y, brightness)
     end
   end
@@ -212,48 +230,52 @@ end
 -- WARN: Deep coupling to conductor's internal state
 function GridUI.draw_pattern_lanes()   
   -- This cannot matter
-  if not _seeker.conductor or not _seeker.conductor.voices then
-    print("Warning: Conductor or voices not initialized yet")
+  if not _seeker.conductor or not _seeker.conductor.lanes then
+    print("Warning: Conductor or lanes not initialized yet")
     return
   end
   
-  -- It's possible we only have one voice on screen at a time and it's more of a control bar
-  for voice_num = 1,GRID.voice_count do
-    -- voice is probably a bad term for what this is. It's a control set.
-    local voice = _seeker.conductor.voices[voice_num]
-    local is_focused = (voice_num == _seeker.focused_voice)
+  -- TODO It's possible we ultimately only have one lane on screen at a time and it's more of a control bar
+  for lane_num = 1,GRID.lane_count do
+    -- lane is a control set with instrument settings and motif data
+    local lane = _seeker.conductor.lanes[lane_num]
+    local is_focused = (lane_num == _seeker.focused_lane)
 
     -- Adjust brightness based on focus
     local brightness_multiplier = is_focused and 1 or 0.4
     
     -- Draw record button
-    local rec_brightness = voice.is_recording 
-      and BRIGHTNESS.high or BRIGHTNESS.medium
-    g:led(GRID.recording_column, voice_num, 
+    local rec_brightness = motif_recorder.is_recording 
+      and GRID.brightness.high or GRID.brightness.medium
+    g:led(GRID.recording_column, lane_num, 
       math.floor(rec_brightness * brightness_multiplier))
     
     -- Draw play button
-    local play_brightness = voice.is_playing 
-      and BRIGHTNESS.high or BRIGHTNESS.medium
-    g:led(GRID.playback_column, voice_num, 
+    local play_brightness = lane.is_playing 
+      and GRID.brightness.high or GRID.brightness.medium
+    g:led(GRID.playback_column, lane_num, 
       math.floor(play_brightness * brightness_multiplier))
     
     -- Draw pattern slots with dim lighting
     for x = GRID.pattern_start, GRID.pattern_end do
-      g:led(x, voice_num, 
-        math.floor(BRIGHTNESS.low * brightness_multiplier))
+      g:led(x, lane_num, 
+        math.floor(GRID.brightness.low * brightness_multiplier))
     end
     
     -- Draw clear button
-    g:led(GRID.clear_column, voice_num, 
-      math.floor(BRIGHTNESS.medium * brightness_multiplier))
+    g:led(GRID.clear_column, lane_num, 
+      math.floor(GRID.brightness.medium * brightness_multiplier))
   end
 end
 
 -- Main display refresh
--- Clean: Clear three-step process
 function GridUI.redraw()  
   g:all(0)
+  
+  -- Draw animations first as base layer
+  grid_animations.update()
+  
+  -- Always draw UI elements
   GridUI.draw_keyboard()
   GridUI.draw_pattern_lanes()
   g:refresh()
@@ -264,9 +286,9 @@ end
 -- SMELL: This might belong in conductor
 --------------------------------------------------
 
--- Is there any reason for this?
-function GridUI.select_voice(voice_num)
-  _seeker.focused_voice = voice_num
+-- Select a lane as the current focus
+function GridUI.select_lane(lane_num)
+  _seeker.focused_lane = lane_num
   -- Redraw grid to show new focus
   GridUI.redraw()
 end

@@ -1,7 +1,10 @@
 -- Import required music utilities
 local musicutil = require("musicutil")
 
-local params_manager = {}
+local params_manager = {
+  -- Track parameter ranges for each lane
+  lane_param_indices = {}  -- Will store {start_index, num_params} for each lane
+}
 
 -- Helper function to get sorted list of instruments
 function params_manager.get_instrument_list()
@@ -26,7 +29,6 @@ function params_manager.init_params()
   params:add_group("MUSICAL", 3)
   
   -- Root note selection (C through B)
-  -- Updates grid UI and keyboard layout when changed
   params:add_option("root_note", "Root Note", 
     {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 
     1)
@@ -37,7 +39,6 @@ function params_manager.init_params()
   end)
   
   -- Scale selection from musicutil.SCALES
-  -- Updates grid UI and keyboard layout when changed
   local scale_names = {}
   for i = 1, #musicutil.SCALES do
     scale_names[i] = musicutil.SCALES[i].name
@@ -53,48 +54,112 @@ function params_manager.init_params()
   params:add_number("base_octave", "Base Octave", 1, 7, 3)
   
   -------------------------------------------
-  -- SOUND PARAMETERS GROUP
-  -------------------------------------------
-  params:add_group("SOUND", 1)
-  -- Global instrument selection
-  local instruments = params_manager.get_instrument_list()
-  params:add_option("instrument", "Instrument", instruments, 1)
-  
-  -------------------------------------------
-  -- VOICE-SPECIFIC PARAMETERS
-  -- Creates 4 identical voice groups with:
-  -- - Instrument selection
-  -- - Octave selection
+  -- LANE CONFIGURATION
+  -- Each lane (1-4) has:
+  -- 1. Voice settings (instrument, octave)
+  -- 2. Playback settings (timing mode)
+  -- 3. Stage configuration (4 stages with:
+  --    - Active state
+  --    - Loop count
+  --    - Loop rest
+  --    - Stage rest)
   -------------------------------------------
   for i = 1,4 do
-    params:add_group("VOICE " .. i, 2)
+    -- Calculate total params:
+    -- 2 voice params + 1 timing mode + (4 stages * 4 params per stage)
+    local params_per_lane = 2 + 1 + (4 * 4)
     
-    -- Instrument selection for this voice
-    -- Updates global instrument if this voice is selected
+    -- Store the starting index before adding the group
+    local start_index = #params.params + 1
+    
+    print("Creating param group for lane " .. i .. " with " .. params_per_lane .. " params starting at " .. start_index)
+    params:add_group("LANE " .. i, params_per_lane)
+    
+    -- Store the parameter range for this lane
+    params_manager.lane_param_indices[i] = {
+      start_index = start_index,
+      count = params_per_lane
+    }
+    
+    -- Voice/Instrument Configuration
     local instruments = params_manager.get_instrument_list()
-    params:add_option("voice_" .. i .. "_instrument", "Instrument", instruments, 1)
-    params:set_action("voice_" .. i .. "_instrument", function(value)
-      if _seeker.focused_voice == i then
-        params:set("instrument", value)
-      end
-      if _seeker.conductor and _seeker.conductor.voices[i] then
-        _seeker.conductor.voices[i].instrument = instruments[value]  -- Store actual name
+    params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
+    params:set_action("lane_" .. i .. "_instrument", function(value)
+      if _seeker.conductor and _seeker.conductor.lanes[i] then
+        _seeker.conductor.lanes[i].instrument = instruments[value]
       end
     end)
     
-    -- Octave selection for this voice (1-7, default 3)
-    -- Updates grid UI if this voice is selected
-    params:add_number("voice_" .. i .. "_octave", "Octave", 1, 7, 3)
-    params:set_action("voice_" .. i .. "_octave", function(value)
-      if _seeker.focused_voice == i then
+    params:add_number("lane_" .. i .. "_octave", "Octave", 1, 7, 3)
+    params:set_action("lane_" .. i .. "_octave", function(value)
+      if _seeker.focused_lane == i then
         grid_ui.base_octave = value
         grid_ui.redraw()
       end
-      if _seeker.conductor and _seeker.conductor.voices[i] then
-        _seeker.conductor.voices[i].octave = value
+      if _seeker.conductor and _seeker.conductor.lanes[i] then
+        _seeker.conductor.lanes[i].octave = value
       end
     end)
+
+    -- Timing Configuration
+    params:add_option(
+      "lane_" .. i .. "_timing_mode",
+      "Timing Mode",
+      {"free", "grid"},
+      1
+    )
+
+    -- Stage Configuration
+    -- We'll support 4 stages initially, but the conductor should not assume this number
+    for stage = 1,4 do
+      local stage_prefix = "lane_" .. i .. "_stage_" .. stage
+      
+      -- Stage active state
+      params:add_option(
+        stage_prefix .. "_active",
+        "Stage " .. stage .. " Active",
+        {"Off", "On"},
+        stage == 1 and 2 or 1  -- First stage on by default
+      )
+      
+      -- Loop count for this stage
+      params:add_number(
+        stage_prefix .. "_loop_count",
+        "Stage " .. stage .. " Loops",
+        1, 64, 4
+      )
+      
+      -- Loop rest duration for this stage
+      params:add_control(
+        stage_prefix .. "_loop_rest",
+        "Stage " .. stage .. " Loop Rest",
+        controlspec.new(0, 16, 'lin', 1, 0, "bars")
+      )
+      
+      -- Stage rest duration (after all loops complete)
+      params:add_control(
+        stage_prefix .. "_stage_rest",
+        "Stage " .. stage .. " Rest",
+        controlspec.new(0, 32, 'lin', 1, 0, "bars")
+      )
+    end
   end
+end
+
+-- Helper function to get parameters for a lane
+function params_manager.get_lane_params(lane_num)
+  local indices = params_manager.lane_param_indices[lane_num]
+  if not indices then return {} end
+  
+  local lane_params = {}
+  for i = indices.start_index, indices.start_index + indices.count - 1 do
+    local param = params:lookup_param(i)
+    if param then
+      table.insert(lane_params, param)
+    end
+  end
+  
+  return lane_params
 end
 
 return params_manager 
