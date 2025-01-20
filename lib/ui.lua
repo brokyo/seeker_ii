@@ -2,16 +2,14 @@
 -- Manages Norns screen drawing, encoder/key handling for page navigation, etc.
 
 local params_manager = include('lib/params_manager')
+local ui_manager = include('lib/ui_manager')
 
 local UI = {
   pages = {"LANE", "STAGE"},
   current_page = 1,
-  grid_ui = nil,   -- Will store grid_ui reference
-  lane_change_callbacks = {},  -- Callbacks for lane changes
   
   -- Parameter navigation state
   current_param_index = 1,
-  current_stage = 1,  -- Which stage we're viewing (1-4)
   
   -- Define the parameters we care about for each page type
   lane_params = {
@@ -55,7 +53,7 @@ function UI.get_current_params()
     -- Stage page - return stage-specific params
     local param_ids = {}
     for _, pattern in ipairs(UI.stage_params) do
-      table.insert(param_ids, string.format(pattern, lane_num, UI.current_stage))
+      table.insert(param_ids, string.format(pattern, lane_num, _seeker.focused_stage))
     end
     return param_ids
   end
@@ -73,9 +71,8 @@ function UI.key(n, z)
     UI.redraw()
   elseif n == 3 and z == 1 and UI.current_page == 2 then
     -- K3 on stage page: cycle through stages
-    UI.current_stage = (UI.current_stage % 4) + 1
-    UI.current_param_index = 1  -- Reset selection on stage change
-    UI.redraw()
+    local new_stage = (_seeker.focused_stage % 4) + 1
+    _seeker.ui_manager:focus_stage(_seeker.focused_lane, new_stage)
   end
 end
 
@@ -83,7 +80,9 @@ function UI.enc(n, d)
   if n == 1 then
     -- Lane selection
     local new_lane = util.clamp(_seeker.focused_lane + d, 1, 4)
-    UI.select_lane(new_lane)
+    if new_lane ~= _seeker.focused_lane then
+      _seeker.ui_manager:focus_lane(new_lane)
+    end
   elseif n == 2 then
     -- Parameter selection
     local param_ids = UI.get_current_params()
@@ -117,7 +116,7 @@ function UI.redraw()
   -- Show stage number if on stage page
   if UI.current_page == 2 then
     screen.move(64, 10)
-    screen.text_center("Stage " .. UI.current_stage)
+    screen.text_center("Stage " .. _seeker.focused_stage)
   end
   
   -- Show current parameter and value
@@ -141,25 +140,6 @@ function UI.redraw()
   end
   
   screen.update()
-end
-
---------------------------------------------------
--- Lane Selection
---------------------------------------------------
-
-function UI.on_lane_change(callback)
-  table.insert(UI.lane_change_callbacks, callback)
-end
-
-function UI.select_lane(new_lane)
-  if new_lane ~= _seeker.focused_lane then
-    _seeker.focused_lane = new_lane
-    -- Notify callbacks
-    for _, callback in ipairs(UI.lane_change_callbacks) do
-      callback(new_lane)
-    end
-    UI.redraw()
-  end
 end
 
 return UI

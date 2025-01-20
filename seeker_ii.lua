@@ -5,19 +5,22 @@ engine.name = "MxSamples"
 
 -- Libraries
 local mxsamples = include("mx.samples/lib/mx.samples")  -- Sample playback engine
-local grid_ui          = include("/lib/grid")
-local ui               = include("/lib/ui")
-local transformations  = include("/lib/transformations")
+local grid_ui = include("/lib/grid")
+local ui = include("/lib/ui")
+ui_manager = include("/lib/ui_manager")  -- Make this global (no local)
+local transformations = include("/lib/transformations")
 local params_manager = include('/lib/params_manager')
 local Conductor = include('lib/conductor')
 local Motif = include('lib/motif')
 
 -- Global state
 _seeker = {
-  focused_lane = 1,       -- Currently focused lane (1-4)
   skeys = nil,           -- MxSamples instance
   conductor = nil,        -- Conductor instance
-  tests = nil            -- Will be loaded after initialization
+  tests = nil,            -- Will be loaded after initialization
+  focused_lane = 1,       -- Currently focused lane (1-4)
+  focused_stage = 1,      -- Currently focused stage (1-4)
+  ui_manager = nil        -- UI coordination
 }
 
 --------------------------------------------------
@@ -30,16 +33,22 @@ function init()
   _seeker.conductor = Conductor.new({})
   
   -- Parameter system (before anything tries to access params)
-  params_manager.init_params()  -- No need to pass skeys/conductor anymore
+  params_manager.init_params()
   params:read()
   params:bang()
   
-  -- Components that need params
-  local ui_instance = ui.init()  -- No need to pass conductor
-  local grid_ui = grid_ui.init()  -- No need to pass skeys/conductor
+  -- Initialize UI components
+  local grid_ui_instance = grid_ui.init()
+  local screen_ui_instance = ui.init()
   
-  -- Passing UI to grid
-  ui_instance.grid_ui = grid_ui
+  print("DEBUG Init:")
+  print("- grid_ui_instance:", grid_ui_instance)
+  print("- screen_ui_instance:", screen_ui_instance)
+  
+  -- Initialize UI manager with both components
+  local ui_manager = include("/lib/ui_manager")
+  _seeker.ui_manager = ui_manager.init(grid_ui_instance, screen_ui_instance)
+  print("- After ui_manager.init, ui_manager.screen:", _seeker.ui_manager.screen)
   
   -- Load tests after everything is initialized
   _seeker.tests = include('tests/timing_tests')
@@ -48,11 +57,11 @@ function init()
   local grid_metro = metro.init()
   grid_metro.time = 1/30
   grid_metro.event = function()
-    grid_ui.redraw()
+    _seeker.ui_manager:redraw_all()
   end
   grid_metro:start()
   
-  -- 5. Start clock for pattern playback
+  -- Start clock for pattern playback
   clock.run(function()
     while true do
       clock.sync(1/4) -- Sync to quarter notes
@@ -70,7 +79,7 @@ end
 
 function redraw()
   screen.clear()
-  ui.redraw()
+  _seeker.ui_manager:redraw_all()
   screen.update()
 end
 

@@ -85,6 +85,7 @@ function Lane.new(lane_num)
   l.playback_speed = 1.0
   l.transform_sequence = {}
   l.current_transform = 1
+  l.active_notes = {}  -- Track currently playing notes for grid feedback
   return l
 end
 
@@ -268,6 +269,9 @@ end
 function Conductor:play_note_on(lane, note)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
   
+  -- Track active note for grid feedback
+  table.insert(lane.active_notes, note.pitch)
+  
   if DEBUG.PLAYBACK then
     print(string.format("♪ ON  | L%d | Beat %s | P%d | V%d", 
       lane.lane_num, format_beat(clock.get_beats()), note.pitch, note.velocity or 100))
@@ -283,6 +287,14 @@ end
 function Conductor:play_note_off(lane, note)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
   
+  -- Remove note from active notes
+  for i = #lane.active_notes, 1, -1 do
+    if lane.active_notes[i] == note.pitch then
+      table.remove(lane.active_notes, i)
+      break
+    end
+  end
+  
   if DEBUG.PLAYBACK then
     print(string.format("♪ OFF | L%d | Beat %s | P%d", 
       lane.lane_num, format_beat(clock.get_beats()), note.pitch))
@@ -296,6 +308,9 @@ end
 
 function Conductor:stop_all_notes(lane)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
+  
+  -- Clear active notes array
+  lane.active_notes = {}
   
   if DEBUG.PLAYBACK then
     print(string.format("⬛ ALL OFF | L%d", lane.lane_num))
@@ -466,14 +481,20 @@ end
 -- Start playback for a lane
 function Conductor:play_lane(lane_num)
   local lane = self.lanes[lane_num]
-  if not lane.motif then return end
+  
+  -- Initialize playback state first
+  lane.is_playing = true
+  
+  if not lane.motif then 
+    if DEBUG.STATUS then
+      print(string.format("\n▶ Lane %d: No motif to play", lane_num))
+    end
+    return 
+  end
   
   if DEBUG.STATUS then
     print(string.format("\n▶ Starting Lane %d", lane_num))
   end
-  
-  -- Initialize playback state
-  lane.is_playing = true
   
   -- Create a stage with current loop parameters
   local stage = {
@@ -537,9 +558,10 @@ function Conductor:create_motif(lane_num, recorded_data)
     lane = lane_num
   })
   
-  -- Store in lane
+  -- Store in lane and reset state
   local lane = self.lanes[lane_num]
   lane.motif = motif
+  lane.active_notes = {}  -- Reset active notes when creating new motif
   
   return motif
 end
@@ -699,6 +721,21 @@ function Lane:get_stage_config(stage_num)
   }
   
   return config
+end
+
+-- Add clear_lane if it doesn't exist
+function Conductor:clear_lane(lane_num)
+  local lane = self.lanes[lane_num]
+  
+  -- Stop playback if active
+  if lane.is_playing then
+    self:stop_lane(lane_num)
+  end
+  
+  -- Clear state
+  lane.motif = nil
+  lane.active_notes = {}
+  lane.current_stage = 1
 end
 
 return Conductor

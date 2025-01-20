@@ -1,11 +1,17 @@
 -- grid.lua
--- Handles grid hardware interaction and visual feedback
--- Core responsibilities:
--- 1. Handle grid button presses
--- 2. Manage visual feedback
--- 3. Route user actions to appropriate components
+--
+-- Core grid interface for Seeker II
+-- Handles all monome grid interaction and visual feedback
+--
+-- Key features:
+-- 1. Musical keyboard (6x6 tonnetz layout)
+-- 2. Four-lane pattern recording and playback
+-- 3. Four-stage pattern sequencing per lane
+-- 4. Real-time visual feedback
 --------------------------------------------------
 
+-- CONSIDER: motif_recorder.is_recording state could get out of sync with conductor
+-- if recording is stopped by other means (like key press or clock stop)
 local GridUI = {}
 local g = grid.connect()
 local theory = include('lib/theory_utils')
@@ -13,42 +19,166 @@ local MotifRecorder = include('lib/motif_recorder')
 local params_manager = include('lib/params_manager')
 local lane_utils = include('lib/lane_utils')
 local grid_animations = include('lib/grid_animations')
+local Log = include('lib/log')
 
---------------------------------------------------
--- Constants & Configuration
--- Good: Clear separation of configuration from logic
---------------------------------------------------
+-- Core configuration
+local STAGES_PER_LANE = 4  -- Number of stages per lane (may increase in future)
+local TRANSPORT_BUTTONS = 3  -- Number of transport buttons [Play, Rec, Clear]
 
-local GRID = {
-  width = 16,
-  height = 8,
-  lane_count = 4,
-  brightness = {
-    high = 15,
-    medium = 8,
-    low = 2,
-    off = 0
-  },
-  recording_column = 4,
-  playback_column = 5,
-  clear_column = 13,
-  pattern_start = 7,
-  pattern_end = 10,
-  keyboard_row_start = 6,
-  fps = 144
-}
-
--- WARN: Global state within a module
+-- Initialize recorder
 local motif_recorder = MotifRecorder.new({})
-
 local redraw_metro = nil
 
 --------------------------------------------------
--- Initialization
--- Simple and clear - just sets up grid callback
+-- Grid Layout
+--------------------------------------------------
+
+local Layout = {
+  width = 16,
+  height = 8,
+  
+  -- Brightness levels
+  BRIGHT = 15,     -- Maximum brightness (for active playing notes)
+  ACTIVE = 12,     -- For active states (playing/recording)
+  FOCUSED = 8,     -- For focused UI elements
+  MED = 4,         -- Default state
+  DIM = 2,         -- Background elements
+  OFF = 0,
+  
+  -- Keyboard (center 6x6)
+  keyboard = {
+    x = 6,
+    y = 2,
+    size = 6
+  },
+  
+  -- Corner positions (easily adjustable if needed)
+  corners = {
+    -- [lane_number] = {stage_x, stage_y, transport_x, transport_y}
+    [1] = {1, 2, 1, 3},    -- Top Left:     Stage at (1,2), Transport at (1,3)
+    [2] = {13, 2, 14, 3},  -- Top Right:    Stage at (13,2), Transport at (13,3)
+    [3] = {1, 7, 1, 6},    -- Bottom Left:  Stage at (1,7), Transport at (1,8)
+    [4] = {13, 7, 14, 6},  -- Bottom Right: Stage at (13,7), Transport at (13,8)
+  },
+
+  -- Animation rate
+  fps = 30
+}
+
+--------------------------------------------------
+-- Input Handling
+--------------------------------------------------
+
+function GridUI.key(x, y, z)  
+  -- Check keyboard region
+  if x >= Layout.keyboard.x and x < Layout.keyboard.x + Layout.keyboard.size and
+     y >= Layout.keyboard.y and y < Layout.keyboard.y + Layout.keyboard.size then
+    local note = theory.grid_to_note(x - Layout.keyboard.x + 1, y - Layout.keyboard.y + 1)
+    if note then
+      GridUI.play_live_note(_seeker.focused_lane, note, z)
+      GridUI.handle_note_record(x, y, z, note, 127)
+    end
+    return
+  end
+  
+  -- Only handle key down for transport controls
+  if z == 0 then return end
+  
+  -- Check corners
+  for lane, pos in pairs(Layout.corners) do
+    local stage_x, stage_y, transport_x, transport_y = table.unpack(pos)
+    
+    -- Stage buttons (independent position)
+    if y == stage_y and x >= stage_x and x < stage_x + STAGES_PER_LANE then
+      GridUI.handle_stage_select(lane, x - stage_x + 1)
+      return
+    end
+    
+    -- Transport buttons (independent position)
+    if y == transport_y and x >= transport_x and x < transport_x + TRANSPORT_BUTTONS then
+      local button = x - transport_x -- 0=play, 1=rec, 2=clear
+      if button == 0 then GridUI.handle_playback_toggle(lane)
+      elseif button == 1 then GridUI.handle_record_toggle(lane)
+      elseif button == 2 then GridUI.handle_clear(lane)
+      end
+      return
+    end
+  end
+end
+
+--------------------------------------------------
+-- Drawing
+--------------------------------------------------
+
+function GridUI.redraw()
+  g:all(0)
+  grid_animations.update() -- Background first
+  
+  -- Draw keyboard
+  for x = 0, Layout.keyboard.size - 1 do
+    for y = 0, Layout.keyboard.size - 1 do
+      local grid_x = Layout.keyboard.x + x
+      local grid_y = Layout.keyboard.y + y
+      local importance = theory.get_interval_importance(x + 1, y + 1)
+      g:led(grid_x, grid_y, importance == 'primary' and Layout.BRIGHT or Layout.MED)
+    end
+  end
+  
+  -- Draw corner controls
+  for lane, pos in pairs(Layout.corners) do
+    local stage_x, stage_y, transport_x, transport_y = table.unpack(pos)
+    local lane_data = _seeker.conductor.lanes[lane]
+    local is_focused = lane == _seeker.focused_lane
+    
+    -- Stages (STAGES_PER_LANE total, independent position)
+    for i = 0, STAGES_PER_LANE - 1 do
+      local brightness = Layout.MED
+      if lane_data.current_stage == (i + 1) then 
+        -- If this stage is currently playing and has active notes
+        if lane_data.is_playing and lane_data.active_notes and #lane_data.active_notes > 0 then
+          brightness = Layout.ACTIVE
+        else
+          brightness = is_focused and Layout.FOCUSED or Layout.MED
+        end
+      end
+      g:led(stage_x + i, stage_y, brightness)
+    end
+    
+    -- Transport (TRANSPORT_BUTTONS total: Play, Rec, Clear)
+    -- Play button - MED by default, BRIGHT when playing, FOCUSED when focused
+    local play_brightness = Layout.MED
+    if lane_data.is_playing then
+      play_brightness = Layout.BRIGHT
+    elseif is_focused then
+      play_brightness = Layout.FOCUSED
+    end
+    g:led(transport_x, transport_y, play_brightness)
+    
+    -- Record button - MED by default, BRIGHT when recording on focused lane, FOCUSED when just focused
+    local rec_brightness = Layout.MED
+    if motif_recorder.is_recording and lane == _seeker.focused_lane then
+      rec_brightness = Layout.BRIGHT
+    elseif is_focused then
+      rec_brightness = Layout.FOCUSED
+    end
+    g:led(transport_x + 1, transport_y, rec_brightness)
+    
+    -- Clear button - always MED unless focused
+    g:led(transport_x + 2, transport_y, is_focused and Layout.FOCUSED or Layout.MED)
+  end
+  
+  g:refresh()
+end
+
+--------------------------------------------------
+-- Lifecycle Management
+-- Handles grid connection, initialization,
+-- continuous redraw, and cleanup
 --------------------------------------------------
 
 function GridUI.init()
+  -- CONSIDER: Grid could disconnect during performance
+  -- Currently no auto-reconnect which could leave player stuck
   if g.device then    
     g.key = function(x, y, z)
       GridUI.key(x, y, z)
@@ -59,11 +189,20 @@ function GridUI.init()
     
     -- Set up continuous redraw
     redraw_metro = metro.init()
-    redraw_metro.time = 1/GRID.fps
+    redraw_metro.time = 1/Layout.fps
     redraw_metro.event = function()
       GridUI.redraw()
     end
     redraw_metro:start()
+    
+    -- Handle disconnection
+    g.remove = function()
+      print("⬖ Grid Disconnected")
+      -- Stop all playback to prevent stuck notes
+      if _seeker and _seeker.conductor then
+        _seeker.conductor:stop_all()
+      end
+    end
   else
     print("⬖ Grid Connect failed")
   end
@@ -71,227 +210,136 @@ function GridUI.init()
   return GridUI
 end
 
+-- CONSIDER: Stuck notes possible if cleanup happens during active recording
 function GridUI.cleanup()
   if redraw_metro then
     redraw_metro:stop()
   end
   grid_animations.cleanup()
-end
-
---------------------------------------------------
--- Voice Control Event Handlers
--- Each handler is focused on one type of control
---------------------------------------------------
-
--- Record button handler
-function GridUI.handle_record_toggle(x, y, z)
-  if x == GRID.recording_column and z == 1 then
-    local lane_num = y
-    
-    if not motif_recorder.is_recording then
-      motif_recorder:start_recording()
-      print(string.format("● Recording Started | Lane %d ●", lane_num))
-    else
-      local recorded_data = motif_recorder:stop_recording()
-      _seeker.conductor:create_motif(lane_num, recorded_data)
-      print(string.format("▣ Recording Stopped | Lane %d ▣", lane_num))
-    end
-  end
-end
-
--- Play button handler
--- Clean: Simple toggle between play/stop
-function GridUI.handle_playback_toggle(x, y, z)
-  if x == GRID.playback_column and z == 1 then
-    local lane_num = y
-    local lane = _seeker.conductor.lanes[lane_num]
-    
-    if lane.is_playing then
-      _seeker.conductor:stop_lane(lane_num)
-    else
-      _seeker.conductor:play_lane(lane_num)
-    end
-    
-    GridUI.redraw()
-  end
-end
-
--- Handle clear pattern
--- TODO: I need to decide what to do with clearing. Is that a matter for the motif or a matter for the conductor?
-function GridUI.handle_clear_pattern(x, y, z)
-  if x == GRID.clear_column and z == 1 then
-    local lane_num = y
-    
-    -- If recording on this lane, stop and discard
-    if _seeker.conductor.lanes[lane_num].is_recording then
-      motif_recorder:stop_recording()
-      _seeker.conductor:clear_pattern(lane_num)
-      print("▣ Recording Cleared ▣")
-    end
+  
+  -- Ensure all lanes are stopped
+  if _seeker and _seeker.conductor then
+    _seeker.conductor:stop_all()
   end
 end
 
 --------------------------------------------------
--- Keyboard Event Handlers
--- Handles note input and recording
+-- Recording Controls
+-- Handles starting/stopping recording and
+-- creating new motifs from recorded data
+--------------------------------------------------
+
+function GridUI.handle_record_toggle(lane_num)
+  if not motif_recorder.is_recording then
+    _seeker.conductor:clear_lane(lane_num)
+    motif_recorder:start_recording()
+    _seeker.ui_manager:focus_lane(lane_num) 
+    Log.log("GRID", "STATUS", string.format("%s Recording Started | Lane %d", Log.ICONS.RECORD_ON, lane_num))
+  else
+    local recorded_data = motif_recorder:stop_recording()
+    _seeker.conductor:create_motif(lane_num, recorded_data)
+    Log.log("GRID", "STATUS", string.format("%s Recording Stopped | Lane %d", Log.ICONS.RECORD_OFF, lane_num))
+  end
+end
+
+--------------------------------------------------
+-- Playback Controls
+-- Manages lane playback state and visual feedback
+--------------------------------------------------
+
+function GridUI.handle_playback_toggle(lane_num)
+  local lane = _seeker.conductor.lanes[lane_num]
+  if lane.is_playing then
+    _seeker.conductor:stop_lane(lane_num)
+    Log.log("GRID", "STATUS", string.format("%s Stopped | Lane %d", Log.ICONS.STOP, lane_num))
+  else
+    _seeker.conductor:play_lane(lane_num)
+    Log.log("GRID", "STATUS", string.format("%s Playing | Lane %d", Log.ICONS.PLAY, lane_num))
+  end
+end
+
+--------------------------------------------------
+-- Musical Input Handling
+-- Processes live note input and recording
 --------------------------------------------------
 
 -- Direct note playback for live performance
--- Keeps this separate from conductor's pattern playback responsibilities
+-- Maps grid positions to musical notes and
+-- routes them to the appropriate instrument
 function GridUI.play_live_note(lane_num, note, z)
   if not lane_num then return end
   
-  -- Get lane's instrument name
   local instrument_name = lane_utils.get_lane_instrument(lane_num)
+  local note_name = theory.note_to_name(note)
+  local lane_data = _seeker.conductor.lanes[lane_num]
+  
+  -- Initialize active_notes if needed
+  if not lane_data.active_notes then
+    lane_data.active_notes = {}
+  end
   
   if z == 1 then
-    print(string.format("♫ NOTE ON: %s | %d", theory.note_to_name(note), note))
+    -- Add note to active notes
+    table.insert(lane_data.active_notes, note)
+    
     _seeker.skeys:on({
       name = instrument_name,
       midi = note,
       velocity = 127
     })
+    Log.log("GRID", "NOTES", string.format("%s Note ON  | %s", Log.ICONS.NOTE_ON, note_name))
   else
+    -- Remove note from active notes
+    for i = #lane_data.active_notes, 1, -1 do
+      if lane_data.active_notes[i] == note then
+        table.remove(lane_data.active_notes, i)
+        break
+      end
+    end
+    
     _seeker.skeys:off({
       name = instrument_name,
       midi = note
     })
+    Log.log("GRID", "NOTES", string.format("%s Note OFF | %s", Log.ICONS.NOTE_OFF, note_name))
   end
 end
 
 -- Note recording handler
--- Only handles recording of notes, playback is handled at key level
+-- Captures notes and grid positions during recording
 function GridUI.handle_note_record(x, y, z, pitch, velocity)
+  -- CONSIDER: Adding visual feedback during recording
+  -- to show note registration in grid LEDs
   if z == 1 then
     if motif_recorder.is_recording then
       motif_recorder:on_note_on(pitch, velocity, {x=x, y=y})
+      local note_name = theory.note_to_name(pitch)
+      Log.log("GRID", "NOTES", string.format("%s Record ON  | %s V%d pos=(%d,%d)", Log.ICONS.NOTE_ON, note_name, velocity, x, y))
     end
   else
     if motif_recorder.is_recording then
       motif_recorder:on_note_off(pitch)
+      local note_name = theory.note_to_name(pitch)
+      Log.log("GRID", "NOTES", string.format("%s Record OFF | %s", Log.ICONS.NOTE_OFF, note_name))
     end
   end
 end
 
--- Main input router
-function GridUI.key(x, y, z)
-  if y >= GRID.keyboard_row_start then
-    -- Handle note input for keyboard area
-    if x >= 4 and x <= 12 and y >= 6 and y <= 8 then
-      local pitch = theory.grid_to_note(x, y)
-      if pitch then
-        -- Use standard MIDI velocity range
-        local velocity = z == 1 and 127 or 0
-        
-        -- Always handle live playback at key level
-        GridUI.play_live_note(_seeker.focused_lane, pitch, z)
-        
-        -- Handle recording separately
-        GridUI.handle_note_record(x, y, z, pitch, velocity)
-      end
-    end
-    
-    GridUI.redraw()  -- SMELL: Why redraw after every note?
-    return
-  end
-
-  if y <= GRID.lane_count then
-    GridUI.handle_record_toggle(x, y, z)
-    GridUI.handle_playback_toggle(x, y, z)
-    GridUI.handle_clear_pattern(x, y, z)
-  end
-
-  GridUI.redraw()
-end
-
 --------------------------------------------------
--- Grid Display & Rendering
--- Handles all visual feedback
+-- Control Handlers
 --------------------------------------------------
 
--- Draw the musical interval keyboard on the grid
--- WARN: We should split the interval keyboard logic and the general keyboard brightness. May want to get more dynamic.
-function GridUI.draw_keyboard()
-  local current_scale = params:get("scale_type")
-  
-  -- Draw keyboard in original position (x=4-12, y=6-8)
-  for x = 4, 12 do
-    for y = 6, 8 do
-      -- How dynamic can we make this? Today it matches scale... can it eventually suggest notes?
-      local interval = x - 8  -- Center on x=8 (-4 to +4 range)
-      local importance = theory.get_interval_importance(interval, current_scale)
-      local brightness = theory.importance_to_brightness(importance, GRID.brightness)
-      g:led(x, y, brightness)
-    end
+function GridUI.handle_clear(lane_num)
+  _seeker.conductor:clear_lane(lane_num)
+  _seeker.ui_manager:focus_lane(lane_num)  -- Focus lane when clearing it
+  Log.log("GRID", "STATUS", string.format("%s Cleared | Lane %d", Log.ICONS.CLEAR, lane_num))
+end
+
+function GridUI.handle_stage_select(lane_num, stage)
+  if stage <= STAGES_PER_LANE then
+    _seeker.ui_manager:focus_stage(lane_num, stage)  -- Let UI Manager handle focus change
+    Log.log("GRID", "STATUS", string.format("%s Stage %d Selected | Lane %d", Log.ICONS.STAGE, stage, lane_num))
   end
 end
 
--- Control lane display
--- WARN: Deep coupling to conductor's internal state
-function GridUI.draw_pattern_lanes()   
-  -- This cannot matter
-  if not _seeker.conductor or not _seeker.conductor.lanes then
-    print("Warning: Conductor or lanes not initialized yet")
-    return
-  end
-  
-  -- TODO It's possible we ultimately only have one lane on screen at a time and it's more of a control bar
-  for lane_num = 1,GRID.lane_count do
-    -- lane is a control set with instrument settings and motif data
-    local lane = _seeker.conductor.lanes[lane_num]
-    local is_focused = (lane_num == _seeker.focused_lane)
-
-    -- Adjust brightness based on focus
-    local brightness_multiplier = is_focused and 1 or 0.4
-    
-    -- Draw record button
-    local rec_brightness = motif_recorder.is_recording 
-      and GRID.brightness.high or GRID.brightness.medium
-    g:led(GRID.recording_column, lane_num, 
-      math.floor(rec_brightness * brightness_multiplier))
-    
-    -- Draw play button
-    local play_brightness = lane.is_playing 
-      and GRID.brightness.high or GRID.brightness.medium
-    g:led(GRID.playback_column, lane_num, 
-      math.floor(play_brightness * brightness_multiplier))
-    
-    -- Draw pattern slots with dim lighting
-    for x = GRID.pattern_start, GRID.pattern_end do
-      g:led(x, lane_num, 
-        math.floor(GRID.brightness.low * brightness_multiplier))
-    end
-    
-    -- Draw clear button
-    g:led(GRID.clear_column, lane_num, 
-      math.floor(GRID.brightness.medium * brightness_multiplier))
-  end
-end
-
--- Main display refresh
-function GridUI.redraw()  
-  g:all(0)
-  
-  -- Draw animations first as base layer
-  grid_animations.update()
-  
-  -- Always draw UI elements
-  GridUI.draw_keyboard()
-  GridUI.draw_pattern_lanes()
-  g:refresh()
-end
-
---------------------------------------------------
--- Voice Management
--- SMELL: This might belong in conductor
---------------------------------------------------
-
--- Select a lane as the current focus
-function GridUI.select_lane(lane_num)
-  _seeker.focused_lane = lane_num
-  -- Redraw grid to show new focus
-  GridUI.redraw()
-end
-
--- Do we need to return this object?
 return GridUI
