@@ -75,6 +75,20 @@ function init()
       clock.sync(1/4) -- Sync to quarter notes
     end
   end)
+  
+  -- Set up parameter write callback to trigger UI updates
+  local params_action_write = params.action_write -- Store the existing callback
+  params.action_write = function(filename, name, number)
+    -- Call the existing params callback first
+    if params_action_write then
+      params_action_write(filename, name, number)
+    end
+    
+    -- Then trigger UI update
+    if _seeker and _seeker.ui_manager then
+      _seeker.ui_manager:redraw_all()
+    end
+  end
 end
 
 function key(n, z)

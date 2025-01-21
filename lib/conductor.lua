@@ -293,15 +293,19 @@ function Conductor:play_note_on(lane, note)
   -- Track active note for grid feedback
   table.insert(lane.active_notes, note.pitch)
   
+  -- Get lane volume and scale velocity
+  local volume = lane:get_param("volume")
+  local scaled_velocity = math.floor((note.velocity or 100) * volume)
+  
   if DEBUG.PLAYBACK then
     print(string.format("♪ ON  | L%d | Beat %s | P%d | V%d", 
-      lane.lane_num, format_beat(clock.get_beats()), note.pitch, note.velocity or 100))
+      lane.lane_num, format_beat(clock.get_beats()), note.pitch, scaled_velocity))
   end
   
   _seeker.skeys:on({
     name = instrument_name,
     midi = note.pitch,
-    velocity = note.velocity
+    velocity = scaled_velocity
   })
 end
 
@@ -729,6 +733,22 @@ function Conductor:clear_lane(lane_num)
   lane.motif = nil
   lane.active_notes = {}
   lane.current_stage = 1
+end
+
+-- Update lane state and notify UI
+function Conductor:update_lane_state(lane_num, updates)
+  local lane = self.lanes[lane_num]
+  if not lane then return end
+  
+  -- Update state
+  for k, v in pairs(updates) do
+    lane[k] = v
+  end
+  
+  -- Notify UI if it exists
+  if _seeker and _seeker.ui_manager then
+    _seeker.ui_manager:redraw_all()
+  end
 end
 
 return Conductor

@@ -25,7 +25,7 @@ local Log = {}
 Log.GRID_DEBUG = {
   GRID = false,    -- Grid button presses and LED updates
   STATUS = true,   -- Record/play state changes and lane focus
-  NOTES = false     -- Note on/off events from grid input
+  NOTES = true     -- Note on/off events from grid input
 }
 
 Log.SCREEN_DEBUG = {

@@ -34,7 +34,7 @@ function UIManager.init(grid, screen)
     current_page = 1,         -- Current UI page
     current_stage = 1,        -- Currently selected stage (1-4)
     param_categories = {
-      voice = {"instrument", "midi", "transpose"},  -- Instrument, octave, and transpose settings
+      voice = {"keyboard_x", "keyboard_y", "instrument", "midi", "volume"},  -- Add volume param
       transport = {"record"},          -- Timing mode
       stage = {"transform", "loop_count", "loop_rest", "stage_rest"}  -- Stage-specific settings
     },
@@ -171,6 +171,23 @@ function UIManager:delta_param_value(delta)
   params:delta(param.id, delta)
   return true
 end
+
+-- Handle parameter updates and coordinate between components
+function UIManager:update_lane_param(lane_num, param_name, value)
+  if param_name == "instrument" or param_name == "octave" then
+    -- Update conductor state
+    if _seeker.conductor and _seeker.conductor.lanes[lane_num] then
+      _seeker.conductor.lanes[lane_num][param_name] = value
+    end
+  end
+  
+  -- Update grid UI if this is the focused lane
+  if lane_num == _seeker.focused_lane then
+    self:redraw_all()
+  end
+end
+
+-- Add a parameter category to a page
 
 --------------------------------------------------
 -- Debug Utilities

@@ -108,15 +108,12 @@ function params_manager.init_params()
       end
     end)
 
-    -- Add transpose parameter
-    params:add_number("lane_" .. i .. "_transpose", "Transpose", -12, 12, 0)
-    params:set_action("lane_" .. i .. "_transpose", function(value)
-      if _seeker.focused_lane == i then
-        grid_ui.transpose = value
-        grid_ui.redraw()
-      end
+    -- Add volume parameter
+    params:add_control("lane_" .. i .. "_volume", "Volume", 
+      controlspec.new(0, 1, 'lin', 0.01, 1, ""))
+    params:set_action("lane_" .. i .. "_volume", function(value)
       if _seeker.conductor and _seeker.conductor.lanes[i] then
-        _seeker.conductor.lanes[i].transpose = value
+        _seeker.conductor.lanes[i].volume = value
       end
     end)
 
@@ -162,6 +159,44 @@ function params_manager.init_params()
         controlspec.new(0, 32, 'lin', 1, 0, "bars")
       )
     end
+
+    -- Add keyboard offset parameters for each lane
+    params:add_number(
+      "lane_" .. i .. "_keyboard_x",
+      "Lane " .. i .. " Keyboard X",
+      -24, 24, 0
+    )
+    params:set_action("lane_" .. i .. "_keyboard_x", function(value)
+      if _seeker and _seeker.ui_manager then
+        _seeker.ui_manager:update_lane_param(i, "keyboard_x", value)
+      end
+    end)
+    
+    params:add_number(
+      "lane_" .. i .. "_keyboard_y",
+      "Lane " .. i .. " Keyboard Y",
+      -24, 24, 0
+    )
+    params:set_action("lane_" .. i .. "_keyboard_y", function(value)
+      if _seeker and _seeker.ui_manager then
+        _seeker.ui_manager:update_lane_param(i, "keyboard_y", value)
+      end
+    end)
+  end
+
+  -- Set up global parameter action handler
+  params.action_write = function(filename, name, number)
+    -- Let the UI manager know about ALL parameter changes
+    if _seeker and _seeker.conductor then
+      -- Update conductor state
+      for i = 1, 4 do
+        local lane = _seeker.conductor.lanes[i]
+        if lane then
+          lane.keyboard_x = params:get("lane_" .. i .. "_keyboard_x")
+          lane.keyboard_y = params:get("lane_" .. i .. "_keyboard_y")
+        end
+      end
+    end
   end
 end
 
@@ -183,16 +218,16 @@ function params_manager.get_lane_params(lane_num, category, stage_num)
       -- Match parameter to category based on id prefix
       local matches_category = false
       
-      -- Voice/Transport parameters (non-stage specific)
+      -- Voice-related parameters
       if category == "instrument" and param.id:match("^lane_" .. lane_num .. "_instrument$") then
         matches_category = true
       elseif category == "midi" and param.id:match("^lane_" .. lane_num .. "_octave$") then
         matches_category = true
-      elseif category == "transpose" and param.id:match("^lane_" .. lane_num .. "_transpose$") then
+      elseif category == "volume" and param.id:match("^lane_" .. lane_num .. "_volume$") then
         matches_category = true
+      -- Transport parameters
       elseif category == "record" and param.id:match("^lane_" .. lane_num .. "_timing_mode$") then
         matches_category = true
-      
       -- Stage-specific parameters
       elseif stage_num then
         local stage_pattern = "^lane_" .. lane_num .. "_stage_" .. stage_num
@@ -218,6 +253,27 @@ function params_manager.get_lane_params(lane_num, category, stage_num)
         })
       end
     end
+  end
+  
+  -- Handle keyboard position parameters
+  if category == "keyboard_x" then
+    table.insert(result, {
+      id = "lane_" .. lane_num .. "_keyboard_x",
+      name = "Keyboard X",
+      value = params:get("lane_" .. lane_num .. "_keyboard_x"),
+      min = -24,
+      max = 24,
+      type = "number"
+    })
+  elseif category == "keyboard_y" then
+    table.insert(result, {
+      id = "lane_" .. lane_num .. "_keyboard_y",
+      name = "Keyboard Y",
+      value = params:get("lane_" .. lane_num .. "_keyboard_y"),
+      min = -24,
+      max = 24,
+      type = "number"
+    })
   end
   
   return result

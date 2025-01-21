@@ -1,130 +1,126 @@
-# Seeker II Development Roadmap
+# Seeker II Roadmap
 
-## Phase 1: Core Playback System ✅
-1. **Timing System Overhaul** ✅
-   - Implemented absolute beat-based timing
-   - Added comprehensive timing tests
-   - Verified sub-10ms timing accuracy
-   - Documented timing architecture
-   - Added statistical analysis of timing performance
+## Keyboard Improvements (Current Focus)
 
-2. **Code Organization** ✅
-   - Standardized terminology (voice → lane)
-   - Added architectural documentation
-   - Cleaned up conductor.lua structure
-   - Removed deprecated functions
-   - Added detailed implementation notes
+### Phase 1: Theory Foundation
+1. **Document Current Musical Properties**
+   - [ ] Map out the "walking paths" through the scale
+   - [ ] Document how thirds and seconds interact
+   - [ ] Analyze diagonal movement patterns
+   - [ ] Create visual diagram of voice leading options
+   - [ ] Identify key resolution points
 
-3. **Testing Infrastructure** ✅
-   - Built comprehensive test suite
-   - Added timing statistics collection
-   - Created varied test cases
-   - Proper coroutine management
-   - Edge case coverage
+2. **Pure Theory Utils Refactor**
+   - [ ] Extract scale degree calculation (preserving thirds/seconds relationship)
+   - [ ] Create `theory.get_scale_position(x, y)` that maintains current musical paths
+   - [ ] Add `theory.get_next_resolution(current_pos)` to find natural endpoints
+   - [ ] Implement position-relative interval calculation
+   - [ ] Add tests that verify musical relationships
 
-## Phase 2: Grid Integration (Current)
-1. **Parameter Management System**
-   - Move all lane configuration to params system:
-     - Instrument/voice assignment
-     - Base octave settings
-     - Loop/stage rest durations
-     - Stage transform settings
-   - Create minimal but functional UI:
-     - Parameter selection via encoder 2
-     - Value adjustment via encoder 3
-     - Clear parameter grouping by lane
-     - Visual feedback for changes
+3. **Transposition Logic**
+   - [ ] Ensure offset calculations preserve scale relationships
+   - [ ] Implement relative movement that maintains voice leading
+   - [ ] Add position normalization that keeps musical paths intact
+   - [ ] Create tests for melodic continuity
 
-2. **Grid Interaction**
-   - Test with real recorded motifs
-   - Verify timing with human input
-   - Add visual feedback during playback
-   - Ensure proper grid position handling
+### Phase 2: Musical Suggestion System
+1. **Core Musical Constants**
+   - [ ] Define brightness hierarchy (resolution → leading → counterpoint → played)
+   - [ ] Map out scale positions and their musical magnetism
+   - [ ] Create clear rules for suggestion priority
+   - [ ] Document musical reasoning for each suggestion type
 
-3. **Timing Modes**
-   - Implement "free" timing mode
-   - Add grid quantization system
-   - Support switching between modes
-   - Preserve timing accuracy in both modes
+2. **Suggestion Algorithms**
+   - [ ] Implement `theory.get_resolution_targets(note)` for strongest musical pulls
+   - [ ] Add `theory.get_voice_leading_options(note)` for stepwise motion
+   - [ ] Create `theory.get_counterpoint_options(note)` for harmonic sweet spots
+   - [ ] Build tests verifying musical relationships
 
-4. **UI Development** ✅
-   - Lane configuration controls ✅
-   - Loop and rest duration controls ✅
-   - Stage configuration ✅
-   - Basic playback status display ✅
-   - Visual metronome/position indicator ✅
-   - Hardcoded parameter sets for clarity ✅
-   - Robust initialization without timing hacks ✅
-   - Clear separation between lane and stage parameters ✅
+3. **Grid Integration**
+   - [ ] Create efficient note-to-position mapping
+   - [ ] Handle multiple instances of same pitch
+   - [ ] Implement brightness layering system
+   - [ ] Add smooth transitions between states
 
-5. **Animation Architecture**
-   - Centralize animation state in UI manager:
-     - Common timing utilities (pulses, smoothing)
-     - Shared animation parameters
-     - Coordinated updates at 30/60fps
-   - Grid animations:
-     - LED brightness transitions
-     - Pattern position feedback
-     - Focus state animations
-     - Background ambient effects
-   - Screen animations:
-     - Parameter value changes
-     - Page transitions
-     - Selection highlights
-     - Header/frame effects
-   - Benefits from _seeker pattern:
-     - Single animation timer source
-     - Shared state for coordinated effects
-     - Clear ownership of animation state
-     - Consistent frame timing
+4. **Performance Optimization**
+   - [ ] Cache common musical relationships
+   - [ ] Optimize grid position lookups
+   - [ ] Minimize recalculations during playback
+   - [ ] Profile and optimize critical paths
 
-6. **Performance Features**
-   - Lane mute/solo functionality
-   - Real-time pattern control
-   - Quick pattern switching
-   - Performance macro controls
+### Phase 3: Grid Component Enhancement
+1. **Local State Management**
+   - [ ] Add keyboard state to Grid component
+   - [ ] Create position cache system
+   - [ ] Implement efficient cache invalidation
+   - [ ] Add debug visualization helpers
 
-## Phase 3: Transform System
-1. **Stage Sequence Infrastructure**
-   - Define stage sequence data structure
-   - Implement stage transition logic
-   - Add stage queuing system
-   - Handle stage rest periods
+2. **Parameter Integration**
+   - [ ] Define keyboard parameters in params_manager
+   - [ ] Add keyboard offset parameters
+   - [ ] Create parameter handlers in Grid component
+   - [ ] Implement parameter persistence
 
-2. **Transform Pipeline**
-   - Create transform function interface
-   - Implement transform parameter validation
-   - Add transform preview capability
-   - Build transform chain processing
+### Phase 4: UI Manager Integration
+1. **Keyboard Page**
+   - [ ] Add keyboard configuration page to UI manager
+   - [ ] Create keyboard parameter categories
+   - [ ] Add visual feedback for current position
+   - [ ] Implement keyboard transpose controls
 
-3. **Basic Transforms**
-   - Note pitch transforms (transpose, invert)
-   - Time-based transforms (reverse, shift)
-   - Simple pattern mutations (skip, repeat)
-   - Transform parameter interpolation
+2. **Focus System**
+   - [ ] Integrate keyboard with focus system
+   - [ ] Add keyboard state to UI manager's redraw coordination
+   - [ ] Implement keyboard mode transitions
+   - [ ] Add visual indicators for keyboard state
 
-4. **Transform Timing**
-   - Precise transform scheduling
-   - Multi-lane transform sync
-   - Transform boundary handling
-   - Rest period management
+### Phase 5: Visual Enhancements
+1. **Root Note Visibility**
+   - [ ] Always highlight root notes at consistent brightness
+   - [ ] Create subtle pulse animation for roots
+   - [ ] Ensure roots visible across all modes
+   - [ ] Add root position indicators
 
-## Phase 4: Advanced Features
-1. **Multi-Lane Synchronization**
-   - Lane sync groups
-   - Coordinated transform timing
-   - Cross-lane transform relationships
-   - Pattern phase alignment
+2. **Musical Suggestion Visualization**
+   - [ ] Implement brightness hierarchy from suggestion system
+   - [ ] Create smooth transitions between suggestion states
+   - [ ] Add subtle animations for stronger suggestions
+   - [ ] Design clear visual language for different suggestion types
 
-2. **Pattern Storage & Recall**
-   - Save/load pattern data
-   - Transform sequence persistence
-   - Pattern variation management
-   - Quick pattern switching
+3. **Playback Integration**
+   - [ ] Extend suggestion system to played notes
+   - [ ] Show upcoming resolution possibilities
+   - [ ] Highlight parallel motion opportunities
+   - [ ] Create "heat trails" for melodic patterns
+
+4. **Performance Feedback**
+   - [ ] Show "breadcrumb" trail of recent notes
+   - [ ] Highlight successful resolution moments
+   - [ ] Indicate potential harmonic combinations
+   - [ ] Create visual feedback for voice leading
 
 ## Implementation Notes
-- Each phase maintains stable, usable state
-- Features added iteratively with testing
-- Documentation updated continuously
-- UI feedback immediate and clear
-- Performance and timing verified at each step
+
+### Architecture Patterns
+- Grid component owns keyboard UI state
+- Theory utils provides pure musical calculations
+- UI manager coordinates state changes
+- Params manager handles persistent state
+
+### State Flow
+1. User input → Grid component
+2. Grid updates params through params_manager
+3. UI manager coordinates redraws
+4. Theory utils calculates pure musical relationships
+
+### Testing Strategy
+1. Unit tests for theory utils
+2. Integration tests for parameter system
+3. Visual tests for grid layout
+4. Performance tests for cache system
+
+### Musical Design Principles
+- Root notes always visible as anchor points
+- Suggestions guide but don't prescribe
+- Multiple valid paths always available
+- Visual hierarchy matches musical importance

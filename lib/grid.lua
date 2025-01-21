@@ -72,8 +72,20 @@ local Layout = {
 function GridUI.key(x, y, z)  
   -- Check keyboard region
   if x >= Layout.keyboard.x and x < Layout.keyboard.x + Layout.keyboard.size and
-     y >= Layout.keyboard.y and y < Layout.keyboard.y + Layout.keyboard.size then
-    local note = theory.grid_to_note(x - Layout.keyboard.x + 1, y - Layout.keyboard.y + 1)
+  y >= Layout.keyboard.y and y < Layout.keyboard.y + Layout.keyboard.size then
+    -- Get current lane's keyboard offsets
+    local lane = _seeker.conductor.lanes[_seeker.focused_lane]
+    if not lane then return end
+    
+    -- Get keyboard offsets from params to ensure sync
+    local offset_x = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_x") or 0
+    local offset_y = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_y") or 0
+    
+    -- Apply offsets to grid position
+    local adj_x = x - Layout.keyboard.x + 1 + offset_x
+    local adj_y = y - Layout.keyboard.y + 1 + offset_y
+    
+    local note = theory.grid_to_note(adj_x, adj_y)
     if note then
       GridUI.play_live_note(_seeker.focused_lane, note, z)
       GridUI.handle_note_record(x, y, z, note, 127)
@@ -119,8 +131,21 @@ function GridUI.redraw()
     for y = 0, Layout.keyboard.size - 1 do
       local grid_x = Layout.keyboard.x + x
       local grid_y = Layout.keyboard.y + y
-      local importance = theory.get_interval_importance(x + 1, y + 1)
-      g:led(grid_x, grid_y, importance == 'primary' and Layout.BRIGHT or Layout.MED)
+      
+      -- Get keyboard offsets from params to ensure sync
+      local offset_x = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_x") or 0
+      local offset_y = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_y") or 0
+      
+      -- Apply offsets to the musical position calculation
+      local adj_x = x + 1 + offset_x  -- +1 because theory expects 1-based indices
+      local adj_y = y + 1 + offset_y
+      
+      -- Get interval importance for this position in musical space
+      local importance = theory.get_interval_importance(adj_x, adj_y)
+      
+      -- Draw the LED at the grid position with brightness based on musical importance
+      local brightness = importance == 'primary' and Layout.BRIGHT or Layout.MED
+      g:led(grid_x, grid_y, brightness)
     end
   end
   
@@ -268,7 +293,6 @@ end
 -- routes them to the appropriate instrument
 function GridUI.play_live_note(lane_num, note, z)
   if not lane_num then return end
-  
   local instrument_name = lane_utils.get_lane_instrument(lane_num)
   local note_name = theory.note_to_name(note)
   local lane_data = _seeker.conductor.lanes[lane_num]
