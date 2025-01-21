@@ -1,5 +1,19 @@
 -- seeker_ii.lua
 -- awakening.systems
+--
+-- Architectural Pattern:
+-- This is the main entry point and state container for Seeker II.
+-- The system follows a centralized state pattern where:
+-- 1. All shared state lives in the _seeker table
+-- 2. Components access shared services through _seeker (never globals)
+-- 3. UI coordination happens through _seeker.ui_manager
+-- 4. Components own their internal state
+--
+-- Initialization order is critical:
+-- 1. Core setup (audio)
+-- 2. Parameter system
+-- 3. UI components (grid → ui_manager → screen)
+--------------------------------------------------
 
 engine.name = "MxSamples"
 
@@ -7,7 +21,6 @@ engine.name = "MxSamples"
 local mxsamples = include("mx.samples/lib/mx.samples")  -- Sample playback engine
 local grid_ui = include("/lib/grid")
 local ui = include("/lib/ui")
-ui_manager = include("/lib/ui_manager")  -- Make this global (no local)
 local transformations = include("/lib/transformations")
 local params_manager = include('/lib/params_manager')
 local Conductor = include('lib/conductor')
@@ -20,7 +33,8 @@ _seeker = {
   tests = nil,            -- Will be loaded after initialization
   focused_lane = 1,       -- Currently focused lane (1-4)
   focused_stage = 1,      -- Currently focused stage (1-4)
-  ui_manager = nil        -- UI coordination
+  ui_manager = nil,       -- UI coordination
+  params_manager = nil    -- Parameter management
 }
 
 --------------------------------------------------
@@ -32,23 +46,17 @@ function init()
   _seeker.skeys = mxsamples:new()
   _seeker.conductor = Conductor.new({})
   
-  -- Parameter system (before anything tries to access params)
+  -- Initialize parameter system first
+  _seeker.params_manager = params_manager
   params_manager.init_params()
   params:read()
   params:bang()
   
-  -- Initialize UI components
+  -- Initialize UI components in sequence
   local grid_ui_instance = grid_ui.init()
-  local screen_ui_instance = ui.init()
-  
-  print("DEBUG Init:")
-  print("- grid_ui_instance:", grid_ui_instance)
-  print("- screen_ui_instance:", screen_ui_instance)
-  
-  -- Initialize UI manager with both components
-  local ui_manager = include("/lib/ui_manager")
-  _seeker.ui_manager = ui_manager.init(grid_ui_instance, screen_ui_instance)
-  print("- After ui_manager.init, ui_manager.screen:", _seeker.ui_manager.screen)
+  _seeker.ui_manager = include("/lib/ui_manager").init(grid_ui_instance, nil)  -- Pass nil for screen initially
+  local screen_ui_instance = ui.init(_seeker.ui_manager)
+  _seeker.ui_manager.screen = screen_ui_instance
   
   -- Load tests after everything is initialized
   _seeker.tests = include('tests/timing_tests')

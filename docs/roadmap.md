@@ -57,7 +57,28 @@
    - Robust initialization without timing hacks ✅
    - Clear separation between lane and stage parameters ✅
 
-5. **Performance Features**
+5. **Animation Architecture**
+   - Centralize animation state in UI manager:
+     - Common timing utilities (pulses, smoothing)
+     - Shared animation parameters
+     - Coordinated updates at 30/60fps
+   - Grid animations:
+     - LED brightness transitions
+     - Pattern position feedback
+     - Focus state animations
+     - Background ambient effects
+   - Screen animations:
+     - Parameter value changes
+     - Page transitions
+     - Selection highlights
+     - Header/frame effects
+   - Benefits from _seeker pattern:
+     - Single animation timer source
+     - Shared state for coordinated effects
+     - Clear ownership of animation state
+     - Consistent frame timing
+
+6. **Performance Features**
    - Lane mute/solo functionality
    - Real-time pattern control
    - Quick pattern switching

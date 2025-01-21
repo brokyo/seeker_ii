@@ -1,10 +1,12 @@
 -- Import required music utilities
 local musicutil = require("musicutil")
+local Log = include('lib/log')
 
-local params_manager = {
-  -- Track parameter ranges for each lane
-  lane_param_indices = {}  -- Will store {start_index, num_params} for each lane
-}
+local params_manager = {}
+local MAX_STAGES = 4  -- Configurable number of stages
+
+-- Track parameter ranges for each lane
+local lane_param_indices = {}
 
 -- Helper function to get sorted list of instruments
 function params_manager.get_instrument_list()
@@ -27,6 +29,7 @@ function params_manager.init_params()
   -- MUSICAL PARAMETERS GROUP
   -------------------------------------------
   params:add_group("MUSICAL", 3)
+  Log.log("PARAMS", "STATUS", string.format("%s Added MUSICAL group with 3 params", Log.ICONS.PARAMS))
   
   -- Root note selection (C through B)
   params:add_option("root_note", "Root Note", 
@@ -72,11 +75,11 @@ function params_manager.init_params()
     -- Store the starting index before adding the group
     local start_index = #params.params + 1
     
-    print("Creating param group for lane " .. i .. " with " .. params_per_lane .. " params starting at " .. start_index)
+    Log.log("PARAMS", "STATUS", string.format("%s Creating LANE %d group: %d params at index %d", Log.ICONS.PARAMS, i, params_per_lane, start_index))
     params:add_group("LANE " .. i, params_per_lane)
     
-    -- Store the parameter range for this lane
-    params_manager.lane_param_indices[i] = {
+    -- Store the parameter range locally
+    lane_param_indices[i] = {
       start_index = start_index,
       count = params_per_lane
     }
@@ -85,6 +88,10 @@ function params_manager.init_params()
     local instruments = params_manager.get_instrument_list()
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
     params:set_action("lane_" .. i .. "_instrument", function(value)
+      if _seeker.focused_lane == i then
+        grid_ui.instrument = instruments[value]
+        grid_ui.redraw()
+      end
       if _seeker.conductor and _seeker.conductor.lanes[i] then
         _seeker.conductor.lanes[i].instrument = instruments[value]
       end
@@ -101,6 +108,18 @@ function params_manager.init_params()
       end
     end)
 
+    -- Add transpose parameter
+    params:add_number("lane_" .. i .. "_transpose", "Transpose", -12, 12, 0)
+    params:set_action("lane_" .. i .. "_transpose", function(value)
+      if _seeker.focused_lane == i then
+        grid_ui.transpose = value
+        grid_ui.redraw()
+      end
+      if _seeker.conductor and _seeker.conductor.lanes[i] then
+        _seeker.conductor.lanes[i].transpose = value
+      end
+    end)
+
     -- Timing Configuration
     params:add_option(
       "lane_" .. i .. "_timing_mode",
@@ -110,14 +129,14 @@ function params_manager.init_params()
     )
 
     -- Stage Configuration
-    -- We'll support 4 stages initially, but the conductor should not assume this number
-    for stage = 1,4 do
+    -- Support configurable number of stages
+    for stage = 1,MAX_STAGES do
       local stage_prefix = "lane_" .. i .. "_stage_" .. stage
       
       -- Stage active state
       params:add_option(
         stage_prefix .. "_active",
-        "Stage " .. stage .. " Active",
+        "Active",
         {"Off", "On"},
         stage == 1 and 2 or 1  -- First stage on by default
       )
@@ -125,41 +144,108 @@ function params_manager.init_params()
       -- Loop count for this stage
       params:add_number(
         stage_prefix .. "_loop_count",
-        "Stage " .. stage .. " Loops",
+        "Loops",
         1, 64, 4
       )
       
       -- Loop rest duration for this stage
       params:add_control(
         stage_prefix .. "_loop_rest",
-        "Stage " .. stage .. " Loop Rest",
+        "Loop Rest",
         controlspec.new(0, 16, 'lin', 1, 0, "bars")
       )
       
       -- Stage rest duration (after all loops complete)
       params:add_control(
         stage_prefix .. "_stage_rest",
-        "Stage " .. stage .. " Rest",
+        "Stage Rest",
         controlspec.new(0, 32, 'lin', 1, 0, "bars")
       )
     end
   end
 end
 
--- Helper function to get parameters for a lane
-function params_manager.get_lane_params(lane_num)
-  local indices = params_manager.lane_param_indices[lane_num]
-  if not indices then return {} end
+-- Get parameter range information for a lane
+function params_manager.get_lane_param_range(lane_num)
+  return lane_param_indices[lane_num]
+end
+
+-- Get parameters for a specific category in a lane
+function params_manager.get_lane_params(lane_num, category, stage_num)
+  local indices = lane_param_indices[lane_num]
+  if not indices then return nil end
   
-  local lane_params = {}
+  -- Find parameters matching the category
+  local result = {}
   for i = indices.start_index, indices.start_index + indices.count - 1 do
     local param = params:lookup_param(i)
     if param then
-      table.insert(lane_params, param)
+      -- Match parameter to category based on id prefix
+      local matches_category = false
+      
+      -- Voice/Transport parameters (non-stage specific)
+      if category == "instrument" and param.id:match("^lane_" .. lane_num .. "_instrument$") then
+        matches_category = true
+      elseif category == "midi" and param.id:match("^lane_" .. lane_num .. "_octave$") then
+        matches_category = true
+      elseif category == "transpose" and param.id:match("^lane_" .. lane_num .. "_transpose$") then
+        matches_category = true
+      elseif category == "record" and param.id:match("^lane_" .. lane_num .. "_timing_mode$") then
+        matches_category = true
+      
+      -- Stage-specific parameters
+      elseif stage_num then
+        local stage_pattern = "^lane_" .. lane_num .. "_stage_" .. stage_num
+        if category == "stage_rest" and param.id:match(stage_pattern .. "_stage_rest$") then
+          matches_category = true
+        elseif category == "loop_rest" and param.id:match(stage_pattern .. "_loop_rest$") then
+          matches_category = true
+        elseif category == "loop_count" and param.id:match(stage_pattern .. "_loop_count$") then
+          matches_category = true
+        elseif category == "transform" and param.id:match(stage_pattern .. "_active$") then
+          matches_category = true
+        end
+      end
+      
+      if matches_category then
+        table.insert(result, {
+          id = param.id,
+          name = param.name,
+          value = params:string(param.id),  -- Get formatted value
+          min = param.min,
+          max = param.max,
+          type = param.t
+        })
+      end
     end
   end
   
-  return lane_params
+  return result
+end
+
+-- Debug utility
+function params_manager.debug_params(lane_num)
+  local indices = lane_param_indices[lane_num]
+  if not indices then
+    print("No parameters found for lane " .. lane_num)
+    return
+  end
+  
+  print(string.format("\nParameters for Lane %d:", lane_num))
+  print(string.format("Range: %d to %d (%d params)", 
+    indices.start_index, 
+    indices.start_index + indices.count - 1,
+    indices.count))
+    
+  for i = indices.start_index, indices.start_index + indices.count - 1 do
+    local param = params:lookup_param(i)
+    if param then
+      print(string.format("\n[%d] %s", i, param.id))
+      print("  name: " .. param.name)
+      print("  value: " .. params:string(param.id))
+      print("  type: " .. param.t)
+    end
+  end
 end
 
 return params_manager 

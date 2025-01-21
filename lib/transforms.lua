@@ -61,6 +61,68 @@ transforms.available = {
       -- Scale all time values by multiplier
       return source
     end
+  },
+
+  harmonize = {
+    name = "Harmonize",
+    description = "Probabilistically add harmonized notes",
+    params = {
+      probability = {
+        default = 0.5,
+        min = 0.0,
+        max = 1.0
+      },
+      interval = {
+        default = 4,  -- Default to major third
+        min = 1,
+        max = 12
+      }
+    },
+    fn = function(source, params)
+      -- Create new arrays for transformed sequence
+      local result = {
+        pitches = {},
+        velocities = {},
+        times = {},
+        durations = {},
+        grid_positions = {},
+        total_duration = source.total_duration,
+        note_count = 0
+      }
+      
+      -- Copy original notes first
+      for i = 1, source.note_count do
+        result.note_count = result.note_count + 1
+        result.pitches[result.note_count] = source.pitches[i]
+        result.velocities[result.note_count] = source.velocities[i]
+        result.times[result.note_count] = source.times[i]
+        result.durations[result.note_count] = source.durations[i]
+        if source.grid_positions[i] then
+          result.grid_positions[result.note_count] = {
+            x = source.grid_positions[i].x,
+            y = source.grid_positions[i].y
+          }
+        end
+        
+        -- Probabilistically add harmonized note
+        if math.random() < params.probability then
+          -- Add harmonized note
+          result.note_count = result.note_count + 1
+          result.pitches[result.note_count] = source.pitches[i] + params.interval
+          result.velocities[result.note_count] = source.velocities[i]
+          result.times[result.note_count] = source.times[i]
+          result.durations[result.note_count] = source.durations[i]
+          if source.grid_positions[i] then
+            result.grid_positions[result.note_count] = {
+              x = source.grid_positions[i].x,
+              y = source.grid_positions[i].y
+            }
+          end
+        end
+      end
+      
+      return result
+    end
   }
 }
 

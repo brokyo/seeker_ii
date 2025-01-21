@@ -25,7 +25,15 @@ local Log = {}
 Log.GRID_DEBUG = {
   GRID = false,    -- Grid button presses and LED updates
   STATUS = true,   -- Record/play state changes and lane focus
-  NOTES = true     -- Note on/off events from grid input
+  NOTES = false     -- Note on/off events from grid input
+}
+
+Log.SCREEN_DEBUG = {
+  STATUS = true    -- Screen state changes
+}
+
+Log.PARAMS_DEBUG = {
+  STATUS = true    -- Parameter initialization and access
 }
 
 -- Visual indicators for consistent logging
@@ -41,14 +49,15 @@ Log.ICONS = {
   STAGE = "□",     -- Stage select
   CLEAR = "✖",     -- Clear lane
   CLOCK = "⧗",     -- Timing events
-  TRANSFORM = "↺"  -- Pattern transform
+  TRANSFORM = "↺", -- Pattern transform
+  PARAMS = "⚙"    -- Parameter operations
 }
 
 -- Main logging function
 function Log.log(module, category, msg)
   local debug_table = Log[module .. "_DEBUG"]
   if debug_table and debug_table[category] then
-    print(msg)
+    print(string.format("[%s] %s", module, msg))
   end
 end
 

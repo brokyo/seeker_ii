@@ -54,6 +54,8 @@ local params_manager = include('lib/params_manager')
 local lane_utils = include('lib/lane_utils')
 local transforms = include('lib/transforms')
 
+local MAX_STAGES = 4  -- Configurable number of stages
+
 local Conductor = {}
 Conductor.__index = Conductor
 
@@ -86,6 +88,16 @@ function Lane.new(lane_num)
   l.transform_sequence = {}
   l.current_transform = 1
   l.active_notes = {}  -- Track currently playing notes for grid feedback
+  
+  -- Initialize transform state for each stage
+  l.stage_transforms = {}
+  for i = 1,MAX_STAGES do
+    l.stage_transforms[i] = {
+      type = "none",
+      params = {}
+    }
+  end
+  
   return l
 end
 
@@ -112,35 +124,39 @@ end
 -- Transform System
 --------------------------------------------------
 
-function Lane:get_transform_for_stage(stage_num)
-  -- Get transform name from params
-  local transform_name = self:get_param("transform", stage_num)
-  if not transform_name or transform_name == "none" then
-    return nil
+function Lane:set_stage_transform(stage_num, transform_type, transform_params)
+  if not transforms.available[transform_type] and transform_type ~= "none" then
+    print(string.format("Transform '%s' not found", transform_type))
+    return
   end
   
-  -- Get transform-specific params from the stage's parameters
-  local params = {}
-  local param_spec = transforms.get_params_spec(transform_name)
-  if param_spec then
-    for param_name, _ in pairs(param_spec) do
-      local param_value = self:get_param(param_name, stage_num)
-      if param_value then
-        params[param_name] = param_value
+  -- Initialize with defaults if params not provided
+  local params = transform_params or {}
+  if transform_type ~= "none" then
+    local transform = transforms.available[transform_type]
+    if transform.params then
+      for param_name, param_spec in pairs(transform.params) do
+        if params[param_name] == nil then
+          params[param_name] = param_spec.default
+        end
       end
     end
   end
   
-  return {
-    name = transform_name,
+  self.stage_transforms[stage_num] = {
+    type = transform_type,
     params = params
   }
 end
 
+function Lane:get_stage_transform(stage_num)
+  return self.stage_transforms[stage_num]
+end
+
 function Lane:is_stage_active(stage_num)
   -- Validate stage number
-  if stage_num < 1 or stage_num > 4 then
-    error(string.format("Invalid stage number: %d (must be 1-4)", stage_num))
+  if stage_num < 1 or stage_num > MAX_STAGES then
+    error(string.format("Invalid stage number: %d (must be 1-%d)", stage_num, MAX_STAGES))
   end
   
   -- Build parameter name
@@ -159,8 +175,8 @@ function Lane:find_next_active_stage()
   local checked = 0
   
   -- First look forward from current stage
-  while checked < 4 do
-    local next_stage = (start % 4) + 1
+  while checked < MAX_STAGES do
+    local next_stage = (start % MAX_STAGES) + 1
     if self:is_stage_active(next_stage) then
       if DEBUG.STATUS then
         print(string.format("Lane %d found next active stage: %d", self.lane_num, next_stage))
@@ -171,29 +187,27 @@ function Lane:find_next_active_stage()
     checked = checked + 1
   end
   
-  -- If no stages found after current, look for any active stage
-  for stage = 1, 4 do
-    if stage ~= self.current_stage and self:is_stage_active(stage) then
+  -- No active stages after current - look from beginning
+  for stage = 1, MAX_STAGES do
+    if self:is_stage_active(stage) then
       if DEBUG.STATUS then
-        print(string.format("Lane %d found active stage: %d (after full search)", self.lane_num, stage))
+        print(string.format("Lane %d wrapping to stage: %d", self.lane_num, stage))
       end
       return stage
     end
   end
   
-  -- If current stage is active, stay on it
-  if self:is_stage_active(self.current_stage) then
-    if DEBUG.STATUS then
-      print(string.format("Lane %d staying on current stage: %d (only active)", self.lane_num, self.current_stage))
-    end
-    return self.current_stage
-  end
-  
+  -- No active stages found - stop the lane
   if DEBUG.STATUS then
-    print(string.format("Lane %d found no active stages", self.lane_num))
+    print(string.format("Lane %d has no active stages - stopping", self.lane_num))
   end
   
-  -- Return nil if no active stages found
+  -- Stop the lane through conductor
+  if _seeker.conductor then
+    _seeker.conductor:stop_lane(self.lane_num)
+  end
+  
+  print("Find next stage failed.")
   return nil
 end
 
@@ -205,7 +219,8 @@ function Lane:advance_stage()
   local config = self:get_stage_config(self.current_stage)
   
   -- Stage 1 or no transform: reset to genesis
-  if self.current_stage == 1 or not config.transform then
+  local transform = self:get_stage_transform(self.current_stage)
+  if self.current_stage == 1 or transform.type == "none" then
     self.motif:reset_to_genesis()
     return self.current_stage
   end
@@ -214,11 +229,17 @@ function Lane:advance_stage()
   -- Stage 2: Transform from genesis
   -- Stage 3/4: Compound on previous transform
   local mode = self.current_stage == 2 and "genesis" or "compound"
-  local source = mode == "genesis" and self.motif.genesis or self.motif
+  
+  -- Get transform function from registry
+  local transform_def = transforms.available[transform.type]
+  if not transform_def then
+    print(string.format("Transform '%s' not found", transform.type))
+    self.motif:reset_to_genesis()
+    return self.current_stage
+  end
   
   -- Apply the transform
-  local result = transforms.apply(config.transform.type, source, config.transform.params)
-  self.motif:apply_transform(result, mode)
+  self.motif:apply_transform(transform_def.fn, transform.params, mode)
   
   return self.current_stage
 end
@@ -688,39 +709,11 @@ end
 -- 2. Transform-specific parameters
 -- 3. Loop and timing settings
 function Lane:get_stage_config(stage_num)
-  local config = {
-    transform = nil,  -- Will be nil for stage 1 or if no transform
+  return {
     num_loops = self:get_param("loop_count", stage_num),
     loop_rest = self:get_param("loop_rest", stage_num),
     stage_rest = self:get_param("stage_rest", stage_num)
   }
-  
-  -- Get transform type for this stage
-  local transform_type = self:get_param("transform_type", stage_num)
-  if transform_type == "none" then
-    return config
-  end
-  
-  -- Get transform params if they exist
-  local transform_params = {}
-  local param_spec = transforms.get_params_spec(transform_type)
-  if param_spec then
-    for param_name, spec in pairs(param_spec) do
-      -- Get param value from stage params
-      local param_id = string.format("lane_%d_stage_%d_%s", self.lane_num, stage_num, param_name)
-      if not params:lookup_param(param_id) then
-        error(string.format("Missing transform parameter: %s", param_id))
-      end
-      transform_params[param_name] = params:get(param_id)
-    end
-  end
-  
-  config.transform = {
-    type = transform_type,
-    params = transform_params
-  }
-  
-  return config
 end
 
 -- Add clear_lane if it doesn't exist
