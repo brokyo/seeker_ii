@@ -8,66 +8,33 @@
 -- The Conductor decides WHEN and HOW patterns should change,
 -- while Motif handles the mechanics of those changes.
 
---------------------------------------------------
--- Architecture Overview
---------------------------------------------------
--- 1. Transform System
---    - Conductor determines the sequence and timing of transforms
---    - Coordinates transforms across multiple lanes
---    - Manages transform state and progression
---    - Uses Motif's transform mechanism to apply changes
 --
--- 2. Lane System
---    - Primary organizational unit for playback
---    - Contains: motif data, instrument settings, timing config
---    - Supports multiple parallel lanes with independent settings
---    - Each lane can have up to 4 stages with different transforms
---    - Stages can be activated/deactivated for dynamic performance
+-- Core Responsibilities:
+-- 1. Scheduling and timing of motif playback
+-- 2. Managing stage transitions and transforms
+-- 3. Coordinating multiple parallel lanes
 --
--- 3. Timing & Scheduling System
---    - Uses absolute beat numbers for precise timing
---    - Global beat counter (e.g. 152399.001) for exact synchronization
---    - Supports quantized playback and "free" event times
---    - Event scheduling hierarchy:
---      * Stage: A complete sequence of loops with same transform
---      * Loop: One complete playthrough of a motif
---      * Event: Individual note on/off at specific beat number
---    - Rest periods:
---      * Loop Rest: Silence between each loop iteration
---      * Stage Rest: Silence between stages
---    - Event Sorting:
---      * All events (note-on/off) sorted chronologically
---      * Ensures proper handling of overlapping notes
---      * Maintains polyphony while preserving timing
---    - Stage Transitions:
---      * Occurs after stage rest period
---      * Checks for next active stage
---      * Lane stops if no active stages found
---    - Example timeline:
---      Beat:    152399.0  152399.5  152400.0  152400.5
---      Events:  note_on   note_off  note_on   note_off
-
-
+-- Implementation Notes:
+-- - Uses absolute beat numbers for timing (e.g. 152399.001)
+-- - Each stage is a sequence of loops with the same transform
+-- - Stage transitions only occur after all loops complete
+--
+-- Important Quirks:
+-- - Never log during redraw (can crash Norns)
+-- - Stage rest must complete before checking next stage
+-- - Transform changes only happen at stage boundaries
+-- - Note-offs must be guaranteed even if playback interrupted
 
 local Motif = include('lib/motif')
 local params_manager = include('lib/params_manager')
 local lane_utils = include('lib/lane_utils')
 local transforms = include('lib/transforms')
+local Log = include('lib/log')
 
 local MAX_STAGES = 4  -- Configurable number of stages
 
 local Conductor = {}
 Conductor.__index = Conductor
-
---------------------------------------------------
--- Configuration & Debug Settings
---------------------------------------------------
-
-local DEBUG = {
-  PLAYBACK = false,  -- Note events and timing at execution
-  STATUS = true,    -- Loop/stage changes and high-level state
-  SCHEDULE = false   -- Pre-calculated note sequences and transforms
-}
 
 --------------------------------------------------
 -- Lane Structure
@@ -80,21 +47,19 @@ function Lane.new(lane_num)
   local l = setmetatable({}, Lane)
   l.lane_num = lane_num
   l.is_playing = false
-  l.motif = nil  -- The lane's motif (contains both genesis and current state)
+  l.motif = nil
   l.current_stage = 1
   l.timing_mode = "free"
   l.grid_division = 1/16
   l.playback_speed = 1.0
-  l.transform_sequence = {}
-  l.current_transform = 1
-  l.active_notes = {}  -- Track currently playing notes for grid feedback
+  l.active_notes = {}
   
   -- Initialize transform state for each stage
   l.stage_transforms = {}
   for i = 1,MAX_STAGES do
     l.stage_transforms[i] = {
-      type = "none",
-      params = {}
+      type = "none",  -- Transform type (none, invert, reverse, etc)
+      params = {}     -- Transform-specific parameters
     }
   end
   
@@ -124,50 +89,36 @@ end
 -- Transform System
 --------------------------------------------------
 
-function Lane:set_stage_transform(stage_num, transform_type, transform_params)
-  if not transforms.available[transform_type] and transform_type ~= "none" then
+-- Get/Set transform configuration
+function Lane:set_transform(stage_num, transform_type, params)
+  if stage_num < 1 or stage_num > MAX_STAGES then return end
+  
+  -- Validate transform exists
+  if transform_type ~= "none" and not transforms.available[transform_type] then
     print(string.format("Transform '%s' not found", transform_type))
     return
   end
   
-  -- Initialize with defaults if params not provided
-  local params = transform_params or {}
-  if transform_type ~= "none" then
-    local transform = transforms.available[transform_type]
-    if transform.params then
-      for param_name, param_spec in pairs(transform.params) do
-        if params[param_name] == nil then
-          params[param_name] = param_spec.default
-        end
-      end
-    end
-  end
-  
-  self.stage_transforms[stage_num] = {
-    type = transform_type,
-    params = params
-  }
+  -- Store transform config
+  self.stage_transforms[stage_num].type = transform_type
+  self.stage_transforms[stage_num].params = params or {}
 end
 
-function Lane:get_stage_transform(stage_num)
+function Lane:get_transform(stage_num)
+  if stage_num < 1 or stage_num > MAX_STAGES then return nil end
   return self.stage_transforms[stage_num]
 end
 
+function Lane:set_stage_active(stage_num, active)
+  if stage_num < 1 or stage_num > MAX_STAGES then return end
+  -- Set the param value (1 = Off, 2 = On)
+  local param_id = string.format("lane_%d_stage_%d_active", self.lane_num, stage_num)
+  params:set(param_id, active and 2 or 1)
+end
+
 function Lane:is_stage_active(stage_num)
-  -- Validate stage number
-  if stage_num < 1 or stage_num > MAX_STAGES then
-    error(string.format("Invalid stage number: %d (must be 1-%d)", stage_num, MAX_STAGES))
-  end
-  
-  -- Build parameter name
-  local param_name = string.format("lane_%d_stage_%d_active", self.lane_num, stage_num)
-  
-  -- Check if parameter exists - fail fast if missing
-  if not params:lookup_param(param_name) then
-    error(string.format("Missing stage active parameter: %s", param_name))
-  end
-  
-  return params:get(param_name) == 1
+  -- Get the active state from params (2 = On, 1 = Off)
+  return self:get_param("active", stage_num) == 2
 end
 
 function Lane:find_next_active_stage()
@@ -177,10 +128,8 @@ function Lane:find_next_active_stage()
   -- First look forward from current stage
   while checked < MAX_STAGES do
     local next_stage = (start % MAX_STAGES) + 1
-    if self:is_stage_active(next_stage) then
-      if DEBUG.STATUS then
-        print(string.format("Lane %d found next active stage: %d", self.lane_num, next_stage))
-      end
+    -- Skip if we've wrapped around to current stage
+    if next_stage ~= self.current_stage and self:is_stage_active(next_stage) then
       return next_stage
     end
     start = next_stage
@@ -189,57 +138,80 @@ function Lane:find_next_active_stage()
   
   -- No active stages after current - look from beginning
   for stage = 1, MAX_STAGES do
-    if self:is_stage_active(stage) then
-      if DEBUG.STATUS then
-        print(string.format("Lane %d wrapping to stage: %d", self.lane_num, stage))
-      end
+    -- Skip current stage when wrapping
+    if stage ~= self.current_stage and self:is_stage_active(stage) then
       return stage
     end
   end
   
-  -- No active stages found - stop the lane
-  if DEBUG.STATUS then
-    print(string.format("Lane %d has no active stages - stopping", self.lane_num))
-  end
-  
-  -- Stop the lane through conductor
-  if _seeker.conductor then
-    _seeker.conductor:stop_lane(self.lane_num)
-  end
-  
-  print("Find next stage failed.")
   return nil
 end
 
+function Lane:audition_transform(transform_type, params)
+  if not self.motif then return end
+  
+  -- Store current state
+  local current_stage = self.current_stage
+  local current_transform = self:get_transform(current_stage)
+  
+  -- Create temporary transform
+  local transform = transforms.available[transform_type]
+  if not transform then
+    Log.log("CONDUCTOR", "STATUS", 
+      string.format("%s Transform type not found: %s | Lane %d", 
+        Log.ICONS.TRANSFORM, transform_type, self.lane_num))
+    return
+  end
+  
+  -- Log original sequence
+  local notes = {}
+  for i = 1, self.motif.note_count do
+    table.insert(notes, self.motif:get_event(i))
+  end
+  Log.TRANSFORM.sequence(current_stage, nil, notes, self.motif.total_duration)
+  
+  -- Apply transform temporarily
+  self.motif:apply_transform(transform.fn, params or {}, "genesis")
+  
+  -- Log transformed sequence
+  notes = {}
+  for i = 1, self.motif.note_count do
+    table.insert(notes, self.motif:get_event(i))
+  end
+  Log.TRANSFORM.sequence(current_stage, transform_type, notes, self.motif.total_duration)
+  
+  -- Restore original state
+  self.motif:reset_to_genesis()
+  if current_transform.type ~= "none" then
+    local transform = transforms.available[current_transform.type]
+    self.motif:apply_transform(transform.fn, current_transform.params, "genesis")
+  end
+end
+
 function Lane:advance_stage()
-  -- Find next active stage (or stay on current if it's the only active one)
-  self.current_stage = self:find_next_active_stage()
-  
-  -- Get configuration for this stage
-  local config = self:get_stage_config(self.current_stage)
-  
-  -- Stage 1 or no transform: reset to genesis
-  local transform = self:get_stage_transform(self.current_stage)
-  if self.current_stage == 1 or transform.type == "none" then
-    self.motif:reset_to_genesis()
-    return self.current_stage
+  -- Find next active stage
+  local next_stage = self:find_next_active_stage()
+  if not next_stage then 
+    return nil 
   end
   
-  -- Apply transform based on stage number
-  -- Stage 2: Transform from genesis
-  -- Stage 3/4: Compound on previous transform
-  local mode = self.current_stage == 2 and "genesis" or "compound"
+  -- Update current stage
+  self.current_stage = next_stage
   
-  -- Get transform function from registry
-  local transform_def = transforms.available[transform.type]
-  if not transform_def then
-    print(string.format("Transform '%s' not found", transform.type))
-    self.motif:reset_to_genesis()
-    return self.current_stage
+  -- Reset to genesis state first
+  self.motif:reset_to_genesis()
+  
+  -- Get and apply transform if any
+  local transform_config = self:get_transform(self.current_stage)
+  if transform_config.type ~= "none" then
+    local transform = transforms.available[transform_config.type]
+    if transform and transform.fn then
+      Log.log("CONDUCTOR", "TRANSFORM", 
+        string.format("%s Applying transform %s | Lane %d Stage %d", 
+          Log.ICONS.TRANSFORM, transform_config.type, self.lane_num, self.current_stage))
+      self.motif:apply_transform(transform.fn, transform_config.params or {}, "genesis")
+    end
   end
-  
-  -- Apply the transform
-  self.motif:apply_transform(transform_def.fn, transform.params, mode)
   
   return self.current_stage
 end
@@ -264,29 +236,6 @@ end
 -- Note Playback Functions
 --------------------------------------------------
 
--- Format beat number to show only last 4 digits for readability
-local function format_beat(beat)
-  local beat_str = string.format("%.3f", beat)
-  local len = #beat_str
-  if len > 8 then
-    return "..." .. string.sub(beat_str, len-7)  -- Show last 8 chars (4 digits + "." + 3 decimals)
-  end
-  return beat_str
-end
-
--- Format timing delta with sign and color indicators
-local function format_delta(actual, target)
-  local delta = actual - target
-  local delta_str = string.format("%+.3f", delta)  -- Use + sign for positive deltas
-  if math.abs(delta) < 0.001 then
-    return "=0.000"  -- Exact match
-  elseif delta > 0 then
-    return "+" .. delta_str:sub(2)  -- Remove extra + and add our own
-  else
-    return delta_str
-  end
-end
-
 function Conductor:play_note_on(lane, note)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
   
@@ -296,11 +245,6 @@ function Conductor:play_note_on(lane, note)
   -- Get lane volume and scale velocity
   local volume = lane:get_param("volume")
   local scaled_velocity = math.floor((note.velocity or 100) * volume)
-  
-  if DEBUG.PLAYBACK then
-    print(string.format("♪ ON  | L%d | Beat %s | P%d | V%d", 
-      lane.lane_num, format_beat(clock.get_beats()), note.pitch, scaled_velocity))
-  end
   
   _seeker.skeys:on({
     name = instrument_name,
@@ -320,11 +264,6 @@ function Conductor:play_note_off(lane, note)
     end
   end
   
-  if DEBUG.PLAYBACK then
-    print(string.format("♪ OFF | L%d | Beat %s | P%d", 
-      lane.lane_num, format_beat(clock.get_beats()), note.pitch))
-  end
-  
   _seeker.skeys:off({
     name = instrument_name,
     midi = note.pitch
@@ -337,9 +276,8 @@ function Conductor:stop_all_notes(lane)
   -- Clear active notes array
   lane.active_notes = {}
   
-  if DEBUG.PLAYBACK then
-    print(string.format("⬛ ALL OFF | L%d", lane.lane_num))
-  end
+  Log.log("CONDUCTOR", "PLAYBACK", 
+    string.format("%s Stopping all notes | Lane %d", Log.ICONS.NOTE_OFF, lane.lane_num))
   
   -- Send note offs for all possible MIDI notes
   for note = 0, 127 do
@@ -359,138 +297,97 @@ end
 -- 1. A sequence of loops with the same motif/transform
 -- 2. Optional rest periods between loops
 -- 3. Optional rest period after the stage
---
--- Timing is handled by calculating absolute beat numbers for every event
--- and using clock.sync to precisely hit those beat numbers. This ensures:
--- - Perfect synchronization between lanes
--- - No timing drift over long periods
--- - Accurate handling of loop and stage boundaries
 function Conductor:schedule_stage(lane, stage)
   if not lane.motif then return end
-  
-  -- Debug print the motif events
-  if DEBUG.SCHEDULE then
-    print(string.format("\n◇ Lane %d Stage %d Notes:", lane.lane_num, lane.current_stage))
-    for i = 1, lane.motif.note_count do
-      local note = lane.motif:get_event(i)
-      print(string.format("  Note %d: P%d T%.3f D%.3f", 
-        i, note.pitch, note.time, note.duration))
-    end
-  end
   
   -- Calculate rest durations once
   local loop_rest = lane:get_param("loop_rest", lane.current_stage) * 4
   local stage_rest = lane:get_param("stage_rest", lane.current_stage) * 4
   local total_loop_duration = lane.motif.total_duration + loop_rest
   
-  if DEBUG.SCHEDULE then
-    print(string.format("  Config: %d loops, %.2f/loop, %.2f rest, %.2f stage-rest", 
-      stage.num_loops, lane.motif.total_duration, loop_rest, stage_rest))
+  -- Get transform info for logging
+  local transform_config = lane:get_transform(lane.current_stage)
+  local transform_info = transform_config.type ~= "none" and transform_config.type or "none"
+  
+  Log.log("CONDUCTOR", "BOUNDARY", 
+    string.format("%s Stage %d ▸ Transform: %s | Loops: %d | Rest: %.1f,%.1f | Lane %d", 
+      Log.ICONS.STAGE, lane.current_stage, transform_info, 
+      stage.num_loops, loop_rest, stage_rest, lane.lane_num))
+  
+  -- Log the sequence that will be scheduled
+  local notes = {}
+  for i = 1, lane.motif.note_count do
+    table.insert(notes, lane.motif:get_event(i))
   end
+  Log.TRANSFORM.sequence(lane.current_stage, "playing", notes, lane.motif.total_duration)
   
   clock.run(function()
-    -- Phase 1: Initial Synchronization
     clock.sync(1)
     local start_beat = clock.get_beats()
-    if DEBUG.STATUS then
-      print(string.format("\n▶ Lane %d Stage %d @ %s", 
-        lane.lane_num, lane.current_stage, format_beat(start_beat)))
-    end
     
-    -- Phase 2: Loop Processing
+    -- Process all loops for this stage
     for loop = 0, stage.num_loops - 1 do
-      -- Calculate absolute beat number for loop start
       local loop_start = start_beat + (loop * total_loop_duration)
-      if DEBUG.STATUS then
-        print(string.format("  Loop %d/%d @ %s", 
-          loop + 1, stage.num_loops, format_beat(loop_start)))
-      end
       
-      -- Phase 3: Event Processing
-      -- Create a chronologically sorted list of all events (note-ons and note-offs)
-      local events = {}
+      Log.log("CONDUCTOR", "BOUNDARY", 
+        string.format("%s Loop %d/%d ▸ Beat %s | Lane %d", 
+          Log.ICONS.PLAY, loop + 1, stage.num_loops, 
+          Log.format.beat(loop_start), lane.lane_num))
+      
+      -- Play all notes in the loop
       for i = 1, lane.motif.note_count do
         local note = lane.motif:get_event(i)
-        table.insert(events, {
-          type = "note_on",
-          time = loop_start + note.time,
-          note = note,
-          note_index = i
-        })
-        table.insert(events, {
-          type = "note_off",
-          time = loop_start + note.time + note.duration,
-          note = note,
-          note_index = i
-        })
-      end
-      
-      -- Sort events by absolute time
-      table.sort(events, function(a, b) return a.time < b.time end)
-      
-      -- Process events in chronological order
-      for _, event in ipairs(events) do
-        clock.sync(event.time)
-        local current_beat = clock.get_beats()
+        local note_on_time = loop_start + note.time
+        local note_off_time = note_on_time + note.duration
         
-        if event.type == "note_on" then
-          self:play_note_on(lane, event.note)
-          if DEBUG.PLAYBACK then
-            print(string.format("  Δ%s", format_delta(current_beat, event.time)))
-          end
-        else
-          self:play_note_off(lane, event.note)
-          if DEBUG.PLAYBACK then
-            print(string.format("  Δ%s", format_delta(current_beat, event.time)))
-          end
-        end
+        -- Note ON
+        clock.sync(note_on_time)
+        Log.log("CONDUCTOR", "PLAYBACK", 
+          string.format("%s Note ON | Pitch %d | Beat %s | Loop %d | Lane %d", 
+            Log.ICONS.NOTE_ON, note.pitch, Log.format.beat(note_on_time), 
+            loop + 1, lane.lane_num))
+        self:play_note_on(lane, note)
+        
+        -- Note OFF
+        clock.sync(note_off_time)
+        Log.log("CONDUCTOR", "PLAYBACK", 
+          string.format("%s Note OFF | Pitch %d | Beat %s | Loop %d | Lane %d", 
+            Log.ICONS.NOTE_OFF, note.pitch, Log.format.beat(note_off_time), 
+            loop + 1, lane.lane_num))
+        self:play_note_off(lane, note)
       end
       
-      -- Phase 4: Loop Rest
+      -- Add loop rest if configured
       if loop_rest > 0 then
-        local rest_end = loop_start + lane.motif.total_duration + loop_rest
-        if DEBUG.STATUS then
-          print(string.format("    Rest @ %s", format_beat(rest_end)))
-        end
-        clock.sync(rest_end)
+        clock.sync(loop_start + lane.motif.total_duration)
+        clock.sync(loop_start + total_loop_duration)
       end
-    end
-
-    -- Phase 5: Stage Rest
-    if stage_rest > 0 then
-      local stage_end = start_beat + (stage.num_loops * total_loop_duration)
-      local stage_rest_end = stage_end + stage_rest
-      if DEBUG.STATUS then
-        print(string.format("  Stage Rest @ %s", format_beat(stage_rest_end)))
-      end
-      clock.sync(stage_rest_end)
-    end
-
-    if DEBUG.STATUS then
-      print(string.format("◇ Lane %d Stage %d Complete @ %s", 
-        lane.lane_num, lane.current_stage, format_beat(clock.get_beats())))
     end
     
-    -- Schedule next stage if still playing and there is a next stage
+    -- Handle stage transition
     if lane.is_playing then
-      -- Try to find next active stage
-      local next_stage_num = lane:find_next_active_stage()
+      if stage_rest > 0 then
+        local stage_end = start_beat + (stage.num_loops * total_loop_duration) + stage_rest
+        clock.sync(stage_end)
+      end
       
-      -- If no active stages found, stop the lane
+      local next_stage_num = lane:advance_stage()
+      
       if not next_stage_num then
+        Log.log("CONDUCTOR", "BOUNDARY", 
+          string.format("%s No next stage - stopping | Lane %d", 
+            Log.ICONS.STAGE, lane.lane_num))
         self:stop_lane(lane.lane_num)
         return
       end
       
-      -- Otherwise proceed with next stage
-      lane.current_stage = next_stage_num
-      if next_stage_num == 1 then
-        lane.motif:reset_to_genesis()
-      end
+      Log.log("CONDUCTOR", "BOUNDARY", 
+        string.format("%s Advanced to stage %d | Lane %d", 
+          Log.ICONS.STAGE, next_stage_num, lane.lane_num))
       
-      -- Schedule next stage
+      local next_loops = lane:get_param("loop_count", next_stage_num)
       local next_stage = {
-        num_loops = lane:get_param("loop_count", lane.current_stage),
+        num_loops = next_loops,
         transform = nil,
         params = {}
       }
@@ -506,29 +403,23 @@ end
 -- Start playback for a lane
 function Conductor:play_lane(lane_num)
   local lane = self.lanes[lane_num]
-  
-  -- Initialize playback state first
   lane.is_playing = true
   
   if not lane.motif then 
-    if DEBUG.STATUS then
-      print(string.format("\n▶ Lane %d: No motif to play", lane_num))
-    end
+    Log.log("CONDUCTOR", "STATUS", 
+      string.format("%s No motif to play | Lane %d", Log.ICONS.STOP, lane_num))
     return 
   end
   
-  if DEBUG.STATUS then
-    print(string.format("\n▶ Starting Lane %d", lane_num))
-  end
+  Log.log("CONDUCTOR", "STATUS", 
+    string.format("%s Starting | Lane %d", Log.ICONS.PLAY, lane_num))
   
-  -- Create a stage with current loop parameters
   local stage = {
     num_loops = lane:get_param("loop_count", lane.current_stage),
-    transform = nil,  -- No transform yet
+    transform = nil,
     params = {}
   }
   
-  -- Schedule the stage
   self:schedule_stage(lane, stage)
 end
 
@@ -537,22 +428,15 @@ function Conductor:stop_lane(lane_num)
   local lane = self.lanes[lane_num]
   if not lane.is_playing then return end
   
-  if DEBUG.STATUS then
-    print(string.format("\n■ Stopping Lane %d", lane_num))
-  end
+  Log.log("CONDUCTOR", "STATUS", 
+    string.format("%s Stopping | Lane %d", Log.ICONS.STOP, lane_num))
   
-  -- Stop any currently playing notes
   self:stop_all_notes(lane)
-  
-  -- Clear playback state
   lane.is_playing = false
 end
 
 function Conductor:stop_all()
-  if DEBUG.STATUS then
-    print("\n■ Stopping All Lanes")
-  end
-  
+  Log.log("CONDUCTOR", "STATUS", string.format("%s Stopping all lanes", Log.ICONS.STOP))
   for i = 1,4 do
     self:stop_lane(i)
   end
@@ -564,19 +448,6 @@ end
 
 -- Create a new motif from recorded data and store it in a lane
 function Conductor:create_motif(lane_num, recorded_data)
-  -- Debug print the recorded data
-  if DEBUG.SCHEDULE then
-    print("\n◇ Creating Motif for Lane " .. lane_num)
-    for i, note in ipairs(recorded_data) do
-      local note_info = string.format("  Note %d: P%d T%.2f D%.2f", 
-        i, note.pitch, note.time, note.duration)
-      if note.pos then
-        note_info = note_info .. string.format(" pos=(%d,%d)", note.pos.x, note.pos.y)
-      end
-      print(note_info)
-    end
-  end
-  
   -- Create and store the motif
   local motif = Motif.new({
     notes = recorded_data,
@@ -596,16 +467,13 @@ end
 --------------------------------------------------
 
 -- Add a transform to a lane's sequence
--- The Conductor orchestrates WHEN transforms happen and coordinates
--- them across lanes, while the actual transform application is 
--- delegated to the Motif class
 function Conductor:add_transform(lane_num, transform_fn, params)
   local lane = self.lanes[lane_num]
   if not lane then return end
   
-  if DEBUG.STATUS then
-    print(string.format("◇ Transform Lane %d: %s", lane_num, transform_fn.name or "unnamed"))
-  end
+  Log.log("CONDUCTOR", "TRANSFORM", 
+    string.format("%s Transform added: %s | Lane %d", 
+      Log.ICONS.TRANSFORM, transform_fn.name or "unnamed", lane_num))
   
   table.insert(lane.transform_sequence, {
     transform = transform_fn,
@@ -618,90 +486,14 @@ end
 -- This is a key responsibility of the Conductor - coordinating
 -- how multiple lanes evolve together
 function Conductor:sync_transform(lane_nums, transform_fn, params)
-  if DEBUG.STATUS then
-    print(string.format("◇ Sync Transform Lanes [%s]: %s", 
-      table.concat(lane_nums, ","), transform_fn.name or "unnamed"))
-  end
+  Log.log("CONDUCTOR", "TRANSFORM", 
+    string.format("%s Syncing transform %s across lanes [%s]", 
+      Log.ICONS.TRANSFORM, transform_fn.name or "unnamed", table.concat(lane_nums, ",")))
   
-  -- Add the same transform to multiple lanes
-  -- They will all transform together after their current stages complete
   for _, lane_num in ipairs(lane_nums) do
     self:add_transform(lane_num, transform_fn, params)
   end
 end
-
---------------------------------------------------
--- Debug Helpers
---------------------------------------------------
-
--- Print a timeline of all scheduled note events for a lane
-function Conductor:print_note_timeline(lane_num, num_loops)
-  local lane = self.lanes[lane_num]
-  if not lane.motif then return end
-  
-  num_loops = num_loops or 1
-  local now = clock.get_beats()
-  
-  print(string.format("\n◈ Timeline for Lane %d ◈", lane_num))
-  print("Loop | Note | Time    | +Beats  | Pitch | Dur")
-  print("-----|------|---------|---------|--------|-----")
-  
-  for loop = 0, num_loops - 1 do
-    local loop_start = now + (loop * lane.motif.total_duration)
-    
-    for i = 1, lane.motif.note_count do
-      local note = lane.motif:get_event(i)
-      local abs_time = loop_start + note.time
-      local rel_time = note.time
-      
-      print(string.format("%4d | %4d | %7.2f | %7.2f | %6d | %.2f",
-        loop, i, abs_time, rel_time, note.pitch, note.duration))
-    end
-    
-    if loop < num_loops - 1 then
-      print("-----|------|---------|---------|--------|-----")
-    end
-  end
-  print(string.format("\nTotal Duration per Loop: %.2f beats", lane.motif.total_duration))
-end
-
---------------------------------------------------
--- Important Implementation Notes
---------------------------------------------------
-
---[[ Timing System Design:
-1. Boundaries & Transitions
-   - Loop rests must align to global beat grid
-   - Stage transitions need smooth timing
-   - Multiple stages must chain correctly
-
-2. Transformations
-   - Only occur at stage boundaries (never mid-loop)
-   - Speed changes are most critical:
-     * Must recalculate all absolute beats for new stage
-     * New tempo must align with global beat grid
-     * Example: If stage 1 ends at beat 152400.0 and applies
-       a 2x speed transform, stage 2's events must map to
-       152400.0, 152400.25, 152400.5, etc.
-   - Other transforms (pitch, inversion) don't affect timing
-   - Each stage maintains its own consistent timing grid
-
-3. Edge Cases
-   - Notes crossing loop boundaries
-   - Zero duration notes
-   - Empty loops or rests
-   - Global beat counter limits
-
-4. Performance
-   - Consider pre-calculating loop timings
-   - Potential for event batching
-   - Minimize coroutines
-
-5. Cleanup & Safety
-   - Proper cleanup on stop
-   - Handle interrupted playback
-   - Ensure all notes get note-offs
-]]--
 
 --------------------------------------------------
 -- Stage Management

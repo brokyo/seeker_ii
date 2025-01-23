@@ -167,6 +167,56 @@ end
 params:add_option("scale_type", "Scale", scale_names, 1)
 ```
 
+### Performance Critical Functions
+
+**Problem**: Adding logging in frequently called functions like redraw can crash Norns:
+```lua
+function MyUI.redraw()
+  -- This will spam logs and crash Norns!
+  Log.log("UI", "STATUS", "Redrawing UI...")
+  
+  -- This is also dangerous in grid redraw
+  function GridUI.redraw()
+    Log.log("GRID", "STATUS", "Updating grid LEDs...")
+  end
+end
+```
+
+**Solution**: Never log in performance-critical functions:
+1. Redraw functions (screen.redraw, grid.redraw)
+2. Metro event handlers
+3. Status check functions called by redraw
+4. Encoder/key handlers that might trigger redraws
+
+Instead, log at the event that causes the state change:
+```lua
+function MyUI.set_value(new_value)
+  -- Log when the value changes
+  Log.log("UI", "STATUS", string.format("Value changed to: %s", new_value))
+  -- Then trigger redraw
+  MyUI.redraw()
+end
+
+function MyUI.redraw()
+  -- No logging here, just drawing
+  screen.clear()
+  screen.text(value)
+  screen.update()
+end
+```
+
+**Warning Signs**:
+- Seeing repeated log messages for the same state
+- UI becoming sluggish
+- Norns crashing during normal operation
+- Log files growing very large very quickly
+
+**Best Practices**:
+1. Log state changes, not state reads
+2. Keep redraw functions purely about drawing
+3. If you need to debug drawing, use visual indicators instead of logs
+4. Consider adding a debug overlay mode for development
+
 ### Parameter Initialization Timing
 
 **Problem**: When using engines that add their own parameters (like MXSamples), accessing parameters too early can cause errors like "invalid paramset index":

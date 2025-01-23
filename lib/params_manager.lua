@@ -184,6 +184,25 @@ function params_manager.init_params()
     end)
   end
 
+  -- Add transform parameters for each stage
+  for lane = 1,4 do
+    for stage = 1,4 do
+      -- Only keep stage active state in params
+      params:add_option(
+        string.format("lane_%d_stage_%d_active", lane, stage),
+        string.format("L%d S%d Active", lane, stage),
+        {"Off", "On"},
+        stage == 1 and 2 or 1  -- First stage on by default
+      )
+      params:set_action(string.format("lane_%d_stage_%d_active", lane, stage), 
+        function(value)
+          if _seeker.conductor and _seeker.conductor.lanes[lane] then
+            _seeker.conductor.lanes[lane]:set_stage_active(stage, value == 2)
+          end
+        end)
+    end
+  end
+
   -- Set up global parameter action handler
   params.action_write = function(filename, name, number)
     -- Let the UI manager know about ALL parameter changes

@@ -162,11 +162,25 @@ Key files: `lib/conductor.lua`, `lib/transforms.lua`
 3. Coordinates changes across multiple lanes
 4. Manages precise timing and synchronization
 
-#### Implementation
-- Uses absolute beat numbers for precise timing
-- Global beat counter ensures exact synchronization
-- Supports both quantized and "free" timing modes
-- Manages up to 4 parallel lanes with independent settings
+#### Implementation Details
+1. Timing System
+   - Uses absolute beat numbers (e.g. 152399.001) for precise timing
+   - Global beat counter ensures exact synchronization
+   - Loop rests align to global beat grid
+   - Stage transitions occur only after rest periods
+
+2. Transform Handling
+   - Transforms only occur at stage boundaries
+   - Speed changes require special timing calculations
+   - New tempo must align with global beat grid
+   - Example: If stage 1 ends at beat 152400.0 with 2x speed:
+     * Stage 2 events map to 152400.0, 152400.25, 152400.5...
+
+3. Edge Cases & Safety
+   - Handles notes crossing loop boundaries
+   - Ensures note-offs even if playback interrupted
+   - Proper cleanup on lane/stage transitions
+   - Never logs during redraw (can crash Norns)
 
 ### Lane System
 Key files: `lib/conductor.lua`, `lib/lane_utils.lua`

@@ -132,13 +132,19 @@ end
 function Motif:get_event(index)
   if index < 1 or index > self.note_count then return nil end
   
-  return {
+  -- Create a complete note object with all required fields
+  local note = {
     pitch = self.pitches[index],
-    velocity = self.velocities[index],
+    velocity = self.velocities[index] or 127,  -- Default velocity if not set
     time = self.times[index],
     duration = self.durations[index],
-    pos = self.grid_positions[index]
+    pos = self.grid_positions[index] and {
+      x = self.grid_positions[index].x,
+      y = self.grid_positions[index].y
+    } or nil
   }
+  
+  return note
 end
 
 -- Get all stored notes as an array of events

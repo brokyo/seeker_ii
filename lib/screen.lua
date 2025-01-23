@@ -45,7 +45,8 @@ UI.state = {
   scroll_offset = 0,       -- Scroll offset for long parameter lists
   page_pulse = nil,        -- Breathing animation for current page
   value_pulse = nil,       -- Pulse animation for value changes
-  header_pulse = nil       -- Subtle header animation
+  header_pulse = nil,      -- Subtle header animation
+  transform_params = {}    -- Current transform parameter values
 }
 
 -- Animation utilities
@@ -173,27 +174,98 @@ local function draw_param_list(params, selected_index)
     local param = params[i]
     local y = layout.start_y + ((i - visible_start) * layout.spacing)
     
-    -- Selector with subtle animation for selected parameter
-    local selector_level = selected_index == i and 
-      (15 - math.floor(UI.state.value_pulse() * 4)) or 2
-    screen.level(selector_level)
+    -- Draw parameter
+    UI.draw_param(param, 12, y, selected_index == i)
+    
+    -- Draw selector
+    screen.level(selected_index == i and 15 or 2)
     screen.move(4, y)
     screen.text(selected_index == i and SCREEN.SYMBOLS.SELECTOR or " ")
-    
-    -- Parameter name and value
-    screen.level(selected_index == i and 15 or 5)
-    screen.move(12, y)
-    screen.text(param.name)
-    
-    -- Value with flash animation if recently changed
-    local flash = UI.state.value_flashes[param.id]
-    local value_level = selected_index == i and 15 or 5
-    if flash and flash.active then
-      value_level = math.floor(flash.brightness(0) * 15)
+  end
+end
+
+-- Get parameters for current transform
+local function get_transform_params(lane_num, stage_num)
+  if not _seeker.conductor then return {} end
+  
+  local lane = _seeker.conductor.lanes[lane_num]
+  if not lane then return {} end
+  
+  local transform = lane:get_transform(stage_num)
+  if not transform or transform.type == "none" then return {} end
+  
+  local transform_def = transforms.available[transform.type]
+  if not transform_def then return {} end
+  
+  -- Return current params merged with defaults
+  local result = {}
+  for name, spec in pairs(transform_def.params or {}) do
+    result[name] = transform.params[name] or spec.default
+  end
+  return result
+end
+
+-- Update transform parameters
+local function set_transform_param(lane_num, stage_num, param_name, value)
+  if not _seeker.conductor then return end
+  
+  local lane = _seeker.conductor.lanes[lane_num]
+  if not lane then return end
+  
+  local transform = lane:get_transform(stage_num)
+  if not transform then return end
+  
+  -- Update parameter
+  transform.params[param_name] = value
+  
+  -- Store in UI state for immediate feedback
+  local key = string.format("l%d_s%d_%s", lane_num, stage_num, param_name)
+  UI.state.transform_params[key] = value
+end
+
+-- Draw transform parameters for current stage
+local function draw_transform_params(lane_num, stage_num, selected_index)
+  local layout = _seeker.ui_manager:get_layout_info()
+  local lane = _seeker.conductor.lanes[lane_num]
+  if not lane then return end
+  
+  local transform = lane:get_transform(stage_num)
+  if not transform then return end
+  
+  -- Draw transform type selector
+  screen.level(15)
+  screen.move(4, layout.start_y)
+  screen.text("Transform: ")
+  screen.move(60, layout.start_y)
+  screen.text(transform.type)
+  
+  -- Get available transforms
+  local transform_types = {"none"}
+  for name, _ in pairs(transforms.available) do
+    table.insert(transform_types, name)
+  end
+  
+  -- Draw parameters if transform selected
+  if transform.type ~= "none" then
+    local transform_def = transforms.available[transform.type]
+    if transform_def and transform_def.params then
+      local y = layout.start_y + layout.spacing
+      
+      for name, spec in pairs(transform_def.params) do
+        -- Parameter name
+        screen.level(5)
+        screen.move(8, y)
+        screen.text(name)
+        
+        -- Parameter value
+        local value = transform.params[name] or spec.default
+        screen.level(15)
+        screen.move(layout.value_x, y)
+        screen.text(string.format("%.2f", value))
+        
+        y = y + layout.spacing
+      end
     end
-    screen.level(value_level)
-    screen.move(layout.value_x, y)
-    screen.text(param.value)
   end
 end
 
@@ -203,26 +275,24 @@ end
 
 function UI.enc(n, d)
   if n == 1 then
-    -- Lane selection (defers to ui_manager)
+    -- Lane selection (unchanged)
     local new_lane = util.clamp(_seeker.focused_lane + d, 1, 4)
     if new_lane ~= _seeker.focused_lane then
       _seeker.ui_manager:focus_lane(new_lane)
-      UI.state.scroll_offset = 0  -- Reset scroll on lane change
+      UI.state.scroll_offset = 0
     end
   elseif n == 2 then
-    -- Parameter selection with scrolling
-    local params = _seeker.ui_manager:get_current_params()
+    -- Parameter selection
     local new_index = _seeker.ui_manager:delta_param_index(d)
     local layout = _seeker.ui_manager:get_layout_info()
     
-    -- Adjust scroll if needed
     if new_index > UI.state.scroll_offset + layout.max_visible then
       UI.state.scroll_offset = new_index - layout.max_visible
     elseif new_index <= UI.state.scroll_offset then
       UI.state.scroll_offset = new_index - 1
     end
   elseif n == 3 then
-    -- Parameter value adjustment
+    -- Value adjustment
     if _seeker.ui_manager:delta_param_value(d) then
       local param = _seeker.ui_manager:get_selected_param()
       local timings = _seeker.ui_manager:get_animation_timings()
@@ -294,6 +364,38 @@ end
 function UI.cleanup()
   -- Clear any animation state
   UI.state.value_flashes = {}
+end
+
+function UI.draw_param(param, x, y, selected)
+  local value_level = 15  -- Default brightness for values
+  local label_level = selected and 15 or 4  -- Brighter when selected
+  
+  -- Draw parameter label
+  screen.level(label_level)
+  screen.move(x, y)
+  screen.text(param.name)
+  
+  -- Get and format value
+  local value = ""
+  if param.id == "stage_select" then
+    value = tostring(_seeker.ui_manager.current_stage)
+  elseif param.type == "option" then
+    value = param.value
+  elseif param.type == "number" then
+    if param.id:match("_transform_.+$") then
+      -- Format transform parameters with 2 decimal places
+      value = string.format("%.2f", param.value)
+    else
+      value = tostring(param.value)
+    end
+  else
+    value = param.value
+  end
+  
+  -- Draw value
+  screen.level(value_level)
+  screen.move(x + 70, y)
+  screen.text(value)
 end
 
 return UI 

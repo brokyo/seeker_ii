@@ -15,7 +15,10 @@
 -- - Clear ownership of shared UI logic
 --------------------------------------------------
 
+-- Dependencies
 local Log = include('lib/log')
+local transforms = include('lib/transforms')
+
 local UIManager = {}
 UIManager.__index = UIManager
 
@@ -36,7 +39,7 @@ function UIManager.init(grid, screen)
     param_categories = {
       voice = {"keyboard_x", "keyboard_y", "instrument", "midi", "volume"},  -- Add volume param
       transport = {"record"},          -- Timing mode
-      stage = {"transform", "loop_count", "loop_rest", "stage_rest"}  -- Stage-specific settings
+      stage = {"active", "transform", "loop_count", "loop_rest", "stage_rest"}  -- Add transform to stage params
     },
     -- UI Configuration
     layout = {
@@ -115,7 +118,7 @@ function UIManager:get_current_params()
     local category_params = _seeker.params_manager.get_lane_params(
       _seeker.focused_lane, 
       param_type,
-      self.current_page == PAGES.STAGE and self.current_stage or nil  -- Pass stage number only for stage page
+      self.current_page == PAGES.STAGE and self.current_stage or nil
     )
     if category_params then
       for _, param in ipairs(category_params) do
@@ -124,8 +127,11 @@ function UIManager:get_current_params()
     end
   end
   
-  -- If we're on the stage page, add stage selection as first parameter
+  -- If we're on the stage page, add stage selection and transform parameters
   if self.current_page == PAGES.STAGE then
+    local lane = _seeker.conductor.lanes[_seeker.focused_lane]
+    
+    -- Add stage selection
     table.insert(params, 1, {
       id = "stage_select",
       name = "Stage",
@@ -134,6 +140,51 @@ function UIManager:get_current_params()
       max = 4,
       type = "number"
     })
+    
+    -- Add active state
+    table.insert(params, 2, {
+      id = string.format("lane_%d_stage_%d_active", _seeker.focused_lane, self.current_stage),
+      name = "Active",
+      type = "option",
+      options = {"Off", "On"},
+      value = lane:is_stage_active(self.current_stage) and "On" or "Off"
+    })
+    
+    -- Add transform type
+    local transform = lane:get_transform(self.current_stage)
+    local transform_id = string.format("lane_%d_stage_%d_transform", _seeker.focused_lane, self.current_stage)
+    
+    -- Build transform options dynamically from available transforms
+    local transform_options = {"none"}
+    for name, _ in pairs(transforms.available) do
+      table.insert(transform_options, name)
+    end
+    table.sort(transform_options)  -- Sort for consistent ordering
+    
+    table.insert(params, 3, {
+      id = transform_id,
+      name = "Transform",
+      type = "option",
+      options = transform_options,
+      value = transform.type
+    })
+    
+    -- If transform is selected and has parameters, add them indented
+    if transform.type ~= "none" then
+      local transform_def = transforms and transforms.available and transforms.available[transform.type]
+      if transform_def and transform_def.params then
+        for name, spec in pairs(transform_def.params) do
+          table.insert(params, {
+            id = transform_id .. "_" .. name,
+            name = "  " .. name,  -- Indent parameter name
+            type = "number",
+            min = spec.min,
+            max = spec.max,
+            value = transform.params[name] or spec.default
+          })
+        end
+      end
+    end
   end
   
   return params
@@ -166,10 +217,75 @@ function UIManager:delta_param_value(delta)
     return true
   end
   
+  -- Handle active state toggle
+  if param.id:match("_active$") then
+    local lane = _seeker.conductor.lanes[_seeker.focused_lane]
+    if lane then
+      lane:set_stage_active(self.current_stage, delta > 0)
+      self:redraw_all()
+      return true
+    end
+    return false
+  end
+  
+  -- Handle transform type selection
+  if param.id:match("_transform$") and not param.id:match("_transform_.+$") then
+    local lane = _seeker.conductor.lanes[_seeker.focused_lane]
+    if lane then
+      local transform = lane:get_transform(self.current_stage)
+      local options = {"none", "invert", "reverse", "speed", "harmonize"}
+      local current_idx = 1
+      for i, name in ipairs(options) do
+        if name == transform.type then
+          current_idx = i
+          break
+        end
+      end
+      
+      local new_idx = util.wrap(current_idx + delta, 1, #options)
+      lane:set_transform(self.current_stage, options[new_idx], {})
+      self:redraw_all()
+      return true
+    end
+    return false
+  end
+  
+  -- Handle transform parameter adjustment
+  if param.id:match("_transform_.+$") then
+    local lane = _seeker.conductor.lanes[_seeker.focused_lane]
+    if lane then
+      local transform = lane:get_transform(self.current_stage)
+      local param_name = param.id:match("_transform_(.+)$")
+      local transform_def = transforms and transforms.available and transforms.available[transform.type]
+      if transform_def and transform_def.params and transform_def.params[param_name] then
+        local spec = transform_def.params[param_name]
+        local current = transform.params[param_name] or spec.default
+        local new_value = util.clamp(current + delta * 0.01, spec.min, spec.max)
+        transform.params[param_name] = new_value
+        self:redraw_all()
+        return true
+      end
+    end
+    return false
+  end
+  
   -- Handle normal parameters through the params system
-  -- Let the params system handle the delta and type conversion
   params:delta(param.id, delta)
   return true
+end
+
+function UIManager:key(n, z)
+  if z == 1 then
+    if n == 2 then
+      -- K2: previous page
+      self:prev_page()
+      self.current_param_index = 1
+    elseif n == 3 then
+      -- K3: next page
+      self:next_page()
+      self.current_param_index = 1
+    end
+  end
 end
 
 -- Handle parameter updates and coordinate between components
