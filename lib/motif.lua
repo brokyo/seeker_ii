@@ -61,19 +61,7 @@ end
 -- Store notes in genesis state
 -- @param notes Array of note events to store
 -- Note: This replaces any existing genesis data
-function Motif:store_genesis(notes)
-  -- Validate note structure
-  for i, note in ipairs(notes) do
-    assert(type(note.pitch) == "number", string.format("Note %d: pitch must be a number", i))
-    assert(type(note.velocity) == "number", string.format("Note %d: velocity must be a number", i))
-    assert(type(note.time) == "number", string.format("Note %d: time must be a number", i))
-    assert(type(note.duration) == "number", string.format("Note %d: duration must be a number", i))
-    if note.pos then
-      assert(type(note.pos.x) == "number", string.format("Note %d: pos.x must be a number", i))
-      assert(type(note.pos.y) == "number", string.format("Note %d: pos.y must be a number", i))
-    end
-  end
-  
+function Motif:store_genesis(notes)  
   -- Store genesis state
   self.genesis.note_count = #notes
   self.genesis.total_duration = 0

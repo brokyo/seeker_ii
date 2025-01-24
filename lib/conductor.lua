@@ -20,7 +20,6 @@
 -- - Stage transitions only occur after all loops complete
 --
 -- Important Quirks:
--- - Never log during redraw (can crash Norns)
 -- - Stage rest must complete before checking next stage
 -- - Transform changes only happen at stage boundaries
 -- - Note-offs must be guaranteed even if playback interrupted
@@ -122,71 +121,30 @@ function Lane:is_stage_active(stage_num)
 end
 
 function Lane:find_next_active_stage()
-  local start = self.current_stage
-  local checked = 0
-  
-  -- First look forward from current stage
-  while checked < MAX_STAGES do
-    local next_stage = (start % MAX_STAGES) + 1
-    -- Skip if we've wrapped around to current stage
-    if next_stage ~= self.current_stage and self:is_stage_active(next_stage) then
-      return next_stage
+    -- Start looking from the next stage
+    local start = self.current_stage
+    local checked = 0
+    
+    -- First look forward from current stage
+    while checked < MAX_STAGES do
+        local next_stage = (start % MAX_STAGES) + 1
+        if self:is_stage_active(next_stage) then
+            return next_stage
+        end
+        start = next_stage
+        checked = checked + 1
     end
-    start = next_stage
-    checked = checked + 1
-  end
-  
-  -- No active stages after current - look from beginning
-  for stage = 1, MAX_STAGES do
-    -- Skip current stage when wrapping
-    if stage ~= self.current_stage and self:is_stage_active(stage) then
-      return stage
+    
+    -- No active stages found after current - look from beginning
+    for stage = 1, MAX_STAGES do
+        if self:is_stage_active(stage) then
+            return stage
+        end
     end
-  end
-  
-  return nil
+    
+    return nil
 end
 
-function Lane:audition_transform(transform_type, params)
-  if not self.motif then return end
-  
-  -- Store current state
-  local current_stage = self.current_stage
-  local current_transform = self:get_transform(current_stage)
-  
-  -- Create temporary transform
-  local transform = transforms.available[transform_type]
-  if not transform then
-    Log.log("CONDUCTOR", "STATUS", 
-      string.format("%s Transform type not found: %s | Lane %d", 
-        Log.ICONS.TRANSFORM, transform_type, self.lane_num))
-    return
-  end
-  
-  -- Log original sequence
-  local notes = {}
-  for i = 1, self.motif.note_count do
-    table.insert(notes, self.motif:get_event(i))
-  end
-  Log.TRANSFORM.sequence(current_stage, nil, notes, self.motif.total_duration)
-  
-  -- Apply transform temporarily
-  self.motif:apply_transform(transform.fn, params or {}, "genesis")
-  
-  -- Log transformed sequence
-  notes = {}
-  for i = 1, self.motif.note_count do
-    table.insert(notes, self.motif:get_event(i))
-  end
-  Log.TRANSFORM.sequence(current_stage, transform_type, notes, self.motif.total_duration)
-  
-  -- Restore original state
-  self.motif:reset_to_genesis()
-  if current_transform.type ~= "none" then
-    local transform = transforms.available[current_transform.type]
-    self.motif:apply_transform(transform.fn, current_transform.params, "genesis")
-  end
-end
 
 function Lane:advance_stage()
   -- Find next active stage
@@ -238,14 +196,18 @@ end
 
 function Conductor:play_note_on(lane, note)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
-  
+
   -- Track active note for grid feedback
   table.insert(lane.active_notes, note.pitch)
   
   -- Get lane volume and scale velocity
   local volume = lane:get_param("volume")
   local scaled_velocity = math.floor((note.velocity or 100) * volume)
-  
+
+  Log.log("CONDUCTOR", "PLAYBACK", 
+  string.format("%s Note ON | Pitch %d | Beat %s | Lane %d", 
+    Log.ICONS.NOTE_ON, note.pitch, Log.format.beat(note.time), lane.lane_num))
+
   _seeker.skeys:on({
     name = instrument_name,
     midi = note.pitch,
@@ -263,7 +225,11 @@ function Conductor:play_note_off(lane, note)
       break
     end
   end
-  
+
+  Log.log("CONDUCTOR", "PLAYBACK", 
+  string.format("%s Note OFF | Pitch %d | Beat %s | Lane %d", 
+    Log.ICONS.NOTE_OFF, note.pitch, note.time, lane.lane_num))
+
   _seeker.skeys:off({
     name = instrument_name,
     midi = note.pitch
@@ -303,95 +269,137 @@ function Conductor:schedule_stage(lane, stage)
   -- Calculate rest durations once
   local loop_rest = lane:get_param("loop_rest", lane.current_stage) * 4
   local stage_rest = lane:get_param("stage_rest", lane.current_stage) * 4
-  local total_loop_duration = lane.motif.total_duration + loop_rest
+  
+  -- Calculate total duration for each loop iteration
+  local pattern_duration = lane.motif.total_duration
+  local total_loop_duration = pattern_duration + loop_rest
   
   -- Get transform info for logging
   local transform_config = lane:get_transform(lane.current_stage)
   local transform_info = transform_config.type ~= "none" and transform_config.type or "none"
   
   Log.log("CONDUCTOR", "BOUNDARY", 
-    string.format("%s Stage %d ▸ Transform: %s | Loops: %d | Rest: %.1f,%.1f | Lane %d", 
+    string.format("%s Stage %d ▸ Transform: %s | Loops: %d | Rest: %.1f,%.1f | Pattern: %.3f | Total: %.3f | Lane %d", 
       Log.ICONS.STAGE, lane.current_stage, transform_info, 
-      stage.num_loops, loop_rest, stage_rest, lane.lane_num))
-  
-  -- Log the sequence that will be scheduled
-  local notes = {}
-  for i = 1, lane.motif.note_count do
-    table.insert(notes, lane.motif:get_event(i))
-  end
-  Log.TRANSFORM.sequence(lane.current_stage, "playing", notes, lane.motif.total_duration)
+      stage.num_loops, loop_rest, stage_rest, pattern_duration, total_loop_duration, 
+      lane.lane_num))
   
   clock.run(function()
+    -- First sync to next beat boundary
     clock.sync(1)
     local start_beat = clock.get_beats()
     
-    -- Process all loops for this stage
+    -- Pre-calculate event table timing
+    local events = {}
+    local last_loop_end = start_beat
+    
     for loop = 0, stage.num_loops - 1 do
-      local loop_start = start_beat + (loop * total_loop_duration)
+      -- Loop starts after previous loop's last note
+      local loop_start = last_loop_end
       
-      Log.log("CONDUCTOR", "BOUNDARY", 
-        string.format("%s Loop %d/%d ▸ Beat %s | Lane %d", 
-          Log.ICONS.PLAY, loop + 1, stage.num_loops, 
-          Log.format.beat(loop_start), lane.lane_num))
+      -- Add loop start event
+      table.insert(events, {
+        type = "loop_start",
+        time = loop_start,
+        loop = loop + 1
+      })
       
-      -- Play all notes in the loop
+      -- Track the latest note end time for this loop
+      local loop_end = loop_start
+      
+      -- Add note events
       for i = 1, lane.motif.note_count do
         local note = lane.motif:get_event(i)
         local note_on_time = loop_start + note.time
         local note_off_time = note_on_time + note.duration
         
-        -- Note ON
-        clock.sync(note_on_time)
-        Log.log("CONDUCTOR", "PLAYBACK", 
-          string.format("%s Note ON | Pitch %d | Beat %s | Loop %d | Lane %d", 
-            Log.ICONS.NOTE_ON, note.pitch, Log.format.beat(note_on_time), 
-            loop + 1, lane.lane_num))
-        self:play_note_on(lane, note)
+        -- Track the latest note end
+        loop_end = math.max(loop_end, note_off_time)
         
-        -- Note OFF
-        clock.sync(note_off_time)
-        Log.log("CONDUCTOR", "PLAYBACK", 
-          string.format("%s Note OFF | Pitch %d | Beat %s | Loop %d | Lane %d", 
-            Log.ICONS.NOTE_OFF, note.pitch, Log.format.beat(note_off_time), 
-            loop + 1, lane.lane_num))
-        self:play_note_off(lane, note)
+        table.insert(events, {
+          type = "note_on",
+          time = note_on_time,
+          note = note,
+          loop = loop + 1
+        })
+        table.insert(events, {
+          type = "note_off",
+          time = note_off_time,
+          note = note,
+          loop = loop + 1
+        })
       end
       
-      -- Add loop rest if configured
-      if loop_rest > 0 then
-        clock.sync(loop_start + lane.motif.total_duration)
-        clock.sync(loop_start + total_loop_duration)
+      -- Add loop rest
+      last_loop_end = loop_end + loop_rest
+    end
+    
+    -- Add stage rest event at the very end
+    table.insert(events, {
+        type = "stage_end",
+        time = last_loop_end + stage_rest,  -- Add stage rest before next stage
+        loop = stage.num_loops
+    })
+    
+    -- Sort and process events
+    table.sort(events, function(a, b) return a.time < b.time end)
+    
+    -- Log the scheduled events table
+    Log.log("CONDUCTOR", "SCHEDULE", Log.format.conductor_table(events))
+    
+    -- Process events
+    local last_sync_time = nil
+    for _, event in ipairs(events) do
+      if not lane.is_playing then return end
+      
+      -- Only sync if this is a new time
+      if event.time ~= last_sync_time then
+        Log.log("CONDUCTOR", "TIMING", 
+            string.format("%s Syncing to beat %s | Event: %s", 
+                Log.ICONS.CLOCK, Log.format.beat(event.time), event.type))
+        clock.sync(event.time)
+        last_sync_time = event.time
+      end
+      
+      Log.log("CONDUCTOR", "TIMING", 
+          string.format("%s Executing at beat %s | Event: %s", 
+              Log.ICONS.CLOCK, Log.format.beat(clock.get_beats()), event.type))
+      
+      if event.type == "note_on" then
+        self:play_note_on(lane, event.note)
+      elseif event.type == "note_off" then
+        self:play_note_off(lane, event.note)
+      elseif event.type == "loop_start" then
+        Log.log("CONDUCTOR", "BOUNDARY", 
+            string.format("%s Loop %d/%d ▸ Beat %s | Lane %d", 
+                Log.ICONS.PLAY, event.loop, stage.num_loops, 
+                Log.format.beat(event.time), lane.lane_num))
       end
     end
     
-    -- Handle stage transition
+    -- After all events are processed, handle stage transition
     if lane.is_playing then
-      if stage_rest > 0 then
-        local stage_end = start_beat + (stage.num_loops * total_loop_duration) + stage_rest
-        clock.sync(stage_end)
-      end
-      
-      local next_stage_num = lane:advance_stage()
-      
-      if not next_stage_num then
-        Log.log("CONDUCTOR", "BOUNDARY", 
-          string.format("%s No next stage - stopping | Lane %d", 
-            Log.ICONS.STAGE, lane.lane_num))
-        self:stop_lane(lane.lane_num)
-        return
-      end
-      
-      Log.log("CONDUCTOR", "BOUNDARY", 
-        string.format("%s Advanced to stage %d | Lane %d", 
-          Log.ICONS.STAGE, next_stage_num, lane.lane_num))
-      
-      local next_loops = lane:get_param("loop_count", next_stage_num)
-      local next_stage = {
-        num_loops = next_loops,
-        transform = nil,
-        params = {}
-      }
-      self:schedule_stage(lane, next_stage)
+        -- Try to advance to next stage
+        local next_stage = lane:advance_stage()
+        
+        if next_stage then
+            Log.log("CONDUCTOR", "BOUNDARY", 
+                string.format("%s Advancing to stage %d | Lane %d", 
+                    Log.ICONS.STAGE, next_stage, lane.lane_num))
+            
+            -- Schedule the next stage
+            self:schedule_stage(lane, {
+                num_loops = lane:get_param("loop_count", next_stage),
+                transform = nil,
+                params = {}
+            })
+        else
+            -- No active stages found - stop playback
+            Log.log("CONDUCTOR", "BOUNDARY", 
+                string.format("%s No active stages - stopping | Lane %d", 
+                    Log.ICONS.STAGE, lane.lane_num))
+            self:stop_lane(lane.lane_num)
+        end
     end
   end)
 end

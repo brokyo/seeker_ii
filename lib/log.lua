@@ -28,6 +28,12 @@ Log.GRID_DEBUG = {
   NOTES = false     -- Note on/off events from grid input
 }
 
+Log.MOTIF_REC_DEBUG = {  -- Renamed from MOTIF_DEBUG to be more specific
+  STATUS = true,    -- Recording state changes and configuration
+  NOTES = false,     -- Note capture events
+  TIMING = false    -- Detailed timing and quantization info
+}
+
 Log.SCREEN_DEBUG = {
   STATUS = true    -- Screen state changes
 }
@@ -73,7 +79,8 @@ Log.PREFIX = {
   CONDUCTOR = "COND",
   SCREEN = "SCRN",
   PARAMS = "PARM",
-  TRANSFORM = "TRAN"
+  TRANSFORM = "TRFM",
+  MOTIF_REC = "MREC"  -- Changed from MOTF to MREC to be more specific
 }
 
 -- Formatting helpers
@@ -112,6 +119,108 @@ Log.format = {
     if total_duration then
       table.insert(lines, string.format("  Total: %.2f beats", total_duration))
     end
+    return table.concat(lines, "\n")
+  end,
+
+  -- Format a table of conductor events (scheduling)
+  conductor_table = function(events)
+    if #events == 0 then return "No events scheduled" end
+    
+    -- Define our fields in order with their formatting
+    local fields = {
+      {name = "loop", width = 4, fmt = "%-4d", get = function(evt) return evt.loop end},
+      {name = "type", width = 12, fmt = "%-12s", get = function(evt) return evt.type end},
+      {name = "pitch", width = 5, fmt = "%-5s", get = function(evt) return evt.note and evt.note.pitch end},
+      {name = "time", width = 10, fmt = "%.3f", get = function(evt) return evt.time end},
+      {name = "delta", width = 7, fmt = "%+.3f", get = function(evt, i, events) 
+        if i == 1 then return 0.0 end
+        return evt.time - events[i-1].time
+      end},
+      {name = "duration", width = 8, fmt = "%.3f", get = function(evt) return evt.note and evt.note.duration end},
+      {name = "velocity", width = 3, fmt = "%-3s", get = function(evt) return evt.note and evt.note.velocity end}
+    }
+    
+    -- Build header
+    local lines = {"Scheduled Events:"}
+    local header = {}
+    local separator = {}
+    
+    for _, field in ipairs(fields) do
+      table.insert(header, string.format("%-"..field.width.."s", field.name))
+      table.insert(separator, string.rep("-", field.width))
+    end
+    
+    table.insert(lines, table.concat(header, " | "))
+    table.insert(lines, table.concat(separator, "-|-"))
+    
+    -- Build each row
+    for i, evt in ipairs(events) do
+      local values = {}
+      for _, field in ipairs(fields) do
+        local value = field.get(evt, i, events)
+        local formatted
+        
+        if value == nil then
+          formatted = string.format("%-"..field.width.."s", "-")
+        elseif type(value) == "number" then
+          formatted = string.format(field.fmt, value)
+        else
+          formatted = string.format("%-"..field.width.."s", tostring(value))
+        end
+        
+        table.insert(values, formatted)
+      end
+      table.insert(lines, table.concat(values, " | "))
+    end
+    
+    return table.concat(lines, "\n")
+  end,
+
+  -- Format a table of motif recorder events (recording)
+  motif_table = function(events)
+    if #events == 0 then return "No events recorded" end
+    
+    -- Define our fields in order with their formatting
+    local fields = {
+      {name = "pitch", width = 5, fmt = "%-5s", get = function(evt) return evt.pitch end},
+      {name = "time", width = 8, fmt = "%.3f", get = function(evt) return evt.time end},
+      {name = "duration", width = 8, fmt = "%.3f", get = function(evt) return evt.duration end},
+      {name = "velocity", width = 3, fmt = "%-3s", get = function(evt) return evt.velocity end}
+    }
+    
+    -- Build header
+    local lines = {"Recorded Events:"}
+    local header = {}
+    local separator = {}
+    
+    for _, field in ipairs(fields) do
+      table.insert(header, string.format("%-"..field.width.."s", field.name))
+      table.insert(separator, string.rep("-", field.width))
+    end
+    
+    table.insert(lines, table.concat(header, " | "))
+    table.insert(lines, table.concat(separator, "-|-"))
+    
+    -- Build each row
+    for _, evt in ipairs(events) do
+      local values = {}
+      for _, field in ipairs(fields) do
+        local value = field.get(evt)
+        local formatted
+        
+        if value == nil then
+          formatted = string.format("%-"..field.width.."s", "-")
+        elseif type(value) == "number" then
+          formatted = string.format(field.fmt, value)
+        else
+          formatted = string.format("%-"..field.width.."s", tostring(value))
+        end
+        
+        table.insert(values, formatted)
+      end
+      table.insert(lines, table.concat(values, " | "))
+    end
+    
     return table.concat(lines, "\n")
   end
 }

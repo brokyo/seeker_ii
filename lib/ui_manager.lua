@@ -38,13 +38,13 @@ function UIManager.init(grid, screen)
     current_stage = 1,        -- Currently selected stage (1-4)
     param_categories = {
       voice = {"keyboard_x", "keyboard_y", "instrument", "midi", "volume"},  -- Add volume param
-      transport = {"record"},          -- Timing mode
+      transport = {"record", "recording_mode", "quantize_value"},          -- Add recording config
       stage = {"active", "transform", "loop_count", "loop_rest", "stage_rest"}  -- Add transform to stage params
     },
     -- UI Configuration
     layout = {
       max_visible = 5,    -- Maximum visible parameters
-      start_y = 15,       -- Starting Y position for parameters
+      start_y = 20,       -- Starting Y position for parameters
       spacing = 10,       -- Spacing between parameters
       value_x = 70,       -- X position for parameter values
       header_y = 7        -- Y position for header text

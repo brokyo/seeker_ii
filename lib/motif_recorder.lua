@@ -5,122 +5,162 @@
 --   2. Grid release -> GridUI.handle_note_record -> onNoteOff
 --   3. Recording stops -> stopRecording -> returns note table to Motif
 
+local Log = include('lib/log')
+
 local MotifRecorder = {}
 MotifRecorder.__index = MotifRecorder
 
--- Debug flag for development
-local DEBUG = false
+function MotifRecorder.new()
+  local m = setmetatable({}, MotifRecorder)
+  m.is_recording = false
+  m.next_note_id = 1
+  m.active_notes = {}
+  m.recorded_events = {}
+  m.position_to_note = {}
+  return m
+end
 
---- Constructor
--- @param opts (optional) table of settings:
---    * quantize: quantization amount in beats (default = nil for no quantization)
-function MotifRecorder.new(opts)
-  local mr = setmetatable({}, MotifRecorder)
-  opts = opts or {}
+-- Helper function to get quantization value in beats
+function MotifRecorder:_get_quantize_value()
+  if not self.lane_num then return nil end
   
-  -- Quantization is optional - nil means no quantization
-  mr.quantize = opts.quantize
+  -- Check if quantization is enabled
+  local rec_mode = params:get("lane_" .. self.lane_num .. "_recording_mode")
+  if rec_mode == 1 then return nil end -- "free" mode
   
-  mr.is_recording = false
-  mr.recorded_events = {}
-  mr.start_time = nil  -- Store recording start time
-  
-  -- Polyphony management:
-  -- active_notes: Tracks currently held notes by their unique ID
-  -- active_notes_by_pitch: Groups held notes by pitch for FIFO release
-  mr.active_notes = {}
-  mr.active_notes_by_pitch = {}
-  mr.next_note_id = 1
-  
-  return mr
+  -- Get quantization value
+  local quant_option = params:get("lane_" .. self.lane_num .. "_quantize_value")
+  -- Values are relative to quarter note (1 beat)
+  local quant_values = {4/64, 4/32, 4/16, 4/8, 4/4}  -- 1/16 = 0.25 beats
+  return quant_values[quant_option]
+end
+
+-- Helper function to get recording mode as string
+function MotifRecorder:_get_recording_mode_str()
+  if not self.lane_num then return "unknown" end
+  local rec_mode = params:get("lane_" .. self.lane_num .. "_recording_mode")
+  return rec_mode == 1 and "free" or "quantized"
+end
+
+-- Helper function to get quantize value as string
+function MotifRecorder:_get_quantize_str()
+  if not self.lane_num then return "unknown" end
+  local quant_option = params:get("lane_" .. self.lane_num .. "_quantize_value")
+  local quant_strings = {"1/64", "1/32", "1/16", "1/8", "1/4"}
+  return quant_strings[quant_option] or "unknown"
 end
 
 -- Helper function to quantize a beat value if quantization is enabled
--- Used to align note timings to a musical grid
 function MotifRecorder:_quantize_beat(beat)
-  if not self.quantize then return beat end
-  return math.floor(beat / self.quantize + 0.5) * self.quantize
+  local quant = self:_get_quantize_value()
+  if not quant then return beat end
+  return math.floor(beat / quant + 0.5) * quant
 end
 
 --- onNoteOn: called when a MIDI/keyboard note-on is received
 -- Grid interaction: Called from GridUI.handle_note_record when z=1
--- @param pitch (number) MIDI note number
--- @param velocity (number) Note velocity (usually 100 from grid)
--- @param pos (table) Grid position {x,y} - important for UI feedback
 function MotifRecorder:on_note_on(pitch, velocity, pos)
   if not self.is_recording then return end
   
-  -- Calculate timing relative to recording start
+  -- Calculate raw timing
   local now = clock.get_beats()
   local time_from_start = now - self.start_time
-  local beat_time = self:_quantize_beat(time_from_start)
   
-  -- Create unique note ID for polyphony tracking
+  -- Create unique note ID. Used for deduping multiple MIDI notes played simultaneously
   local note_id = self.next_note_id
   self.next_note_id = self.next_note_id + 1
   
-  -- Create the note event with initial data
-  -- Duration will be set when note is released
+  -- Store position mapping with adjusted coordinates
+  if pos then
+    -- Get keyboard offsets
+    local offset_x = params:get("lane_" .. self.lane_num .. "_keyboard_x") or 0
+    local offset_y = params:get("lane_" .. self.lane_num .. "_keyboard_y") or 0
+    
+    -- Apply offsets to position
+    local adj_pos = {
+      x = pos.x + offset_x,
+      y = pos.y + offset_y
+    }
+    
+    if not self.position_to_note[adj_pos.x] then 
+      self.position_to_note[adj_pos.x] = {} 
+    end
+    self.position_to_note[adj_pos.x][adj_pos.y] = note_id
+  end
+  
+  -- Create note event with raw timing
   local new_event = {
     id = note_id,
     pitch = pitch,
-    velocity = velocity or 100,
-    time = beat_time,
-    duration = 0,
-    pos = pos or {x=0, y=0}  -- Store grid position for UI feedback
+    velocity = velocity or 127,
+    raw_start = time_from_start,
+    pos = pos or {x=0, y=0},
+    adj_pos = adj_pos  -- Store adjusted position for reference
   }
   self.active_notes[note_id] = new_event
 
-  -- Track notes by pitch for FIFO note-off handling
-  -- This allows holding multiple notes of same pitch
-  if not self.active_notes_by_pitch then self.active_notes_by_pitch = {} end
-  if not self.active_notes_by_pitch[pitch] then self.active_notes_by_pitch[pitch] = {} end
-  table.insert(self.active_notes_by_pitch[pitch], note_id)
-
-  if DEBUG then
-    print(string.format("● REC NOTE ON | id=%d pitch=%d vel=%d pos=%d,%d time=%.2f", 
-      note_id, pitch, velocity, pos.x, pos.y, time_from_start))
-  end
+  Log.log("MOTIF_REC", "NOTES", string.format("%s Note ON  | id=%d pitch=%d vel=%d pos=%d,%d time=%.3f", 
+    Log.ICONS.NOTE_ON, note_id, pitch, velocity, pos.x, pos.y, time_from_start))
 end
 
 --- onNoteOff: called when a MIDI/keyboard note-off is received
 -- Grid interaction: Called from GridUI.handle_note_record when z=0
 -- Uses FIFO (First In First Out) for handling multiple held notes of same pitch
 -- @param pitch (number) MIDI note number
-function MotifRecorder:on_note_off(pitch)
+function MotifRecorder:on_note_off(pitch, pos)
   if not self.is_recording then return end
-  if not self.active_notes_by_pitch or not self.active_notes_by_pitch[pitch] then return end
-
-  local now = clock.get_beats()
-  local time_from_start = now - self.start_time
   
-  -- Get the oldest note of this pitch (FIFO)
-  local note_id = table.remove(self.active_notes_by_pitch[pitch], 1)
-  local evt = self.active_notes[note_id]
-  
-  if evt then
-    -- Calculate final duration from note start to now
-    evt.duration = time_from_start - evt.time
+  -- Find note ID from adjusted position if provided
+  local note_id
+  if pos then
+    -- Get keyboard offsets
+    local offset_x = params:get("lane_" .. self.lane_num .. "_keyboard_x") or 0
+    local offset_y = params:get("lane_" .. self.lane_num .. "_keyboard_y") or 0
     
-    -- Move from active to recorded events
-    table.insert(self.recorded_events, evt)
-    self.active_notes[note_id] = nil
-  
-    if DEBUG then
-      print(string.format("● REC NOTE OFF | id=%d pitch=%d duration=%.2f", 
-        note_id, pitch, evt.duration))
+    -- Apply offsets to position
+    local adj_pos = {
+      x = pos.x + offset_x,
+      y = pos.y + offset_y
+    }
+    
+    if self.position_to_note[adj_pos.x] then
+      note_id = self.position_to_note[adj_pos.x][adj_pos.y]
+      -- Clear position mapping
+      self.position_to_note[adj_pos.x][adj_pos.y] = nil
     end
   end
+  
+  local now = clock.get_beats()
+  local time_from_start = now - self.start_time
+  local evt = self.active_notes[note_id]
+  
+  -- Calculate duration using raw times
+  evt.duration = time_from_start - evt.raw_start
+  
+  -- Apply quantization to start time only
+  evt.time = self:_quantize_beat(evt.raw_start)
+  evt.raw_start = nil  -- Clean up temp data
+  
+  -- Move to recorded events
+  table.insert(self.recorded_events, evt)
+  self.active_notes[note_id] = nil
+
+  Log.log("MOTIF_REC", "NOTES", string.format("%s Note OFF | id=%d pitch=%d duration=%.3f", 
+    Log.ICONS.NOTE_OFF, note_id, pitch, evt.duration))
 end
 
 --- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
-function MotifRecorder:start_recording()  
+function MotifRecorder:start_recording(lane_num)  
   self.is_recording = true
   self.recorded_events = {}
   self.active_notes = {}
-  self.start_time = clock.get_beats()  -- Store the absolute start time
+  self.position_to_note = {}  -- Reset position tracking
+  self.start_time = clock.get_beats()
+  self.lane_num = lane_num
   
+  Log.log("MOTIF_REC", "STATUS", string.format("%s Recording Started | Lane %d | Mode: %s | Grid: %s", 
+    Log.ICONS.RECORD_ON, lane_num, self:_get_recording_mode_str(), self:_get_quantize_str()))
 end
 
 --- Stop recording and return the event table
@@ -133,17 +173,36 @@ function MotifRecorder:stop_recording()
   local end_time = clock.get_beats()
   local time_from_start = end_time - self.start_time
   
-  -- Finalize any notes still being held
+  -- Finalize any held notes
   for note_id, evt in pairs(self.active_notes) do
-    evt.duration = time_from_start - evt.time
+    -- Calculate duration using raw time
+    evt.duration = time_from_start - evt.raw_start
+    -- Apply quantization to start time
+    evt.time = self:_quantize_beat(evt.raw_start)
+    evt.raw_start = nil
     table.insert(self.recorded_events, evt)
-    self.active_notes[note_id] = nil
   end
   
-  -- Return and clear recorded events
+  -- Clear state
+  self.active_notes = {}
+  self.position_to_note = {}
+  
+  -- Sort notes by start time
+  table.sort(self.recorded_events, function(a, b)
+    return a.time < b.time
+  end)
+  
+  -- Log recording completion
+  Log.log("MOTIF_REC", "STATUS", string.format("%s Recording Stopped | Lane %d | Events: %d | Duration: %.3f", 
+    Log.ICONS.RECORD_OFF, self.lane_num, #self.recorded_events, time_from_start))
+  
+  if #self.recorded_events > 0 then
+    Log.log("MOTIF_REC", "STATUS", Log.format.motif_table(self.recorded_events))
+  end
+  
   local notes = self.recorded_events
   self.recorded_events = {}
-  return notes  -- This table becomes Motif.notes
+  return notes
 end
 
 return MotifRecorder

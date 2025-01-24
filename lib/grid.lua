@@ -257,7 +257,7 @@ end
 function GridUI.handle_record_toggle(lane_num)
   if not motif_recorder.is_recording then
     _seeker.conductor:clear_lane(lane_num)
-    motif_recorder:start_recording()
+    motif_recorder:start_recording(lane_num)
     _seeker.ui_manager:focus_lane(lane_num) 
     Log.log("GRID", "STATUS", string.format("%s Recording Started | Lane %d", Log.ICONS.RECORD_ON, lane_num))
   else
@@ -332,19 +332,19 @@ end
 -- Note recording handler
 -- Captures notes and grid positions during recording
 function GridUI.handle_note_record(x, y, z, pitch, velocity)
-  -- CONSIDER: Adding visual feedback during recording
-  -- to show note registration in grid LEDs
   if z == 1 then
     if motif_recorder.is_recording then
       motif_recorder:on_note_on(pitch, velocity, {x=x, y=y})
       local note_name = theory.note_to_name(pitch)
-      Log.log("GRID", "NOTES", string.format("%s Record ON  | %s V%d pos=(%d,%d)", Log.ICONS.NOTE_ON, note_name, velocity, x, y))
+      Log.log("GRID", "NOTES", string.format("%s Record ON  | %s V%d pos=(%d,%d)", 
+        Log.ICONS.NOTE_ON, note_name, velocity, x, y))
     end
   else
     if motif_recorder.is_recording then
-      motif_recorder:on_note_off(pitch)
+      motif_recorder:on_note_off(pitch, {x=x, y=y})
       local note_name = theory.note_to_name(pitch)
-      Log.log("GRID", "NOTES", string.format("%s Record OFF | %s", Log.ICONS.NOTE_OFF, note_name))
+      Log.log("GRID", "NOTES", string.format("%s Record OFF | %s", 
+        Log.ICONS.NOTE_OFF, note_name))
     end
   end
 end
