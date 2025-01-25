@@ -70,10 +70,10 @@ function params_manager.init_params()
   for i = 1,4 do
     -- Calculate total params:
     -- 3 voice params (instrument, octave, volume)
-    -- 3 transport params (timing_mode, recording_mode, quantize_value)
+    -- 5 transport params (timing_mode, recording_mode, quantize_value, grid_division, gate_length)
     -- (4 stages * 4 params per stage)
     -- 2 keyboard offset params
-    local params_per_lane = 3 + 3 + (4 * 4) + 2
+    local params_per_lane = 3 + 5 + (4 * 4) + 2
     
     -- Store the starting index before adding the group
     local start_index = #params.params + 1
@@ -126,6 +126,23 @@ function params_manager.init_params()
       "Timing Mode",
       {"free", "grid"},
       1
+    )
+
+    -- Grid division for quantized playback
+    params:add_option(
+      "lane_" .. i .. "_grid_division",
+      "Grid Division",
+      {2, 3, 4, 5, 6, 7, 8, 9, 12, 16, 24, 32},  -- Full range including unusual divisions
+      10,  -- Default to 1/16
+      function(param) return "1/" .. param.options[param.value] end  -- Format display as fraction
+    )
+
+    -- Gate length as percentage (0-400%)
+    params:add_number(
+      "lane_" .. i .. "_gate_length",
+      "Gate Length",
+      0, 40, 9,  -- Default to 90%
+      function(param) return param.value * 10 .. "%" end
     )
 
     -- Recording Configuration
@@ -269,6 +286,10 @@ function params_manager.get_lane_params(lane_num, category, stage_num)
       elseif category == "recording_mode" and param.id:match("^lane_" .. lane_num .. "_recording_mode$") then
         matches_category = true
       elseif category == "quantize_value" and param.id:match("^lane_" .. lane_num .. "_quantize_value$") then
+        matches_category = true
+      elseif category == "grid_division" and param.id:match("^lane_" .. lane_num .. "_grid_division$") then
+        matches_category = true
+      elseif category == "gate_length" and param.id:match("^lane_" .. lane_num .. "_gate_length$") then
         matches_category = true
       -- Stage-specific parameters
       elseif stage_num then

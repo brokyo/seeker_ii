@@ -38,7 +38,7 @@ function UIManager.init(grid, screen)
     current_stage = 1,        -- Currently selected stage (1-4)
     param_categories = {
       voice = {"keyboard_x", "keyboard_y", "instrument", "midi", "volume"},  -- Add volume param
-      transport = {"record", "recording_mode", "quantize_value"},          -- Add recording config
+      transport = {"record", "recording_mode", "quantize_value", "timing_mode", "grid_division", "gate_length"},  -- Add grid params
       stage = {"active", "transform", "loop_count", "loop_rest", "stage_rest"}  -- Add transform to stage params
     },
     -- UI Configuration

@@ -42,6 +42,9 @@ Conductor.__index = Conductor
 local Lane = {}
 Lane.__index = Lane
 
+--- Creates a new Lane instance with default state
+-- @param lane_num: Integer identifying the lane
+-- @return Lane object with initialized state
 function Lane.new(lane_num)
   local l = setmetatable({}, Lane)
   l.lane_num = lane_num
@@ -65,6 +68,11 @@ function Lane.new(lane_num)
   return l
 end
 
+--- Retrieves a parameter value for a lane or stage
+-- @param param_name: Name of the parameter to get
+-- @param stage_num: (optional) Stage number for stage-specific params
+-- @return Parameter value
+-- [!] Fails hard if parameter doesn't exist - consider softer failure
 function Lane:get_param(param_name, stage_num)
   -- Build parameter name
   local param_id
@@ -85,10 +93,21 @@ function Lane:get_param(param_name, stage_num)
 end
 
 --------------------------------------------------
+-- Transform Configuration
+-- REVIEW: Good encapsulation of transform logic
+-- + Clear validation of transform existence
+-- + Safe parameter handling with defaults
+-- - Consider adding transform parameter validation
+--------------------------------------------------
+
+--------------------------------------------------
 -- Transform System
 --------------------------------------------------
 
--- Get/Set transform configuration
+--- Configures a transform for a specific stage
+-- @param stage_num: Stage to configure (1-MAX_STAGES)
+-- @param transform_type: Type of transform to apply
+-- @param params: Transform-specific parameters
 function Lane:set_transform(stage_num, transform_type, params)
   if stage_num < 1 or stage_num > MAX_STAGES then return end
   
@@ -103,11 +122,17 @@ function Lane:set_transform(stage_num, transform_type, params)
   self.stage_transforms[stage_num].params = params or {}
 end
 
+--- Retrieves transform configuration for a stage
+-- @param stage_num: Stage to get transform for
+-- @return Transform configuration or nil if invalid stage
 function Lane:get_transform(stage_num)
   if stage_num < 1 or stage_num > MAX_STAGES then return nil end
   return self.stage_transforms[stage_num]
 end
 
+--- Sets the active state of a stage
+-- @param stage_num: Stage to modify
+-- @param active: Boolean active state
 function Lane:set_stage_active(stage_num, active)
   if stage_num < 1 or stage_num > MAX_STAGES then return end
   -- Set the param value (1 = Off, 2 = On)
@@ -115,11 +140,17 @@ function Lane:set_stage_active(stage_num, active)
   params:set(param_id, active and 2 or 1)
 end
 
+--- Checks if a stage is currently active
+-- @param stage_num: Stage to check
+-- @return Boolean indicating if stage is active
 function Lane:is_stage_active(stage_num)
   -- Get the active state from params (2 = On, 1 = Off)
   return self:get_param("active", stage_num) == 2
 end
 
+--- Finds the next active stage in sequence
+-- @return Next active stage number or nil if none found
+-- [!] Could benefit from cycle count tracking to prevent infinite loops
 function Lane:find_next_active_stage()
     -- Start looking from the next stage
     local start = self.current_stage
@@ -145,7 +176,9 @@ function Lane:find_next_active_stage()
     return nil
 end
 
-
+--- Advances to next stage and applies transform
+-- @return New stage number or nil if no active stages
+-- [!] Consider separating transform application logic
 function Lane:advance_stage()
   -- Find next active stage
   local next_stage = self:find_next_active_stage()
@@ -194,6 +227,9 @@ end
 -- Note Playback Functions
 --------------------------------------------------
 
+--- Triggers a note-on event for a lane
+-- @param lane: Lane object
+-- @param note: Note event data
 function Conductor:play_note_on(lane, note)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
 
@@ -215,6 +251,9 @@ function Conductor:play_note_on(lane, note)
   })
 end
 
+--- Triggers a note-off event for a lane
+-- @param lane: Lane object
+-- @param note: Note event data
 function Conductor:play_note_off(lane, note)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
   
@@ -236,6 +275,9 @@ function Conductor:play_note_off(lane, note)
   })
 end
 
+--- Stops all active notes for a lane
+-- @param lane: Lane object
+-- [!] Consider optimizing MIDI range based on instrument
 function Conductor:stop_all_notes(lane)
   local instrument_name = lane_utils.get_lane_instrument(lane.lane_num)
   
@@ -258,11 +300,11 @@ end
 -- Core Timing System
 --------------------------------------------------
 
--- Schedule a stage using absolute beat numbers for precise timing
--- Each stage consists of:
--- 1. A sequence of loops with the same motif/transform
--- 2. Optional rest periods between loops
--- 3. Optional rest period after the stage
+--- Schedules and executes a complete stage of events
+-- @param lane: Lane to schedule for
+-- @param stage: Stage configuration
+-- [!] clock.sync(1) behavior needs review
+-- [!] Consider splitting event generation from execution
 function Conductor:schedule_stage(lane, stage)
   if not lane.motif then return end
   
@@ -270,22 +312,43 @@ function Conductor:schedule_stage(lane, stage)
   local loop_rest = lane:get_param("loop_rest", lane.current_stage) * 4
   local stage_rest = lane:get_param("stage_rest", lane.current_stage) * 4
   
+  -- Get timing mode and parameters
+  local timing_mode = lane:get_param("timing_mode")
+  local is_grid_mode = timing_mode == 2
+  local grid_division, gate_length, denominator  -- Declare denominator at this scope
+  if is_grid_mode then
+    denominator = lane:get_param("grid_division")  -- Returns denominator (e.g. 16)
+    grid_division = 1/denominator  -- Convert to beat value (e.g. 1/16)
+    gate_length = lane:get_param("gate_length") * 0.1  -- Convert 0-40 to 0-4.0
+  end
+  
   -- Calculate total duration for each loop iteration
-  local pattern_duration = lane.motif.total_duration
+  local pattern_duration = is_grid_mode 
+    and (lane.motif.note_count * grid_division)  -- Grid: fixed spacing
+    or lane.motif.total_duration                 -- Free: use recorded timing
   local total_loop_duration = pattern_duration + loop_rest
   
   -- Get transform info for logging
   local transform_config = lane:get_transform(lane.current_stage)
   local transform_info = transform_config.type ~= "none" and transform_config.type or "none"
   
-  Log.log("CONDUCTOR", "BOUNDARY", 
-    string.format("%s Stage %d ▸ Transform: %s | Loops: %d | Rest: %.1f,%.1f | Pattern: %.3f | Total: %.3f | Lane %d", 
-      Log.ICONS.STAGE, lane.current_stage, transform_info, 
-      stage.num_loops, loop_rest, stage_rest, pattern_duration, total_loop_duration, 
-      lane.lane_num))
+  -- Log stage info based on mode
+  if is_grid_mode then
+    Log.log("CONDUCTOR", "BOUNDARY", 
+      string.format("%s Grid Stage %d ▸ Division: 1/%d | Gate: %.1f%% | Loops: %d | Rest: %.1f,%.1f | Lane %d", 
+        Log.ICONS.STAGE, lane.current_stage, denominator, gate_length * 100, 
+        stage.num_loops, loop_rest, stage_rest, lane.lane_num))
+  else
+    Log.log("CONDUCTOR", "BOUNDARY", 
+      string.format("%s Free Stage %d ▸ Transform: %s | Loops: %d | Rest: %.1f,%.1f | Pattern: %.3f | Total: %.3f | Lane %d", 
+        Log.ICONS.STAGE, lane.current_stage, transform_info, 
+        stage.num_loops, loop_rest, stage_rest, pattern_duration, total_loop_duration, 
+        lane.lane_num))
+  end
   
   clock.run(function()
     -- First sync to next beat boundary
+    -- TODO: this should only fire at the very start of playback; we do not want it running every stage
     clock.sync(1)
     local start_beat = clock.get_beats()
     
@@ -307,11 +370,19 @@ function Conductor:schedule_stage(lane, stage)
       -- Track the latest note end time for this loop
       local loop_end = loop_start
       
-      -- Add note events
+      -- Add note events based on timing mode
       for i = 1, lane.motif.note_count do
         local note = lane.motif:get_event(i)
-        local note_on_time = loop_start + note.time
-        local note_off_time = note_on_time + note.duration
+        
+        -- Calculate timing based on mode
+        local note_on_time, note_off_time
+        if is_grid_mode then
+          note_on_time = loop_start + (i - 1) * grid_division
+          note_off_time = note_on_time + (grid_division * gate_length)
+        else
+          note_on_time = loop_start + note.time
+          note_off_time = note_on_time + note.duration
+        end
         
         -- Track the latest note end
         loop_end = math.max(loop_end, note_off_time)
@@ -337,7 +408,7 @@ function Conductor:schedule_stage(lane, stage)
     -- Add stage rest event at the very end
     table.insert(events, {
         type = "stage_end",
-        time = last_loop_end + stage_rest,  -- Add stage rest before next stage
+        time = last_loop_end + stage_rest,
         loop = stage.num_loops
     })
     
@@ -408,7 +479,8 @@ end
 -- Playback Control
 --------------------------------------------------
 
--- Start playback for a lane
+--- Starts playback for a specified lane
+-- @param lane_num: Lane number to start
 function Conductor:play_lane(lane_num)
   local lane = self.lanes[lane_num]
   lane.is_playing = true
@@ -431,7 +503,8 @@ function Conductor:play_lane(lane_num)
   self:schedule_stage(lane, stage)
 end
 
--- Stop playback for a lane
+--- Stops playback for a specified lane
+-- @param lane_num: Lane number to stop
 function Conductor:stop_lane(lane_num)
   local lane = self.lanes[lane_num]
   if not lane.is_playing then return end
@@ -443,6 +516,7 @@ function Conductor:stop_lane(lane_num)
   lane.is_playing = false
 end
 
+--- Stops playback for all lanes
 function Conductor:stop_all()
   Log.log("CONDUCTOR", "STATUS", string.format("%s Stopping all lanes", Log.ICONS.STOP))
   for i = 1,4 do
@@ -454,7 +528,10 @@ end
 -- Motif Management
 --------------------------------------------------
 
--- Create a new motif from recorded data and store it in a lane
+--- Creates a new motif from recorded data
+-- @param lane_num: Target lane number
+-- @param recorded_data: Raw recorded note data
+-- @return New Motif instance
 function Conductor:create_motif(lane_num, recorded_data)
   -- Create and store the motif
   local motif = Motif.new({
@@ -474,7 +551,11 @@ end
 -- Transform System
 --------------------------------------------------
 
--- Add a transform to a lane's sequence
+--- Adds a transform to a lane's sequence
+-- @param lane_num: Target lane
+-- @param transform_fn: Transform function to apply
+-- @param params: Transform parameters
+-- [!] transform_sequence usage unclear - possible dead code
 function Conductor:add_transform(lane_num, transform_fn, params)
   local lane = self.lanes[lane_num]
   if not lane then return end
@@ -490,9 +571,10 @@ function Conductor:add_transform(lane_num, transform_fn, params)
   })
 end
 
--- Schedule synchronized transforms across multiple lanes
--- This is a key responsibility of the Conductor - coordinating
--- how multiple lanes evolve together
+--- Synchronizes transforms across multiple lanes
+-- @param lane_nums: Array of lane numbers
+-- @param transform_fn: Transform to apply
+-- @param params: Transform parameters
 function Conductor:sync_transform(lane_nums, transform_fn, params)
   Log.log("CONDUCTOR", "TRANSFORM", 
     string.format("%s Syncing transform %s across lanes [%s]", 
@@ -507,11 +589,9 @@ end
 -- Stage Management
 --------------------------------------------------
 
--- Get the transform configuration for a stage
--- Each stage can have:
--- 1. A transform type (e.g. "invert", "speed")
--- 2. Transform-specific parameters
--- 3. Loop and timing settings
+--- Gets configuration for a specific stage
+-- @param stage_num: Stage to get config for
+-- @return Stage configuration table
 function Lane:get_stage_config(stage_num)
   return {
     num_loops = self:get_param("loop_count", stage_num),
@@ -520,7 +600,8 @@ function Lane:get_stage_config(stage_num)
   }
 end
 
--- Add clear_lane if it doesn't exist
+--- Clears all state for a lane
+-- @param lane_num: Lane to clear
 function Conductor:clear_lane(lane_num)
   local lane = self.lanes[lane_num]
   
@@ -535,7 +616,9 @@ function Conductor:clear_lane(lane_num)
   lane.current_stage = 1
 end
 
--- Update lane state and notify UI
+--- Updates lane state and triggers UI refresh
+-- @param lane_num: Lane to update
+-- @param updates: Table of state updates
 function Conductor:update_lane_state(lane_num, updates)
   local lane = self.lanes[lane_num]
   if not lane then return end

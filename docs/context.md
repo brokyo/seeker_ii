@@ -256,17 +256,39 @@ Key files: `lib/theory_utils.lua`, `lib/grid.lua`
 ## System Implementation
 
 ### Timing System
-Key files: `lib/conductor.lua`, `tests/timing_tests.lua`
-#### Event Hierarchy
-1. Stage: Complete sequence of loops with same transform
-2. Loop: One complete motif playthrough
-3. Event: Individual note on/off at specific beat
+Key files: `lib/conductor.lua`, `lib/motif_recorder.lua`
 
-#### Key Features
-- Sub-10ms timing accuracy
-- Perfect synchronization between lanes
-- No drift over long periods
-- Proper cleanup prevents stuck notes
+#### Core Concepts
+1. **Absolute Beat Timing**
+   - All events scheduled using absolute beat numbers
+   - Uses `clock.sync(absolute_beat)` for precise timing
+   - Prevents timing drift across long sequences
+
+2. **Event Scheduling**
+   - Pre-calculates all events for a stage
+   - Events include: note_on, note_off, loop_start, stage_end
+   - Handles simultaneous events efficiently (single sync point)
+   - Maintains exact relative timing between notes
+
+3. **Loop Structure**
+   - Each loop maintains exact timing of original recording
+   - Optional rest period between loops
+   - Loop boundaries respect all note durations
+   - Pattern duration determined by last note's end
+
+4. **Stage System**
+   - Multiple loops with same transform
+   - Optional rest period between stages
+   - Automatic transition to next active stage
+   - Falls back to stage 1 if no next active stage
+
+#### Timing Hierarchy
+Stage
+├── Loop Rest (configurable pause between loops)
+├── Multiple Loops
+│ ├── Note Events (maintained at original relative timing)
+│ └── Loop End (determined by last note off)
+└── Stage Rest (configurable pause before next stage)
 
 ## Data Flow
 Key files: `lib/motif_recorder.lua`, `lib/conductor.lua`, `lib/grid.lua`
