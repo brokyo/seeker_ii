@@ -336,15 +336,13 @@ function GridUI.handle_note_record(x, y, z, pitch, velocity)
     if motif_recorder.is_recording then
       motif_recorder:on_note_on(pitch, velocity, {x=x, y=y})
       local note_name = theory.note_to_name(pitch)
-      Log.log("GRID", "NOTES", string.format("%s Record ON  | %s V%d pos=(%d,%d)", 
-        Log.ICONS.NOTE_ON, note_name, velocity, x, y))
+      Log.log("GRID", "NOTES", string.format("%s Record ON  | %s V%d pos=(%d,%d)", Log.ICONS.NOTE_ON, note_name, velocity, x, y))
     end
   else
     if motif_recorder.is_recording then
       motif_recorder:on_note_off(pitch, {x=x, y=y})
       local note_name = theory.note_to_name(pitch)
-      Log.log("GRID", "NOTES", string.format("%s Record OFF | %s", 
-        Log.ICONS.NOTE_OFF, note_name))
+      Log.log("GRID", "NOTES", string.format("%s Record OFF | %s", Log.ICONS.NOTE_OFF, note_name))
     end
   end
 end

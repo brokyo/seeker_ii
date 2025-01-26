@@ -53,7 +53,7 @@ Log.CONDUCTOR_DEBUG = {
   STATUS = true,    -- Loop/stage changes and high-level state
   SCHEDULE = true,  -- Pre-calculated note sequences and transforms
   BOUNDARY = true,  -- Loop and stage boundaries
-  TIMING = false     -- Timing synchronization and deltas
+  TIMING = true     -- Timing synchronization and deltas
 }
 
 -- Visual indicators for consistent logging

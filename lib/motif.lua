@@ -21,6 +21,7 @@ Motif.__index = Motif
 
 -- Creates a new Motif instance
 -- @param opts.notes (optional) Initial note data to store
+-- @param opts.recorded_duration (required) Total duration of the recorded pattern
 -- Note: Each note should have {pitch, velocity, time, duration, pos?}
 function Motif.new(opts)
   local m = setmetatable({}, Motif)
@@ -32,7 +33,7 @@ function Motif.new(opts)
     times = {},
     durations = {},
     grid_positions = {},
-    total_duration = 0,
+    recorded_duration = opts.recorded_duration, 
     note_count = 0
   }
   
@@ -42,7 +43,7 @@ function Motif.new(opts)
   m.times = {}
   m.durations = {}
   m.grid_positions = {}
-  m.total_duration = 0
+  m.recorded_duration = opts.recorded_duration
   m.note_count = 0
   m.lane = opts.lane
   
@@ -64,7 +65,6 @@ end
 function Motif:store_genesis(notes)  
   -- Store genesis state
   self.genesis.note_count = #notes
-  self.genesis.total_duration = 0
   
   for i, note in ipairs(notes) do
     self.genesis.pitches[i] = note.pitch
@@ -74,17 +74,13 @@ function Motif:store_genesis(notes)
     if note.pos then
       self.genesis.grid_positions[i] = {x = note.pos.x, y = note.pos.y}
     end
-    
-    -- Update genesis duration
-    local note_end = note.time + note.duration
-    self.genesis.total_duration = math.max(self.genesis.total_duration, note_end)
   end
 end
 
 -- Initialize working state from genesis
 function Motif:init_from_genesis()
   self.note_count = self.genesis.note_count
-  self.total_duration = self.genesis.total_duration
+  self.recorded_duration = self.genesis.recorded_duration
   
   for i = 1, self.genesis.note_count do
     self.pitches[i] = self.genesis.pitches[i]
@@ -150,7 +146,7 @@ end
 -- @return Table of metadata values
 function Motif:get_metadata()
   return {
-    total_duration = self.total_duration,
+    recorded_duration = self.recorded_duration,
     note_count = self.note_count
   }
 end
@@ -182,7 +178,7 @@ function Motif:apply_transform(transform_fn, params, mode)
     times = mode == "genesis" and self.genesis.times or self.times,
     durations = mode == "genesis" and self.genesis.durations or self.durations,
     grid_positions = mode == "genesis" and self.genesis.grid_positions or self.grid_positions,
-    total_duration = mode == "genesis" and self.genesis.total_duration or self.total_duration,
+    recorded_duration = mode == "genesis" and self.genesis.recorded_duration or self.recorded_duration,
     note_count = mode == "genesis" and self.genesis.note_count or self.note_count
   }
   
@@ -198,11 +194,11 @@ function Motif:apply_transform(transform_fn, params, mode)
   
   -- Recalculate metadata
   self.note_count = #self.pitches
-  self.total_duration = 0
+  self.recorded_duration = 0
   for i = 1, self.note_count do
     local note_end = self.times[i] + self.durations[i]
-    if note_end > self.total_duration then
-      self.total_duration = note_end
+    if note_end > self.recorded_duration then
+      self.recorded_duration = note_end
     end
   end
 end

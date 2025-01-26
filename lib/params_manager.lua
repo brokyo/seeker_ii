@@ -128,13 +128,37 @@ function params_manager.init_params()
       1
     )
 
+    -- Grid speed multiplier (numerical ratios)
+    params:add_option(
+      "lane_" .. i .. "_grid_speed",
+      "Grid Speed",
+      {0.25, 0.5, 1, 2, 3, 4, 6, 8},  -- Multipliers and divisors
+      3,  -- Default to 1x
+      function(param) return param.options[param.value] .. "x" end
+    )
+
+    -- Free speed control (fine-grained percentage)
+    params:add_number(
+      "lane_" .. i .. "_free_speed",
+      "Free Speed",
+      0, 40, 10,  -- 0-400%, default 100%
+      function(param) return param.value * 10 .. "%" end
+    )
+
     -- Grid division for quantized playback
     params:add_option(
       "lane_" .. i .. "_grid_division",
       "Grid Division",
-      {2, 3, 4, 5, 6, 7, 8, 9, 12, 16, 24, 32},  -- Full range including unusual divisions
-      10,  -- Default to 1/16
-      function(param) return "1/" .. param.options[param.value] end  -- Format display as fraction
+      {0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 16, 24, 32},  -- From 4 whole notes (0.25) to 1/32
+      13,  -- Default to 1/16
+      function(param) 
+        local div = param.options[param.value]
+        if div == 0.25 then return "4 whole"
+        elseif div == 0.5 then return "2 whole"
+        elseif div == 1 then return "whole"
+        else return "1/" .. div
+        end
+      end
     )
 
     -- Gate length as percentage (0-400%)
@@ -290,6 +314,8 @@ function params_manager.get_lane_params(lane_num, category, stage_num)
       elseif category == "grid_division" and param.id:match("^lane_" .. lane_num .. "_grid_division$") then
         matches_category = true
       elseif category == "gate_length" and param.id:match("^lane_" .. lane_num .. "_gate_length$") then
+        matches_category = true
+      elseif category == "grid_speed" and param.id:match("^lane_" .. lane_num .. "_grid_speed$") then
         matches_category = true
       -- Stage-specific parameters
       elseif stage_num then

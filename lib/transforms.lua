@@ -7,9 +7,9 @@
 -- 3. Handle transform-specific parameter management
 --
 -- Each transform is a pure function that takes:
--- 1. source: Table of note arrays (pitches, times, etc.)
+-- 1. events: Array of event tables with {time, type, note?, velocity?}
 -- 2. params: Transform-specific parameters
--- Returns: New table of note arrays
+-- Returns: New array of event tables
 
 local transforms = {}
 
@@ -19,73 +19,45 @@ local transforms = {}
 
 -- Transform Design Principles:
 --
--- 1. Timing Grid Preservation
+-- 1. Event-Based Architecture
+--    - Work with time-ordered event tables
+--    - Support multiple event types (note_on, note_off, etc)
+--    - Preserve event relationships (e.g. note_on/note_off pairs)
+--
+-- 2. Timing Grid Preservation
 --    - Transforms must maintain relationship to the original timing grid
---    - Avoid recalculating timing from scratch
 --    - Options for timing modification:
---      a) Keep original time points (e.g., reverse - swap what plays when)
---      b) Apply fixed offset (e.g., shift - add constant to all times)
---      c) Scale proportionally (e.g., speed - multiply all times)
+--      a) Keep original time points
+--      b) Apply fixed offset
+--      c) Scale proportionally
 --
--- 2. Total Duration Handling
---    - Must explicitly account for how transform affects total_duration
---    - Common patterns:
---      a) Keep original: total_duration = source.total_duration
---      b) Add offset: total_duration = source.total_duration + offset
---      c) Scale: total_duration = source.total_duration * scale_factor
---
--- 3. Transform Categories & Implementation:
+-- 3. Transform Categories:
 --    - Note Property Transforms (e.g., invert - changes pitch only)
---      * Modify specific properties
---      * Keep timing grid intact
 --    - Timing Transforms (e.g., shift, speed)
---      * Modify timing in predictable ways
---      * Maintain proportional relationships
 --    - Pattern Transforms (e.g., reverse)
---      * Reorder events while preserving grid
---      * Keep original time points, change what happens when
 --
 -- 4. Implementation Guidelines:
 --    - Keep transforms simple and focused
---    - Preserve timing grid alignment for proper loop behavior
---    - Test with multiple loops to verify timing stability
---    - Log input/output state for debugging
---    - Document timing/duration expectations
+--    - Preserve timing grid alignment
+--    - Test with multiple loops
+--    - Log state changes
+--    - Document timing expectations
 
 transforms.available = {
   noop = {
     name = "No Operation",
     description = "Returns the exact same sequence with no changes",
-    params = {
-      -- Empty but properly structured params table
-      -- This matches the pattern used by other transforms
-    },
-    fn = function(source, params)
-      -- Create new result table to match transform interface
-      local result = {
-        pitches = {},
-        velocities = {},
-        times = {},
-        durations = {},
-        grid_positions = {},
-        total_duration = source.total_duration,
-        note_count = source.note_count
-      }
-      
-      -- Copy all values exactly as they are
-      for i = 1, source.note_count do
-        result.pitches[i] = source.pitches[i]
-        result.velocities[i] = source.velocities[i]
-        result.times[i] = source.times[i]
-        result.durations[i] = source.durations[i]
-        if source.grid_positions[i] then
-          result.grid_positions[i] = {
-            x = source.grid_positions[i].x,
-            y = source.grid_positions[i].y
-          }
+    params = {},
+    fn = function(events, params)
+      -- Deep copy events
+      local result = {}
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
         end
+        table.insert(result, new_event)
       end
-      
       return result
     end
   },
@@ -100,43 +72,43 @@ transforms.available = {
         max = 127
       }
     },
-    fn = function(source, params)
-      -- Log input state
-      print("\n=== SHIFT TRANSFORM INPUT ===")
-      for i = 1, source.note_count do
-        print(string.format("Note %d: pitch=%d time=%.2f", 
-          i, source.pitches[i], source.times[i]))
-      end
-
-      local result = {
-        pitches = {},
-        velocities = {},
-        times = {},
-        durations = {},
-        grid_positions = {},
-        total_duration = source.total_duration + 1,  -- Extend duration for shift
-        note_count = source.note_count
-      }
+    fn = function(events, params)
+      local center = params.center or 60
+      local result = {}
       
-      -- Copy everything but shift times forward by 1 beat
-      for i = 1, source.note_count do
-        result.pitches[i] = source.pitches[i]
-        result.velocities[i] = source.velocities[i]
-        result.times[i] = source.times[i] + 1  -- Add 1 beat to each note
-        result.durations[i] = source.durations[i]
-        if source.grid_positions[i] then
-          result.grid_positions[i] = {
-            x = source.grid_positions[i].x,
-            y = source.grid_positions[i].y
-          }
+      -- Log input state
+      print("\n=== INVERT TRANSFORM INPUT ===")
+      for i, event in ipairs(events) do
+        if event.type == "note_on" then
+          print(string.format("Note %d: pitch=%d time=%.2f", 
+            i, event.note, event.time))
         end
       end
-
+      
+      -- Process all events
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+        
+        -- Only modify pitch for note events
+        if event.type == "note_on" or event.type == "note_off" then
+          -- Invert around center
+          local distance = event.note - center
+          new_event.note = center - distance
+        end
+        
+        table.insert(result, new_event)
+      end
+      
       -- Log output state
-      print("\n=== SHIFT TRANSFORM OUTPUT ===")
-      for i = 1, result.note_count do
-        print(string.format("Note %d: pitch=%d time=%.2f", 
-          i, result.pitches[i], result.times[i]))
+      print("\n=== INVERT TRANSFORM OUTPUT ===")
+      for i, event in ipairs(result) do
+        if event.type == "note_on" then
+          print(string.format("Note %d: pitch=%d time=%.2f", 
+            i, event.note, event.time))
+        end
       end
       
       return result
@@ -145,47 +117,72 @@ transforms.available = {
   
   reverse = {
     name = "Reverse",
-    description = "Reverse the order of notes in time",
+    description = "Reverse the order of notes in time while preserving note durations",
     params = {},
-    fn = function(source, params)
-      -- Log input state
-      print("\n=== REVERSE TRANSFORM INPUT ===")
-      for i = 1, source.note_count do
-        print(string.format("Note %d: pitch=%d time=%.2f", 
-          i, source.pitches[i], source.times[i]))
-      end
-
-      local result = {
-        pitches = {},
-        velocities = {},
-        times = {},
-        durations = {},
-        grid_positions = {},
-        total_duration = source.total_duration,  -- Keep original duration
-        note_count = source.note_count
-      }
+    fn = function(events, params)
+      -- First pass: collect note_on/note_off pairs and their durations
+      local notes = {}
+      local total_duration = 0
       
-      -- Just reverse the arrays in place, keeping original timing
-      for i = 1, source.note_count do
-        local rev_i = source.note_count - i + 1
-        result.pitches[i] = source.pitches[rev_i]
-        result.velocities[i] = source.velocities[rev_i]
-        result.times[i] = source.times[i]  -- Keep original timing
-        result.durations[i] = source.durations[rev_i]
-        if source.grid_positions[rev_i] then
-          result.grid_positions[i] = {
-            x = source.grid_positions[rev_i].x,
-            y = source.grid_positions[rev_i].y
+      for i, event in ipairs(events) do
+        if event.type == "note_on" then
+          notes[#notes + 1] = {
+            note = event.note,
+            velocity = event.velocity,
+            start_time = event.time,
+            duration = nil -- Will be filled when we find note_off
           }
+        elseif event.type == "note_off" then
+          -- Find matching note_on
+          for _, note in ipairs(notes) do
+            if note.note == event.note and note.duration == nil then
+              note.duration = event.time - note.start_time
+              break
+            end
+          end
+        end
+        -- Track total duration for any non-note events
+        if event.time > total_duration then
+          total_duration = event.time
         end
       end
-
-      -- Log output state
-      print("\n=== REVERSE TRANSFORM OUTPUT ===")
-      for i = 1, result.note_count do
-        print(string.format("Note %d: pitch=%d time=%.2f", 
-          i, result.pitches[i], result.times[i]))
+      
+      -- Second pass: create reversed events
+      local result = {}
+      for i = #notes, 1, -1 do
+        local note = notes[i]
+        local new_start = total_duration - (note.start_time + note.duration)
+        
+        -- Add note_on
+        table.insert(result, {
+          type = "note_on",
+          time = new_start,
+          note = note.note,
+          velocity = note.velocity
+        })
+        
+        -- Add note_off
+        table.insert(result, {
+          type = "note_off",
+          time = new_start + note.duration,
+          note = note.note
+        })
       end
+      
+      -- Add any non-note events at their relative positions
+      for _, event in ipairs(events) do
+        if event.type ~= "note_on" and event.type ~= "note_off" then
+          local new_event = {}
+          for k, v in pairs(event) do
+            new_event[k] = v
+          end
+          new_event.time = total_duration - event.time
+          table.insert(result, new_event)
+        end
+      end
+      
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
       
       return result
     end
@@ -201,29 +198,18 @@ transforms.available = {
         max = 4.0
       }
     },
-    fn = function(source, params)
-      local result = {
-        pitches = {},
-        velocities = {},
-        times = {},
-        durations = {},
-        grid_positions = {},
-        total_duration = source.total_duration / params.multiplier,
-        note_count = source.note_count
-      }
+    fn = function(events, params)
+      local multiplier = params.multiplier or 1.0
+      local result = {}
       
-      -- Scale all time values
-      for i = 1, source.note_count do
-        result.pitches[i] = source.pitches[i]
-        result.velocities[i] = source.velocities[i]
-        result.times[i] = source.times[i] / params.multiplier
-        result.durations[i] = source.durations[i] / params.multiplier
-        if source.grid_positions[i] then
-          result.grid_positions[i] = {
-            x = source.grid_positions[i].x,
-            y = source.grid_positions[i].y
-          }
+      -- Scale all event times
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
         end
+        new_event.time = event.time / multiplier
+        table.insert(result, new_event)
       end
       
       return result
@@ -245,48 +231,47 @@ transforms.available = {
         max = 12
       }
     },
-    fn = function(source, params)
-      -- Create new arrays for transformed sequence
-      local result = {
-        pitches = {},
-        velocities = {},
-        times = {},
-        durations = {},
-        grid_positions = {},
-        total_duration = source.total_duration,
-        note_count = 0
-      }
+    fn = function(events, params)
+      local probability = params.probability or 0.5
+      local interval = params.interval or 4
+      local result = {}
       
-      -- Copy original notes first
-      for i = 1, source.note_count do
-        result.note_count = result.note_count + 1
-        result.pitches[result.note_count] = source.pitches[i]
-        result.velocities[result.note_count] = source.velocities[i]
-        result.times[result.note_count] = source.times[i]
-        result.durations[result.note_count] = source.durations[i]
-        if source.grid_positions[i] then
-          result.grid_positions[result.note_count] = {
-            x = source.grid_positions[i].x,
-            y = source.grid_positions[i].y
-          }
+      -- First copy all original events
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
         end
+        table.insert(result, new_event)
         
-        -- Probabilistically add harmonized note
-        if math.random() < params.probability then
-          -- Add harmonized note
-          result.note_count = result.note_count + 1
-          result.pitches[result.note_count] = source.pitches[i] + params.interval
-          result.velocities[result.note_count] = source.velocities[i]
-          result.times[result.note_count] = source.times[i]
-          result.durations[result.note_count] = source.durations[i]
-          if source.grid_positions[i] then
-            result.grid_positions[result.note_count] = {
-              x = source.grid_positions[i].x,
-              y = source.grid_positions[i].y
-            }
+        -- Probabilistically add harmonized notes for note_on events
+        if event.type == "note_on" and math.random() < probability then
+          -- Add harmonized note_on
+          table.insert(result, {
+            type = "note_on",
+            time = event.time,
+            note = event.note + interval,
+            velocity = event.velocity
+          })
+          
+          -- Find corresponding note_off and add harmonized note_off
+          for j = 1, #events do
+            if events[j].type == "note_off" and 
+               events[j].note == event.note and
+               events[j].time > event.time then
+              table.insert(result, {
+                type = "note_off",
+                time = events[j].time,
+                note = event.note + interval
+              })
+              break
+            end
           end
         end
       end
+      
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
       
       return result
     end
@@ -327,11 +312,11 @@ end
 --------------------------------------------------
 
 -- Apply a transform by name
-function transforms.apply(transform_name, source, params)
+function transforms.apply(transform_name, events, params)
   local transform = transforms.available[transform_name]
   if not transform then
     print(string.format("Transform '%s' not found", transform_name))
-    return source
+    return events
   end
   
   -- Use default params where not specified
@@ -341,7 +326,7 @@ function transforms.apply(transform_name, source, params)
   end
   
   -- Apply the transform
-  return transform.fn(source, final_params)
+  return transform.fn(events, final_params)
 end
 
 return transforms 

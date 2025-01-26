@@ -99,8 +99,7 @@ function MotifRecorder:on_note_on(pitch, velocity, pos)
   }
   self.active_notes[note_id] = new_event
 
-  Log.log("MOTIF_REC", "NOTES", string.format("%s Note ON  | id=%d pitch=%d vel=%d pos=%d,%d time=%.3f", 
-    Log.ICONS.NOTE_ON, note_id, pitch, velocity, pos.x, pos.y, time_from_start))
+  Log.log("MOTIF_REC", "NOTES", string.format("%s Note ON  | id=%d pitch=%d vel=%d pos=%d,%d time=%.3f", Log.ICONS.NOTE_ON, note_id, pitch, velocity, pos.x, pos.y, time_from_start))
 end
 
 --- onNoteOff: called when a MIDI/keyboard note-off is received
@@ -145,8 +144,7 @@ function MotifRecorder:on_note_off(pitch, pos)
   table.insert(self.recorded_events, evt)
   self.active_notes[note_id] = nil
 
-  Log.log("MOTIF_REC", "NOTES", string.format("%s Note OFF | id=%d pitch=%d duration=%.3f", 
-    Log.ICONS.NOTE_OFF, note_id, pitch, evt.duration))
+  Log.log("MOTIF_REC", "NOTES", string.format("%s Note OFF | id=%d pitch=%d duration=%.3f", Log.ICONS.NOTE_OFF, note_id, pitch, evt.duration))
 end
 
 --- Start a new recording
@@ -159,8 +157,7 @@ function MotifRecorder:start_recording(lane_num)
   self.start_time = clock.get_beats()
   self.lane_num = lane_num
   
-  Log.log("MOTIF_REC", "STATUS", string.format("%s Recording Started | Lane %d | Mode: %s | Grid: %s", 
-    Log.ICONS.RECORD_ON, lane_num, self:_get_recording_mode_str(), self:_get_quantize_str()))
+  Log.log("MOTIF_REC", "STATUS", string.format("%s Recording Started | Lane %d | Mode: %s | Grid: %s", Log.ICONS.RECORD_ON, lane_num, self:_get_recording_mode_str(), self:_get_quantize_str()))
 end
 
 --- Stop recording and return the event table
@@ -171,12 +168,12 @@ function MotifRecorder:stop_recording()
   
   self.is_recording = false
   local end_time = clock.get_beats()
-  local time_from_start = end_time - self.start_time
+  local recorded_duration = end_time - self.start_time
   
   -- Finalize any held notes
   for note_id, evt in pairs(self.active_notes) do
     -- Calculate duration using raw time
-    evt.duration = time_from_start - evt.raw_start
+    evt.duration = recorded_duration - evt.raw_start
     -- Apply quantization to start time
     evt.time = self:_quantize_beat(evt.raw_start)
     evt.raw_start = nil
@@ -193,16 +190,18 @@ function MotifRecorder:stop_recording()
   end)
   
   -- Log recording completion
-  Log.log("MOTIF_REC", "STATUS", string.format("%s Recording Stopped | Lane %d | Events: %d | Duration: %.3f", 
-    Log.ICONS.RECORD_OFF, self.lane_num, #self.recorded_events, time_from_start))
+  Log.log("MOTIF_REC", "STATUS", string.format("%s Recording Stopped | Lane %d | Events: %d | Duration: %.3f", Log.ICONS.RECORD_OFF, self.lane_num, #self.recorded_events, recorded_duration))
   
   if #self.recorded_events > 0 then
     Log.log("MOTIF_REC", "STATUS", Log.format.motif_table(self.recorded_events))
   end
   
-  local notes = self.recorded_events
+  local recorded_data = {
+    notes = self.recorded_events,
+    recorded_duration = recorded_duration
+  }
   self.recorded_events = {}
-  return notes
+  return recorded_data
 end
 
 return MotifRecorder

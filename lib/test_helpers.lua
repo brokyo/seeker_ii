@@ -1,5 +1,15 @@
 -- test_helpers.lua
 -- Utility functions for testing via REPL
+--
+-- USAGE:
+-- 1. In maiden REPL:
+--    > test = include("lib/test_helpers")
+-- 2. List available tests:
+--    > test.list_tests()
+-- 3. Run specific test:
+--    > test.run_test(1)
+-- 4. Run all tests:
+--    > test.run_all_tests()
 
 local TestHelpers = {}
 local Log = include('lib/log')
@@ -10,12 +20,12 @@ local MotifRecorder = include('lib/motif_recorder')
 -- @param notes Array of note events in format:
 --   { {pitch=60, start=0, duration=1}, {pitch=64, start=1, duration=0.5}, ... }
 -- @param opts Optional settings:
---   * quantize: true/false - whether to use quantized mode (default true)
---   * grid: "1/16", "1/8", etc - quantization grid (default "1/16")
+--   * grid_mode: true/false - whether to use grid mode for arpeggios (default true)
+--   * grid: "1/16", "1/8", etc - grid division for arpeggio mode (default "1/16")
 --   * loops: number of times to loop (default 2)
 function TestHelpers.record_test_sequence(lane_num, notes, opts)
   opts = opts or {}
-  opts.quantize = opts.quantize ~= false  -- default true
+  opts.grid_mode = opts.grid_mode ~= false  -- default true
   opts.grid = opts.grid or "1/16"
   opts.loops = opts.loops or 2
   
@@ -25,11 +35,12 @@ function TestHelpers.record_test_sequence(lane_num, notes, opts)
     return
   end
   
-  -- Set recording mode
-  params:set("lane_" .. lane_num .. "_recording_mode", opts.quantize and 2 or 1)
+  -- Set timing mode (2 = grid/arpeggio, 1 = free)
+  params:set("lane_" .. lane_num .. "_timing_mode", opts.grid_mode and 2 or 1)
+  params:set("lane_" .. lane_num .. "_recording_mode", opts.grid_mode and 2 or 1)
   
-  -- Set quantize grid if needed
-  if opts.quantize then
+  -- Set grid division if in grid mode
+  if opts.grid_mode then
     local grid_values = {["1/64"]=1, ["1/32"]=2, ["1/16"]=3, ["1/8"]=4, ["1/4"]=5}
     local grid_value = grid_values[opts.grid]
     if grid_value then
@@ -37,11 +48,16 @@ function TestHelpers.record_test_sequence(lane_num, notes, opts)
     end
   end
   
-  -- Configure stage
-  params:set("lane_" .. lane_num .. "_stage_1_active", 2)  -- Enable stage 1
-  params:set("lane_" .. lane_num .. "_stage_1_loop_count", opts.loops)
-  params:set("lane_" .. lane_num .. "_stage_1_loop_rest", 0)
-  params:set("lane_" .. lane_num .. "_stage_1_stage_rest", 0)
+  -- Configure stage(s)
+  if opts.stage_setup then
+    opts.stage_setup(lane_num)
+  else
+    -- Default single stage setup
+    params:set("lane_" .. lane_num .. "_stage_1_active", 2)  -- Enable stage 1
+    params:set("lane_" .. lane_num .. "_stage_1_loop_count", opts.loops)
+    params:set("lane_" .. lane_num .. "_stage_1_loop_rest", 0)
+    params:set("lane_" .. lane_num .. "_stage_1_stage_rest", 0)
+  end
   
   -- Create recorder
   local recorder = MotifRecorder.new()
@@ -53,6 +69,12 @@ function TestHelpers.record_test_sequence(lane_num, notes, opts)
   for _, note in ipairs(notes) do
     local note_end = note.start + note.duration
     if note_end > total_duration then total_duration = note_end end
+  end
+  
+  -- Add 1 beat padding for test sequences in free mode only
+  if not opts.grid_mode then
+    total_duration = total_duration + 1
+    Log.log("MOTIF_REC", "TIMING", string.format("%s Adding 1 beat test padding to free sequence (%.3f → %.3f)", Log.ICONS.CLOCK, total_duration - 1, total_duration))
   end
   
   -- Schedule all notes
@@ -94,101 +116,127 @@ end
 -- Test definitions
 TestHelpers.tests = {
   {
-    name = "Basic sequence (quantized 1/16)",
+    name = "Grid mode - basic arpeggio",
     notes = {
-      {pitch=60, start=0, duration=0.5},    -- C4 at start
-      {pitch=64, start=1, duration=0.25},   -- E4 at beat 1
-      {pitch=67, start=1.5, duration=0.5},  -- G4 at beat 1.5
-      {pitch=72, start=2, duration=1},      -- C5 at beat 2
-    }
-  },
-  {
-    name = "Overlapping notes",
-    notes = {
-      {pitch=60, start=0, duration=2},      -- C4 long note
-      {pitch=64, start=0.5, duration=1},    -- E4 overlaps with C4
-      {pitch=67, start=1, duration=0.5},    -- G4 overlaps with both
-    }
-  },
-  {
-    name = "Same pitch overlapping",
-    notes = {
-      {pitch=60, start=0, duration=1},      -- C4
-      {pitch=60, start=0.5, duration=1},    -- C4 again, overlapping
-      {pitch=60, start=1, duration=0.5},    -- C4 third time
-    }
-  },
-  {
-    name = "Unquantized with loop crossing",
-    notes = {
-      {pitch=60, start=0.1, duration=2.3},    -- Long note crossing loop
-      {pitch=64, start=0.7, duration=0.4},    -- Normal note
-      {pitch=67, start=1.3, duration=1.6},    -- Another crossing note
+      {pitch=60, start=0, duration=0.25},    -- C4 quarter note
+      {pitch=64, start=0.25, duration=0.25}, -- E4 quarter note
+      {pitch=67, start=0.5, duration=0.25},  -- G4 quarter note
+      {pitch=72, start=0.75, duration=0.25}, -- C5 quarter note
     },
-    opts = {quantize=false, loops=3}
-  },
-  {
-    name = "Long notes with multiple loop crossings",
-    notes = {
-      {pitch=60, start=0, duration=4},      -- C4 spanning multiple loops
-      {pitch=64, start=1, duration=0.5},    -- E4 normal note
-      {pitch=67, start=2, duration=3},      -- G4 spanning loop boundary
-    },
-    opts = {loops=3}
-  },
-  {
-    name = "Rapid note repetition",
-    notes = {
-      {pitch=60, start=0, duration=0.1},    -- Quick C4
-      {pitch=60, start=0.1, duration=0.1},  -- Immediate repeat
-      {pitch=60, start=0.2, duration=0.1},  -- Another repeat
-      {pitch=60, start=0.3, duration=1},    -- Longer final note
-    },
-    opts = {quantize=false}
-  },
-  {
-    name = "Simultaneous notes (chord)",
-    notes = {
-      {pitch=60, start=0, duration=1},    -- C4 chord
-      {pitch=64, start=0, duration=1},    -- E4 chord
-      {pitch=67, start=0, duration=1},    -- G4 chord
-      {pitch=72, start=1, duration=1},    -- C5 after
+    opts = {
+      grid_mode = true,
+      grid = "1/16"
     }
   },
   {
-    name = "Quantization edge cases",
+    name = "Grid mode - varied durations",
     notes = {
-      {pitch=60, start=0.99, duration=0.5},   -- Just before beat
-      {pitch=64, start=1.01, duration=0.5},   -- Just after beat
-      {pitch=67, start=1.49, duration=0.5},   -- Just before half beat
-      {pitch=72, start=1.51, duration=0.5},   -- Just after half beat
+      {pitch=60, start=0, duration=0.5},     -- C4 half note
+      {pitch=64, start=0.5, duration=0.25},  -- E4 quarter note
+      {pitch=67, start=0.75, duration=0.25}, -- G4 quarter note
+    },
+    opts = {
+      grid_mode = true,
+      grid = "1/16"
+    }
+  },
+  {
+    name = "Free mode - basic melody",
+    notes = {
+      {pitch=60, start=0.1, duration=0.3},   -- Slightly off-grid timing
+      {pitch=64, start=0.5, duration=0.2},
+      {pitch=67, start=0.8, duration=0.4},
+      {pitch=72, start=1.3, duration=0.3}
+    },
+    opts = {
+      grid_mode = false
+    }
+  },
+  {
+    name = "Free mode - expressive timing",
+    notes = {
+      {pitch=60, start=0, duration=0.7},     -- Longer first note
+      {pitch=64, start=0.8, duration=0.2},   -- Quick second note
+      {pitch=67, start=1.2, duration=0.5},   -- Medium final note
+    },
+    opts = {
+      grid_mode = false
+    }
+  },
+  {
+    name = "Grid mode - stage transition",
+    notes = {
+      {pitch=60, start=0, duration=0.25},
+      {pitch=64, start=0.25, duration=0.25},
+      {pitch=67, start=0.5, duration=0.25},
+      {pitch=72, start=0.75, duration=0.25}
+    },
+    opts = {
+      grid_mode = true,
+      grid = "1/16",
+      loops = 2,
+      stage_setup = function(lane_num)
+        for stage = 1,2 do
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_active", 2)
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_loop_count", 2)
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_loop_rest", 0)
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_stage_rest", 0)
+        end
+      end
+    }
+  },
+  {
+    name = "Free mode - stage transition",
+    notes = {
+      {pitch=60, start=0.1, duration=0.3},
+      {pitch=64, start=0.5, duration=0.2},
+      {pitch=67, start=0.8, duration=0.4},
+      {pitch=72, start=1.3, duration=0.3}
+    },
+    opts = {
+      grid_mode = false,
+      loops = 2,
+      stage_setup = function(lane_num)
+        for stage = 1,2 do
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_active", 2)
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_loop_count", 2)
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_loop_rest", 0)
+          params:set("lane_" .. lane_num .. "_stage_" .. stage .. "_stage_rest", 0)
+        end
+      end
     }
   }
 }
 
 --- Run a specific test by number
--- @param test_num The test number to run (1-8)
+-- @param test_num The test number to run
 function TestHelpers.run_test(test_num)
   if not test_num or test_num < 1 or test_num > #TestHelpers.tests then
     print("Invalid test number. Available tests:")
-    for i, test in ipairs(TestHelpers.tests) do
-      print(string.format("%d: %s", i, test.name))
-    end
+    TestHelpers.list_tests()
     return
-  end
-  
-  -- Stop any existing playback
-  if _seeker and _seeker.conductor then 
-    _seeker.conductor:stop_all() 
   end
   
   local test = TestHelpers.tests[test_num]
   print(string.format("\n=== TEST %d: %s ===", test_num, test.name))
-  print("Recording sequence...")
   
+  -- Run everything in a coroutine
   clock.run(function()
+    -- Stop any existing playback and cleanup
+    if _seeker and _seeker.conductor then 
+      _seeker.conductor:stop_all() 
+      clock.sleep(0.1)  -- Give time for cleanup
+    end
+    
+    print("Recording sequence...")
+    
+    -- Ensure clean state
+    params:set("clock_tempo", 120)  -- Reset to standard tempo
+    
     local duration = TestHelpers.record_test_sequence(1, test.notes, test.opts)
-    clock.sleep(duration + 1)
+    -- Add buffer for stage transitions
+    local buffer = test.opts and test.opts.stage_setup and 2 or 1
+    clock.sleep(duration + buffer)
     _seeker.conductor:stop_lane(1)
     print(string.format("\n=== TEST %d COMPLETE ===\n", test_num))
   end)
@@ -204,18 +252,25 @@ end
 
 --- Run all tests with clear boundaries
 function TestHelpers.run_all_tests()
-  -- Stop any existing playback
-  if _seeker and _seeker.conductor then 
-    _seeker.conductor:stop_all() 
-  end
-  
+  -- Run everything in a coroutine
   clock.run(function()
+    -- Stop any existing playback and cleanup
+    if _seeker and _seeker.conductor then 
+      _seeker.conductor:stop_all() 
+      clock.sleep(0.1)  -- Give time for cleanup
+    end
+    
+    -- Ensure clean state
+    params:set("clock_tempo", 120)  -- Reset to standard tempo
+    
     for i, test in ipairs(TestHelpers.tests) do
       print(string.format("\n=== TEST %d: %s ===", i, test.name))
       print("Recording sequence...")
       
       local duration = TestHelpers.record_test_sequence(1, test.notes, test.opts)
-      clock.sleep(duration + 1)
+      -- Add buffer for stage transitions
+      local buffer = test.opts and test.opts.stage_setup and 2 or 1
+      clock.sleep(duration + buffer)
       _seeker.conductor:stop_lane(1)
       
       print(string.format("\n=== TEST %d COMPLETE ===\n", i))

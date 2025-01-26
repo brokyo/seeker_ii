@@ -259,36 +259,74 @@ Key files: `lib/theory_utils.lua`, `lib/grid.lua`
 Key files: `lib/conductor.lua`, `lib/motif_recorder.lua`
 
 #### Core Concepts
-1. **Absolute Beat Timing**
-   - All events scheduled using absolute beat numbers
-   - Uses `clock.sync(absolute_beat)` for precise timing
-   - Prevents timing drift across long sequences
+1. **Recording Modes**
+   - Grid Mode: Notes quantized to fixed intervals for arpeggios
+   - Free Mode: Preserves expressive timing of original performance
+   - Mode selection affects both recording and playback behavior
 
 2. **Event Scheduling**
    - Pre-calculates all events for a stage
    - Events include: note_on, note_off, loop_start, stage_end
-   - Handles simultaneous events efficiently (single sync point)
-   - Maintains exact relative timing between notes
+   - Uses absolute beat numbers for precise timing
+   - Maintains exact relative timing between notes in free mode
+   - Enforces grid intervals in grid mode
 
 3. **Loop Structure**
-   - Each loop maintains exact timing of original recording
-   - Optional rest period between loops
-   - Loop boundaries respect all note durations
-   - Pattern duration determined by last note's end
+   - Grid Mode: Fixed intervals between notes, loop length determined by note count
+   - Free Mode: Preserves original timing relationships, loop length from last note
+   - Optional rest period between loops (in beats)
+   - Clean note boundaries (all notes complete before loop/stage end)
 
 4. **Stage System**
-   - Multiple loops with same transform
+   - Multiple loops with consistent timing behavior
    - Optional rest period between stages
    - Automatic transition to next active stage
    - Falls back to stage 1 if no next active stage
 
 #### Timing Hierarchy
+```
 Stage
 ├── Loop Rest (configurable pause between loops)
 ├── Multiple Loops
-│ ├── Note Events (maintained at original relative timing)
-│ └── Loop End (determined by last note off)
+│ ├── Grid Mode
+│ │ ├── Fixed intervals between notes
+│ │ ├── Configurable gate length
+│ │ └── Loop length = notes * grid_division
+│ └── Free Mode
+│   ├── Preserved note timing
+│   ├── Original note durations
+│   └── Loop length from last note
 └── Stage Rest (configurable pause before next stage)
+```
+
+### Testing Framework
+Key files: `lib/test_helpers.lua`
+
+#### Core Features
+1. **Test Definition**
+   - Declarative test cases with note sequences
+   - Mode-specific test configuration (grid vs free)
+   - Support for multi-stage testing
+   - Configurable loop counts and timing parameters
+
+2. **Test Categories**
+   - Grid mode timing verification
+   - Free mode expression preservation
+   - Stage transition behavior
+   - Loop boundary handling
+
+3. **Test Execution**
+   - Individual test running (`test.run_test(n)`)
+   - Full suite execution (`test.run_all_tests()`)
+   - Detailed logging of timing events
+   - Visual verification through event tables
+
+4. **Test Coverage**
+   - Basic arpeggio patterns
+   - Expressive timing preservation
+   - Stage transitions
+   - Mode-specific behavior
+   - Loop timing and boundaries
 
 ## Data Flow
 Key files: `lib/motif_recorder.lua`, `lib/conductor.lua`, `lib/grid.lua`
