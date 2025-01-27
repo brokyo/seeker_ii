@@ -1,15 +1,15 @@
 -- transforms.lua
 -- Transform System: An algorithmic garden for pattern manipulation
 --
--- Core Responsibilities:
--- 1. Define and implement pattern transformations
--- 2. Provide a registry of available transforms
--- 3. Handle transform-specific parameter management
+-- Core Responsibility:
+-- Define a registry of available pattern transformations
 --
--- Each transform is a pure function that takes:
--- 1. events: Array of event tables with {time, type, note?, velocity?}
--- 2. params: Transform-specific parameters
--- Returns: New array of event tables
+-- Each transform provides:
+-- 1. name: Human readable name
+-- 2. description: What the transform does
+-- 3. params: Parameter specifications with defaults/ranges
+-- 4. fn: The transform implementation that takes (events, params)
+--    and returns new transformed events
 
 local transforms = {}
 
@@ -277,56 +277,5 @@ transforms.available = {
     end
   }
 }
-
---------------------------------------------------
--- Parameter Management
---------------------------------------------------
-
--- Get parameter spec for a transform
-function transforms.get_params_spec(transform_name)
-  local transform = transforms.available[transform_name]
-  if not transform then return nil end
-  return transform.params
-end
-
--- Validate transform parameters
-function transforms.validate_params(transform_name, params)
-  local spec = transforms.get_params_spec(transform_name)
-  if not spec then return false end
-  
-  -- Check each parameter against its spec
-  for name, value in pairs(params) do
-    local param_spec = spec[name]
-    if param_spec then
-      if value < param_spec.min or value > param_spec.max then
-        return false
-      end
-    end
-  end
-  
-  return true
-end
-
---------------------------------------------------
--- Transform Application
---------------------------------------------------
-
--- Apply a transform by name
-function transforms.apply(transform_name, events, params)
-  local transform = transforms.available[transform_name]
-  if not transform then
-    print(string.format("Transform '%s' not found", transform_name))
-    return events
-  end
-  
-  -- Use default params where not specified
-  local final_params = {}
-  for name, spec in pairs(transform.params) do
-    final_params[name] = params[name] or spec.default
-  end
-  
-  -- Apply the transform
-  return transform.fn(events, final_params)
-end
 
 return transforms 

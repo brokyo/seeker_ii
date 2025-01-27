@@ -97,14 +97,14 @@ function init()
     end
   end)
 
-  -- Initialize lanes with empty configurations ready for recording
+  -- Initialize lanes with default configurations
   for i = 1, _seeker.num_lanes do
-    _seeker.lanes[i] = Lane.new(lane_archetype.create_empty(i))
+    _seeker.lanes[i] = Lane.new({ id = i })
   end
 
-  -- Create a test lane using the full example configuration for debugging
-  _seeker.debug_lane = Lane.new(lane_archetype.create_example(99))
-  _seeker.debug_lane:play() -- start scheduling
+  -- Create a test lane for debugging
+  _seeker.debug_lane = lane_archetype.create_debug_lane()
+  _seeker.debug_lane:play()
 
   print('⌬ Seeker Online')
 end

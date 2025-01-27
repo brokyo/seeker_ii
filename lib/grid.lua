@@ -16,10 +16,8 @@ local GridUI = {}
 local g = grid.connect()
 local theory = include('lib/theory_utils')
 local MotifRecorder = include('lib/motif_recorder')
-local params_manager = include('lib/params_manager')
 local lane_utils = include('lib/lane_utils')
 local grid_animations = include('lib/grid_animations')
-local Log = include('lib/log')
 
 -- Core configuration
 local STAGES_PER_LANE = 4  -- Number of stages per lane (may increase in future)
@@ -259,11 +257,11 @@ function GridUI.handle_record_toggle(lane_num)
     _seeker.conductor:clear_lane(lane_num)
     motif_recorder:start_recording(lane_num)
     _seeker.ui_manager:focus_lane(lane_num) 
-    Log.log("GRID", "STATUS", string.format("%s Recording Started | Lane %d", Log.ICONS.RECORD_ON, lane_num))
+    print(string.format("⏺ Recording Started | Lane %d", lane_num))
   else
     local recorded_data = motif_recorder:stop_recording()
     _seeker.conductor:create_motif(lane_num, recorded_data)
-    Log.log("GRID", "STATUS", string.format("%s Recording Stopped | Lane %d", Log.ICONS.RECORD_OFF, lane_num))
+    print(string.format("⏹ Recording Stopped | Lane %d", lane_num))
   end
 end
 
@@ -276,10 +274,10 @@ function GridUI.handle_playback_toggle(lane_num)
   local lane = _seeker.conductor.lanes[lane_num]
   if lane.is_playing then
     _seeker.conductor:stop_lane(lane_num)
-    Log.log("GRID", "STATUS", string.format("%s Stopped | Lane %d", Log.ICONS.STOP, lane_num))
+    print(string.format("⏹ Stopped | Lane %d", lane_num))
   else
     _seeker.conductor:play_lane(lane_num)
-    Log.log("GRID", "STATUS", string.format("%s Playing | Lane %d", Log.ICONS.PLAY, lane_num))
+    print(string.format("▶ Playing | Lane %d", lane_num))
   end
 end
 
@@ -311,7 +309,7 @@ function GridUI.play_live_note(lane_num, note, z)
       midi = note,
       velocity = 127
     })
-    Log.log("GRID", "NOTES", string.format("%s Note ON  | %s", Log.ICONS.NOTE_ON, note_name))
+    print(string.format("♪ Note ON  | %s", note_name))
   else
     -- Remove note from active notes
     for i = #lane_data.active_notes, 1, -1 do
@@ -325,7 +323,7 @@ function GridUI.play_live_note(lane_num, note, z)
       name = instrument_name,
       midi = note
     })
-    Log.log("GRID", "NOTES", string.format("%s Note OFF | %s", Log.ICONS.NOTE_OFF, note_name))
+    print(string.format("♪ Note OFF | %s", note_name))
   end
 end
 
@@ -334,15 +332,13 @@ end
 function GridUI.handle_note_record(x, y, z, pitch, velocity)
   if z == 1 then
     if motif_recorder.is_recording then
-      motif_recorder:on_note_on(pitch, velocity, {x=x, y=y})
-      local note_name = theory.note_to_name(pitch)
-      Log.log("GRID", "NOTES", string.format("%s Record ON  | %s V%d pos=(%d,%d)", Log.ICONS.NOTE_ON, note_name, velocity, x, y))
+      motif_recorder:on_note_on(x, y, velocity)
+      print(string.format("⏺ Record ON  | V%d pos=(%d,%d)", velocity, x, y))
     end
   else
     if motif_recorder.is_recording then
-      motif_recorder:on_note_off(pitch, {x=x, y=y})
-      local note_name = theory.note_to_name(pitch)
-      Log.log("GRID", "NOTES", string.format("%s Record OFF | %s", Log.ICONS.NOTE_OFF, note_name))
+      motif_recorder:on_note_off(x, y)
+      print(string.format("⏺ Record OFF | pos=(%d,%d)", x, y))
     end
   end
 end
@@ -354,13 +350,13 @@ end
 function GridUI.handle_clear(lane_num)
   _seeker.conductor:clear_lane(lane_num)
   _seeker.ui_manager:focus_lane(lane_num)  -- Focus lane when clearing it
-  Log.log("GRID", "STATUS", string.format("%s Cleared | Lane %d", Log.ICONS.CLEAR, lane_num))
+  print(string.format("⌀ Cleared | Lane %d", lane_num))
 end
 
 function GridUI.handle_stage_select(lane_num, stage)
   if stage <= STAGES_PER_LANE then
     _seeker.ui_manager:focus_stage(lane_num, stage)  -- Let UI Manager handle focus change
-    Log.log("GRID", "STATUS", string.format("%s Stage %d Selected | Lane %d", Log.ICONS.STAGE, stage, lane_num))
+    print(string.format("◉ Stage %d Selected | Lane %d", stage, lane_num))
   end
 end
 

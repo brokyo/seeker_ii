@@ -1,6 +1,6 @@
 -- lane.lua
-local Transforms = include('lib/transforms')
 local params_manager_ii = include('lib/params_manager_ii')
+local Motif = include('lib/motif_ii')
 
 local Lane = {}
 Lane.__index = Lane
@@ -14,20 +14,58 @@ function Lane.new(config)
   lane.playing = false
   lane.voice = config.voice or ""
   lane.volume = config.volume or 1.0
-  lane.midi = config.midi or {}
+  lane.midi = config.midi or {          -- Default MIDI settings
+    channel = nil,
+    device = nil  -- No MIDI device by default
+  }
   lane.speed = config.speed or 1.0
-  lane.stages = config.stages or {}
-  lane.original_motif = config.motif or {}
-  lane.working_motif = config.motif or {} 
-  lane.motif_duration = config.motif_duration or 1.0
-
+  
+  -- Initialize with four default stages if none provided
+  lane.stages = config.stages or {
+    {
+      id = 1,
+      mute = false,
+      reset_motif = false,
+      loops = 1,
+      transform_name = "noop",
+      transform_config = {}
+    },
+    {
+      id = 2,
+      mute = false,
+      reset_motif = false,
+      loops = 1,
+      transform_name = "noop",
+      transform_config = {}
+    },
+    {
+      id = 3,
+      mute = false,
+      reset_motif = false,
+      loops = 1,
+      transform_name = "noop",
+      transform_config = {}
+    },
+    {
+      id = 4,
+      mute = false,
+      reset_motif = false,
+      loops = 1,
+      transform_name = "noop",
+      transform_config = {}
+    }
+  }
+  
+  -- Create empty motif
+  lane.motif = Motif.new()
+  
   -- Initialize stage loop counters
   for _, stage in ipairs(lane.stages) do
     stage.current_loop = 0
   end
 
   lane.current_stage_index = 1 
-  print(string.format('⌸ LANE_%d 実体化', lane.id))
+  print(string.format('⌸ LANE_%d Manifested', lane.id))
   return lane
 end
 
@@ -36,6 +74,8 @@ end
 --   Start scheduling from the current stage, if playing = true
 ---------------------------------------------------------
 function Lane:play()
+  if #self.motif.events == 0 then return end
+  
   if not self.playing then
     self.playing = true
     -- Reset motif and loop counters when starting playback
@@ -68,13 +108,12 @@ end
 function Lane:prepare_stage(stage)
   -- Reset motif if stage requires it
   if stage.reset_motif then
-    self:reset_motif()
+    self.motif:reset_to_genesis()
   end
   
   -- Apply stage transform if it has one
   if stage.transform_name then
-    local transformed_motif = Transforms.apply(stage.transform_name, self.working_motif, stage.transform_config or {})
-    self.working_motif = transformed_motif
+    self.motif:apply_transform(stage.transform_name, stage.transform_config)
   end
   
   return true
@@ -102,10 +141,10 @@ function Lane:schedule_stage(stage_index, start_time)
   end
 
   -- Calculate loop offset for timing
-  local loop_offset = (stage.current_loop * self.motif_duration * self.speed)
+  local loop_offset = (stage.current_loop * self.motif.duration * self.speed)
   
   -- Schedule all events with loop offset
-  for _, event in ipairs(self.working_motif) do
+  for _, event in ipairs(self.motif.events) do
     local absolute_time = start_time + (event.time * self.speed) + loop_offset
     
     if event.type == "note_on" and not stage.mute then
@@ -127,7 +166,7 @@ function Lane:schedule_stage(stage_index, start_time)
   end
 
   -- Schedule end of current loop
-  local end_time = start_time + (self.motif_duration * self.speed) + loop_offset
+  local end_time = start_time + (self.motif.duration * self.speed) + loop_offset
   _seeker.conductor.insert_event({
     time = end_time,
     callback = function()
@@ -209,17 +248,7 @@ function Lane:on_note_off(event)
 end
 
 function Lane:reset_motif()
-  -- Deep copy the original motif to working_motif
-  self.working_motif = {}
-  for _, event in ipairs(self.original_motif) do
-    local cloned = {
-      time = event.time,
-      type = event.type,
-      note = event.note,
-      velocity = event.velocity
-    }
-    table.insert(self.working_motif, cloned)
-  end
+  self.motif:reset_to_genesis()
 end
 
 function Lane:get_instrument()
@@ -228,6 +257,18 @@ function Lane:get_instrument()
   local instrument_id = params:get("lane_" .. lane_id .. "_instrument")
   local instruments = params_manager_ii.get_instrument_list()
   return instruments[instrument_id]
+end
+
+-- Set motif data after recording
+function Lane:set_motif(recorded_data)
+  self.motif:store_events(recorded_data)
+  return self.motif
+end
+
+-- Clear lane state and motif data
+function Lane:clear()
+  self:stop()  -- Stop playback
+  self.motif:clear()  -- Clear motif data
 end
 
 return Lane
