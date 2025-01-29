@@ -55,6 +55,7 @@ function Motif:store_events(recorded_data)
   
   -- Initialize working state from genesis
   self:reset_to_genesis()
+  print("∞ Motif stored")
 end
 
 -- Reset working state to genesis

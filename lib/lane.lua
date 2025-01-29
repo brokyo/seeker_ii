@@ -1,6 +1,7 @@
 -- lane.lua
 local params_manager_ii = include('lib/params_manager_ii')
 local Motif = include('lib/motif_ii')
+local forms = include('lib/forms')
 
 local Lane = {}
 Lane.__index = Lane
@@ -74,7 +75,10 @@ end
 --   Start scheduling from the current stage, if playing = true
 ---------------------------------------------------------
 function Lane:play()
-  if #self.motif.events == 0 then return end
+  if #self.motif.events == 0 then 
+    print('∅ No events to play')
+    return
+  end
   
   if not self.playing then
     self.playing = true
@@ -84,6 +88,8 @@ function Lane:play()
       stage.current_loop = 0
     end
   end
+
+  print(string.format('֍ Started LANE_%d', self.id))
   -- schedule the first iteration
   self:schedule_stage(self.current_stage_index, clock.get_beats())
 end
@@ -98,6 +104,7 @@ function Lane:stop()
   for _, stage in ipairs(self.stages) do
     stage.current_loop = 0
   end
+  print(string.format('֎ Stopped LANE_%d', self.id))
 end
 
 ---------------------------------------------------------
@@ -153,14 +160,17 @@ function Lane:schedule_stage(stage_index, start_time)
         callback = function() 
           self:on_note_on({
             note = event.note,
-            velocity = math.min(127, event.velocity * self.volume)
+            velocity = event.velocity * self.volume
           }) 
         end
       })
     elseif event.type == "note_off" and not stage.mute then
       _seeker.conductor.insert_event({
         time = absolute_time,
-        callback = function() self:on_note_off(event) end
+        callback = function() self:on_note_off({
+          note = event.note,
+          velocity = 0
+        }) end
       })
     end
   end
@@ -206,7 +216,7 @@ function Lane:on_motif_end(stage_index)
 end
 
 ---------------------------------------------------------
--- on_note_on(event)
+-- on_note_on(note)
 --   Send MIDI or engine note_on
 ---------------------------------------------------------
 function Lane:on_note_on(event)
@@ -228,9 +238,13 @@ function Lane:on_note_on(event)
 end
 
 ---------------------------------------------------------
--- on_note_off(event)
+-- on_note_off(note)
 ---------------------------------------------------------
-function Lane:on_note_off(event)
+function Lane:on_note_off(note)
+  local event = {
+    note = note,
+    velocity = 0
+  }
   -- Stop MIDI if configured
   if self.midi.device then
     local device = midi.connect(self.midi.device)
@@ -269,6 +283,37 @@ end
 function Lane:clear()
   self:stop()  -- Stop playback
   self.motif:clear()  -- Clear motif data
+end
+
+---------------------------------------------------------
+-- apply_arrangement(arrangement_name)
+--   Apply an arrangement preset to this lane's stages
+---------------------------------------------------------
+function Lane:apply_arrangement(arrangement_name)
+    local arrangement = forms.arrangements[arrangement_name]    
+    for i, stage_config in ipairs(arrangement.stages) do
+        -- Copy all fields from the stage config
+        for k, v in pairs(stage_config) do
+            if k == "transform_config" then
+                -- Deep copy transform config
+                self.stages[i][k] = {}
+                for param_k, param_v in pairs(v) do
+                    self.stages[i][k][param_k] = param_v
+                end
+            else
+                self.stages[i][k] = v
+            end
+        end
+    end
+end
+
+---------------------------------------------------------
+-- update_stage_param(stage_num, param_name, value)
+--   Update a parameter for a specific stage
+---------------------------------------------------------
+function Lane:update_stage_param(stage_num, param_name, value)
+    local stage = self.stages[stage_num]
+    stage.transform_config[param_name] = value
 end
 
 return Lane

@@ -178,7 +178,8 @@ local icons = {
     collapse = "⧊",
     digital_rain = "⋮",
     binary = "⚍",
-    quantum_gate = "⊞",
+    quantum_gate = "  ",
+    quantum_gate_open = "⊟",
   },
   
   -- UI elements

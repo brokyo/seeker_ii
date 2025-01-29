@@ -2,7 +2,6 @@
 -- Handles musical theory calculations and relationships
 
 local musicutil = require('musicutil')
-local params_manager = include('/lib/params_manager')
 
 -- Create the theory utilities table
 local theory = {}
@@ -26,17 +25,16 @@ theory.INTERVALS = {
 -- Moving down = up a second in the scale
 function theory.grid_to_note(x, y)
   local root = params:get("root_note") - 1  -- Convert 1-based index to 0-based
-  local octave = theory.get_octave()
+  local octave = params:get("octave")
+
+  -- TODO: There is an easier way to get a usable scale type.
+  -- params:lookup_param("scale_type").options[params:get("scale_type")].
   local scale_type = params:get("scale_type")
   local scale = musicutil.SCALES[scale_type].intervals
   local scale_length = #scale
   
   -- Calculate base MIDI note
   local base_midi = (octave * 12) + root
-  
-  -- In a Modal Tonnetz layout:
-  -- Moving right = up two scale degrees (diatonic third)
-  -- Moving down = up one scale degree (diatonic second)
   
   -- Calculate scale degree offsets
   local x_scale_steps = (x - 1) * 2  -- Each step right moves up two scale degrees

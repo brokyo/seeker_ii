@@ -23,13 +23,8 @@ end
 
 --- onNoteOn: called when a grid button is pressed (z=1)
 -- n.b We don't yet have velocity but may eventually 
-function MotifRecorder:on_note_on(x, y, velocity)
-  if not self.is_recording then return end
-  
-  -- Convert grid position to note
-  local note = theory.grid_to_note(x, y)
-  
-  -- Calculate timing
+function MotifRecorder:on_note_on(event)
+   -- Calculate timing
   local now = clock.get_beats()
   local time_from_start = now - self.start_time
   local quantized_time = self:_quantize_beat(time_from_start)
@@ -38,21 +33,16 @@ function MotifRecorder:on_note_on(x, y, velocity)
   table.insert(self.events, {
     time = quantized_time,
     type = "note_on",
-    note = note,
-    velocity = velocity or 127,
-    pos = {x = x, y = y}
+    note = event.note,
+    velocity = event.velocity,
+    pos = {x = event.x, y = event.y}
   })
 
-  print(string.format('♪ %s note_on from %d,%d', note, x, y))
+  print(string.format('♪ %s note_on from %d,%d recorded', event.note, event.x, event.y))
 end
 
 --- onNoteOff: called when a grid button is released (z=0)
-function MotifRecorder:on_note_off(x, y)
-  if not self.is_recording then return end
-  
-  -- Convert grid position to note
-  local note = theory.grid_to_note(x, y)
-  
+function MotifRecorder:on_note_off(event)
   -- Calculate timing
   local now = clock.get_beats()
   local time_from_start = now - self.start_time
@@ -62,25 +52,23 @@ function MotifRecorder:on_note_off(x, y)
   table.insert(self.events, {
     time = quantized_time,
     type = "note_off",
-    note = note,
-    pos = {x = x, y = y}
+    note = event.note,
+    pos = {x = event.x, y = event.y}
   })
-
-  print(string.format('♪ %s note_off from %d,%d', note, x, y))
 end
 
 --- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
-function MotifRecorder:start_recording(lane_num)  
+function MotifRecorder:start_recording()  
   self.is_recording = true
   self.events = {}
   self.start_time = clock.get_beats()
-  self.lane_num = lane_num
+  print("⧉ Recording started")
 end
 
 --- Stop recording and return the event table
 -- Grid interaction: Called from GridUI.handle_record_toggle
-function MotifRecorder:stop_recording()
+function MotifRecorder:stop_recording(lane_num)
   if not self.is_recording then return end
   
   self.is_recording = false
@@ -97,15 +85,10 @@ function MotifRecorder:stop_recording()
     events = self.events,
     duration = recorded_duration
   }
-  
-  -- Set the motif on the lane
-  local lane = _seeker.lanes[self.lane_num]
-  if lane then
-    lane:set_motif(recorded_data)
-  end
-  
+
   -- Clear recorder state
   self.events = {}
+  print("⊞ Recording stopped")
   return recorded_data
 end
 

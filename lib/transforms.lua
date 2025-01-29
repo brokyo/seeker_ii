@@ -279,3 +279,6 @@ transforms.available = {
 }
 
 return transforms 
+
+-- Future Transforms:
+-- 1. Simultaneously plays a transposed version of the motif. Only plays a subset of the notes. Contiguous, not random.

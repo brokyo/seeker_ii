@@ -9,31 +9,25 @@ engine.name = "MxSamples"
 -- Libraries
 local mxsamples = include("mx.samples/lib/mx.samples")  -- Sample playback engine
 local Lane = include("lib/lane")  -- Lane management
--- local event_queue = include("lib/event_queue") -- Core event system
 local conductor = include("lib/conductor")
 local lane_archetype = include("lib/lane_archetype")  -- Lane configuration templates
--- local grid_ui = include("/lib/grid")
--- local clock_manager = include("/lib/clock_manager")
+local grid = include("lib/grid_ii")
 -- local ui = include("/lib/ui")
--- local transformations = include("/lib/transformations")
 local params_manager = include('/lib/params_manager_ii')
--- local Motif = include('lib/motif')
--- local Log = include('lib/log')
 
 -- Global state
 _seeker = {
   skeys = nil,           -- MxSamples instance
   conductor = conductor,
-  -- event_queue = event_queue,  -- Event scheduling
   lanes = {},            -- Collection of all lanes
   active_lane = 1,       -- Currently selected lane
   num_lanes = 4,         -- Number of lanes to create (configurable)
-  -- tests = nil,            -- Will be loaded after initialization
-  -- focused_lane = 1,       -- Currently focused lane (1-4)
-  -- focused_stage = 1,      -- Currently focused stage (1-4)
+  ui_state = {
+    focused_lane = 1,
+    focused_stage = 1
+  },
   -- ui_manager = nil,       -- UI coordination
   -- params_manager = nil,   -- Parameter management
-  -- clock_manager = nil     -- Clock and event management
   debug_lane = nil
 }
 
@@ -53,7 +47,7 @@ function init()
   -- params:bang()
   
   -- Initialize UI components in sequence
-  -- local grid_ui_instance = grid_ui.init()
+  grid.init()
   -- _seeker.ui_manager = include("/lib/ui_manager").init(grid_ui_instance, nil)  -- Pass nil for screen initially
   -- local screen_ui_instance = ui.init(_seeker.ui_manager)
   -- _seeker.ui_manager.screen = screen_ui_instance
@@ -103,26 +97,26 @@ function init()
   end
 
   -- Create a test lane for debugging
-  _seeker.debug_lane = lane_archetype.create_debug_lane()
-  _seeker.debug_lane:play()
+  -- _seeker.debug_lane = lane_archetype.create_debug_lane()
+  -- _seeker.debug_lane:play()
 
   print('⌬ Seeker Online')
 end
 
 function key(n, z)
-  ui.key(n, z)
+  -- ui.key(n, z)
 end
 
 function enc(n, d)
-  ui.enc(n, d)
+  -- ui.enc(n, d)
 end
 
 function redraw()
-  screen.clear()
   -- _seeker.ui_manager:redraw_all()
-  screen.update()
+  -- screen.update()
 end
 
 function cleanup()
+  print("⌿ Phosphene snap")
   -- params:write()
 end

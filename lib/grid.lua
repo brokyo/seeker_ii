@@ -16,8 +16,7 @@ local GridUI = {}
 local g = grid.connect()
 local theory = include('lib/theory_utils')
 local MotifRecorder = include('lib/motif_recorder')
-local lane_utils = include('lib/lane_utils')
-local grid_animations = include('lib/grid_animations')
+-- local grid_animations = include('lib/grid_animations')
 
 -- Core configuration
 local STAGES_PER_LANE = 4  -- Number of stages per lane (may increase in future)
@@ -25,7 +24,7 @@ local TRANSPORT_BUTTONS = 3  -- Number of transport buttons [Play, Rec, Clear]
 
 -- Initialize recorder
 local motif_recorder = MotifRecorder.new({})
-local redraw_metro = nil
+-- local redraw_metro = nil
 
 --------------------------------------------------
 -- Grid Layout
@@ -69,31 +68,32 @@ local Layout = {
 
 function GridUI.key(x, y, z)  
   -- Check keyboard region
+  -- TODO: Make this a method that checks the region
   if x >= Layout.keyboard.x and x < Layout.keyboard.x + Layout.keyboard.size and
   y >= Layout.keyboard.y and y < Layout.keyboard.y + Layout.keyboard.size then
     -- Get current lane's keyboard offsets
-    local lane = _seeker.conductor.lanes[_seeker.focused_lane]
-    if not lane then return end
+    local lane = _seeker.conductor.lanes[_seeker.ui_state.focused_lane]
     
+    -- TODO: Reconsider offset system
     -- Get keyboard offsets from params to ensure sync
-    local offset_x = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_x") or 0
-    local offset_y = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_y") or 0
+    -- local offset_x = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_x") or 0
+    -- local offset_y = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_y") or 0
     
     -- Apply offsets to grid position
-    local adj_x = x - Layout.keyboard.x + 1 + offset_x
-    local adj_y = y - Layout.keyboard.y + 1 + offset_y
+    -- local adj_x = x - Layout.keyboard.x + 1 + offset_x
+    -- local adj_y = y - Layout.keyboard.y + 1 + offset_y
     
+    -- TODO: Need to update this for z = 1 and z = 0 for live notes and have it call specific note_on note_off methods
+    -- TODO: Same as above but for note_record. It should probably also call motif_recorder directly.
     local note = theory.grid_to_note(adj_x, adj_y)
     if note then
-      GridUI.play_live_note(_seeker.focused_lane, note, z)
+      GridUI.play_live_note(_seeker.lanes[focused_lane], note, z)
       GridUI.handle_note_record(x, y, z, note, 127)
     end
     return
   end
-  
-  -- Only handle key down for transport controls
-  if z == 0 then return end
-  
+
+  -- TODO: Reevaluate this whole block. It may be broadly correct but I need to study it.
   -- Check corners
   for lane, pos in pairs(Layout.corners) do
     local stage_x, stage_y, transport_x, transport_y = table.unpack(pos)
@@ -122,7 +122,7 @@ end
 
 function GridUI.redraw()
   g:all(0)
-  grid_animations.update() -- Background first
+  -- grid_animations.update() -- Background first
   
   -- Draw keyboard
   for x = 0, Layout.keyboard.size - 1 do
@@ -130,19 +130,21 @@ function GridUI.redraw()
       local grid_x = Layout.keyboard.x + x
       local grid_y = Layout.keyboard.y + y
       
-      -- Get keyboard offsets from params to ensure sync
-      local offset_x = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_x") or 0
-      local offset_y = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_y") or 0
+      -- TODO: Reconsider offsetsystem
+      -- -- Get keyboard offsets from params to ensure sync
+      -- local offset_x = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_x") or 0
+      -- local offset_y = params:get("lane_" .. _seeker.focused_lane .. "_keyboard_y") or 0
       
-      -- Apply offsets to the musical position calculation
-      local adj_x = x + 1 + offset_x  -- +1 because theory expects 1-based indices
-      local adj_y = y + 1 + offset_y
+      -- -- Apply offsets to the musical position calculation
+      -- local adj_x = x + 1 + offset_x  -- +1 because theory expects 1-based indices
+      -- local adj_y = y + 1 + offset_y
       
       -- Get interval importance for this position in musical space
       local importance = theory.get_interval_importance(adj_x, adj_y)
       
       -- Draw the LED at the grid position with brightness based on musical importance
-      local brightness = importance == 'primary' and Layout.BRIGHT or Layout.MED
+      -- local brightness = importance == 'primary' and Layout.BRIGHT or Layout.MED
+      local brightness = Layout.MED
       g:led(grid_x, grid_y, brightness)
     end
   end
@@ -208,23 +210,21 @@ function GridUI.init()
     end
     
     -- Initialize animations
-    grid_animations.init(g)
+    -- grid_animations.init(g)
     
-    -- Set up continuous redraw
-    redraw_metro = metro.init()
-    redraw_metro.time = 1/Layout.fps
-    redraw_metro.event = function()
-      GridUI.redraw()
-    end
-    redraw_metro:start()
+    
+    -- TODO: I think I'm redrawing the grid multiple places. There's another commented out instance of this in seeker.
+    -- -- Set up continuous redraw
+    -- redraw_metro = metro.init()
+    -- redraw_metro.time = 1/Layout.fps
+    -- redraw_metro.event = function()
+    --   GridUI.redraw()
+    -- end
+    -- redraw_metro:start()
     
     -- Handle disconnection
     g.remove = function()
       print("⬖ Grid Disconnected")
-      -- Stop all playback to prevent stuck notes
-      if _seeker and _seeker.conductor then
-        _seeker.conductor:stop_all()
-      end
     end
   else
     print("⬖ Grid Connect failed")
@@ -235,15 +235,11 @@ end
 
 -- CONSIDER: Stuck notes possible if cleanup happens during active recording
 function GridUI.cleanup()
-  if redraw_metro then
-    redraw_metro:stop()
-  end
-  grid_animations.cleanup()
-  
-  -- Ensure all lanes are stopped
-  if _seeker and _seeker.conductor then
-    _seeker.conductor:stop_all()
-  end
+  -- TODO: Figure out where the grid metro belongs then stop it there
+  -- if redraw_metro then
+  --   redraw_metro:stop()
+  -- end
+  -- grid_animations.cleanup()  
 end
 
 --------------------------------------------------
@@ -348,16 +344,16 @@ end
 --------------------------------------------------
 
 function GridUI.handle_clear(lane_num)
-  _seeker.conductor:clear_lane(lane_num)
-  _seeker.ui_manager:focus_lane(lane_num)  -- Focus lane when clearing it
+  -- TODO: Set lane as focused lane
+  -- _seeker.ui_manager:focus_lane(lane_num)  -- Focus lane when clearing it
+  -- Then clear it
+  _seeker.lanes[ui_state.focused_lane]:clear()
   print(string.format("⌀ Cleared | Lane %d", lane_num))
 end
 
 function GridUI.handle_stage_select(lane_num, stage)
-  if stage <= STAGES_PER_LANE then
-    _seeker.ui_manager:focus_stage(lane_num, stage)  -- Let UI Manager handle focus change
+    _seeker.ui_state.focused_stage = 1
     print(string.format("◉ Stage %d Selected | Lane %d", stage, lane_num))
-  end
 end
 
 return GridUI
