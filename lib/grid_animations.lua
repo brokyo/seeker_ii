@@ -38,16 +38,16 @@ function GridAnimations.add_trail(x, y)
   local key = point_key(x, y)
   state.trails[key] = {
     brightness = BRIGHTNESS.high,
-    decay = 0.8  -- Decay factor per frame
+    decay = 0.95  -- Much slower decay (was 0.8)
   }
 end
-
+  
 -- Remove a note trail
 function GridAnimations.remove_trail(x, y)
   local key = point_key(x, y)
   state.trails[key] = nil
 end
-
+  
 -- Update the animation
 local function update_points()
   -- Update trails first
@@ -81,12 +81,12 @@ local function update_points()
       local center_distance = math.abs(x - 6.5) / 7.5
       local dimming = 0.15 + (center_distance * 0.85)  -- More contrast
       brightness = brightness * dimming
-
+  
       -- Add trail brightness if exists
       if state.trails[key] then
         brightness = math.max(brightness, state.trails[key].brightness)
-      end
-      
+end
+
       -- Draw LED with more granular brightness
       state.grid:led(x, y, math.floor(brightness))
     end
@@ -99,7 +99,7 @@ end
 
 function GridAnimations.init(grid_device)
   state.grid = grid_device
-  state.points = {} 
+  state.points = {}
   state.trails = {}
 end
 

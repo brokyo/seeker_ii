@@ -1,7 +1,7 @@
 -- seeker_ii.lua
 -- awakening.systems
 --
--- Close the world, Open the nExt?
+-- Open the next?
 --------------------------------------------------
 
 engine.name = "MxSamples"
@@ -12,7 +12,7 @@ local Lane = include("lib/lane")  -- Lane management
 local conductor = include("lib/conductor")
 local lane_archetype = include("lib/lane_archetype")  -- Lane configuration templates
 local grid = include("lib/grid_ii")
--- local ui = include("/lib/ui")
+local screen_ui = include("/lib/screen_ii")
 local params_manager = include('/lib/params_manager_ii')
 
 -- Global state
@@ -47,6 +47,7 @@ function init()
   
   -- Initialize UI components in sequence
   grid.init()
+  screen_ui.init()
  
   -- Set initial tempo
   -- TODO: Get this from params
@@ -77,16 +78,14 @@ function init()
 end
 
 function key(n, z)
-  -- ui.key(n, z)
+  screen_ui.key(n, z)
 end
 
 function enc(n, d)
-  -- ui.enc(n, d)
+  screen_ui.enc(n, d)
 end
 
 function redraw()
-  -- _seeker.ui_manager:redraw_all()
-  -- screen.update()
 end
 
 function cleanup()

@@ -3,6 +3,7 @@ local g = grid.connect()
 local theory = include("lib/theory_utils")
 local MotifRecorder = include("lib/motif_recorder")
 local GridAnimations = include("lib/grid_animations")
+local UIState = include("lib/ui_state")
 
 local motif_recorder = MotifRecorder.new({})
 
@@ -122,17 +123,19 @@ function toggle_rec_button(x, y)
 	if not motif_recorder.is_recording then
 		motif_recorder:start_recording()
 	else
-		local focused_lane = _seeker.ui_state.focused_lane
+		local focused_lane = UIState.get_focused_lane()
 		local motif = motif_recorder:stop_recording()
 		_seeker.lanes[focused_lane]:set_motif(motif)
 	end
 end
 
+
+-- TODO: This is wrong. We should just get the lane the play button is in.
 function toggle_play_button(x, y)
-	if _seeker.lanes[_seeker.ui_state.focused_lane].playing then
-		_seeker.lanes[_seeker.ui_state.focused_lane]:stop()
+	if _seeker.lanes[UIState.get_focused_lane()].playing then
+		_seeker.lanes[UIState.get_focused_lane()]:stop()
 	else
-		_seeker.lanes[_seeker.ui_state.focused_lane]:play()
+		_seeker.lanes[UIState.get_focused_lane()]:play()
 	end
 end
 
@@ -193,14 +196,13 @@ end
 
 function focus_lane(x, y)
   local position = get_lane_and_stage(x, y)
-  _seeker.ui_state.focused_lane = position.lane_idx
+  UIState.set_focused_lane(position.lane_idx)
 end
 
 function focus_stage(x, y)
   local position = get_lane_and_stage(x, y)
-  _seeker.ui_state.focused_lane = position.lane_idx
-  _seeker.ui_state.focused_stage = position.stage_idx
-  print(string.format("⎍ Focused stage %d in lane %d", position.stage_idx, position.lane_idx))
+  UIState.set_focused_lane(position.lane_idx)
+  UIState.set_focused_stage(position.stage_idx)
 end
 
 function note_on(x, y)
@@ -214,7 +216,8 @@ function note_on(x, y)
 	if motif_recorder.is_recording then	
 		motif_recorder:on_note_on(event)
 	end
-	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_on(event)
+	_seeker.lanes[UIState.get_focused_lane()]:on_note_on(event)
+	GridAnimations.add_trail(x, y)  -- Add visual feedback for key press
 	print(string.format("♪ Note ON  | %s", event.note))
 end
 
@@ -228,7 +231,7 @@ function note_off(x, y)
 	if motif_recorder.is_recording then	
 		motif_recorder:on_note_off(event)
 	end
-	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_off(event)
+	_seeker.lanes[UIState.get_focused_lane()]:on_note_off(event)
 	print(string.format("♪ Note OFF | %s", event.note))
 end
 
