@@ -13,8 +13,8 @@ function Lane.new(config)
   -- Copy over config fields matching archetype structure
   lane.id = config.id
   lane.playing = false
-  lane.voice = config.voice or ""
-  lane.volume = config.volume or 1.0
+  lane.instrument = params:get("lane_" .. lane.id .. "_instrument")
+  lane.volume = params:get("lane_" .. lane.id .. "_volume")
   lane.midi = config.midi or {          -- Default MIDI settings
     channel = nil,
     device = nil  -- No MIDI device by default
@@ -223,8 +223,10 @@ function Lane:on_note_on(event)
   -- Play MIDI if configured
   if self.midi.device then
     local device = midi.connect(self.midi.device)
-    device:note_on(event.note, event.velocity, self.midi.channel)
+    device:note_on(event.note, event.velocity * self.volume, self.midi.channel)
   end
+
+  print(self.volume)
   
   -- Play engine using instrument from params
   local instrument = self:get_instrument()
@@ -232,7 +234,7 @@ function Lane:on_note_on(event)
     _seeker.skeys:on({
       name = instrument,
       midi = event.note,
-      velocity = event.velocity
+      velocity = event.velocity * self.volume
     })
   end
 end
@@ -266,11 +268,14 @@ function Lane:reset_motif()
 end
 
 function Lane:get_instrument()
-  -- Always use Lane 1's instrument for our test Lane 99
-  local lane_id = self.id == 99 and 1 or self.id
-  local instrument_id = params:get("lane_" .. lane_id .. "_instrument")
+  local instrument_id = params:get("lane_" .. self.id .. "_instrument")
   local instruments = params_manager_ii.get_instrument_list()
-  return instruments[instrument_id]
+
+  if self.id == 99 then
+    return instruments[1]
+  else
+    return instruments[instrument_id]
+  end
 end
 
 -- Set motif data after recording
@@ -317,4 +322,3 @@ function Lane:update_stage_param(stage_num, param_name, value)
 end
 
 return Lane
-

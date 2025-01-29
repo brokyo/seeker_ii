@@ -37,8 +37,6 @@ function MotifRecorder:on_note_on(event)
     velocity = event.velocity,
     pos = {x = event.x, y = event.y}
   })
-
-  print(string.format('♪ %s note_on from %d,%d recorded', event.note, event.x, event.y))
 end
 
 --- onNoteOff: called when a grid button is released (z=0)

@@ -46,13 +46,17 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 1)
+    params:add_group("lane_" .. i, "LANE " .. i, 2)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
+    params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.05, 1, ""))
+    params:set_action("lane_" .. i .. "_volume", function(value)
+      _seeker.lanes[i].volume = value
+    end)
   end 
 end
 
--- Initialize just the essential parameters we need
 function params_manager_ii.init_params()
+  params:add_separator("seeker_ii_header", "seeker_ii")
   init_musical_params()
   init_recording_params()
   init_lane_params()
