@@ -41,40 +41,13 @@ function init()
   _seeker.skeys = mxsamples:new()
     
   -- Initialize parameter system first
-  _seeker.params_manager = params_manager
   params_manager.init_params()
   -- params:read()
   -- params:bang()
   
   -- Initialize UI components in sequence
   grid.init()
-  -- _seeker.ui_manager = include("/lib/ui_manager").init(grid_ui_instance, nil)  -- Pass nil for screen initially
-  -- local screen_ui_instance = ui.init(_seeker.ui_manager)
-  -- _seeker.ui_manager.screen = screen_ui_instance
-  
-  -- -- Set up separate grid redraw metro at 30fps
-  -- local grid_metro = metro.init()
-  -- grid_metro.time = 1/30
-  -- grid_metro.event = function()
-  --   _seeker.ui_manager:redraw_grid()
-  -- end
-  -- grid_metro:start()
-    
-  -- TODO: Should this be on params_manager? seems like a params_manager thing? 
-  -- Set up parameter write callback to trigger UI updates
-  -- local params_action_write = params.action_write -- Store the existing callback
-  -- params.action_write = function(filename, name, number)
-  --   -- Call the existing params callback first
-  --   if params_action_write then
-  --     params_action_write(filename, name, number)
-  --   end
-    
-  --   -- Then trigger UI update
-  --   if _seeker and _seeker.ui_manager then
-  --     _seeker.ui_manager:redraw_all()
-  --   end
-  -- end
-
+ 
   -- Set initial tempo
   -- TODO: Get this from params
   params:set("clock_tempo", 120)

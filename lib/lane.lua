@@ -226,8 +226,6 @@ function Lane:on_note_on(event)
     device:note_on(event.note, event.velocity * self.volume, self.midi.channel)
   end
 
-  print(self.volume)
-  
   -- Play engine using instrument from params
   local instrument = self:get_instrument()
   if instrument then

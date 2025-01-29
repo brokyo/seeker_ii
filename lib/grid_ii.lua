@@ -2,6 +2,7 @@ local GridUI = {}
 local g = grid.connect()
 local theory = include("lib/theory_utils")
 local MotifRecorder = include("lib/motif_recorder")
+local GridAnimations = include("lib/grid_animations")
 
 local motif_recorder = MotifRecorder.new({})
 
@@ -9,7 +10,7 @@ local Layout = {
   -- Brightness levels
   BRIGHT = 15,
   ACTIVE = 12,
-  FOCUSED = 8,
+  UI = 10,
   MED = 4,
   DIM = 2,
   OFF = 0,
@@ -59,6 +60,7 @@ function GridUI.init()
     print("⚠ Grid Connect failed")
   end
 
+  GridAnimations.init(g)
   clock.run(grid_redraw_clock)
 
   return GridUI
@@ -112,7 +114,7 @@ end
 
 function draw_rec_buttons()
 	for _, button in ipairs(Layout.rec_buttons) do
-		g:led(button.x, button.y, Layout.MED)
+		g:led(button.x, button.y, Layout.UI)
 	end
 end
 
@@ -138,7 +140,7 @@ function draw_lanes()
   for _, lane in ipairs(Layout.lanes) do
     for x = 0, lane.width - 1 do
       for y = 0, lane.height - 1 do
-        g:led(lane.x + x, lane.y + y, Layout.MED)
+        g:led(lane.x + x, lane.y + y, Layout.UI)
       end
     end
   end
@@ -146,7 +148,7 @@ end
 
 function draw_play_buttons()
 	for _, button in ipairs(Layout.play_buttons) do
-		g:led(button.x, button.y, Layout.MED)
+		g:led(button.x, button.y, Layout.UI)
 	end
 end
 
@@ -254,6 +256,7 @@ end
 
 function GridUI.redraw()
 	g:all(0)
+	GridAnimations.update()
 	draw_controls()
 	draw_keyboard()
 	g:refresh()
