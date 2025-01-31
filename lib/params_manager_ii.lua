@@ -3,6 +3,8 @@
 
 local params_manager_ii = {}
 local musicutil = require('musicutil')
+local theory = include('lib/theory_utils')
+local transforms = include('lib/transforms')
 
 -- Get sorted list of available instruments
 function params_manager_ii.get_instrument_list()
@@ -46,12 +48,50 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 2)
+    params:add_group("lane_" .. i, "LANE " .. i, 3)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
     params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.05, 1, ""))
     params:set_action("lane_" .. i .. "_volume", function(value)
       _seeker.lanes[i].volume = value
     end)
+    params:add_control("lane_" .. i .. "_speed", "Speed", controlspec.new(0.1, 4, 'lin', 0.05, 1, ""))
+
+    -- See forms.lua for stage configuration
+    for j = 1, 4 do
+      params:add_binary("lane_" .. i .. "_stage_" .. j .. "_mute", "Mute", "toggle", 0)
+      params:set_action("lane_" .. i .. "_stage_" .. j .. "_mute", function(value)
+        if _seeker.lanes[i] then
+          _seeker.lanes[i]:sync_stage_from_params(j)
+        end
+      end)
+      
+      params:add_binary("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "Reset Motif", "toggle", 0)
+      params:set_action("lane_" .. i .. "_stage_" .. j .. "_reset_motif", function(value)
+        if _seeker.lanes[i] then
+          _seeker.lanes[i]:sync_stage_from_params(j)
+        end
+      end)
+      
+      params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 1)
+      params:set_action("lane_" .. i .. "_stage_" .. j .. "_loops", function(value)
+        if _seeker.lanes[i] then
+          _seeker.lanes[i]:sync_stage_from_params(j)
+        end
+      end)
+
+      -- Add transform selection
+      local transform_names = {}
+      for name, _ in pairs(transforms.available) do
+        table.insert(transform_names, name)
+      end
+      table.sort(transform_names)  -- For consistent ordering
+      
+      params:add_option("lane_" .. i .. "_stage_" .. j .. "_transform", 
+        "Transform", transform_names, #transform_names)
+      params:set_action("lane_" .. i .. "_stage_" .. j .. "_transform", function(value)
+        _seeker.lanes[i]:change_stage_transform(i, j, transform_names[value])
+      end)
+    end 
   end 
 end
 

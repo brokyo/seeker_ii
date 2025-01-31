@@ -159,7 +159,6 @@ function UIManager:get_current_params()
     for name, _ in pairs(transforms.available) do
       table.insert(transform_options, name)
     end
-    table.sort(transform_options)  -- Sort for consistent ordering
     
     table.insert(params, 3, {
       id = transform_id,

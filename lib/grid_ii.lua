@@ -3,7 +3,6 @@ local g = grid.connect()
 local theory = include("lib/theory_utils")
 local MotifRecorder = include("lib/motif_recorder")
 local GridAnimations = include("lib/grid_animations")
-local UIState = include("lib/ui_state")
 
 local motif_recorder = MotifRecorder.new({})
 
@@ -11,7 +10,7 @@ local Layout = {
   -- Brightness levels
   BRIGHT = 15,
   ACTIVE = 12,
-  UI = 10,
+  UI = 8,
   MED = 4,
   DIM = 2,
   OFF = 0,
@@ -57,10 +56,11 @@ function GridUI.init()
     g.remove = function()
       print("◈ Grid Disconnected") 
     end
+
   else
     print("⚠ Grid Connect failed")
   end
-
+  
   GridAnimations.init(g)
   clock.run(grid_redraw_clock)
 
@@ -123,7 +123,7 @@ function toggle_rec_button(x, y)
 	if not motif_recorder.is_recording then
 		motif_recorder:start_recording()
 	else
-		local focused_lane = UIState.get_focused_lane()
+		local focused_lane = _seeker.ui_state.focused_lane
 		local motif = motif_recorder:stop_recording()
 		_seeker.lanes[focused_lane]:set_motif(motif)
 	end
@@ -132,18 +132,21 @@ end
 
 -- TODO: This is wrong. We should just get the lane the play button is in.
 function toggle_play_button(x, y)
-	if _seeker.lanes[UIState.get_focused_lane()].playing then
-		_seeker.lanes[UIState.get_focused_lane()]:stop()
+	if _seeker.lanes[_seeker.ui_state.focused_lane].playing then
+		_seeker.lanes[_seeker.ui_state.focused_lane]:stop()
 	else
-		_seeker.lanes[UIState.get_focused_lane()]:play()
+		_seeker.lanes[_seeker.ui_state.focused_lane]:play()
 	end
 end
 
 function draw_lanes()
-  for _, lane in ipairs(Layout.lanes) do
+  local focused_lane = _seeker.ui_state.focused_lane
+  for i, lane in ipairs(Layout.lanes) do
+    -- Use BRIGHT for focused lane, UI (60% brightness) for others
+    local brightness = (i == focused_lane) and Layout.BRIGHT or Layout.UI
     for x = 0, lane.width - 1 do
       for y = 0, lane.height - 1 do
-        g:led(lane.x + x, lane.y + y, Layout.UI)
+        g:led(lane.x + x, lane.y + y, brightness)
       end
     end
   end
@@ -196,13 +199,15 @@ end
 
 function focus_lane(x, y)
   local position = get_lane_and_stage(x, y)
-  UIState.set_focused_lane(position.lane_idx)
+  _seeker.ui_state.focused_lane = position.lane_idx
+  GridUI.redraw()
 end
 
 function focus_stage(x, y)
   local position = get_lane_and_stage(x, y)
-  UIState.set_focused_lane(position.lane_idx)
-  UIState.set_focused_stage(position.stage_idx)
+  _seeker.ui_state.focused_lane = position.lane_idx
+  _seeker.ui_state.focused_stage = position.stage_idx
+  GridUI.redraw()
 end
 
 function note_on(x, y)
@@ -216,7 +221,7 @@ function note_on(x, y)
 	if motif_recorder.is_recording then	
 		motif_recorder:on_note_on(event)
 	end
-	_seeker.lanes[UIState.get_focused_lane()]:on_note_on(event)
+	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_on(event)
 	GridAnimations.add_trail(x, y)  -- Add visual feedback for key press
 	print(string.format("♪ Note ON  | %s", event.note))
 end
@@ -231,7 +236,7 @@ function note_off(x, y)
 	if motif_recorder.is_recording then	
 		motif_recorder:on_note_off(event)
 	end
-	_seeker.lanes[UIState.get_focused_lane()]:on_note_off(event)
+	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_off(event)
 	print(string.format("♪ Note OFF | %s", event.note))
 end
 
@@ -248,11 +253,11 @@ function GridUI.key(x, y, z)
 	end
   elseif is_rec_button(x, y) then
 	if z == 1 then
-		toggle_rec_button(x, y, z)
+		toggle_rec_button(x, y)
 	end
   elseif is_play_button(x, y) then
 	if z == 1 then
-		toggle_play_button(x, y, z)
+		toggle_play_button(x, y)
 	end
   end
 end

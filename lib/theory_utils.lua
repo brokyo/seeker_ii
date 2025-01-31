@@ -79,7 +79,7 @@ end
 function theory.print_keyboard_layout()
   local root = params:get("root_note")
   local scale_type = params:get("scale_type")
-  local octave = theory.get_octave()
+  local octave = params:get("octave")
   
   -- Get root name directly from params option list
   local root_names = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
@@ -109,12 +109,6 @@ function theory.print_keyboard_layout()
     -- Add spacing between pairs of rows for better readability
     if y % 2 == 0 then print("") end
   end
-  
-  -- Print movement guide
-  print("▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁")
-  print("→ = Up a third in scale")
-  print("↓ = Up a second in scale")
-  print("")
 end
 
 -- Get the chord type for a given scale degree

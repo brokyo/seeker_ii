@@ -18,16 +18,14 @@ local params_manager = include('/lib/params_manager_ii')
 -- Global state
 _seeker = {
   skeys = nil,           -- MxSamples instance
-  conductor = conductor,
-  lanes = {},            -- Collection of all lanes
-  active_lane = 1,       -- Currently selected lane
-  num_lanes = 4,         -- Number of lanes to create (configurable)
   ui_state = {
     focused_lane = 1,
     focused_stage = 1
   },
-  -- ui_manager = nil,       -- UI coordination
-  -- params_manager = nil,   -- Parameter management
+  conductor = conductor,
+  lanes = {},            -- Collection of all lanes
+  active_lane = 1,       -- Currently selected lane
+  num_lanes = 4,         -- Number of lanes to create (configurable)
   debug_lane = nil
 }
 

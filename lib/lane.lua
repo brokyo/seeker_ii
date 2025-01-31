@@ -2,7 +2,7 @@
 local params_manager_ii = include('lib/params_manager_ii')
 local Motif = include('lib/motif_ii')
 local forms = include('lib/forms')
-
+local transforms = include('lib/transforms')
 local Lane = {}
 Lane.__index = Lane
 
@@ -66,6 +66,10 @@ function Lane.new(config)
   end
 
   lane.current_stage_index = 1 
+  
+  -- Sync stage configuration with params
+  lane:sync_all_stages_from_params()
+  
   print(string.format('⌸ LANE_%d Manifested', lane.id))
   return lane
 end
@@ -317,6 +321,42 @@ end
 function Lane:update_stage_param(stage_num, param_name, value)
     local stage = self.stages[stage_num]
     stage.transform_config[param_name] = value
+end
+
+---------------------------------------------------------
+-- change_stage_transform(stage_index, transform_name)
+---------------------------------------------------------
+function Lane:change_stage_transform(lane_idx, stage_idx, transform_name)
+  local stage = self.stages[stage_idx]
+  local transform_param = params:lookup_param("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform")
+  local transform_name = transform_param.options[transform_param.selected]
+  local transform = transforms.available[transform_name]
+  
+  for param_name, param_spec in pairs(transform.params) do
+    stage.transform_config[param_name] = param_spec.default
+  end
+
+end
+
+---------------------------------------------------------
+-- sync_stage_from_params(stage_index)
+--   Syncs a stage's configuration with its parameters
+---------------------------------------------------------
+function Lane:sync_stage_from_params(stage_index)
+    local stage = self.stages[stage_index]
+    stage.mute = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_mute") == 1
+    stage.reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_reset_motif") == 1
+    stage.loops = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loops")
+end
+
+---------------------------------------------------------
+-- sync_all_stages_from_params()
+--   Syncs all stages' configuration with their parameters
+---------------------------------------------------------
+function Lane:sync_all_stages_from_params()
+    for i = 1, #self.stages do
+        self:sync_stage_from_params(i)
+    end
 end
 
 return Lane
