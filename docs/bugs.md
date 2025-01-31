@@ -1,12 +1,5 @@
 ### Current Session
-[x] Restore theory_utils.print_keyboard_layout()
-[x] UI — MUSICAL
-[x] Highlight active lane
-[x] Add speed control for each lane
-[x] UI — LANES
-[x] UI — STAGES (basic)
-[x] Stage playback ignoring settings
-[x] Scrollable params list
+
 [] UI — STAGES (transform)
 
 
@@ -37,3 +30,11 @@
 [x] Transform logic should live on `Motif` and `Lane` just calls it
 [x] UI — FRAME
 [x] UI — RECORDING
+[x] Restore theory_utils.print_keyboard_layout()
+[x] UI — MUSICAL
+[x] Highlight active lane
+[x] Add speed control for each lane
+[x] UI — LANES
+[x] UI — STAGES (basic)
+[x] Stage playback ignoring settings
+[x] Scrollable params list

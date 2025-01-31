@@ -62,14 +62,50 @@ transforms.available = {
     end
   },
   
+  transpose = {
+    name = "Transpose",
+    description = "Shift all notes up or down by a number of semitones",
+    params = {
+      amount = {
+        type = "integer",  -- Explicitly specify parameter type
+        default = 0,
+        min = -24,
+        max = 24,
+        step = 1  -- Optional: specify custom step size if needed
+      }
+    },
+    fn = function(events, params)
+      local amount = params.amount or 0
+      local result = {}
+      
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+        
+        -- Only modify pitch for note events
+        if event.type == "note_on" or event.type == "note_off" then
+          new_event.note = event.note + amount
+        end
+        
+        table.insert(result, new_event)
+      end
+      
+      return result
+    end
+  },
+  
   invert = {
     name = "Invert",
     description = "Invert pitches around a center note",
     params = {
       center = {
+        type = "integer",
         default = 60,
         min = 0,
-        max = 127
+        max = 127,
+        step = 1
       }
     },
     fn = function(events, params)
@@ -193,9 +229,11 @@ transforms.available = {
     description = "Modify the playback speed",
     params = {
       multiplier = {
+        type = "continuous",
         default = 1.0,
         min = 0.25,
-        max = 4.0
+        max = 4.0,
+        step = 0.05
       }
     },
     fn = function(events, params)
@@ -221,14 +259,18 @@ transforms.available = {
     description = "Probabilistically add harmonized notes",
     params = {
       probability = {
+        type = "continuous",
         default = 0.5,
         min = 0.0,
-        max = 1.0
+        max = 1.0,
+        step = 0.05  -- Optional: for finer control
       },
       interval = {
-        default = 4,  -- Default to major third
+        type = "integer",
+        default = 4,
         min = 1,
-        max = 12
+        max = 12,
+        step = 1
       }
     },
     fn = function(events, params)

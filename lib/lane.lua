@@ -328,14 +328,16 @@ end
 ---------------------------------------------------------
 function Lane:change_stage_transform(lane_idx, stage_idx, transform_name)
   local stage = self.stages[stage_idx]
-  local transform_param = params:lookup_param("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform")
-  local transform_name = transform_param.options[transform_param.selected]
   local transform = transforms.available[transform_name]
+
+  -- Update the stage's transform name
+  stage.transform_name = transform_name
   
+  -- Reset transform config with defaults
+  stage.transform_config = {}
   for param_name, param_spec in pairs(transform.params) do
     stage.transform_config[param_name] = param_spec.default
   end
-
 end
 
 ---------------------------------------------------------

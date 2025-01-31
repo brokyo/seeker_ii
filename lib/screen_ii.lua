@@ -3,20 +3,51 @@ local transforms = include("lib/transforms")
 local ScreenUI = {}
 
 ScreenUI.state = {
-    current_section = "Musical",
+    current_section = 1,
     needs_redraw = true,
     fps = 30,
     selected_index = 0,     -- 0 is header, 1+ are params
     scroll_offset = 0,      -- Track scrolling position
 }
 
-local sections = {
-    "Musical",
-    "Recording",
-    "Lanes",
-    "Stages",
+local sections_config = {
+    {
+        name = "Musical",
+        params = {
+            { id = "root_note", name = "Root Note" },
+            { id = "scale_type", name = "Scale" },
+            { id = "octave", name = "Octave" },
+        },
+    },
+    {
+        name = "Recording",
+        params = {
+            { id = "quantize_division", name = "Quantize" },
+        },
+    },
+    {
+        name = "Lanes",
+        params = {
+            { id = "lane_selector", name = "Lane", is_selector = true },
+            { id = "instrument", name = "Instrument" },
+            { id = "volume", name = "Volume" },
+            { id = "speed", name = "Speed" },
+        },
+    },
+    {
+        name = "Stages",
+        params = {
+            { id = "stage_selector", name = "Stage", is_selector = true },
+            { id = "mute", name = "Mute" },
+            { id = "reset_motif", name = "Reset Motif" },
+            { id = "loops", name = "Loops" },
+            { id = "transform", name = "Transform" },
+            -- Transform parameters will be added dynamically
+        },
+    },
 }
 
+-- 
 function ScreenUI.init()    
     clock.run(screen_redraw_clock)
 end 
@@ -48,6 +79,18 @@ function ScreenUI.set_needs_redraw()
     ScreenUI.state.needs_redraw = true
 end 
 
+function get_current_section()
+    return sections_config[ScreenUI.state.current_section]
+end
+
+function get_stage()
+    local lane_idx = _seeker.ui_state.focused_lane
+    local stage_idx = _seeker.ui_state.focused_stage
+    local lane = _seeker.lanes[lane_idx]
+    local stage = lane.stages[stage_idx]
+    return stage
+end 
+
 function draw_header(y_pos, selected)
     if selected then
         screen.level(15)
@@ -57,7 +100,7 @@ function draw_header(y_pos, selected)
     
     screen.level(selected and 15 or 4)
     screen.move(64, y_pos)
-    screen.text_center(ScreenUI.state.current_section)
+    screen.text_center(get_current_section().name)
 end
 
 function draw_param(param, y_pos, selected)
@@ -73,55 +116,28 @@ function draw_param(param, y_pos, selected)
 end
 
 function draw_params_list(start_y)
-    local current_section = ScreenUI.state.current_section
-    local lane_idx = _seeker.ui_state.focused_lane
-    local stage_idx = _seeker.ui_state.focused_stage
-
+    local section = get_current_section()
     local section_params = {}
-    
-    if current_section == "Musical" then
-        section_params = {
-            {name = "Root Note", value = params:string("root_note")},
-            {name = "Scale", value = params:string("scale_type")},
-            {name = "Octave", value = params:string("octave")}
-        }
-    elseif current_section == "Recording" then
-        section_params = {
-            {name = "Quantize", value = params:string("quantize_division")}
-        }
-    elseif current_section == "Lanes" then
-        -- Add lane selector as first param
-        section_params = {
-            {name = "Lane", value = lane_idx, is_selector = true},
-            {name = "Instrument",value = params:string("lane_" .. lane_idx .. "_instrument")},
-            {name = "Volume", value = string.format("%.2f", params:get("lane_" .. lane_idx .. "_volume"))},
-            {name = "Speed", value = string.format("%.2f", params:get("lane_" .. lane_idx .. "_speed"))}
-        }
-    elseif current_section == "Stages" then
-        -- Add base stage params
-        section_params = {
-            {name = "Stage", value = stage_idx},
-            {name = "Mute", value = params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute")},
-            {name = "Reset Motif", value = params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif")},
-            {name = "Loops", value = params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops")},
-            {name = "Transform", value = params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform")}
-        }
 
-        -- Add transform parameters if any exist
-        local lane = _seeker.lanes[lane_idx]
-        local stage = lane.stages[stage_idx]
-        local transform = transforms.available[stage.transform_name]
-        
-        local param_names = {}
-        for name, _ in pairs(transform.params) do
-            table.insert(param_names, name)
-        end
-        table.sort(param_names)
-        
-        for _, param_name in ipairs(param_names) do
+    for _, param_info in ipairs(section.params) do
+        local value = get_param_value(param_info)
+        table.insert(section_params, {
+            name = param_info.name,
+            value = value,
+            is_selector = param_info.is_selector,
+            is_transform_param = param_info.is_transform_param,
+        })
+    end
+
+    -- If in "Stages" section, add transform parameters
+    if ScreenUI.state.current_section == 4 then
+        local transform_params = get_transform_params()
+        for _, param_info in ipairs(transform_params) do
+            local value = get_transform_param_value(param_info)
             table.insert(section_params, {
-                name = "  " .. param_name,  -- Indent to show hierarchy
-                value = string.format("%.2f", stage.transform_config[param_name])
+                name = "  " .. param_info.name, -- Indent to show hierarchy
+                value = value,
+                is_transform_param = true,
             })
         end
     end
@@ -160,10 +176,7 @@ function draw_params_list(start_y)
 end
 
 function draw_transform_params(start_y)
-    local lane_idx = _seeker.ui_state.focused_lane
-    local stage_idx = _seeker.ui_state.focused_stage
-    local lane = _seeker.lanes[lane_idx]
-    local stage = lane.stages[stage_idx]
+    local stage = get_stage()
     local transform = transforms.available[stage.transform_name]
 
     -- Draw transform name as header
@@ -212,110 +225,166 @@ end
 
 function ScreenUI.change_selection(delta)
     local current_section = ScreenUI.state.current_section
-    local num_params
-    
-    if current_section == "Musical" then
-        num_params = 3
-    elseif current_section == "Recording" then
-        num_params = 1
-    elseif current_section == "Lanes" then
-        num_params = 4
-    elseif current_section == "Stages" then
-        num_params = 5
-    end
-    
+    local num_params = get_section_params_count(current_section)
+
     local new_index = ScreenUI.state.selected_index + delta
     ScreenUI.state.selected_index = util.clamp(new_index, 0, num_params)
     ScreenUI.set_needs_redraw()
 end
 
-function ScreenUI.modify_selected(delta)
-    -- Change section
-    if ScreenUI.state.selected_index == 0 then
-        local current_idx = tab.key(sections, ScreenUI.state.current_section)
-        local new_idx = util.clamp(current_idx + delta, 1, #sections)
-        ScreenUI.state.current_section = sections[new_idx]
+function get_section_params_count(section_name)
+    local base_count = #sections_config[section_name].params
+    if ScreenUI.state.current_section == 4 then
+        local transform_params = get_transform_params()
+        return base_count + #transform_params
     else
-        local current_section = ScreenUI.state.current_section
-        if current_section == "Musical" then
-            local param_id
-            if ScreenUI.state.selected_index == 1 then param_id = "root_note"
-            elseif ScreenUI.state.selected_index == 2 then param_id = "scale_type"
-            elseif ScreenUI.state.selected_index == 3 then param_id = "octave"
-            end
-            params:delta(param_id, delta)
-        elseif current_section == "Recording" then
-            if ScreenUI.state.selected_index == 1 then
-                params:delta("quantize_division", delta)
-            end
-        elseif current_section == "Lanes" then
-            if ScreenUI.state.selected_index == 1 then
-                -- Modify lane selector through _seeker.ui_state
-                _seeker.ui_state.focused_lane = util.clamp(_seeker.ui_state.focused_lane + delta, 1, 4)
-            elseif ScreenUI.state.selected_index == 2 then
-                -- Modify instrument for selected lane
-                params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_instrument", delta)
-            elseif ScreenUI.state.selected_index == 3 then
-                -- Modify volume for selected lane
-                params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_volume", delta)
-            elseif ScreenUI.state.selected_index == 4 then
-                -- Modify speed for selected lane
-                params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_speed", delta)
-            end
-        elseif current_section == "Stages" then
-            local lane = _seeker.lanes[_seeker.ui_state.focused_lane]
-            local stage = lane.stages[_seeker.ui_state.focused_stage]
-            local transform = transforms.available[stage.transform_name]
-            
-                
-            -- TODO: This is a hack, we need to get the actual number of params
-            local base_params = 5  -- Stage, Mute, Reset, Loops, Transform
-            local total_params = base_params
-            if transform and transform.params then
-                total_params = base_params + tab.count(transform.params)
-            end
+        return base_count
+    end
+end
 
-            if ScreenUI.state.selected_index <= base_params then
-                if ScreenUI.state.selected_index == 1 then
-                    -- Modify stage selector through _seeker.ui_state
-                    _seeker.ui_state.focused_stage = util.clamp(_seeker.ui_state.focused_stage + delta, 1, 4)
-                elseif ScreenUI.state.selected_index == 2 then
-                    -- Modify mute for selected stage
-                    params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_stage_" .. _seeker.ui_state.focused_stage .. "_mute", delta)
-                elseif ScreenUI.state.selected_index == 3 then
-                    -- Modify reset_motif for selected stage
-                    params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_stage_" .. _seeker.ui_state.focused_stage .. "_reset_motif", delta)
-                elseif ScreenUI.state.selected_index == 4 then
-                    -- Modify loops for selected stage
-                    params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_stage_" .. _seeker.ui_state.focused_stage .. "_loops", delta)
-                elseif ScreenUI.state.selected_index == 5 then
-                    -- Modify transform for selected stage
-                    params:delta("lane_" .. _seeker.ui_state.focused_lane .. "_stage_" .. _seeker.ui_state.focused_stage .. "_transform", delta)
-                end
-            else
-                print("Handling transform params")
-                -- Handle transform params
-                local param_idx = ScreenUI.state.selected_index - base_params
-                local param_names = {}
-                for name, _ in pairs(transform.params) do
-                    table.insert(param_names, name)
-                end
-                table.sort(param_names)
-                
-                local param_name = param_names[param_idx]
-                local param_spec = transform.params[param_name]
-                local current = stage.transform_config[param_name]
-                local step = (param_spec.max - param_spec.min) / 20
-                
-                stage.transform_config[param_name] = util.clamp(
-                    current + (delta * step),
-                    param_spec.min,
-                    param_spec.max
-                )
-            end
-        end
+function ScreenUI.modify_selected(delta)
+    if ScreenUI.state.selected_index == 0 then
+        -- Change section
+        local current_idx = ScreenUI.state.current_section
+        local new_idx = util.clamp(current_idx + delta, 1, #sections_config)
+        ScreenUI.state.current_section = new_idx
+    else
+        local param_info = get_selected_param_info(ScreenUI.state.current_section, ScreenUI.state.selected_index)
+        modify_param(param_info, delta)
     end
     ScreenUI.set_needs_redraw()
+end
+
+function get_selected_param_info(section_name, selected_index)
+    local section = sections_config[section_name]
+    local params = section.params
+
+    -- If in "Stages" section, include transform params
+    if ScreenUI.state.current_section == 4 then
+        local transform_params = get_transform_params()
+        params = { table.unpack(params) }
+        for _, param in ipairs(transform_params) do
+            table.insert(params, param)
+        end
+    end
+
+    return params[selected_index]
+end
+
+function get_param_value(param_info)
+    local lane_idx = _seeker.ui_state.focused_lane
+    local stage_idx = _seeker.ui_state.focused_stage
+
+    if param_info.id == "lane_selector" then
+        return lane_idx
+    elseif param_info.id == "stage_selector" then
+        return stage_idx
+    elseif param_info.id == "instrument" then
+        return params:string("lane_" .. lane_idx .. "_instrument")
+    elseif param_info.id == "volume" then
+        return string.format("%.2f", params:get("lane_" .. lane_idx .. "_volume"))
+    elseif param_info.id == "speed" then
+        return string.format("%.2f", params:get("lane_" .. lane_idx .. "_speed"))
+    elseif param_info.id == "mute" then
+        return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute")
+    elseif param_info.id == "reset_motif" then
+        return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif")
+    elseif param_info.id == "loops" then
+        return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops")
+    elseif param_info.id == "transform" then
+        return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform")
+    else
+        return params:string(param_info.id) or ""
+    end
+end
+
+function get_transform_param_value(param_info)
+    local stage = get_stage()
+    local value = stage.transform_config[param_info.id]
+    return string.format("%.2f", value)
+end
+
+function get_transform_params()
+    local params_list = {}
+    local stage = get_stage()
+    local transform = transforms.available[stage.transform_name]
+
+    if transform and transform.params then
+        local param_names = {}
+        for name, _ in pairs(transform.params) do
+            table.insert(param_names, name)
+        end
+        table.sort(param_names)
+
+        for _, param_name in ipairs(param_names) do
+            table.insert(params_list, {
+                id = param_name,
+                name = param_name,
+                is_transform_param = true,
+            })
+        end
+    end
+
+    return params_list
+end
+
+function modify_param(param_info, delta)
+    local lane_idx = _seeker.ui_state.focused_lane
+    local stage_idx = _seeker.ui_state.focused_stage
+
+    if param_info.is_transform_param then
+        print("modify_transform_param")
+        modify_transform_param(param_info, delta)
+    elseif param_info.id == "lane_selector" then
+        _seeker.ui_state.focused_lane = util.clamp(lane_idx + delta, 1, 4)
+    elseif param_info.id == "stage_selector" then
+        _seeker.ui_state.focused_stage = util.clamp(stage_idx + delta, 1, 4)
+    elseif param_info.id == "instrument" then
+        params:delta("lane_" .. lane_idx .. "_instrument", delta)
+    elseif param_info.id == "volume" then
+        params:delta("lane_" .. lane_idx .. "_volume", delta)
+    elseif param_info.id == "speed" then
+        params:delta("lane_" .. lane_idx .. "_speed", delta)
+    elseif param_info.id == "mute" then
+        params:delta("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", delta)
+    elseif param_info.id == "reset_motif" then
+        params:delta("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif", delta)
+    elseif param_info.id == "loops" then
+        params:delta("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops", delta)
+    elseif param_info.id == "transform" then
+        params:delta("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform", delta)
+    else
+        params:delta(param_info.id, delta)
+    end
+end
+
+function modify_transform_param(param_info, delta)
+    local lane_idx = _seeker.ui_state.focused_lane
+    local stage_idx = _seeker.ui_state.focused_stage
+    local lane = _seeker.lanes[lane_idx]
+    local stage = lane.stages[stage_idx]
+    local transform = transforms.available[stage.transform_name]
+
+    local param_name = param_info.id
+    local param_spec = transform.params[param_name]
+    local current_value = stage.transform_config[param_name]
+    
+    -- Use the parameter's specified step size or type
+    local step = param_spec.step or (
+        param_spec.type == "integer" and 1 or 
+        (param_spec.max - param_spec.min) / 20
+    )
+
+    stage.transform_config[param_name] = util.clamp(
+        current_value + (delta * step),
+        param_spec.min,
+        param_spec.max
+    )
+
+    -- Round to integers if needed
+    if param_spec.type == "integer" then
+        stage.transform_config[param_name] = math.floor(stage.transform_config[param_name] + 0.5)
+    end
 end
 
 return ScreenUI
