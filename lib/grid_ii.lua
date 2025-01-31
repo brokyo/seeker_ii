@@ -15,6 +15,12 @@ local Layout = {
   DIM = 2,
   OFF = 0,
 
+  -- Button states
+  REC_ACTIVE = 15,    -- Bright red for recording
+  REC_INACTIVE = 2,   -- Very dim for inactive rec
+  PLAY_ACTIVE = 12,   -- Medium-bright for playing
+  PLAY_INACTIVE = 4,  -- Slightly brighter than rec inactive
+
   keyboard = {	
     upper_left_x = 6,
     upper_left_y = 2,
@@ -115,7 +121,13 @@ end
 
 function draw_rec_buttons()
 	for _, button in ipairs(Layout.rec_buttons) do
-		g:led(button.x, button.y, Layout.UI)
+		local brightness = Layout.REC_INACTIVE
+		if motif_recorder.is_recording then
+			-- Create a pulsing effect when recording
+			local pulse = math.floor(math.sin(clock.get_beats() * 4) * 3 + Layout.REC_ACTIVE - 3)
+			brightness = pulse
+		end
+		g:led(button.x, button.y, brightness)
 	end
 end
 
@@ -153,15 +165,31 @@ function draw_lanes()
 end
 
 function draw_play_buttons()
-	for _, button in ipairs(Layout.play_buttons) do
-		g:led(button.x, button.y, Layout.UI)
+	for i, button in ipairs(Layout.play_buttons) do
+		local brightness = Layout.PLAY_INACTIVE
+		-- Each play button corresponds to a lane
+		if _seeker.lanes[i].playing then
+			brightness = Layout.PLAY_ACTIVE
+		end
+		g:led(button.x, button.y, brightness)
 	end
 end
 
 function draw_keyboard()
+	local root = params:get("root_note") - 1  -- Convert to 0-based
 	for x = 0, Layout.keyboard.width - 1 do
 		for y = 0, Layout.keyboard.height - 1 do
-			g:led(Layout.keyboard.upper_left_x + x, Layout.keyboard.upper_left_y + y, Layout.MED)
+			local grid_x = Layout.keyboard.upper_left_x + x
+			local grid_y = Layout.keyboard.upper_left_y + y
+			local note = theory.grid_to_note(grid_x, grid_y)
+			
+			-- Check if this note is a root note (same pitch class as root)
+			local brightness = Layout.MED
+			if note and note % 12 == root then
+				brightness = Layout.BRIGHT
+			end
+			
+			g:led(grid_x, grid_y, brightness)
 		end
 	end	
 end

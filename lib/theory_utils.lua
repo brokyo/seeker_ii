@@ -91,24 +91,25 @@ function theory.print_keyboard_layout()
     root_name,
     musicutil.SCALES[scale_type].name,
     octave))
+  print("Moving right = up a third in scale")
+  print("Moving down = up a second in scale")
   print("▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔")
   
-  -- Print note layout
+  -- Print note layout with actual MIDI note numbers in parentheses
   for y = 1, 6 do
     local row = ""
     for x = 1, 6 do
       local note = theory.grid_to_note(x, y)
       if note then
-        row = row .. string.format("%-4s", musicutil.note_num_to_name(note, true))
+        local note_name = musicutil.note_num_to_name(note, true)
+        row = row .. string.format("%-5s", note_name)
       else
-        row = row .. "--- "
+        row = row .. "---  "
       end
     end
     print(row)
-    
-    -- Add spacing between pairs of rows for better readability
-    if y % 2 == 0 then print("") end
   end
+  print("▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁")
 end
 
 -- Get the chord type for a given scale degree

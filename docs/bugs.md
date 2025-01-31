@@ -1,18 +1,17 @@
 ### Current Session
 
-[] UI — STAGES (transform)
 
 
 ### Next Session
+[] Clean up `theory_utils.lua`
 [] Add duration
-[] Highlight root note on keyboard
-[] Base octave for each lane
 [] Change illumination for active stage
+[] Base octave for each lane
 [] Return param preset saving
 
 ### TODOs
-[] Clean up `theory_utils.lua`
 [] Rethinking process for drawing control panels on `grid_ii.lua`. Should think about stages and rec/play buttons as one unit.
+[] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 [] Revisit `theory_utils.lua`
 [] Catch MIDI events (rather than grid) in `motif_recorder`
 [] Layer blending logic for illumination
@@ -38,3 +37,6 @@
 [x] UI — STAGES (basic)
 [x] Stage playback ignoring settings
 [x] Scrollable params list
+[x] UI — STAGES (transform)
+[x] Transform parameters have configurable type and step
+[x] Highlight root note on keyboard

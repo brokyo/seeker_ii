@@ -333,7 +333,6 @@ function modify_param(param_info, delta)
     local stage_idx = _seeker.ui_state.focused_stage
 
     if param_info.is_transform_param then
-        print("modify_transform_param")
         modify_transform_param(param_info, delta)
     elseif param_info.id == "lane_selector" then
         _seeker.ui_state.focused_lane = util.clamp(lane_idx + delta, 1, 4)
