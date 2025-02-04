@@ -2,11 +2,15 @@
 -- Handles visual animations for the grid
 --------------------------------------------------
 
+local GridConstants = include('lib/grid_constants')
+local GridLayers = include("lib/grid_layers")
 local GridAnimations = {}
 
+-- Use GridConstants brightness values as our range
+-- but keep as local for quick access in tight animation loops
 local BRIGHTNESS = {
-  high = 8,  -- Full brightness range
-  low = 0
+  high = GridConstants.BRIGHTNESS.MEDIUM,  -- Using MEDIUM for background animations to leave headroom for UI/response
+  low = GridConstants.BRIGHTNESS.OFF
 }
 
 --------------------------------------------------
@@ -14,9 +18,7 @@ local BRIGHTNESS = {
 --------------------------------------------------
 
 local state = {
-  grid = nil,
-  points = {},  -- Store state for each LED
-  trails = {},  -- Store fading note trails
+  points = {}  -- Store state for each LED
 }
 
 -- Initialize a point with random timing
@@ -33,34 +35,11 @@ local function point_key(x, y)
   return string.format("%d,%d", x, y)
 end
 
--- Add a note trail
-function GridAnimations.add_trail(x, y)
-  local key = point_key(x, y)
-  state.trails[key] = {
-    brightness = BRIGHTNESS.high,
-    decay = 0.95  -- Much slower decay (was 0.8)
-  }
-end
-  
--- Remove a note trail
-function GridAnimations.remove_trail(x, y)
-  local key = point_key(x, y)
-  state.trails[key] = nil
-end
-  
--- Update the animation
-local function update_points()
-  -- Update trails first
-  for key, trail in pairs(state.trails) do
-    trail.brightness = trail.brightness * trail.decay
-    if trail.brightness < 0.5 then
-      state.trails[key] = nil
-    end
-  end
-
+-- Update the background animation layer
+function GridAnimations.update_background(background_layer)
   -- Draw all points with individual movement
-  for x = 1, 16 do
-    for y = 1, 8 do
+  for x = 1, GridConstants.GRID_WIDTH do
+    for y = 1, GridConstants.GRID_HEIGHT do
       local key = point_key(x, y)
       
       -- Initialize point if needed
@@ -73,7 +52,7 @@ local function update_points()
       -- Update phase
       point.phase = (point.phase + point.speed) % (2 * math.pi)
       
-      -- Calculate brightness with full range
+      -- Calculate brightness with full range (keeping floating point for smooth animation)
       local base = (math.sin(point.phase) + 1) / 2
       local brightness = base * BRIGHTNESS.high
       
@@ -82,13 +61,35 @@ local function update_points()
       local dimming = 0.15 + (center_distance * 0.85)  -- More contrast
       brightness = brightness * dimming
   
-      -- Add trail brightness if exists
-      if state.trails[key] then
-        brightness = math.max(brightness, state.trails[key].brightness)
+      -- Set LED brightness in background layer (floor only at final output)
+      GridLayers.set(background_layer, x, y, math.floor(brightness))
+    end
+  end
 end
 
-      -- Draw LED with more granular brightness
-      state.grid:led(x, y, math.floor(brightness))
+-- Update trail animations in the response layer
+function GridAnimations.update_trails(response_layer, trails)
+  -- Update and draw provided trails
+  for key, trail in pairs(trails) do
+    -- Get target brightness (LOW) and current difference from it
+    local target = GridConstants.BRIGHTNESS.LOW
+    local diff = trail.brightness - target
+    
+    -- Update brightness, moving towards LOW
+    trail.brightness = target + (diff * trail.decay)
+    
+    -- Calculate new difference after decay
+    local new_diff = trail.brightness - target
+    
+    -- Remove trail if we're very close to LOW brightness
+    if math.abs(new_diff) < 0.5 then
+      trails[key] = nil
+    else
+      -- Parse x,y from key
+      local x, y = string.match(key, "(%d+),(%d+)")
+      x, y = tonumber(x), tonumber(y)
+      -- Add trail brightness to response layer
+      GridLayers.set(response_layer, x, y, math.floor(trail.brightness))
     end
   end
 end
@@ -97,21 +98,12 @@ end
 -- Public API
 --------------------------------------------------
 
-function GridAnimations.init(grid_device)
-  state.grid = grid_device
+function GridAnimations.init()
   state.points = {}
-  state.trails = {}
-end
-
-function GridAnimations.update()
-  if state.grid then
-    update_points()
-  end
 end
 
 function GridAnimations.cleanup()
   state.points = {}
-  state.trails = {}
 end
 
 return GridAnimations 

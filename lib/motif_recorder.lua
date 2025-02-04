@@ -35,7 +35,8 @@ function MotifRecorder:on_note_on(event)
     type = "note_on",
     note = event.note,
     velocity = event.velocity,
-    pos = {x = event.x, y = event.y}
+    x = event.x,
+    y = event.y
   })
 end
 
@@ -51,7 +52,8 @@ function MotifRecorder:on_note_off(event)
     time = quantized_time,
     type = "note_off",
     note = event.note,
-    pos = {x = event.x, y = event.y}
+    x = event.x,
+    y = event.y
   })
 end
 

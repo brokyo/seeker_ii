@@ -3,24 +3,13 @@ local g = grid.connect()
 local theory = include("lib/theory_utils")
 local MotifRecorder = include("lib/motif_recorder")
 local GridAnimations = include("lib/grid_animations")
+local GridLayers = include("lib/grid_layers")
+local GridConstants = include("lib/grid_constants")
 
 local motif_recorder = MotifRecorder.new({})
+local layers = nil
 
 local Layout = {
-  -- Brightness levels
-  BRIGHT = 15,
-  ACTIVE = 12,
-  UI = 8,
-  MED = 4,
-  DIM = 2,
-  OFF = 0,
-
-  -- Button states
-  REC_ACTIVE = 15,    -- Bright red for recording
-  REC_INACTIVE = 2,   -- Very dim for inactive rec
-  PLAY_ACTIVE = 12,   -- Medium-bright for playing
-  PLAY_INACTIVE = 4,  -- Slightly brighter than rec inactive
-
   keyboard = {	
     upper_left_x = 6,
     upper_left_y = 2,
@@ -67,6 +56,7 @@ function GridUI.init()
     print("⚠ Grid Connect failed")
   end
   
+  layers = GridLayers.init()
   GridAnimations.init(g)
   clock.run(grid_redraw_clock)
 
@@ -121,13 +111,13 @@ end
 
 function draw_rec_buttons()
 	for _, button in ipairs(Layout.rec_buttons) do
-		local brightness = Layout.REC_INACTIVE
+		local brightness = GridConstants.BRIGHTNESS.CONTROLS.REC_INACTIVE
 		if motif_recorder.is_recording then
 			-- Create a pulsing effect when recording
-			local pulse = math.floor(math.sin(clock.get_beats() * 4) * 3 + Layout.REC_ACTIVE - 3)
+			local pulse = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.CONTROLS.REC_ACTIVE - 3)
 			brightness = pulse
 		end
-		g:led(button.x, button.y, brightness)
+		GridLayers.set(layers.ui, button.x, button.y, brightness)
 	end
 end
 
@@ -154,11 +144,11 @@ end
 function draw_lanes()
   local focused_lane = _seeker.ui_state.focused_lane
   for i, lane in ipairs(Layout.lanes) do
-    -- Use BRIGHT for focused lane, UI (60% brightness) for others
-    local brightness = (i == focused_lane) and Layout.BRIGHT or Layout.UI
+    -- Use FULL for focused lane, NORMAL for others
+    local brightness = (i == focused_lane) and GridConstants.BRIGHTNESS.UI.FOCUSED or GridConstants.BRIGHTNESS.UI.NORMAL
     for x = 0, lane.width - 1 do
       for y = 0, lane.height - 1 do
-        g:led(lane.x + x, lane.y + y, brightness)
+        GridLayers.set(layers.ui, lane.x + x, lane.y + y, brightness)
       end
     end
   end
@@ -166,12 +156,12 @@ end
 
 function draw_play_buttons()
 	for i, button in ipairs(Layout.play_buttons) do
-		local brightness = Layout.PLAY_INACTIVE
+		local brightness = GridConstants.BRIGHTNESS.CONTROLS.PLAY_INACTIVE
 		-- Each play button corresponds to a lane
 		if _seeker.lanes[i].playing then
-			brightness = Layout.PLAY_ACTIVE
+			brightness = GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE
 		end
-		g:led(button.x, button.y, brightness)
+		GridLayers.set(layers.ui, button.x, button.y, brightness)
 	end
 end
 
@@ -184,14 +174,30 @@ function draw_keyboard()
 			local note = theory.grid_to_note(grid_x, grid_y)
 			
 			-- Check if this note is a root note (same pitch class as root)
-			local brightness = Layout.MED
+			local brightness = GridConstants.BRIGHTNESS.LOW
 			if note and note % 12 == root then
-				brightness = Layout.BRIGHT
+				brightness = GridConstants.BRIGHTNESS.MEDIUM
 			end
 			
-			g:led(grid_x, grid_y, brightness)
+			GridLayers.set(layers.ui, grid_x, grid_y, brightness)
 		end
 	end	
+end
+
+function draw_motif_events()
+    -- Only draw events for the focused lane
+    local focused_lane = _seeker.ui_state.focused_lane
+    
+    -- Get active positions from lane
+    local active_positions = _seeker.lanes[focused_lane]:get_active_positions()
+  
+
+    -- Illuminate active positions
+    for _, pos in ipairs(active_positions) do
+        if is_in_keyboard(pos.x, pos.y) then
+            GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.UI.ACTIVE)
+        end
+    end
 end
 
 -- Returns lane_idx and stage_idx from grid coordinates
@@ -250,8 +256,7 @@ function note_on(x, y)
 		motif_recorder:on_note_on(event)
 	end
 	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_on(event)
-	GridAnimations.add_trail(x, y)  -- Add visual feedback for key press
-	print(string.format("♪ Note ON  | %s", event.note))
+	print(string.format("♪ ON  | M: %s, V: %s", event.note, event.velocity))
 end
 
 function note_off(x, y)
@@ -265,7 +270,7 @@ function note_off(x, y)
 		motif_recorder:on_note_off(event)
 	end
 	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_off(event)
-	print(string.format("♪ Note OFF | %s", event.note))
+	print(string.format("♪ OFF | M: %s", event.note))
 end
 
 function GridUI.key(x, y, z)
@@ -291,11 +296,26 @@ function GridUI.key(x, y, z)
 end
 
 function GridUI.redraw()
-	g:all(0)
-	GridAnimations.update()
+	-- Clear all layers
+	GridLayers.clear_layer(layers.background)
+	GridLayers.clear_layer(layers.ui)
+	GridLayers.clear_layer(layers.response)
+	
+	-- Update animations
+	GridAnimations.update_background(layers.background)
+	
+	-- Draw UI elements
 	draw_controls()
 	draw_keyboard()
-	g:refresh()
+	
+	-- Draw response elements
+	draw_motif_events()
+	-- Get trails from focused lane
+	local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
+	GridAnimations.update_trails(layers.response, focused_lane:get_trails())
+	
+	-- Apply composite to grid
+	GridLayers.apply_to_grid(g, layers)
 end	
 
 return GridUI

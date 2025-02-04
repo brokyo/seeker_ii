@@ -4,6 +4,7 @@
 --   2. Maintain working state for transformations
 
 local Transforms = include('lib/transforms')
+
 local Motif = {}
 Motif.__index = Motif
 
@@ -19,7 +20,7 @@ function Motif.new()
   -- Initialize working state (modified by transforms)
   m.events = {}   -- Current working events
   m.duration = 0  -- Current duration (may change with transforms)
-  
+
   return m
 end
 

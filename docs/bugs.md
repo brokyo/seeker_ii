@@ -1,6 +1,7 @@
 ### Current Session
-
-
+[x] Create `grid_layers.lua` structure that uses layer composition for brightness control
+[x] Create `grid_constants.lua` for storing share constants
+[] Unify live and playback mode logic
 
 ### Next Session
 [] Clean up `theory_utils.lua`

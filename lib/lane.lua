@@ -3,8 +3,14 @@ local params_manager_ii = include('lib/params_manager_ii')
 local Motif = include('lib/motif_ii')
 local forms = include('lib/forms')
 local transforms = include('lib/transforms')
+local GridConstants = include('lib/grid_constants')
 local Lane = {}
 Lane.__index = Lane
+
+  -- Helper for trail keys
+  local function trail_key(x, y)
+    return string.format("%d,%d", x, y)
+  end
 
 function Lane.new(config)
   local lane = {}
@@ -69,6 +75,12 @@ function Lane.new(config)
   
   -- Sync stage configuration with params
   lane:sync_all_stages_from_params()
+  
+  -- Add trails state
+  lane.trails = {}  -- Store fading note trails
+  
+  -- Add active notes tracking
+  lane.active_notes = {}  -- Track currently active notes with their grid positions
   
   print(string.format('⌸ LANE_%d Manifested', lane.id))
   return lane
@@ -164,7 +176,9 @@ function Lane:schedule_stage(stage_index, start_time)
         callback = function() 
           self:on_note_on({
             note = event.note,
-            velocity = event.velocity * self.volume
+            velocity = event.velocity * self.volume,
+            x = event.x,
+            y = event.y
           }) 
         end
       })
@@ -173,7 +187,9 @@ function Lane:schedule_stage(stage_index, start_time)
         time = absolute_time,
         callback = function() self:on_note_off({
           note = event.note,
-          velocity = 0
+          velocity = 0,
+          x = event.x,
+          y = event.y
         }) end
       })
     end
@@ -239,16 +255,23 @@ function Lane:on_note_on(event)
       velocity = event.velocity * self.volume
     })
   end
+
+  -- Track active note with grid position
+  if event.x and event.y then
+    local key = event.note
+    self.active_notes[key] = {
+      x = event.x,
+      y = event.y,
+      note = event.note,
+      velocity = event.velocity
+    }
+  end
 end
 
 ---------------------------------------------------------
 -- on_note_off(note)
 ---------------------------------------------------------
-function Lane:on_note_off(note)
-  local event = {
-    note = note,
-    velocity = 0
-  }
+function Lane:on_note_off(event)
   -- Stop MIDI if configured
   if self.midi.device then
     local device = midi.connect(self.midi.device)
@@ -262,6 +285,17 @@ function Lane:on_note_off(note)
       name = instrument,
       midi = event.note
     })
+  end
+
+  -- Add trail and remove from active notes
+  if event.x and event.y then
+    local key = trail_key(event.x, event.y)
+    self.trails[key] = {
+      brightness = GridConstants.BRIGHTNESS.HIGH,
+      decay = 0.95
+    }
+    -- Remove from active notes
+    self.active_notes[event.note] = nil
   end
 end
 
@@ -282,6 +316,10 @@ end
 
 -- Set motif data after recording
 function Lane:set_motif(recorded_data)
+  -- Add debug to verify events have positions
+  for _, evt in ipairs(recorded_data.events) do
+    print(string.format("Event: note=%d x=%s y=%s", evt.note, evt.x or "nil", evt.y or "nil"))
+  end
   self.motif:store_events(recorded_data)
   return self.motif
 end
@@ -359,6 +397,21 @@ function Lane:sync_all_stages_from_params()
     for i = 1, #self.stages do
         self:sync_stage_from_params(i)
     end
+end
+
+function Lane:get_active_positions()
+  local positions = {}
+  for _, note in pairs(self.active_notes) do
+    if note.x and note.y then
+      table.insert(positions, {x = note.x, y = note.y})
+    end
+  end
+  return positions
+end
+
+-- Add method to get trail positions and brightness
+function Lane:get_trails()
+  return self.trails
 end
 
 return Lane

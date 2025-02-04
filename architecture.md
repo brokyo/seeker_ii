@@ -42,10 +42,29 @@
 - Parameter system initialization and management
 - Provides centralized parameter access
 
+## GRID
 
-## TODO
+### `grid_constants.lua`
+- Single source of truth for grid-related constants (size, brightness, etc.)
+- Used across all grid-related modules
+
+### `grid_layers.lua`
+- Manages composite layering system for grid illumination
+- Builds a matrix of brightness values for each layer
+- Provides methods for setting and getting values in the matrix
+- Combines layers into a single output matrix
+
+### `grid_animations.lua`
+- Manages dynamic visual effects and background animation
+- Intentionally violates some of our development patterns as animation is a special case
 
 ### `grid_ii.lua`
+- Primary grid interface and event handler
+- Manages keyboard, transport, and lane controls
+- Routes grid interactions to appropriate systems
+- Coordinates visual feedback across layers
+
+## TODO
 
 ### `forms.lua`
 
