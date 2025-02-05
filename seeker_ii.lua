@@ -1,7 +1,7 @@
 -- seeker_ii.lua
 -- awakening.systems
 --
--- Open the next?
+-- Phosphene snap
 --------------------------------------------------
 
 engine.name = "MxSamples"
@@ -73,6 +73,7 @@ function init()
   -- Initialize lanes with default configurations
   for i = 1, _seeker.num_lanes do
     _seeker.lanes[i] = Lane.new({ id = i })
+    _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
 
   -- Create a test lane for debugging
@@ -94,6 +95,6 @@ function redraw()
 end
 
 function cleanup()
-  print("⌿ Phosphene snap")
+  print("⌿ Close the world")
   -- params:write()
 end

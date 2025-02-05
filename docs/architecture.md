@@ -75,12 +75,10 @@
 
 ### Adding Params to UI
 1. Add param to `params_manager_ii.lua`
-2. Update value in `params:add_group()` in `params-manager-ii.lua`
-3. table.insert param in `ScreenUI.draw_params_list()`
-4. Change `ScreenUI.change_selection` to include new param
-5. Update num_params in `ScreenUI.change_selection()`
-6. Add logic to `ScreenUI.modify_selected` to handle param value changes
-7. Add param to `Lane:sync_stage_from_params()` to ensure that Lane and UI are in sync
+2. Update integer in `params:add_group()` in `params-manager-ii.lua` to match new param count
+3. Add param and necessary metadata to `ScreenUI.sections_config`
+4. Add logic to `ScreenUI.get_param_value()` to handle new param
+5. Add logic to `ScreenUI.modify_selected` to handle param value changes
 
 ## External Dependencies
 

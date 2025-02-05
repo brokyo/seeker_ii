@@ -48,8 +48,25 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 3)
+    params:add_group("lane_" .. i, "LANE " .. i, 8)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
+
+    -- MIDI Device
+    local device_names = {"none"}
+    for _, dev in pairs(midi.devices) do
+      table.insert(device_names, dev.name)
+    end
+    params:add_option("lane_" .. i .. "_midi_device", "MIDI Device", device_names, 1)
+    params:set_action("lane_" .. i .. "_midi_device", function(value)
+      if value > 1 then
+        _seeker.lanes[i].midi_out_device = midi.connect(value)
+      end
+    end)
+
+    -- MIDI Channel
+    params:add_number("lane_" .. i .. "_midi_channel", "MIDI Channel", 0, 16, 0)
+
+    -- Volume
     params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.05, 1, ""))
     params:set_action("lane_" .. i .. "_volume", function(value)
       _seeker.lanes[i].volume = value

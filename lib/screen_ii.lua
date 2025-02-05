@@ -29,6 +29,8 @@ local sections_config = {
         name = "Lanes",
         params = {
             { id = "lane_selector", name = "Lane", is_selector = true },
+            { id = "midi_device", name = "MIDI Device" },
+            { id = "midi_channel", name = "MIDI Channel" },
             { id = "instrument", name = "Instrument" },
             { id = "volume", name = "Volume" },
             { id = "speed", name = "Speed" },
@@ -279,6 +281,10 @@ function get_param_value(param_info)
         return lane_idx
     elseif param_info.id == "stage_selector" then
         return stage_idx
+    elseif param_info.id == "midi_device" then
+        return params:string("lane_" .. lane_idx .. "_midi_device")
+    elseif param_info.id == "midi_channel" then
+        return params:get("lane_" .. lane_idx .. "_midi_channel")
     elseif param_info.id == "instrument" then
         return params:string("lane_" .. lane_idx .. "_instrument")
     elseif param_info.id == "volume" then
@@ -338,6 +344,10 @@ function modify_param(param_info, delta)
         _seeker.ui_state.focused_lane = util.clamp(lane_idx + delta, 1, 4)
     elseif param_info.id == "stage_selector" then
         _seeker.ui_state.focused_stage = util.clamp(stage_idx + delta, 1, 4)
+    elseif param_info.id == "midi_device" then
+        params:delta("lane_" .. lane_idx .. "_midi_device", delta)
+    elseif param_info.id == "midi_channel" then
+        params:delta("lane_" .. lane_idx .. "_midi_channel", delta)
     elseif param_info.id == "instrument" then
         params:delta("lane_" .. lane_idx .. "_instrument", delta)
     elseif param_info.id == "volume" then

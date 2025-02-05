@@ -21,11 +21,8 @@ function Lane.new(config)
   lane.playing = false
   lane.instrument = params:get("lane_" .. lane.id .. "_instrument")
   lane.volume = params:get("lane_" .. lane.id .. "_volume")
-  lane.midi = config.midi or {          -- Default MIDI settings
-    channel = nil,
-    device = nil  -- No MIDI device by default
-  }
   lane.speed = config.speed or 1.0
+  lane.midi_out_device = params:get("lane_" .. lane.id .. "_midi_device")
   
   -- Initialize with four default stages if none provided
   lane.stages = config.stages or {
@@ -241,9 +238,10 @@ end
 ---------------------------------------------------------
 function Lane:on_note_on(event)
   -- Play MIDI if configured
-  if self.midi.device then
-    local device = midi.connect(self.midi.device)
-    device:note_on(event.note, event.velocity * self.volume, self.midi.channel)
+  local device_idx = params:get("lane_" .. self.id .. "_midi_device")
+  local channel = params:get("lane_" .. self.id .. "_midi_channel")
+  if device_idx > 1 and channel > 0 then
+    self.midi_out_device:note_on(event.note, event.velocity * self.volume, channel)
   end
 
   -- Play engine using instrument from params
@@ -273,9 +271,10 @@ end
 ---------------------------------------------------------
 function Lane:on_note_off(event)
   -- Stop MIDI if configured
-  if self.midi.device then
-    local device = midi.connect(self.midi.device)
-    device:note_off(event.note, 0, self.midi.channel)
+  local device_idx = params:get("lane_" .. self.id .. "_midi_device")
+  local channel = params:get("lane_" .. self.id .. "_midi_channel")
+  if device_idx > 1 and channel > 0 then
+    self.midi_out_device:note_off(event.note, 0, channel)
   end
   
   -- Stop engine using instrument from params
