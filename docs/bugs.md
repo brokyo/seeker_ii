@@ -1,21 +1,20 @@
 ### Current Session
-[x] Create `grid_layers.lua` structure that uses layer composition for brightness control
-[x] Create `grid_constants.lua` for storing share constants
-[] Unify live and playback mode logic
+[] Change controls > one row for lanes; one row for stages
+[] Per-lane octave control
+[] Check velocity/pitter-patter approach to amplitude control
+
 
 ### Next Session
-[] Clean up `theory_utils.lua`
+[] MIDI
 [] Add duration
-[] Change illumination for active stage
-[] Base octave for each lane
-[] Return param preset saving
+[] Transforms should update x/y positions
+[] Multi-transform
 
 ### TODOs
-[] Rethinking process for drawing control panels on `grid_ii.lua`. Should think about stages and rec/play buttons as one unit.
+[] Clean up `theory_utils.lua`
+[] Return param preset saving
 [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
-[] Revisit `theory_utils.lua`
 [] Catch MIDI events (rather than grid) in `motif_recorder`
-[] Layer blending logic for illumination
 [] Pitch shift option for speed
 
 

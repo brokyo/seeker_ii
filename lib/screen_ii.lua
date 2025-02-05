@@ -386,4 +386,13 @@ function modify_transform_param(param_info, delta)
     end
 end
 
+function get_section_index(name)
+    for i, section in ipairs(sections_config) do
+        if section.name == name then
+            return i
+        end
+    end
+    return 1  -- default to first section if not found
+end
+
 return ScreenUI

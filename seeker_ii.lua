@@ -20,7 +20,8 @@ _seeker = {
   skeys = nil,           -- MxSamples instance
   ui_state = {
     focused_lane = 1,
-    focused_stage = 1
+    focused_stage = 1,
+    current_section = "Lanes"  -- Match the names in sections_config
   },
   conductor = conductor,
   lanes = {},            -- Collection of all lanes
@@ -28,6 +29,12 @@ _seeker = {
   num_lanes = 4,         -- Number of lanes to create (configurable)
   debug_lane = nil
 }
+
+_seeker.update_ui_state = function()
+  grid.redraw()
+  screen_ui.set_needs_redraw()
+end
+
 
 --------------------------------------------------
 -- Norns lifecycle functions

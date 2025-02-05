@@ -16,28 +16,10 @@ local Layout = {
     width = 6,
     height = 6
   },
-
-  rec_buttons = {
-	{x = 1, y = 3},
-	{x = 1, y = 6},
-	{x = 16, y = 3},
-	{x = 16, y = 6},
-  },
-
-  lanes = {
-    {x = 1, y = 2, width = 4, height = 1},
-    {x = 1, y = 7, width = 4, height = 1},
-    {x = 13, y = 2, width = 4, height = 1},
-    {x = 13, y = 7, width = 4, height = 1},
-  },
-
-  play_buttons = {
-	{x = 4, y = 3},
-	{x = 4, y = 6},
-	{x = 13, y = 3},
-	{x = 13, y = 6},
-  },
-
+  rec_button = {x = 1, y = 6},
+  play_button = {x = 2, y = 6},
+  lane_select = {x = 1, y = 7, width = 4},
+  stage_select = {x = 13, y = 7, width = 4},
   fps = 30
 }
 
@@ -75,50 +57,54 @@ function is_in_keyboard(x, y)
          y >= Layout.keyboard.upper_left_y and y < Layout.keyboard.upper_left_y + Layout.keyboard.height
 end
 
-function is_in_lane(x, y)
-  for _, lane in ipairs(Layout.lanes) do
-    if x >= lane.x and x < lane.x + lane.width and
-       y >= lane.y and y < lane.y + lane.height then
-      return true
-    end
-  end
-  return false
-end
-
 function is_rec_button(x, y)
-  for _, button in ipairs(Layout.rec_buttons) do
-    if x == button.x and y == button.y then
-      return true
-    end
-  end
-  return false
+  return x == Layout.rec_button.x and y == Layout.rec_button.y
 end
 
 function is_play_button(x, y)
-  for _, button in ipairs(Layout.play_buttons) do
-    if x == button.x and y == button.y then
-      return true
-    end
-  end
-  return false
+  return x == Layout.play_button.x and y == Layout.play_button.y
+end
+
+function is_in_lane_select(x, y)
+  return x >= Layout.lane_select.x and 
+         x < Layout.lane_select.x + Layout.lane_select.width and 
+         y == Layout.lane_select.y
+end
+
+function is_in_stage_select(x, y)
+  return x >= Layout.stage_select.x and 
+         x < Layout.stage_select.x + Layout.stage_select.width and 
+         y == Layout.stage_select.y
 end
 
 function draw_controls()
-	draw_rec_buttons()
-	draw_lanes()
-	draw_play_buttons()
-end
-
-function draw_rec_buttons()
-	for _, button in ipairs(Layout.rec_buttons) do
-		local brightness = GridConstants.BRIGHTNESS.CONTROLS.REC_INACTIVE
-		if motif_recorder.is_recording then
-			-- Create a pulsing effect when recording
-			local pulse = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.CONTROLS.REC_ACTIVE - 3)
-			brightness = pulse
-		end
-		GridLayers.set(layers.ui, button.x, button.y, brightness)
-	end
+  -- Rec button
+  local rec_brightness = motif_recorder.is_recording and 
+    math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.CONTROLS.REC_ACTIVE - 3) or 
+    GridConstants.BRIGHTNESS.CONTROLS.REC_INACTIVE
+  GridLayers.set(layers.ui, Layout.rec_button.x, Layout.rec_button.y, rec_brightness)
+  
+  -- Play button
+  local play_brightness = _seeker.lanes[_seeker.ui_state.focused_lane].playing and 
+    GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE or 
+    GridConstants.BRIGHTNESS.CONTROLS.PLAY_INACTIVE
+  GridLayers.set(layers.ui, Layout.play_button.x, Layout.play_button.y, play_brightness)
+  
+  -- Lane selector
+  for i = 0, Layout.lane_select.width - 1 do
+    local brightness = (i + 1 == _seeker.ui_state.focused_lane) and 
+      GridConstants.BRIGHTNESS.UI.FOCUSED or 
+      GridConstants.BRIGHTNESS.UI.NORMAL
+    GridLayers.set(layers.ui, Layout.lane_select.x + i, Layout.lane_select.y, brightness)
+  end
+  
+  -- Stage selector (could show active stages, playhead position)
+  for i = 0, Layout.stage_select.width - 1 do
+    local brightness = (i + 1 == _seeker.ui_state.focused_stage) and 
+      GridConstants.BRIGHTNESS.UI.FOCUSED or 
+      GridConstants.BRIGHTNESS.UI.NORMAL
+    GridLayers.set(layers.ui, Layout.stage_select.x + i, Layout.stage_select.y, brightness)
+  end
 end
 
 function toggle_rec_button(x, y)
@@ -131,37 +117,11 @@ function toggle_rec_button(x, y)
 	end
 end
 
-
--- TODO: This is wrong. We should just get the lane the play button is in.
 function toggle_play_button(x, y)
 	if _seeker.lanes[_seeker.ui_state.focused_lane].playing then
 		_seeker.lanes[_seeker.ui_state.focused_lane]:stop()
 	else
 		_seeker.lanes[_seeker.ui_state.focused_lane]:play()
-	end
-end
-
-function draw_lanes()
-  local focused_lane = _seeker.ui_state.focused_lane
-  for i, lane in ipairs(Layout.lanes) do
-    -- Use FULL for focused lane, NORMAL for others
-    local brightness = (i == focused_lane) and GridConstants.BRIGHTNESS.UI.FOCUSED or GridConstants.BRIGHTNESS.UI.NORMAL
-    for x = 0, lane.width - 1 do
-      for y = 0, lane.height - 1 do
-        GridLayers.set(layers.ui, lane.x + x, lane.y + y, brightness)
-      end
-    end
-  end
-end
-
-function draw_play_buttons()
-	for i, button in ipairs(Layout.play_buttons) do
-		local brightness = GridConstants.BRIGHTNESS.CONTROLS.PLAY_INACTIVE
-		-- Each play button corresponds to a lane
-		if _seeker.lanes[i].playing then
-			brightness = GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE
-		end
-		GridLayers.set(layers.ui, button.x, button.y, brightness)
 	end
 end
 
@@ -200,48 +160,20 @@ function draw_motif_events()
     end
 end
 
--- Returns lane_idx and stage_idx from grid coordinates
-function get_lane_and_stage(x, y)
-  -- Find which lane was pressed by checking if x and y fall within lane bounds
-  local lane_idx
-  local current_lane
-  for i, lane in ipairs(Layout.lanes) do
-    if x >= lane.x and x < lane.x + lane.width and
-       y >= lane.y and y < lane.y + lane.height then
-      lane_idx = i
-      current_lane = lane
-      break
-    end
-  end
-  
-  -- Calculate stage index (1-based) based on x position relative to the current lane
-  local stage_idx
-  if current_lane then
-    stage_idx = x - current_lane.x + 1
-  end
-  
-  -- Only return if both indices are valid
-  if lane_idx and stage_idx >= 1 and stage_idx <= current_lane.width then
-    local position = {
-      lane_idx = lane_idx,
-      stage_idx = stage_idx
-    }
-    return position
-  end
-  return nil
-end
-
 function focus_lane(x, y)
-  local position = get_lane_and_stage(x, y)
-  _seeker.ui_state.focused_lane = position.lane_idx
-  GridUI.redraw()
+  if is_in_lane_select(x, y) then
+    _seeker.ui_state.focused_lane = (x - Layout.lane_select.x) + 1
+    _seeker.ui_state.current_section = "Lanes"
+    _seeker.update_ui_state()
+  end
 end
 
 function focus_stage(x, y)
-  local position = get_lane_and_stage(x, y)
-  _seeker.ui_state.focused_lane = position.lane_idx
-  _seeker.ui_state.focused_stage = position.stage_idx
-  GridUI.redraw()
+  if is_in_stage_select(x, y) then
+    _seeker.ui_state.focused_stage = (x - Layout.stage_select.x) + 1
+    _seeker.ui_state.current_section = "Stages"
+    _seeker.update_ui_state()
+  end
 end
 
 function note_on(x, y)
@@ -255,8 +187,8 @@ function note_on(x, y)
 	if motif_recorder.is_recording then	
 		motif_recorder:on_note_on(event)
 	end
+
 	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_on(event)
-	print(string.format("♪ ON  | M: %s, V: %s", event.note, event.velocity))
 end
 
 function note_off(x, y)
@@ -270,28 +202,31 @@ function note_off(x, y)
 		motif_recorder:on_note_off(event)
 	end
 	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_off(event)
-	print(string.format("♪ OFF | M: %s", event.note))
 end
 
 function GridUI.key(x, y, z)
   if is_in_keyboard(x, y) then
-	if z == 1 then
-		note_on(x, y)
-	else
-		note_off(x, y)
-	end
-  elseif is_in_lane(x, y) then
-	if z == 1 then
-		focus_stage(x, y)
-	end
+    if z == 1 then
+      note_on(x, y)
+    else
+      note_off(x, y)
+    end
+  elseif is_in_lane_select(x, y) then
+    if z == 1 then
+      focus_lane(x, y)
+    end
+  elseif is_in_stage_select(x, y) then
+    if z == 1 then
+      focus_stage(x, y)
+    end
   elseif is_rec_button(x, y) then
-	if z == 1 then
-		toggle_rec_button(x, y)
-	end
+    if z == 1 then
+      toggle_rec_button(x, y)
+    end
   elseif is_play_button(x, y) then
-	if z == 1 then
-		toggle_play_button(x, y)
-	end
+    if z == 1 then
+      toggle_play_button(x, y)
+    end
   end
 end
 
