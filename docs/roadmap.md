@@ -4,10 +4,10 @@
 [] Add Per-lane octave control and associated params
 
 ### Long List
-[] Stage UI should pull current transform params
-[] Start recording on first note played rather than rec button press
 [] Play non-focused lanes grid illumination in background with dimmer light 
 [] Ensure keyboard is generating correct note structure
+[] Stage UI should pull current transform params
+[] Some kind of bpm visualization or click track for recording
 [] Add duration controls to motif (and maybe individual stages?)
 [] Transforms should update x/y positions
 [] Multi-transform
