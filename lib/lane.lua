@@ -318,7 +318,6 @@ end
 function Lane:set_motif(recorded_data)
   -- Add debug to verify events have positions
   for _, evt in ipairs(recorded_data.events) do
-    print(string.format("Event: note=%d x=%s y=%s", evt.note, evt.x or "nil", evt.y or "nil"))
   end
   self.motif:store_events(recorded_data)
   return self.motif
@@ -407,11 +406,6 @@ function Lane:get_active_positions()
     end
   end
   return positions
-end
-
--- Add method to get trail positions and brightness
-function Lane:get_trails()
-  return self.trails
 end
 
 return Lane

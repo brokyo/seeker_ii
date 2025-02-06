@@ -26,9 +26,10 @@ local GridConstants = {
 
     -- UI-specific levels
     UI = {
-      FOCUSED = 15,
-      ACTIVE = 12,
-      NORMAL = 8,
+      NORMAL = 4,
+      FOCUSED = 12,
+      ACTIVE = 15,
+      UNFOCUSED = 8,
       INACTIVE = 4
     },
     -- Control states

@@ -1,12 +1,12 @@
 ### Current Session
 
 ### Next Session
+- [] Play non-focused lanes grid illumination in background with dimmer light 
 
 ### Long List
-- [] Play non-focused lanes grid illumination in background with dimmer light 
-- [] Stage UI should pull current transform params
 - [] Some kind of bpm visualization or click track for recording
 - [] Add duration controls to motif (and maybe individual stages?)
+- [] Stage UI should pull current transform params
 - [] Transforms should update x/y positions
 - [] Multi-transform
 - [] Add param preset saving
