@@ -34,6 +34,7 @@ local sections_config = {
             { id = "octave", name = "Octave" },
             { id = "volume", name = "Volume" },
             { id = "speed", name = "Speed" },
+            { id = "custom_duration", name = "Duration" },
         },
     },
     {
@@ -301,6 +302,8 @@ function get_param_value(param_info)
         return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops")
     elseif param_info.id == "transform" then
         return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform")
+    elseif param_info.id == "custom_duration" then
+        return params:string("lane_" .. lane_idx .. "_custom_duration")
     else
         return params:string(param_info.id) or ""
     end
@@ -366,6 +369,8 @@ function modify_param(param_info, delta)
         params:delta("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops", delta)
     elseif param_info.id == "transform" then
         params:delta("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transform", delta)
+    elseif param_info.id == "custom_duration" then
+        params:delta("lane_" .. lane_idx .. "_custom_duration", delta)
     else
         params:delta(param_info.id, delta)
     end

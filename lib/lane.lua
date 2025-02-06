@@ -143,6 +143,11 @@ end
 -- schedule_stage(stage_index, start_time)
 --   Creates the series of note events for a single pass of that stage.
 --   Handles looping within the stage before moving to next stage.
+--   
+--   Key timing concepts:
+--   - base_duration: The effective duration (custom or recorded)
+--   - speed_adjusted_duration: Duration modified by lane's speed
+--   - loop_offset: Time offset for current loop iteration
 ---------------------------------------------------------
 function Lane:schedule_stage(stage_index, start_time)
   print(string.format('〰 Scheduling L_%s S_%s (loop %d/%d)', 
@@ -160,50 +165,72 @@ function Lane:schedule_stage(stage_index, start_time)
     end
   end
 
-  -- Calculate base duration and grid-aligned timing
-  local base_duration = self.motif.duration
+  -- Calculate timing parameters for this stage
+  local base_duration = self.motif:get_duration()
   local speed_adjusted_duration = base_duration / self.speed
-  
-  -- Calculate loop offset using grid-aligned duration
   local loop_offset = stage.current_loop * speed_adjusted_duration
+
+  -- Track which notes we've started playing to ensure proper note-off handling
+  local active_notes = {}
   
-  -- Schedule all events with grid-aligned timing
+  -- Process all events in the motif
   for _, event in ipairs(self.motif.events) do
-    -- Calculate proportional position within the pattern (0 to 1)
-    local event_position = event.time / base_duration
+    local event_time = event.time
     
-    -- Apply speed ratio while maintaining grid alignment
-    local speed_adjusted_time = event_position * speed_adjusted_duration
-    
-    local absolute_time = start_time + speed_adjusted_time + loop_offset
-    
-    if event.type == "note_on" and not stage.mute then
-      _seeker.conductor.insert_event({
-        time = absolute_time,
-        callback = function() 
-          self:on_note_on({
-            note = event.note,
-            velocity = event.velocity * self.volume,
-            x = event.x,
-            y = event.y
-          }) 
+    if event.type == "note_on" then
+      -- Only start notes that fall within the duration window
+      if event_time <= base_duration then
+        local speed_adjusted_time = event_time / self.speed
+        local absolute_time = start_time + speed_adjusted_time + loop_offset
+        
+        if not stage.mute then
+          _seeker.conductor.insert_event({
+            time = absolute_time,
+            callback = function() 
+              self:on_note_on({
+                note = event.note,
+                velocity = event.velocity * self.volume,
+                x = event.x,
+                y = event.y
+              }) 
+            end
+          })
+          -- Track that we started this note so we know to stop it
+          active_notes[event.note] = true
         end
-      })
-    elseif event.type == "note_off" and not stage.mute then
-      _seeker.conductor.insert_event({
-        time = absolute_time,
-        callback = function() self:on_note_off({
-          note = event.note,
-          velocity = 0,
-          x = event.x,
-          y = event.y
-        }) end
-      })
+      end
+    elseif event.type == "note_off" then
+      -- Only process note-offs for notes we actually started
+      if active_notes[event.note] then
+        local speed_adjusted_time = event_time / self.speed
+        
+        -- If note would end after duration window, end it at window boundary
+        if event_time > base_duration then
+          speed_adjusted_time = base_duration / self.speed
+        end
+        
+        local absolute_time = start_time + speed_adjusted_time + loop_offset
+        
+        if not stage.mute then
+          _seeker.conductor.insert_event({
+            time = absolute_time,
+            callback = function() 
+              self:on_note_off({
+                note = event.note,
+                velocity = 0,
+                x = event.x,
+                y = event.y
+              }) 
+            end
+          })
+        end
+      end
     end
   end
-
-  -- Schedule end of current loop using grid-aligned duration
+  
+  -- Schedule the next loop or stage transition
   local end_time = start_time + speed_adjusted_duration + loop_offset
+  
   _seeker.conductor.insert_event({
     time = end_time,
     callback = function()
@@ -212,7 +239,7 @@ function Lane:schedule_stage(stage_index, start_time)
       if stage.current_loop < (stage.loops - 1) then
         -- Continue to next loop of current stage
         stage.current_loop = stage.current_loop + 1
-        self:schedule_stage(stage_index, start_time)
+        self:schedule_stage(stage_index, end_time)  -- Use end_time as the start of next loop
       else
         -- Move to next stage
         stage.current_loop = 0  -- Reset loop counter

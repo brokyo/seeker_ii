@@ -20,6 +20,7 @@ function Motif.new()
   -- Initialize working state (modified by transforms)
   m.events = {}   -- Current working events
   m.duration = 0  -- Current duration (may change with transforms)
+  m.custom_duration = nil  -- When set, overrides the normal duration
 
   return m
 end
@@ -66,6 +67,17 @@ function Motif:reset_to_genesis()
     table.insert(self.events, self:_copy_event(evt))
   end
   self.duration = self.genesis.duration
+  -- Note: We intentionally don't reset custom_duration here
+  -- as it should persist across resets
+end
+
+-- Get the current effective duration
+function Motif:get_duration()
+  -- Custom duration takes precedence if set
+  if self.custom_duration then
+    return self.custom_duration
+  end
+  return self.duration
 end
 
 -- Apply a transform to the working state
@@ -93,6 +105,7 @@ function Motif:clear()
   -- Clear working state
   self.events = {}
   self.duration = 0
+  self.custom_duration = nil  -- Also clear custom duration
 end
 
 return Motif 

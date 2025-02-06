@@ -45,7 +45,7 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 9)
+    params:add_group("lane_" .. i, "LANE " .. i, 10)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Octave selection for this lane
@@ -81,6 +81,16 @@ function init_lane_params()
       if _seeker.lanes[i] then
         _seeker.lanes[i].speed = speed_ratios[value]
       end
+    end)
+
+    -- Add custom duration parameter
+    params:add_number("lane_" .. i .. "_custom_duration", "Duration (beats)", 0, 16, 0)
+    params:set_action("lane_" .. i .. "_custom_duration", function(value)
+        if value == 0 then
+          _seeker.lanes[i].motif.custom_duration = nil
+        else
+          _seeker.lanes[i].motif.custom_duration = value
+        end
     end)
 
     -- See forms.lua for stage configuration

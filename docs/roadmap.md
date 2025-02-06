@@ -1,9 +1,8 @@
 ### Current Session
 
 ### Next Session
-- [] `Lane` speed does not affect timeline as expected. Smaller numbers are faster, bigger are slower.
 - [] Some kind of bpm visualization or click track for recording
-- [] Add duration controls to motif (and maybe individual stages?)
+- [] Add button to sync all lanes
 
 ### Long List
 - [] Multi-transform
@@ -48,3 +47,5 @@
 - [x] Ensure keyboard is generating correct note structure
 - [x] Add Per-lane octave control and associated params
 - [x] Play non-focused lanes grid illumination in background with dimmer light 
+- [x] Make Lane playback speed controllable per-lane
+- [x] Add duration controls to motif
