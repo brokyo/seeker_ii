@@ -1,14 +1,14 @@
 ### Current Session
 
 ### Next Session
-- [] Play non-focused lanes grid illumination in background with dimmer light 
-
-### Long List
+- [] `Lane` speed does not affect timeline as expected. Smaller numbers are faster, bigger are slower.
 - [] Some kind of bpm visualization or click track for recording
 - [] Add duration controls to motif (and maybe individual stages?)
-- [] Stage UI should pull current transform params
-- [] Transforms should update x/y positions
+
+### Long List
 - [] Multi-transform
+- [] Transforms should update x/y positions
+- [] Stage UI should pull current transform params
 - [] Add param preset saving
 - [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 - [] Catch MIDI events (rather than grid) in `motif_recorder`
@@ -16,7 +16,6 @@
 
 
 ### Bugs
-- [] `Lane` speed does not affect timeline as expected. Smaller numbers are faster, bigger are slower.
 
 ### Open Questions
 - [] Mx Samples don't seem to always support velocity. Check velocity/pitter-patter approach and why it has "amplitude" control.
@@ -48,3 +47,4 @@
 - [x] Revisit `theory_utils.lua`; it is one of the final holdovers from the old codebase.
 - [x] Ensure keyboard is generating correct note structure
 - [x] Add Per-lane octave control and associated params
+- [x] Play non-focused lanes grid illumination in background with dimmer light 

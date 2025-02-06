@@ -71,7 +71,17 @@ function init_lane_params()
     params:set_action("lane_" .. i .. "_volume", function(value)
       _seeker.lanes[i].volume = value
     end)
-    params:add_control("lane_" .. i .. "_speed", "Speed", controlspec.new(0.1, 4, 'lin', 0.05, 1, ""))
+    
+    -- Replace continuous speed with musical ratios
+    params:add_option("lane_" .. i .. "_speed", "Speed", {
+      "1/4x", "1/3x", "1/2x", "2/3x", "1x", "3/2x", "2x", "3x", "4x"
+    }, 5)
+    params:set_action("lane_" .. i .. "_speed", function(value)
+      local speed_ratios = {0.25, 0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3.0, 4.0}
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].speed = speed_ratios[value]
+      end
+    end)
 
     -- See forms.lua for stage configuration
     for j = 1, 4 do

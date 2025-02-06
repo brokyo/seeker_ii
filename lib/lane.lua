@@ -160,12 +160,22 @@ function Lane:schedule_stage(stage_index, start_time)
     end
   end
 
-  -- Calculate loop offset for timing
-  local loop_offset = (stage.current_loop * self.motif.duration * self.speed)
+  -- Calculate base duration and grid-aligned timing
+  local base_duration = self.motif.duration
+  local speed_adjusted_duration = base_duration / self.speed
   
-  -- Schedule all events with loop offset
+  -- Calculate loop offset using grid-aligned duration
+  local loop_offset = stage.current_loop * speed_adjusted_duration
+  
+  -- Schedule all events with grid-aligned timing
   for _, event in ipairs(self.motif.events) do
-    local absolute_time = start_time + (event.time * self.speed) + loop_offset
+    -- Calculate proportional position within the pattern (0 to 1)
+    local event_position = event.time / base_duration
+    
+    -- Apply speed ratio while maintaining grid alignment
+    local speed_adjusted_time = event_position * speed_adjusted_duration
+    
+    local absolute_time = start_time + speed_adjusted_time + loop_offset
     
     if event.type == "note_on" and not stage.mute then
       _seeker.conductor.insert_event({
@@ -192,8 +202,8 @@ function Lane:schedule_stage(stage_index, start_time)
     end
   end
 
-  -- Schedule end of current loop
-  local end_time = start_time + (self.motif.duration * self.speed) + loop_offset
+  -- Schedule end of current loop using grid-aligned duration
+  local end_time = start_time + speed_adjusted_duration + loop_offset
   _seeker.conductor.insert_event({
     time = end_time,
     callback = function()

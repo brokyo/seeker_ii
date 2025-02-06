@@ -292,7 +292,7 @@ function get_param_value(param_info)
     elseif param_info.id == "volume" then
         return string.format("%.2f", params:get("lane_" .. lane_idx .. "_volume"))
     elseif param_info.id == "speed" then
-        return string.format("%.2f", params:get("lane_" .. lane_idx .. "_speed"))
+        return params:string("lane_" .. lane_idx .. "_speed")
     elseif param_info.id == "mute" then
         return params:string("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute")
     elseif param_info.id == "reset_motif" then
