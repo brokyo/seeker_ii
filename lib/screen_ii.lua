@@ -16,7 +16,6 @@ local sections_config = {
         params = {
             { id = "root_note", name = "Root Note" },
             { id = "scale_type", name = "Scale" },
-            { id = "octave", name = "Octave" },
         },
     },
     {
@@ -32,6 +31,7 @@ local sections_config = {
             { id = "midi_device", name = "MIDI Device" },
             { id = "midi_channel", name = "MIDI Channel" },
             { id = "instrument", name = "Instrument" },
+            { id = "octave", name = "Octave" },
             { id = "volume", name = "Volume" },
             { id = "speed", name = "Speed" },
         },
@@ -287,6 +287,8 @@ function get_param_value(param_info)
         return params:get("lane_" .. lane_idx .. "_midi_channel")
     elseif param_info.id == "instrument" then
         return params:string("lane_" .. lane_idx .. "_instrument")
+    elseif param_info.id == "octave" then
+        return params:get("lane_" .. lane_idx .. "_octave")
     elseif param_info.id == "volume" then
         return string.format("%.2f", params:get("lane_" .. lane_idx .. "_volume"))
     elseif param_info.id == "speed" then
@@ -350,6 +352,8 @@ function modify_param(param_info, delta)
         params:delta("lane_" .. lane_idx .. "_midi_channel", delta)
     elseif param_info.id == "instrument" then
         params:delta("lane_" .. lane_idx .. "_instrument", delta)
+    elseif param_info.id == "octave" then
+        params:delta("lane_" .. lane_idx .. "_octave", delta)
     elseif param_info.id == "volume" then
         params:delta("lane_" .. lane_idx .. "_volume", delta)
     elseif param_info.id == "speed" then

@@ -264,6 +264,7 @@ function Lane:on_note_on(event)
       velocity = event.velocity
     }
   end
+
 end
 
 ---------------------------------------------------------

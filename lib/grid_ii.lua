@@ -126,22 +126,23 @@ function toggle_play_button(x, y)
 end
 
 function draw_keyboard()
-	local root = params:get("root_note") - 1  -- Convert to 0-based
-	for x = 0, Layout.keyboard.width - 1 do
-		for y = 0, Layout.keyboard.height - 1 do
-			local grid_x = Layout.keyboard.upper_left_x + x
-			local grid_y = Layout.keyboard.upper_left_y + y
-			local note = theory.grid_to_note(grid_x, grid_y)
-			
-			-- Check if this note is a root note (same pitch class as root)
-			local brightness = GridConstants.BRIGHTNESS.LOW
-			if note and note % 12 == root then
-				brightness = GridConstants.BRIGHTNESS.MEDIUM
-			end
-			
-			GridLayers.set(layers.ui, grid_x, grid_y, brightness)
-		end
-	end	
+  local root = params:get("root_note") - 1  -- Convert to 0-based
+  local octave = params:get("lane_" .. _seeker.ui_state.focused_lane .. "_octave")
+  for x = 0, Layout.keyboard.width - 1 do
+    for y = 0, Layout.keyboard.height - 1 do
+      local grid_x = Layout.keyboard.upper_left_x + x
+      local grid_y = Layout.keyboard.upper_left_y + y
+      local note = theory.grid_to_note(grid_x, grid_y, octave)
+      
+      -- Check if this note is a root note (same pitch class as root)
+      local brightness = GridConstants.BRIGHTNESS.LOW
+      if note and note % 12 == root then
+        brightness = GridConstants.BRIGHTNESS.MEDIUM
+      end
+      
+      GridLayers.set(layers.ui, grid_x, grid_y, brightness)
+    end
+  end 
 end
 
 function draw_motif_events()
@@ -177,31 +178,35 @@ function focus_stage(x, y)
 end
 
 function note_on(x, y)
-	local event = {
-		x = x,
-		y = y,
-		note = theory.grid_to_note(x, y),
-		velocity = 127
-	}
+  local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
+  local octave = params:get("lane_" .. _seeker.ui_state.focused_lane .. "_octave")
+  local event = {
+    x = x,
+    y = y,
+    note = theory.grid_to_note(x, y, octave),
+    velocity = 127
+  }
 
-	if motif_recorder.is_recording then	
-		motif_recorder:on_note_on(event)
-	end
+  if motif_recorder.is_recording then  
+    motif_recorder:on_note_on(event)
+  end
 
-	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_on(event)
+  focused_lane:on_note_on(event)
 end
 
 function note_off(x, y)
-	local event = {
-		x = x,
-		y = y,
-		note = theory.grid_to_note(x, y),
-		velocity = 0
-	}
-	if motif_recorder.is_recording then	
-		motif_recorder:on_note_off(event)
-	end
-	_seeker.lanes[_seeker.ui_state.focused_lane]:on_note_off(event)
+  local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
+  local octave = params:get("lane_" .. _seeker.ui_state.focused_lane .. "_octave")
+  local event = {
+    x = x,
+    y = y,
+    note = theory.grid_to_note(x, y, octave),
+    velocity = 0
+  }
+  if motif_recorder.is_recording then  
+    motif_recorder:on_note_off(event)
+  end
+  focused_lane:on_note_off(event)
 end
 
 function GridUI.key(x, y, z)

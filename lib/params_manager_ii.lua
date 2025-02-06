@@ -17,7 +17,7 @@ function params_manager_ii.get_instrument_list()
 end
 
 function init_musical_params()
-  params:add_group("MUSICAL", 3)
+  params:add_group("MUSICAL", 2)
 
   -- Add root note selection
   params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 1)
@@ -34,9 +34,6 @@ function init_musical_params()
   params:set_action("scale_type", function(value)
     theory.print_keyboard_layout()
   end)
-
-  -- Add octave selection
-  params:add_option("octave", "Octave", {1,2,3,4,5,6,7}, 3)
 end
 
 function init_recording_params()
@@ -48,8 +45,11 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 8)
+    params:add_group("lane_" .. i, "LANE " .. i, 9)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
+
+    -- Octave selection for this lane
+    params:add_number("lane_" .. i .. "_octave", "Octave", 1, 7, 3)
 
     -- MIDI Device
     local device_names = {"none"}
