@@ -9,7 +9,10 @@ MotifRecorder.__index = MotifRecorder
 function MotifRecorder.new()
   local m = setmetatable({}, MotifRecorder)
   m.is_recording = false
-  m.events = {}  -- Stores all note_on/note_off events
+  m.is_counting_in = false
+  m.count_in_beats_left = 0
+  m.events = {}
+  m.start_time = 0
   return m
 end
 
@@ -59,11 +62,34 @@ end
 
 --- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
-function MotifRecorder:start_recording()  
-  self.is_recording = true
+function MotifRecorder:start_recording()
+  local count_in_bars = params:get("count_in_bars")
+  
+  -- If count-in is disabled (0 bars), start recording immediately
+  if count_in_bars == 0 then
+    self.is_recording = true
+    self.start_time = clock.get_beats()
+    self.events = {}
+    return
+  end
+  
+  -- Start with count-in
+  self.is_counting_in = true
+  self.count_in_beats_left = count_in_bars * 4  -- 4 beats per bar
   self.events = {}
-  self.start_time = clock.get_beats()
-  print("⧉ Recording started")
+  
+  -- Start the count-in clock
+  clock.run(function()
+    while self.count_in_beats_left > 0 do
+      clock.sync(1)  -- Sync to next quarter note
+      self.count_in_beats_left = self.count_in_beats_left - 1
+      if self.count_in_beats_left == 0 then
+        self.is_counting_in = false
+        self.is_recording = true
+        self.start_time = clock.get_beats()
+      end
+    end
+  end)
 end
 
 --- Stop recording and return the event table

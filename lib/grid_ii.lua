@@ -258,6 +258,9 @@ function GridUI.redraw()
 	local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
 	GridAnimations.update_trails(layers.response, focused_lane.trails)
 	
+	-- Draw keyboard outline when recording or counting in
+	GridAnimations.update_keyboard_outline(layers.response, Layout, motif_recorder)
+	
 	-- Apply composite to grid
 	GridLayers.apply_to_grid(g, layers)
 end	

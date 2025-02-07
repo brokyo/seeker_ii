@@ -20,7 +20,7 @@ function init_musical_params()
   params:add_group("MUSICAL", 2)
 
   -- Add root note selection
-  params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 1)
+  params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 6)
   params:set_action("root_note", function(value)
     theory.print_keyboard_layout()
   end)
@@ -30,16 +30,34 @@ function init_musical_params()
   for i = 1, #musicutil.SCALES do
     scale_names[i] = musicutil.SCALES[i].name
   end
-  params:add_option("scale_type", "Scale", scale_names, 1)
+  params:add_option("scale_type", "Scale", scale_names, 8)
   params:set_action("scale_type", function(value)
     theory.print_keyboard_layout()
   end)
 end
 
 function init_recording_params()
-  params:add_group("recording", "RECORDING", 1)
+  params:add_group("recording", "RECORDING", 5)
+  
+  -- Quantization settings
   params:add_option("quantize_division", "Quantize Division", 
-    {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 7) 
+    {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 6)
+    
+  -- Count-in settings
+  params:add_number("count_in_bars", "Count-in Bars", 0, 4, 1, 
+    function(param) return (param:get() == 0) and "off" or param:get() end)
+  
+  -- Metronome settings
+  -- Store actual division values (how many pulses per bar)
+  params:add_option("metronome_subdivisions", "Metronome Subdivisions",
+    {8, 4, 2, 1}, 2,  -- Default to quarter notes (4 pulses per bar)
+    function(param) 
+      local div = param:get()
+      if div == 1 then return "bar"
+      else return "1/" .. div .. " bar" end
+    end)
+  
+  params:add_number("metronome_brightness", "Metronome Brightness", 1, 15, 8)
 end
 
 function init_lane_params()
