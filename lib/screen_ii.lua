@@ -16,15 +16,14 @@ local sections_config = {
         params = {
             { id = "root_note", name = "Root Note" },
             { id = "scale_type", name = "Scale" },
+            { id = "sync_lanes", name = "Sync Lanes" }
         },
     },
     {
         name = "Recording",
         params = {
             { id = "quantize_division", name = "Quantize" },
-            { id = "count_in_bars", name = "Count-in Bars" },
-            { id = "metronome_subdivisions", name = "Metro Subdiv" },
-            { id = "metronome_brightness", name = "Metro Bright" }
+            { id = "count_in_bars", name = "Count-in Bars" }
         },
     },
     {
@@ -288,10 +287,6 @@ function get_param_value(param_info)
     elseif param_info.id == "count_in_bars" then
         local value = params:get("count_in_bars")
         return value == 0 and "off" or value
-    elseif param_info.id == "metronome_subdivisions" then
-        return params:string("metronome_subdivisions")
-    elseif param_info.id == "metronome_brightness" then
-        return params:get("metronome_brightness")
     elseif param_info.id == "midi_device" then
         return params:string("lane_" .. lane_idx .. "_midi_device")
     elseif param_info.id == "midi_channel" then

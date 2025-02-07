@@ -37,7 +37,7 @@ function init_musical_params()
 end
 
 function init_recording_params()
-  params:add_group("recording", "RECORDING", 5)
+  params:add_group("recording", "RECORDING", 3)  -- Increased group size by 1
   
   -- Quantization settings
   params:add_option("quantize_division", "Quantize Division", 
@@ -47,17 +47,19 @@ function init_recording_params()
   params:add_number("count_in_bars", "Count-in Bars", 0, 4, 1, 
     function(param) return (param:get() == 0) and "off" or param:get() end)
   
-  -- Metronome settings
-  -- Store actual division values (how many pulses per bar)
-  params:add_option("metronome_subdivisions", "Metronome Subdivisions",
-    {8, 4, 2, 1}, 2,  -- Default to quarter notes (4 pulses per bar)
-    function(param) 
-      local div = param:get()
-      if div == 1 then return "bar"
-      else return "1/" .. div .. " bar" end
-    end)
-  
-  params:add_number("metronome_brightness", "Metronome Brightness", 1, 15, 8)
+  -- Add sync lanes control
+  params:add_binary("sync_lanes", "Sync Lanes", "toggle", 0)
+  params:set_action("sync_lanes", function(value)
+    if value == 1 then
+      _seeker.conductor.sync_lanes()
+      -- Auto-reset the toggle
+      clock.run(function()
+        clock.sleep(0.2)
+        params:set("sync_lanes", 0)
+        _seeker.update_ui_state()
+      end)
+    end
+  end)
 end
 
 function init_lane_params()

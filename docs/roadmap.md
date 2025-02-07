@@ -1,17 +1,24 @@
 ### Current Session
+- [x] Some kind of bpm visualization or click track for recording
+- [x] Add button to sync all lanes
 
 ### Next Session
-- [] Some kind of bpm visualization or click track for recording
-- [] Add button to sync all lanes
+- [] Metro subdivision UI doesn't match math
+- [] Add param preset saving
+- [] All stages default to reset motif
+- [] Reverse transform may break duration
 
 ### Long List
+- [] Optional crow output
+- [] Add param preset saving
 - [] Multi-transform
 - [] Transforms should update x/y positions
 - [] Stage UI should pull current transform params
-- [] Add param preset saving
 - [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 - [] Catch MIDI events (rather than grid) in `motif_recorder`
-- [] Pitch shift option for speed
+- [] Universal timeline view
+- [] Motif view
+- [] Overdubbing
 
 
 ### Bugs

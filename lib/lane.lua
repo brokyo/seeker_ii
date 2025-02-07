@@ -22,6 +22,7 @@ function Lane.new(config)
   lane.instrument = params:get("lane_" .. lane.id .. "_instrument")
   lane.volume = params:get("lane_" .. lane.id .. "_volume")
   lane.speed = config.speed or 1.0
+  lane.current_stage_index = 1 
   lane.midi_out_device = params:get("lane_" .. lane.id .. "_midi_device")
   
   -- Initialize with four default stages if none provided
@@ -68,7 +69,6 @@ function Lane.new(config)
     stage.current_loop = 0
   end
 
-  lane.current_stage_index = 1 
   
   -- Sync stage configuration with params
   lane:sync_all_stages_from_params()
@@ -117,6 +117,7 @@ function Lane:stop()
   for _, stage in ipairs(self.stages) do
     stage.current_loop = 0
   end
+  self.current_stage_index = 1
   print(string.format('֎ Stopped LANE_%d', self.id))
 end
 
@@ -164,6 +165,9 @@ function Lane:schedule_stage(stage_index, start_time)
       return
     end
   end
+
+  -- Print debug info about events
+  self:debug_print_events()
 
   -- Calculate timing parameters for this stage
   local base_duration = self.motif:get_duration()
@@ -443,6 +447,29 @@ function Lane:get_active_positions()
     end
   end
   return positions
+end
+
+-- Temporary debug function for event timing
+function Lane:debug_print_events()
+  print("\n⎆ ═══ Event Debug Info ═══")
+  print(string.format("⌸ Lane %d  ◈  Stage %d  ◈  Loop %d/%d", 
+    self.id, 
+    self.current_stage_index,
+    self.stages[self.current_stage_index].current_loop + 1,
+    self.stages[self.current_stage_index].loops))
+  print("∿ Base duration: " .. self.motif:get_duration())
+  print("∿ Speed adjusted: " .. self.motif:get_duration() / self.speed)
+  print("\n♫ Events:")
+  for i, event in ipairs(self.motif.events) do
+    print(string.format("  %d │ %s │ note: %s │ time: %.3f │ pos: (%s,%s)", 
+      i,
+      event.type == "note_on" and "▶" or "⏹",
+      event.note or "∅",
+      event.time or 0,
+      event.x or "∅",
+      event.y or "∅"))
+  end
+  print("⎆ ═════════════════════\n")
 end
 
 return Lane

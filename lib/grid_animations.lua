@@ -108,60 +108,28 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
   -- Activate outline animation if not already active
   state.keyboard_outline.active = true
   
-  local brightness = 0
-  local max_brightness = params:get("metronome_brightness")
+  local max_brightness = GridConstants.BRIGHTNESS.LOW
+  local current_beat = clock.get_beats()
+  local beat_in_bar = current_beat % 4
+  local beat_phase = current_beat % 1  -- Phase within current quarter note
   
-  if motif_recorder.is_counting_in then
-    -- During count-in, flash the entire bar brightly on each remaining beat
-    local beats_left = motif_recorder.count_in_beats_left
-    local current_beat = clock.get_beats()
-    local beat_phase = current_beat % 1
-    
-    -- Flash brightly at start of each beat
-    if beat_phase < 0.1 then
+  -- Base brightness calculation - flash on quarter notes
+  local brightness = 0
+  if beat_phase < 0.1 then
+    -- Flash on quarter note
+    brightness = math.floor(max_brightness * 0.8)
+    -- Extra bright on downbeat (start of bar)
+    if beat_in_bar < 0.1 then
       brightness = math.floor(max_brightness)
-    else
-      -- Show dimmer pulses between beats
-      brightness = math.floor(max_brightness * 0.4 * (1 - beat_phase))
-    end
-    
-    -- Display remaining beats in corners
-    if beats_left > 0 then
-      -- Light up corner LEDs to show remaining beats
-      local corner_brightness = math.floor(max_brightness * 0.8)
-      local x1 = layout.keyboard.upper_left_x - 1
-      local y1 = layout.keyboard.upper_left_y - 1
-      local x2 = x1 + layout.keyboard.width + 1
-      local y2 = y1 + layout.keyboard.height + 1
-      
-      -- Light up corners based on beats remaining
-      if beats_left >= 1 then GridLayers.set(response_layer, x1, y1, corner_brightness) end
-      if beats_left >= 2 then GridLayers.set(response_layer, x2, y1, corner_brightness) end
-      if beats_left >= 3 then GridLayers.set(response_layer, x1, y2, corner_brightness) end
-      if beats_left >= 4 then GridLayers.set(response_layer, x2, y2, corner_brightness) end
     end
   else
-    -- During recording, use the metronome pulse
-    local current_beat = clock.get_beats()
-    local beat_in_bar = current_beat % 4
-    
-    -- Get subdivision setting and calculate phase within the bar
-    local pulses_per_bar = params:get("metronome_subdivisions")  -- 1 = whole bar, 2 = half bar, 4 = quarter notes, etc
-    local bar_phase = beat_in_bar / 4  -- Normalize to 0-1 range within the bar
-    local sub_phase = (current_beat * pulses_per_bar / 4) % 1  -- Phase within current subdivision
-    
-    -- Calculate brightness based on position in subdivision
-    if sub_phase < 0.1 then
-      -- On main subdivision
-      brightness = math.floor(max_brightness * 0.8)
-      -- Always flash brighter on downbeat
-      if beat_in_bar < 0.1 then
-        brightness = math.floor(max_brightness)
-      end
-    else
-      -- Decay between subdivisions
-      brightness = math.floor(max_brightness * 0.4 * math.exp(-4 * sub_phase))
-    end
+    -- Gentler decay between beats
+    brightness = math.floor(max_brightness * 0.6 * math.sqrt(1 - beat_phase))
+  end
+
+  -- Boost brightness during count-in
+  if motif_recorder.is_counting_in then
+    brightness = math.floor(brightness * 1.2)  -- 20% brighter during count-in
   end
   
   -- Draw outline rectangle

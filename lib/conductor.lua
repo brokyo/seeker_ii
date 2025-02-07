@@ -32,6 +32,32 @@ function Conductor.process_events()
   end
 end
 
+function Conductor.clear_events()
+  Conductor.events = {}
+end
+
+-- Synchronize all lanes by stopping and restarting them
+function Conductor.sync_lanes()
+  -- Stop all lanes
+  for _, lane in pairs(_seeker.lanes) do
+    lane:stop()
+  end
+  
+  -- Clear all past events
+  Conductor.clear_events()
+  
+  -- Schedule restart at next beat
+  local next_beat = math.ceil(clock.get_beats())
+  Conductor.insert_event({
+    time = next_beat,
+    callback = function()
+      for _, lane in pairs(_seeker.lanes) do
+        lane:play()
+      end
+    end
+  })
+end
+
 -- Debug function to print all scheduled events
 function Conductor.print_events()
   print("\n=== Conductor Events ===")
