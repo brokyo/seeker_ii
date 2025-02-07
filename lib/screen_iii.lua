@@ -4,6 +4,7 @@ local RecordingSection = include('lib/ui/sections/recording_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
+local TransformSection = include('lib/ui/sections/transform_section')
 
 local ScreenUI = {}
 
@@ -21,7 +22,8 @@ function ScreenUI.init()
     RECORDING = RecordingSection.new(),
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
-    MOTIF = MotifSection.new()
+    MOTIF = MotifSection.new(),
+    TRANSFORM = TransformSection.new()
   }
   
   -- Start redraw clock - always redraw for smooth animation
@@ -63,6 +65,7 @@ end
 function ScreenUI.redraw()
   local section = ScreenUI.get_active_section()
   if section then
+    section:update()  -- Ensure section is updated before drawing
     section:draw()
   end
 end

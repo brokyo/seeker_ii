@@ -22,7 +22,8 @@ local Layout = {
   tuning_button = {x = 1, y = 8},
   lane_select = {x = 1, y = 7, width = 4},
   stage_select = {x = 13, y = 7, width = 4},
-  fps = 30
+  fps = 30,
+  transform_chain = {x = 13, y = 6, width = 4},
 }
 
 function GridUI.init()
@@ -87,6 +88,12 @@ function is_in_stage_select(x, y)
          y == Layout.stage_select.y
 end
 
+function is_in_transform_chain(x, y)
+  return x >= Layout.transform_chain.x and 
+         x < Layout.transform_chain.x + Layout.transform_chain.width and 
+         y == Layout.transform_chain.y
+end
+
 function draw_controls()
   -- Rec button
   local rec_brightness = motif_recorder.is_recording and 
@@ -126,6 +133,30 @@ function draw_controls()
       GridConstants.BRIGHTNESS.UI.FOCUSED or 
       GridConstants.BRIGHTNESS.UI.NORMAL
     GridLayers.set(layers.ui, Layout.stage_select.x + i, Layout.stage_select.y, brightness)
+  end
+
+  -- Transform chain indicators
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  
+  for i = 0, Layout.transform_chain.width - 1 do
+    local stage_idx = i + 1
+    local x = Layout.transform_chain.x + i
+    local stage = lane.stages[stage_idx]
+    
+    -- Only show focused brightness if we're in the transform section
+    -- and this is the focused stage
+    local is_transform_focused = _seeker.ui_state.get_current_section() == "TRANSFORM" and 
+                               stage_idx == _seeker.ui_state.get_focused_stage()
+    
+    -- Set brightness based on focus state only, ensure we use valid brightness values
+    local brightness = 0  -- Default to off
+    if is_transform_focused then
+      brightness = GridConstants.BRIGHTNESS.UI.FOCUSED or 15  -- Fallback to max brightness
+    else
+      brightness = GridConstants.BRIGHTNESS.UI.LOW or 2  -- Fallback to dim
+    end
+    
+    GridLayers.set(layers.ui, x, Layout.transform_chain.y, brightness)
   end
 end
 
@@ -272,6 +303,12 @@ function GridUI.key(x, y, z)
   elseif is_tuning_button(x, y) then
     if z == 1 then
       _seeker.ui_state.set_current_section("TUNING")
+    end
+  elseif is_in_transform_chain(x, y) then
+    if z == 1 then
+      local stage_idx = (x - Layout.transform_chain.x) + 1
+      _seeker.ui_state.set_focused_stage(stage_idx)
+      _seeker.ui_state.set_current_section("TRANSFORM")
     end
   end
 end

@@ -56,32 +56,48 @@ forms.arrangements = {
                 mute = false,
                 reset_motif = false,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 2,
                 mute = false,
                 reset_motif = false,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 3,
                 mute = false,
                 reset_motif = false,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 4,
                 mute = false,
                 reset_motif = false,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             }
         }
     },
@@ -96,32 +112,48 @@ forms.arrangements = {
                 mute = false,
                 reset_motif = false,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 12, probability = 1.0 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 12, probability = 1.0 }
+                    }
+                }
             },
             {
                 id = 2,
                 mute = false,
                 reset_motif = true,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = -12, probability = 1.0 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = -12, probability = 1.0 }
+                    }
+                }
             },
             {
                 id = 3,
                 mute = false,
                 reset_motif = true,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 12, probability = 1.0 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 12, probability = 1.0 }
+                    }
+                }
             },
             {
                 id = 4,
                 mute = false,
                 reset_motif = true,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = -12, probability = 1.0 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = -12, probability = 1.0 }
+                    }
+                }
             }
         }
     },
@@ -136,32 +168,48 @@ forms.arrangements = {
                 mute = false,
                 reset_motif = false,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 2,
                 mute = false,
                 reset_motif = true,
                 loops = 1,
-                transform_name = "reverse",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "reverse",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 3,
                 mute = false,
                 reset_motif = true,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 4,
                 mute = false,
                 reset_motif = true,
                 loops = 1,
-                transform_name = "reverse",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "reverse",
+                        config = {}
+                    }
+                }
             }
         }
     },
@@ -176,32 +224,48 @@ forms.arrangements = {
                 mute = false,
                 reset_motif = false,
                 loops = 2,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 2,
                 mute = false,
                 reset_motif = true,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 7, probability = 0.7 }  -- Perfect fifth
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 7, probability = 0.7 }
+                    }
+                }
             },
             {
                 id = 3,
                 mute = false,
                 reset_motif = true,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 4, probability = 0.5 }  -- Major third
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 4, probability = 0.5 }
+                    }
+                }
             },
             {
                 id = 4,
                 mute = false,
                 reset_motif = true,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 12, probability = 0.3 }  -- Octave
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 12, probability = 0.3 }
+                    }
+                }
             }
         }
     },
@@ -216,32 +280,48 @@ forms.arrangements = {
                 mute = false,
                 reset_motif = true,
                 loops = 1,
-                transform_name = "noop",
-                transform_config = {}
+                transforms = {
+                    {
+                        name = "noop",
+                        config = {}
+                    }
+                }
             },
             {
                 id = 2,
                 mute = false,
                 reset_motif = false,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 12, probability = 0.3 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 12, probability = 0.3 }
+                    }
+                }
             },
             {
                 id = 3,
                 mute = false,
                 reset_motif = false,
                 loops = 2,
-                transform_name = "harmonize",
-                transform_config = { interval = 7, probability = 0.5 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 7, probability = 0.5 }
+                    }
+                }
             },
             {
                 id = 4,
                 mute = false,
                 reset_motif = false,
                 loops = 3,
-                transform_name = "harmonize",
-                transform_config = { interval = 4, probability = 0.7 }
+                transforms = {
+                    {
+                        name = "harmonize",
+                        config = { interval = 4, probability = 0.7 }
+                    }
+                }
             }
         }
     }

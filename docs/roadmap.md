@@ -1,9 +1,9 @@
 ### Current Session
-- [] Motif section — quantize values
+- [x] Transform chains
 - [] Optional crow output
 
 ### Next Session
-- [] Transform chains
+- [] Motif section — quantize values
 
 ### Long List
 - [] Add param preset saving

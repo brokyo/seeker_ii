@@ -32,32 +32,80 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 1,
-      transform_name = "noop",
-      transform_config = {}
+      transforms = {
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        }
+      }
     },
     {
       id = 2,
       mute = false,
       reset_motif = false,
       loops = 1,
-      transform_name = "noop",
-      transform_config = {}
+      transforms = {
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        }
+      }
     },
     {
       id = 3,
       mute = false,
       reset_motif = false,
       loops = 1,
-      transform_name = "noop",
-      transform_config = {}
+      transforms = {
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        }
+      }
     },
     {
       id = 4,
       mute = false,
       reset_motif = false,
       loops = 1,
-      transform_name = "noop",
-      transform_config = {}
+      transforms = {
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        },
+        {
+          name = "noop",
+          config = {}
+        }
+      }
     }
   }
   
@@ -69,7 +117,6 @@ function Lane.new(config)
     stage.current_loop = 0
   end
 
-  
   -- Sync stage configuration with params
   lane:sync_all_stages_from_params()
   
@@ -132,9 +179,9 @@ function Lane:prepare_stage(stage)
     self.motif:reset_to_genesis()
   end
   
-  -- Apply stage transform if it has one
-  if stage.transform_name then
-    self.motif:apply_transform(stage.transform_name, stage.transform_config)
+  -- Apply each transform in sequence
+  for _, transform in ipairs(stage.transforms) do
+    self.motif:apply_transform(transform.name, transform.config)
   end
   
   return true
@@ -402,20 +449,23 @@ function Lane:update_stage_param(stage_num, param_name, value)
 end
 
 ---------------------------------------------------------
--- change_stage_transform(stage_index, transform_name)
+-- change_stage_transform(stage_index, transform_index, transform_name)
 ---------------------------------------------------------
-function Lane:change_stage_transform(lane_idx, stage_idx, transform_name)
+function Lane:change_stage_transform(lane_idx, stage_idx, transform_idx, transform_name)
   local stage = self.stages[stage_idx]
   local transform = transforms.available[transform_name]
 
-  -- Update the stage's transform name
-  stage.transform_name = transform_name
-  
-  -- Reset transform config with defaults
-  stage.transform_config = {}
+  -- Initialize config with defaults
+  local transform_config = {}
   for param_name, param_spec in pairs(transform.params) do
-    stage.transform_config[param_name] = param_spec.default
+    transform_config[param_name] = param_spec.default
   end
+
+  -- Update the transform at the specified index
+  stage.transforms[transform_idx] = {
+    name = transform_name,
+    config = transform_config
+  }
 end
 
 ---------------------------------------------------------

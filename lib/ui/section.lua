@@ -29,42 +29,39 @@ end
 
 function Section:draw_blinkenlights()
   local lights = {}
+  local FOOTER_CENTER_Y = 56  -- Footer spans 52-64, so center is at 58
+  local START_Y = FOOTER_CENTER_Y - 3  -- Center the 4 rows (3px up from center)
   
-  -- Lane status lights (90-102)
-  for i = 1, 4 do
-    local lane = _seeker.lanes[i]
-    local is_focused = i == _seeker.ui_state.get_focused_lane()
+  -- Lane status lights (right-aligned, starting at 106)
+  for lane_idx = 1, 4 do
+    local lane = _seeker.lanes[lane_idx]
+    local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
+    
+    -- Lane activity light
     table.insert(lights, {
-      x = 86 + (i * 4),
+      x = 106,
+      y = START_Y + (lane_idx * 2),
       is_active = lane.playing,
       speed = 0,  -- No pulse when playing, just steady light
       base_level = is_focused and 4 or 2  -- Brighter when focused, still visible when playing
     })
-  end
-  
-  -- Stage status lights (106-118)
-  for i = 1, 4 do
-    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-    local stage = lane.stages[i]
-    local is_focused = i == _seeker.ui_state.get_focused_stage()
-    local is_active = stage and stage.active_notes and #stage.active_notes > 0
     
-    table.insert(lights, {
-      x = 106 + (i * 4),  -- Start at 106 to leave room for all 4 stages before BPM light
-      is_active = is_active,  -- Flash on note events
-      speed = 8,  -- Quick flash for note events
-      base_level = is_focused and 2 or 1
-    })
+    -- Stage status lights for this lane
+    for stage_idx = 1, 4 do
+      local stage = lane.stages[stage_idx]
+      local is_stage_focused = is_focused and stage_idx == _seeker.ui_state.get_focused_stage()
+      local is_stage_active = lane.playing and stage_idx == lane.current_stage_index  -- Only active if lane is playing
+      local has_active_notes = stage and stage.active_notes and #stage.active_notes > 0
+      
+      table.insert(lights, {
+        x = 110 + ((stage_idx - 1) * 4),
+        y = START_Y + (lane_idx * 2),
+        is_active = is_stage_active or has_active_notes,
+        speed = has_active_notes and 8 or 0,  -- Quick flash for note events
+        base_level = is_stage_focused and 4 or (is_stage_active and 2 or 1)
+      })
+    end
   end
-  
-  -- BPM indicator (124)
-  local bpm_phase = (util.time() * params:get("clock_tempo") / 60) % 1
-  table.insert(lights, {
-    x = 124,
-    is_active = true,
-    speed = 0,
-    base_level = bpm_phase < 0.1 and 4 or 1  -- Simple on/off at quarter note
-  })
   
   -- Draw all lights
   for _, light in ipairs(lights) do
@@ -86,7 +83,7 @@ function Section:draw_blinkenlights()
     end
     
     screen.level(brightness)
-    screen.circle(light.x, 58, 1.5)
+    screen.circle(light.x, light.y, 1.25)  -- Slightly smaller circles to fit better
     screen.fill()
   end
 end
@@ -108,27 +105,53 @@ end
 
 -- Draw parameter list with more horizontal space
 function Section:draw_params(start_y)
-  for i, param in ipairs(self.params) do
-    local y = start_y + (i * 10)
-    local is_selected = self.state.selected_index == i
-    
-    -- Simple selection highlight
-    if is_selected then
-      screen.level(2)
-      screen.rect(0, y - 6, 128, 8)
-      screen.fill()
+  local FOOTER_Y = 52
+  local ITEM_HEIGHT = 10
+  local visible_height = FOOTER_Y - start_y
+  local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
+  
+  -- Ensure scroll offset stays in valid range
+  local max_scroll = math.max(0, #self.params - max_visible_items)
+  self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
+  
+  -- Draw visible parameters
+  for i = 1, math.min(max_visible_items, #self.params) do
+    local param_idx = i + self.state.scroll_offset
+    local param = self.params[param_idx]
+    if param then
+      local y = start_y + (i * ITEM_HEIGHT)
+      local is_selected = self.state.selected_index == param_idx
+      
+      -- Simple selection highlight
+      if is_selected then
+        screen.level(2)
+        screen.rect(0, y - 6, 128, 8)
+        screen.fill()
+      end
+      
+      -- Parameter name
+      screen.level(is_selected and 15 or 4)
+      screen.move(2, y)
+      screen.text(param.name)
+      
+      -- Parameter value (right-aligned)
+      local value = self:get_param_value(param)
+      local value_x = 120 - screen.text_extents(value)
+      screen.move(value_x, y)
+      screen.text(value)
     end
-    
-    -- Parameter name
-    screen.level(is_selected and 15 or 4)
-    screen.move(2, y)
-    screen.text(param.name)
-    
-    -- Parameter value (right-aligned)
-    local value = self:get_param_value(param)
-    local value_x = 124 - screen.text_extents(value)
-    screen.move(value_x, y)
-    screen.text(value)
+  end
+  
+  -- Draw scroll indicators if needed
+  if self.state.scroll_offset > 0 then
+    screen.level(4)
+    screen.move(123, start_y + 4)
+    screen.text("▲")
+  end
+  if self.state.scroll_offset < max_scroll then
+    screen.level(4)
+    screen.move(123, FOOTER_Y - 4)
+    screen.text("▼")
   end
 end
 
@@ -151,11 +174,31 @@ end
 function Section:handle_enc_default(n, d)
   if n == 2 then
     -- Navigate parameters
-    self.state.selected_index = util.clamp(
+    local new_index = util.clamp(
       self.state.selected_index + d,
       0,
       #self.params
     )
+    
+    -- Update selected index
+    self.state.selected_index = new_index
+    
+    -- Adjust scroll offset to keep selection visible
+    local FOOTER_Y = 52
+    local ITEM_HEIGHT = 10
+    local visible_height = FOOTER_Y
+    local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
+    
+    -- Scroll up if selection is above visible area
+    if new_index <= self.state.scroll_offset then
+      self.state.scroll_offset = new_index - 1
+    end
+    
+    -- Scroll down if selection is below visible area
+    if new_index > self.state.scroll_offset + max_visible_items then
+      self.state.scroll_offset = new_index - max_visible_items
+    end
+    
   elseif n == 3 and self.state.selected_index > 0 then
     -- Modify selected parameter
     local param = self.params[self.state.selected_index]

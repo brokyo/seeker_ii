@@ -136,7 +136,7 @@ function init_lane_params()
         end
       end)
 
-      -- Add transform selection
+      -- Add transform selection for each slot
       local transform_names = {}
       for name, _ in pairs(transforms.available) do
         table.insert(transform_names, name)
