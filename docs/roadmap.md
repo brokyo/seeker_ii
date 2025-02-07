@@ -1,20 +1,14 @@
 ### Current Session
-- [x] Transform chains
-- [] Optional crow output
 
 ### Next Session
-- [] Motif section — quantize values
+- [] Motif section — quantize values (or maybe this is in a transform?)
 
 ### Long List
 - [] Add param preset saving
-- [] Add param preset saving
 - [] Reverse transform may break duration
 - [] Transforms should update x/y positions
-- [] Stage UI should pull current transform params
 - [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 - [] Catch MIDI events (rather than grid) in `motif_recorder`
-- [] Universal timeline view
-- [] Motif view
 - [] Overdubbing
 
 
@@ -55,3 +49,7 @@
 - [x] Add duration controls to motif
 - [x] All stages default to reset motif
 - [x] UI Overhaul
+- [x] Transform chains
+- [x] Optional crow output
+- [x] Universal timeline view
+- [x] Motif view

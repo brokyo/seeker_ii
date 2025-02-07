@@ -65,7 +65,7 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 10)
+    params:add_group("lane_" .. i, "LANE " .. i, 14) -- Increased group size for crow params
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Octave selection for this lane
@@ -85,6 +85,10 @@ function init_lane_params()
 
     -- MIDI Channel
     params:add_number("lane_" .. i .. "_midi_channel", "MIDI Channel", 0, 16, 0)
+
+    -- Crow parameters
+    params:add_number("lane_" .. i .. "_crow_gate", "Crow Gate Out", 0, 4, 0)
+    params:add_number("lane_" .. i .. "_crow_cv", "Crow CV Out", 0, 4, 0)
 
     -- Volume
     params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.05, 1, ""))

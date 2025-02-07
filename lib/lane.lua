@@ -342,6 +342,16 @@ function Lane:on_note_on(event)
     })
   end
 
+  -- Send crow output if enabled
+  local gate_out = params:get("lane_" .. self.id .. "_crow_gate")
+  local cv_out = params:get("lane_" .. self.id .. "_crow_cv")
+  if gate_out > 0 and cv_out > 0 then
+    -- Set CV output (V/oct)
+    crow.output[cv_out].volts = (event.note - 60) / 12
+    -- Set gate high
+    crow.output[gate_out].volts = 5
+  end
+
   -- Track active note with grid position
   if event.x and event.y then
     local key = event.note
@@ -352,7 +362,6 @@ function Lane:on_note_on(event)
       velocity = event.velocity
     }
   end
-
 end
 
 ---------------------------------------------------------
@@ -373,6 +382,21 @@ function Lane:on_note_off(event)
       name = instrument,
       midi = event.note
     })
+  end
+
+  -- Stop crow output if enabled
+  local gate_out = params:get("lane_" .. self.id .. "_crow_gate")
+  if gate_out > 0 then
+    -- Only set gate low if this was the last active note
+    local has_active_notes = false
+    for _ in pairs(self.active_notes) do
+      has_active_notes = true
+      break
+    end
+    if not has_active_notes then
+      -- Set gate low
+      crow.output[gate_out].volts = 0
+    end
   end
 
   -- Add trail and remove from active notes
