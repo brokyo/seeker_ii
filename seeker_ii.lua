@@ -2,7 +2,6 @@
 -- awakening.systems
 --
 -- Phosphene snap
---------------------------------------------------
 
 engine.name = "MxSamples"
 
@@ -12,29 +11,22 @@ local Lane = include("lib/lane")  -- Lane management
 local conductor = include("lib/conductor")
 local lane_archetype = include("lib/lane_archetype")  -- Lane configuration templates
 local grid = include("lib/grid_ii")
-local screen_ui = include("/lib/screen_ii")
+local screen_ui = include("/lib/screen_iii")
 local params_manager = include('/lib/params_manager_ii')
+local ui_state = include('/lib/ui_state_ii')
 
 -- Global state
 _seeker = {
-  skeys = nil,           -- MxSamples instance
-  ui_state = {
-    focused_lane = 1,
-    focused_stage = 1,
-    current_section = "Lanes"  -- Match the names in sections_config
-  },
+  skeys = nil,
   conductor = conductor,
   lanes = {},            -- Collection of all lanes
   active_lane = 1,       -- Currently selected lane
   num_lanes = 4,         -- Number of lanes to create (configurable)
-  debug_lane = nil
+  debug_lane = nil,
+  ui_state = nil,        -- Will hold UIState instance
+  screen_ui = nil,       -- Will hold ScreenUI instance
+  grid_ui = nil          -- Will hold GridUI instance
 }
-
-_seeker.update_ui_state = function()
-  grid.redraw()
-  screen_ui.set_needs_redraw()
-end
-
 
 --------------------------------------------------
 -- Norns lifecycle functions
@@ -45,19 +37,16 @@ function init()
   -- Core audio setup
   _seeker.skeys = mxsamples:new()
     
-  -- Initialize parameter system first
+  -- Initialize UI state first and store instance
+  _seeker.ui_state = ui_state.init()
+  
+  -- Initialize parameter system
   params_manager.init_params()
-  -- params:read()
-  -- params:bang()
   
   -- Initialize UI components in sequence
-  grid.init()
-  screen_ui.init()
+  _seeker.screen_ui = screen_ui.init()
+  _seeker.grid_ui = grid.init()
  
-  -- Set initial tempo
-  -- TODO: Get this from params
-  params:set("clock_tempo", 120)
-    
   -- Start the clock
   -- Check the event queue every 1/64 to see if there are any new events
   clock.run(function()
@@ -76,19 +65,15 @@ function init()
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
 
-  -- Create a test lane for debugging
-  -- _seeker.debug_lane = lane_archetype.create_debug_lane()
-  -- _seeker.debug_lane:play()
-
   print('⌬ Seeker Online')
 end
 
 function key(n, z)
-  screen_ui.key(n, z)
+  _seeker.screen_ui.key(n, z)
 end
 
 function enc(n, d)
-  screen_ui.enc(n, d)
+  _seeker.screen_ui.enc(n, d)
 end
 
 function redraw()

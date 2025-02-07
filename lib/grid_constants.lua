@@ -35,7 +35,7 @@ local GridConstants = {
     -- Control states
     CONTROLS = {
       REC_ACTIVE = 15,    -- Bright red for recording
-      REC_INACTIVE = 2,   -- Very dim for inactive rec
+      REC_INACTIVE = 4,   -- Very dim for inactive rec
       PLAY_ACTIVE = 12,   -- Medium-bright for playing
       PLAY_INACTIVE = 4   -- Slightly brighter than rec inactive
     }

@@ -16,8 +16,9 @@ local Layout = {
     width = 6,
     height = 6
   },
-  rec_button = {x = 1, y = 6},
-  play_button = {x = 2, y = 6},
+  motif_button = {x = 1, y = 6},
+  rec_button = {x = 3, y = 6},
+  play_button = {x = 4, y = 6},
   lane_select = {x = 1, y = 7, width = 4},
   stage_select = {x = 13, y = 7, width = 4},
   fps = 30
@@ -25,7 +26,7 @@ local Layout = {
 
 function GridUI.init()
   if g.device then    
-	print("⌇ Grid Connected")
+	print("⌇ Grid connected")
 	g.key = function(x, y, z)
       GridUI.key(x, y, z)
     end
@@ -65,6 +66,10 @@ function is_play_button(x, y)
   return x == Layout.play_button.x and y == Layout.play_button.y
 end
 
+function is_motif_button(x, y)
+  return x == Layout.motif_button.x and y == Layout.motif_button.y
+end
+
 function is_in_lane_select(x, y)
   return x >= Layout.lane_select.x and 
          x < Layout.lane_select.x + Layout.lane_select.width and 
@@ -85,22 +90,28 @@ function draw_controls()
   GridLayers.set(layers.ui, Layout.rec_button.x, Layout.rec_button.y, rec_brightness)
   
   -- Play button
-  local play_brightness = _seeker.lanes[_seeker.ui_state.focused_lane].playing and 
+  local play_brightness = _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing and 
     GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE or 
     GridConstants.BRIGHTNESS.CONTROLS.PLAY_INACTIVE
   GridLayers.set(layers.ui, Layout.play_button.x, Layout.play_button.y, play_brightness)
   
+  -- Motif button
+  local motif_brightness = (_seeker.ui_state.get_current_section() == "MOTIF") and 
+    GridConstants.BRIGHTNESS.UI.FOCUSED or 
+    GridConstants.BRIGHTNESS.UI.NORMAL
+  GridLayers.set(layers.ui, Layout.motif_button.x, Layout.motif_button.y, motif_brightness)
+ 
   -- Lane selector
   for i = 0, Layout.lane_select.width - 1 do
-    local brightness = (i + 1 == _seeker.ui_state.focused_lane) and 
+    local brightness = (i + 1 == _seeker.ui_state.get_focused_lane()) and 
       GridConstants.BRIGHTNESS.UI.FOCUSED or 
       GridConstants.BRIGHTNESS.UI.NORMAL
     GridLayers.set(layers.ui, Layout.lane_select.x + i, Layout.lane_select.y, brightness)
   end
   
-  -- Stage selector (could show active stages, playhead position)
+  -- Stage selector
   for i = 0, Layout.stage_select.width - 1 do
-    local brightness = (i + 1 == _seeker.ui_state.focused_stage) and 
+    local brightness = (i + 1 == _seeker.ui_state.get_focused_stage()) and 
       GridConstants.BRIGHTNESS.UI.FOCUSED or 
       GridConstants.BRIGHTNESS.UI.NORMAL
     GridLayers.set(layers.ui, Layout.stage_select.x + i, Layout.stage_select.y, brightness)
@@ -108,26 +119,28 @@ function draw_controls()
 end
 
 function toggle_rec_button(x, y)
-	if not motif_recorder.is_recording then
-		motif_recorder:start_recording()
-	else
-		local focused_lane = _seeker.ui_state.focused_lane
-		local motif = motif_recorder:stop_recording()
-		_seeker.lanes[focused_lane]:set_motif(motif)
-	end
+  if not motif_recorder.is_recording then
+    -- Switch to recording section when starting to record
+    _seeker.ui_state.set_current_section("RECORDING")
+    motif_recorder:start_recording()
+  else
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local motif = motif_recorder:stop_recording()
+    _seeker.lanes[focused_lane]:set_motif(motif)
+  end
 end
 
 function toggle_play_button(x, y)
-	if _seeker.lanes[_seeker.ui_state.focused_lane].playing then
-		_seeker.lanes[_seeker.ui_state.focused_lane]:stop()
+	if _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing then
+		_seeker.lanes[_seeker.ui_state.get_focused_lane()]:stop()
 	else
-		_seeker.lanes[_seeker.ui_state.focused_lane]:play()
+		_seeker.lanes[_seeker.ui_state.get_focused_lane()]:play()
 	end
 end
 
 function draw_keyboard()
   local root = params:get("root_note") - 1  -- Convert to 0-based
-  local octave = params:get("lane_" .. _seeker.ui_state.focused_lane .. "_octave")
+  local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
   for x = 0, Layout.keyboard.width - 1 do
     for y = 0, Layout.keyboard.height - 1 do
       local grid_x = Layout.keyboard.upper_left_x + x
@@ -152,7 +165,7 @@ function draw_motif_events()
         local active_positions = lane:get_active_positions()
         
         -- Determine brightness based on whether this is the focused lane
-        local brightness = (lane_id == _seeker.ui_state.focused_lane) and 
+        local brightness = (lane_id == _seeker.ui_state.get_focused_lane()) and 
             GridConstants.BRIGHTNESS.UI.ACTIVE or 
             GridConstants.BRIGHTNESS.UI.UNFOCUSED
 
@@ -165,25 +178,30 @@ function draw_motif_events()
     end
 end
 
+function focus_motif()
+  _seeker.ui_state.set_current_section("MOTIF")
+  _seeker.screen_ui.sections.MOTIF:update_focused_motif(_seeker.ui_state.get_focused_lane())
+end
+
 function focus_lane(x, y)
   if is_in_lane_select(x, y) then
-    _seeker.ui_state.focused_lane = (x - Layout.lane_select.x) + 1
-    _seeker.ui_state.current_section = "Lanes"
-    _seeker.update_ui_state()
+    local new_lane_idx = (x - Layout.lane_select.x) + 1
+    _seeker.ui_state.set_focused_lane(new_lane_idx)
+    _seeker.ui_state.set_current_section("LANE")
   end
 end
 
 function focus_stage(x, y)
   if is_in_stage_select(x, y) then
-    _seeker.ui_state.focused_stage = (x - Layout.stage_select.x) + 1
-    _seeker.ui_state.current_section = "Stages"
-    _seeker.update_ui_state()
+    local new_stage_idx = (x - Layout.stage_select.x) + 1
+    _seeker.ui_state.set_focused_stage(new_stage_idx)
+    _seeker.ui_state.set_current_section("STAGE")
   end
 end
 
 function note_on(x, y)
-  local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
-  local octave = params:get("lane_" .. _seeker.ui_state.focused_lane .. "_octave")
+  local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
   local event = {
     x = x,
     y = y,
@@ -199,8 +217,8 @@ function note_on(x, y)
 end
 
 function note_off(x, y)
-  local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
-  local octave = params:get("lane_" .. _seeker.ui_state.focused_lane .. "_octave")
+  local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
   local event = {
     x = x,
     y = y,
@@ -236,6 +254,10 @@ function GridUI.key(x, y, z)
     if z == 1 then
       toggle_play_button(x, y)
     end
+  elseif is_motif_button(x, y) then
+    if z == 1 then
+      focus_motif()
+    end
   end
 end
 
@@ -255,7 +277,7 @@ function GridUI.redraw()
 	-- Draw response elements
 	draw_motif_events()
 	-- Get trails from focused lane
-	local focused_lane = _seeker.lanes[_seeker.ui_state.focused_lane]
+	local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
 	GridAnimations.update_trails(layers.response, focused_lane.trails)
 	
 	-- Draw keyboard outline when recording or counting in

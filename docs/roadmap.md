@@ -1,17 +1,15 @@
 ### Current Session
-- [x] Some kind of bpm visualization or click track for recording
-- [x] Add button to sync all lanes
+- [] UI Overhaul
 
 ### Next Session
-- [] Metro subdivision UI doesn't match math
-- [] Add param preset saving
-- [] All stages default to reset motif
-- [] Reverse transform may break duration
+- [] Motif section — quantize values
+- [] Optional crow output
+- [] Transform chains
 
 ### Long List
-- [] Optional crow output
 - [] Add param preset saving
-- [] Multi-transform
+- [] Add param preset saving
+- [] Reverse transform may break duration
 - [] Transforms should update x/y positions
 - [] Stage UI should pull current transform params
 - [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
@@ -56,3 +54,4 @@
 - [x] Play non-focused lanes grid illumination in background with dimmer light 
 - [x] Make Lane playback speed controllable per-lane
 - [x] Add duration controls to motif
+- [x] All stages default to reset motif
