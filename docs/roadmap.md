@@ -1,9 +1,8 @@
 ### Current Session
-- [] UI Overhaul
-
-### Next Session
 - [] Motif section — quantize values
 - [] Optional crow output
+
+### Next Session
 - [] Transform chains
 
 ### Long List
@@ -55,3 +54,4 @@
 - [x] Make Lane playback speed controllable per-lane
 - [x] Add duration controls to motif
 - [x] All stages default to reset motif
+- [x] UI Overhaul

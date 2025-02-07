@@ -19,6 +19,7 @@ local Layout = {
   motif_button = {x = 1, y = 6},
   rec_button = {x = 3, y = 6},
   play_button = {x = 4, y = 6},
+  tuning_button = {x = 1, y = 8},
   lane_select = {x = 1, y = 7, width = 4},
   stage_select = {x = 13, y = 7, width = 4},
   fps = 30
@@ -70,6 +71,10 @@ function is_motif_button(x, y)
   return x == Layout.motif_button.x and y == Layout.motif_button.y
 end
 
+function is_tuning_button(x, y)
+  return x == Layout.tuning_button.x and y == Layout.tuning_button.y
+end
+
 function is_in_lane_select(x, y)
   return x >= Layout.lane_select.x and 
          x < Layout.lane_select.x + Layout.lane_select.width and 
@@ -100,6 +105,12 @@ function draw_controls()
     GridConstants.BRIGHTNESS.UI.FOCUSED or 
     GridConstants.BRIGHTNESS.UI.NORMAL
   GridLayers.set(layers.ui, Layout.motif_button.x, Layout.motif_button.y, motif_brightness)
+  
+  -- Tuning button
+  local tuning_brightness = (_seeker.ui_state.get_current_section() == "TUNING") and 
+    GridConstants.BRIGHTNESS.UI.FOCUSED or 
+    GridConstants.BRIGHTNESS.UI.NORMAL
+  GridLayers.set(layers.ui, Layout.tuning_button.x, Layout.tuning_button.y, tuning_brightness)
  
   -- Lane selector
   for i = 0, Layout.lane_select.width - 1 do
@@ -257,6 +268,10 @@ function GridUI.key(x, y, z)
   elseif is_motif_button(x, y) then
     if z == 1 then
       focus_motif()
+    end
+  elseif is_tuning_button(x, y) then
+    if z == 1 then
+      _seeker.ui_state.set_current_section("TUNING")
     end
   end
 end
