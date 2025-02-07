@@ -317,6 +317,239 @@ transforms.available = {
       
       return result
     end
+  },
+
+  echo = {
+    name = "Echo",
+    description = "Creates delayed copies of notes with musical variations",
+    params = {
+      echoes = {
+        type = "number",
+        min = 1,
+        max = 4,
+        default = 2,
+        step = 1,
+        formatter = function(param)
+          return param == 1 and "1 echo" or param .. " echoes"
+        end
+      },
+      interval = {
+        type = "number",
+        min = 1,
+        max = 8,
+        default = 4,
+        step = 1,
+        formatter = function(param)
+          local intervals = {"+8ve", "+5th", "+4th", "+3rd", "-3rd", "-4th", "-5th", "-8ve"}
+          return intervals[param] or "+8ve"
+        end
+      },
+      decay = {
+        type = "number",
+        min = 1,
+        max = 4,
+        default = 2,
+        step = 1,
+        formatter = function(param)
+          local styles = {"linear", "exponential", "bounce", "random"}
+          return styles[param]
+        end
+      }
+    },
+    fn = function(events, params)
+      local result = {}
+      local interval_map = {12, 7, 5, 4, -4, -5, -7, -12} -- semitone mappings for intervals
+      local interval = interval_map[params.interval]
+      
+      -- First copy all original events
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+        table.insert(result, new_event)
+        
+        -- Add echoes for note_on events
+        if event.type == "note_on" then
+          local base_delay = 0.125 -- 1/32nd note base delay
+          
+          for echo = 1, params.echoes do
+            local delay = base_delay * echo
+            local velocity_factor = 1.0
+            
+            -- Different decay patterns
+            if params.decay == 1 then -- linear
+              velocity_factor = 1.0 - (echo / (params.echoes + 1))
+            elseif params.decay == 2 then -- exponential
+              velocity_factor = math.pow(0.7, echo)
+            elseif params.decay == 3 then -- bounce
+              velocity_factor = math.sin(math.pi * (echo / params.echoes))
+            elseif params.decay == 4 then -- random
+              velocity_factor = 0.4 + (math.random() * 0.6)
+            end
+            
+            -- Add echo note_on with interval shift
+            table.insert(result, {
+              type = "note_on",
+              time = event.time + delay,
+              note = event.note + (interval * (echo % 2)), -- alternate between original and shifted
+              velocity = event.velocity * velocity_factor
+            })
+            
+            -- Find corresponding note_off and add echo note_off
+            for j = 1, #events do
+              if events[j].type == "note_off" and 
+                 events[j].note == event.note and
+                 events[j].time > event.time then
+                table.insert(result, {
+                  type = "note_off",
+                  time = events[j].time + delay,
+                  note = event.note + (interval * (echo % 2))
+                })
+                break
+              end
+            end
+          end
+        end
+      end
+      
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
+      
+      return result
+    end
+  },
+
+  arpeggio = {
+    name = "Arpeggio",
+    description = "Creates an arpeggio pattern with specified note divisions",
+    params = {
+      division = {
+        type = "number",
+        min = 1,
+        max = 6,
+        default = 3,  -- 1/16 by default
+        step = 1,
+        formatter = function(param) 
+          local divisions = {"1/1", "1/2", "1/4", "1/8", "1/16", "1/32"}
+          return divisions[param] or "1/16"
+        end
+      },
+      pattern = {
+        type = "number",
+        min = 1,
+        max = 4,
+        default = 1,
+        step = 1,
+        formatter = function(param)
+          local patterns = {"up", "down", "up-down", "looped random"}
+          return patterns[param] or "up"
+        end
+      },
+      loops = {
+        type = "number",
+        min = 1,
+        max = 8,
+        default = 2,
+        step = 1,
+        formatter = function(param)
+          return param == 1 and "1 loop" or param .. " loops"
+        end
+      }
+    },
+    fn = function(events, params)
+      local result = {}
+      local notes = {}
+      
+      -- Map division option to actual time value (assuming 1.0 = quarter note)
+      local division_values = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125} -- 1/1, 1/2, 1/4, 1/8, 1/16, 1/32
+      local grid_size = division_values[params.division]
+      
+      -- First collect all unique notes
+      for _, event in ipairs(events) do
+        if event.type == "note_on" then
+          table.insert(notes, {
+            note = event.note,
+            velocity = event.velocity
+          })
+        end
+      end
+      
+      -- Sort notes by pitch
+      table.sort(notes, function(a, b) return a.note < b.note end)
+      
+      -- Create pattern based on mode
+      local pattern = {}
+      if params.pattern == 1 then -- up
+        pattern = notes
+      elseif params.pattern == 2 then -- down
+        for i = #notes, 1, -1 do
+          table.insert(pattern, notes[i])
+        end
+      elseif params.pattern == 3 then -- up-down
+        for _, note in ipairs(notes) do
+          table.insert(pattern, note)
+        end
+        for i = #notes-1, 2, -1 do -- exclude first/last note to avoid repeats
+          table.insert(pattern, notes[i])
+        end
+      elseif params.pattern == 4 then -- looped random
+        -- Create N copies of the pattern for the specified number of loops
+        for loop = 1, params.loops do
+          local shuffled = {}
+          -- Copy notes for this iteration
+          for _, note in ipairs(notes) do
+            table.insert(shuffled, {
+              note = note.note,
+              velocity = note.velocity
+            })
+          end
+          -- Fisher-Yates shuffle
+          for i = #shuffled, 2, -1 do
+            local j = math.random(i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+          end
+          -- Add this loop's shuffled pattern
+          for _, note in ipairs(shuffled) do
+            table.insert(pattern, note)
+          end
+        end
+      end
+      
+      -- Place notes with fixed grid spacing
+      for i, note in ipairs(pattern) do
+        local time = (i-1) * grid_size
+        
+        -- Add note_on
+        table.insert(result, {
+          type = "note_on",
+          time = time,
+          note = note.note,
+          velocity = note.velocity
+        })
+        
+        -- Add note_off just before next note
+        table.insert(result, {
+          type = "note_off",
+          time = time + (grid_size * 0.95), -- 95% of grid size
+          note = note.note
+        })
+      end
+      
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
+      
+      -- Calculate total duration based on number of notes and grid size
+      local total_duration = #pattern * grid_size
+      
+      -- Log for debugging
+      print("\n=== ARPEGGIO TRANSFORM ===")
+      print(string.format("Grid size: %.3f", grid_size))
+      print(string.format("Number of notes: %d", #pattern))
+      print(string.format("New duration: %.3f", total_duration))
+      
+      return result
+    end
   }
 }
 

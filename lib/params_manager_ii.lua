@@ -108,7 +108,7 @@ function init_lane_params()
     end)
 
     -- Add custom duration parameter
-    params:add_number("lane_" .. i .. "_custom_duration", "Duration (beats)", 0, 16, 0)
+    params:add_number("lane_" .. i .. "_custom_duration", "Duration (beats)", 0, 64, 0)
     params:set_action("lane_" .. i .. "_custom_duration", function(value)
         if value == 0 then
           _seeker.lanes[i].motif.custom_duration = nil

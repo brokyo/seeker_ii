@@ -37,7 +37,19 @@ function TransformSection.new()
       return transform.name
     else
       local param_name = param.id:match("transform_%d_(.+)$")
-      return transform.config[param_name] or ""
+      local value = transform.config[param_name]
+      
+      -- Use formatter if available
+      local param_spec = transforms.available[transform.name].params[param_name]
+      if param_spec and param_spec.formatter then
+        return param_spec.formatter(value)
+      end
+      
+      -- Default formatting
+      if type(value) == "number" then
+        return string.format("%.2f", value)
+      end
+      return tostring(value or "")
     end
   end
 
