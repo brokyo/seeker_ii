@@ -11,8 +11,8 @@ function MotifRecorder.new()
   m.is_recording = false
   m.events = {}
   m.start_time = 0
-  m.loop_length = nil  -- Duration to wrap events to during overdub
-  m.waiting_for_first_note = false  -- Just track if we're waiting for first note
+  m.loop_length = nil
+  m.waiting_for_first_note = false 
   return m
 end
 
