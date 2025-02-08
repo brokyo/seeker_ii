@@ -175,8 +175,21 @@ function toggle_rec_button(x, y)
       _seeker.ui_state.set_current_section("RECORDING")
       return
     end
+    
+    -- Get existing motif if we're overdubbing
+    local existing_motif = nil
+    if params:get("recording_mode") == 2 then -- 2 = Overdub
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      existing_motif = _seeker.lanes[focused_lane].motif
+      -- Don't allow overdub if no existing motif
+      if #existing_motif.events == 0 then
+        print("⚠ Cannot overdub: No existing motif")
+        return
+      end
+    end
+    
     -- Only start recording if we're already in recording section
-    motif_recorder:start_recording()
+    motif_recorder:start_recording(existing_motif)
   else
     local focused_lane = _seeker.ui_state.get_focused_lane()
     local motif = motif_recorder:stop_recording()

@@ -10,6 +10,7 @@ function RecordingSection.new()
     name = "Recording",
     icon = "⏺",
     params = {
+        { id = "recording_mode", name = "Mode" },
         { id = "quantize_division", name = "Quantize" },
         { id = "count_in_bars", name = "Count-in Bars" }
     }

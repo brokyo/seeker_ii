@@ -13,6 +13,7 @@ function MotifRecorder.new()
   m.count_in_beats_left = 0
   m.events = {}
   m.start_time = 0
+  m.original_duration = nil  -- Used for overdub wrap-around
   return m
 end
 
@@ -32,6 +33,11 @@ function MotifRecorder:on_note_on(event)
   local time_from_start = now - self.start_time
   local quantized_time = self:_quantize_beat(time_from_start)
   
+  -- If overdubbing, wrap time around original duration
+  if self.original_duration then
+    quantized_time = quantized_time % self.original_duration
+  end
+  
   -- Store note_on event
   table.insert(self.events, {
     time = quantized_time,
@@ -50,6 +56,11 @@ function MotifRecorder:on_note_off(event)
   local time_from_start = now - self.start_time
   local quantized_time = self:_quantize_beat(time_from_start)
   
+  -- If overdubbing, wrap time around original duration
+  if self.original_duration then
+    quantized_time = quantized_time % self.original_duration
+  end
+  
   -- Store note_off event
   table.insert(self.events, {
     time = quantized_time,
@@ -62,21 +73,40 @@ end
 
 --- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
-function MotifRecorder:start_recording()
+function MotifRecorder:start_recording(existing_motif)
+  -- If overdubbing, store original duration and events
+  if params:get("recording_mode") == 2 and existing_motif then -- 2 = Overdub
+    self.original_duration = existing_motif.duration
+    -- Copy existing events
+    self.events = {}
+    for _, evt in ipairs(existing_motif.events) do
+      table.insert(self.events, {
+        time = evt.time,
+        type = evt.type,
+        note = evt.note,
+        velocity = evt.velocity,
+        x = evt.x,
+        y = evt.y
+      })
+    end
+  else
+    -- New recording
+    self.events = {}
+    self.original_duration = nil
+  end
+
   local count_in_bars = params:get("count_in_bars")
   
   -- If count-in is disabled (0 bars), start recording immediately
   if count_in_bars == 0 then
     self.is_recording = true
     self.start_time = clock.get_beats()
-    self.events = {}
     return
   end
   
   -- Start with count-in
   self.is_counting_in = true
   self.count_in_beats_left = count_in_bars * 4  -- 4 beats per bar
-  self.events = {}
   
   -- Start the count-in clock
   clock.run(function()
@@ -94,12 +124,13 @@ end
 
 --- Stop recording and return the event table
 -- Grid interaction: Called from GridUI.handle_record_toggle
-function MotifRecorder:stop_recording(lane_num)
+function MotifRecorder:stop_recording()
   if not self.is_recording then return end
   
   self.is_recording = false
-  local end_time = clock.get_beats()
-  local recorded_duration = end_time - self.start_time
+  
+  -- Use original duration if overdubbing, otherwise calculate from recording time
+  local recorded_duration = self.original_duration or (clock.get_beats() - self.start_time)
   
   -- Sort all events by time
   table.sort(self.events, function(a, b)
@@ -114,6 +145,7 @@ function MotifRecorder:stop_recording(lane_num)
 
   -- Clear recorder state
   self.events = {}
+  self.original_duration = nil
   print("⊞ Recording stopped")
   return recorded_data
 end
