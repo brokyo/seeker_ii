@@ -198,11 +198,24 @@ end
 --   - loop_offset: Time offset for current loop iteration
 ---------------------------------------------------------
 function Lane:schedule_stage(stage_index, start_time)
-  print(string.format('〰 Scheduling L_%s S_%s (loop %d/%d)', 
+  -- Calculate timing info for logging
+  local stage = self.stages[stage_index]
+  local base_duration = self.motif:get_duration()
+  local speed_adjusted_duration = base_duration / self.speed
+  local loop_offset = stage.current_loop * speed_adjusted_duration
+  
+  -- Create visual markers for the hierarchy
+  local stage_marker = stage.current_loop == 0 and "╔" or "╠"
+  local timing_info = string.format("@%.2f", start_time)
+  
+  -- Print stage/loop info with timing
+  print(string.format('%s══ L_%d S_%d (%d/%d loops) %s\n', 
+    stage_marker,
     self.id,
-    stage_index, 
-    self.stages[stage_index].current_loop + 1,
-    self.stages[stage_index].loops))
+    stage_index,
+    stage.current_loop + 1,
+    stage.loops,
+    timing_info))
     
   local stage = self.stages[stage_index]
   
@@ -215,11 +228,6 @@ function Lane:schedule_stage(stage_index, start_time)
 
   -- Print debug info about events
   self:debug_print_events()
-
-  -- Calculate timing parameters for this stage
-  local base_duration = self.motif:get_duration()
-  local speed_adjusted_duration = base_duration / self.speed
-  local loop_offset = stage.current_loop * speed_adjusted_duration
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
@@ -280,7 +288,7 @@ function Lane:schedule_stage(stage_index, start_time)
   end
   
   -- Schedule the next loop or stage transition
-  local end_time = start_time + speed_adjusted_duration + loop_offset
+  local end_time = start_time + speed_adjusted_duration  -- Remove loop_offset from end_time calculation
   
   _seeker.conductor.insert_event({
     time = end_time,
@@ -293,19 +301,20 @@ function Lane:schedule_stage(stage_index, start_time)
         self:schedule_stage(stage_index, end_time)  -- Use end_time as the start of next loop
       else
         -- Move to next stage
+        print(string.format('╚══ L_%d S_%d complete @%.2f', self.id, stage_index, end_time))
         stage.current_loop = 0  -- Reset loop counter
-        self:on_motif_end(stage_index)
+        self:on_motif_end(stage_index, end_time)
       end
     end
   })
 end
 
 ---------------------------------------------------------
--- on_motif_end(stage_index)
+-- on_motif_end(stage_index, end_time)
 --   Called when all loops of the current stage are complete.
 --   Advances to next stage or loops back to first stage.
 ---------------------------------------------------------
-function Lane:on_motif_end(stage_index)
+function Lane:on_motif_end(stage_index, end_time)
   if not self.playing then
     return
   end
@@ -316,8 +325,7 @@ function Lane:on_motif_end(stage_index)
   end
   self.current_stage_index = next_index
 
-  local now = clock.get_beats()
-  self:schedule_stage(next_index, now)
+  self:schedule_stage(next_index, end_time)
 end
 
 ---------------------------------------------------------
@@ -345,9 +353,16 @@ function Lane:on_note_on(event)
   -- Send crow output if enabled
   local gate_out = params:get("lane_" .. self.id .. "_crow_gate")
   local cv_out = params:get("lane_" .. self.id .. "_crow_cv")
-  if gate_out > 0 and cv_out > 0 then
+  
+  -- Handle CV output
+  if cv_out > 0 then
     -- Set CV output (V/oct)
-    crow.output[cv_out].volts = (event.note - 60) / 12
+    local cv_volts = (event.note - 60) / 12
+    crow.output[cv_out].volts = cv_volts
+  end
+  
+  -- Handle gate output independently
+  if gate_out > 0 then
     -- Set gate high
     crow.output[gate_out].volts = 5
   end
@@ -525,24 +540,26 @@ end
 
 -- Temporary debug function for event timing
 function Lane:debug_print_events()
-  print("\n⎆ ═══ Event Debug Info ═══")
-  print(string.format("⌸ Lane %d  ◈  Stage %d  ◈  Loop %d/%d", 
+  print("\n⎆ ═══ Event Debug Info ═══\n")
+  print(string.format("⌸ Lane %d  ◈  Stage %d  ◈  Loop %d/%d\n", 
     self.id, 
     self.current_stage_index,
     self.stages[self.current_stage_index].current_loop + 1,
     self.stages[self.current_stage_index].loops))
-  print("∿ Base duration: " .. self.motif:get_duration())
-  print("∿ Speed adjusted: " .. self.motif:get_duration() / self.speed)
-  print("\n♫ Events:")
-  for i, event in ipairs(self.motif.events) do
-    print(string.format("  %d │ %s │ note: %s │ time: %.3f │ pos: (%s,%s)", 
-      i,
-      event.type == "note_on" and "▶" or "⏹",
-      event.note or "∅",
-      event.time or 0,
-      event.x or "∅",
-      event.y or "∅"))
+  print(string.format("∿ Duration: %.2f (%.2f at %.1fx speed)\n", 
+    self.motif:get_duration(),
+    self.motif:get_duration() / self.speed,
+    self.speed))
+  
+  -- Count transforms that aren't noop
+  local active_transforms = 0
+  for _, transform in ipairs(self.stages[self.current_stage_index].transforms) do
+    if transform.name ~= "noop" then
+      active_transforms = active_transforms + 1
+    end
   end
+  
+  print(string.format("♫ Events: %d  ⎊ Active Transforms: %d\n", #self.motif.events, active_transforms))
   print("⎆ ═════════════════════\n")
 end
 

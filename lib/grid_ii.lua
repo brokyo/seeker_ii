@@ -96,9 +96,17 @@ end
 
 function draw_controls()
   -- Rec button
-  local rec_brightness = motif_recorder.is_recording and 
-    math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.CONTROLS.REC_ACTIVE - 3) or 
-    GridConstants.BRIGHTNESS.CONTROLS.REC_INACTIVE
+  local rec_brightness
+  if motif_recorder.is_recording then
+    -- Pulsing bright when recording
+    rec_brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.CONTROLS.REC_ACTIVE - 3)
+  elseif _seeker.ui_state.get_current_section() == "RECORDING" then
+    -- Medium brightness when in recording section but not recording
+    rec_brightness = GridConstants.BRIGHTNESS.CONTROLS.REC_READY
+  else
+    -- Dim when inactive
+    rec_brightness = GridConstants.BRIGHTNESS.CONTROLS.REC_INACTIVE
+  end
   GridLayers.set(layers.ui, Layout.rec_button.x, Layout.rec_button.y, rec_brightness)
   
   -- Play button
@@ -162,8 +170,12 @@ end
 
 function toggle_rec_button(x, y)
   if not motif_recorder.is_recording then
-    -- Switch to recording section when starting to record
-    _seeker.ui_state.set_current_section("RECORDING")
+    -- If we're not in recording section, just switch to it
+    if _seeker.ui_state.get_current_section() ~= "RECORDING" then
+      _seeker.ui_state.set_current_section("RECORDING")
+      return
+    end
+    -- Only start recording if we're already in recording section
     motif_recorder:start_recording()
   else
     local focused_lane = _seeker.ui_state.get_focused_lane()
