@@ -30,7 +30,10 @@ function ScreenUI.init()
   clock.run(function()
     while true do
       clock.sync(1/ScreenUI.state.fps)
-      ScreenUI.redraw()
+      if ScreenUI.state.needs_redraw then
+        ScreenUI.redraw()
+        ScreenUI.state.needs_redraw = false
+      end
     end
   end)
 

@@ -1,9 +1,10 @@
 ### Current Session
+- [] Improve Harmonize transform
 
 ### Next Session
 
 ### Long List
-- [] Motif section — quantize values (or maybe this is in a transform?)
+- [] Long press for overdub in rec section
 - [] Add param preset saving
 - [] Reverse transform may break duration
 - [] Transforms should update x/y positions

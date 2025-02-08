@@ -77,6 +77,7 @@ function enc(n, d)
 end
 
 function redraw()
+  _seeker.screen_ui.set_needs_redraw()
 end
 
 function cleanup()
