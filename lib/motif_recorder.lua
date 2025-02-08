@@ -1,5 +1,5 @@
 -- motif_recorder.lua
--- Core responsibility: Convert grid/MIDI input into a sequence of timed note eventsto
+-- Core responsibility: Convert grid/MIDI input into a sequence of timed note events
 
 local theory = include('lib/theory_utils')
 
@@ -11,7 +11,7 @@ function MotifRecorder.new()
   m.is_recording = false
   m.events = {}
   m.start_time = 0
-  m.loop_length = nil
+  m.loop_length = nil -- Duration to wrap events to during overdub
   m.waiting_for_first_note = false 
   return m
 end
@@ -25,24 +25,32 @@ function MotifRecorder:_quantize_beat(beat)
 end
 
 --- onNoteOn: called when a grid button is pressed (z=1)
--- n.b We don't yet have velocity but may eventually 
 function MotifRecorder:on_note_on(event)
   if not self.is_recording then return end
    
-  -- If this is our first note, set the start time with a small offset
+  -- If this is our first note in a new recording, set the start time with a small offset
   if self.waiting_for_first_note then
-    self.start_time = clock.get_beats() - 0.02  -- Back up start time slightly
+    self.start_time = clock.get_beats() - 0.02  -- Small offset for scheduling
     self.waiting_for_first_note = false
   end
 
   -- Calculate timing
   local now = clock.get_beats()
-  local time_from_start = now - self.start_time
-  local quantized_time = self:_quantize_beat(time_from_start)
+  local position
   
-  -- During overdub recording, we keep the actual timing until the end
-  -- This preserves the natural "when did they play it" feel
+  if self.loop_length then
+    -- For overdub, just use the current position in the loop
+    position = now % self.loop_length
+  else
+    -- For new recording, measure from start
+    position = now - self.start_time
+  end
   
+  local quantized_time = self:_quantize_beat(position)
+  if self.loop_length then
+    print(string.format("⊕ Recording note %d at position: %.3f", event.note, quantized_time))
+  end
+    
   -- Store note_on event
   table.insert(self.events, {
     time = quantized_time,
@@ -56,12 +64,23 @@ end
 
 --- onNoteOff: called when a grid button is released (z=0)
 function MotifRecorder:on_note_off(event)
+  if not self.is_recording then return end
+
   -- Calculate timing
   local now = clock.get_beats()
-  local time_from_start = now - self.start_time
-  local quantized_time = self:_quantize_beat(time_from_start)
+  local position
   
-  -- Store note_off event with actual timing
+  if self.loop_length then
+    -- For overdub, just use the current position in the loop
+    position = now % self.loop_length
+  else
+    -- For new recording, measure from start
+    position = now - self.start_time
+  end
+  
+  local quantized_time = self:_quantize_beat(position)
+  
+  -- Store note_off event
   table.insert(self.events, {
     time = quantized_time,
     type = "note_off",
@@ -89,15 +108,16 @@ function MotifRecorder:start_recording(existing_motif)
         y = evt.y
       })
     end
+    
   else
     -- New recording
     self.events = {}
     self.loop_length = nil
+    self.waiting_for_first_note = true  -- Only set this for new recordings
   end
 
-  -- Start recording immediately, waiting for first note
+  -- Start recording
   self.is_recording = true
-  self.waiting_for_first_note = true
 end
 
 --- Stop recording and return the event table
@@ -111,13 +131,6 @@ function MotifRecorder:stop_recording()
   table.sort(self.events, function(a, b)
     return a.time < b.time
   end)
-  
-  -- If this was an overdub, wrap all times back to the loop length
-  if self.loop_length then
-    for _, evt in ipairs(self.events) do
-      evt.time = evt.time % self.loop_length
-    end
-  end
   
   -- Create recorded data package
   local recorded_data = {

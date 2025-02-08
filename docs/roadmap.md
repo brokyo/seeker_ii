@@ -1,23 +1,19 @@
 ### Current Session
 
 ### Next Session
-- [] Motif section — quantize values (or maybe this is in a transform?)
 
 ### Long List
+- [] Motif section — quantize values (or maybe this is in a transform?)
 - [] Add param preset saving
 - [] Reverse transform may break duration
 - [] Transforms should update x/y positions
 - [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 - [] Catch MIDI events (rather than grid) in `motif_recorder`
-- [] Overdubbing
 
 
 ### Bugs
 
 ### Open Questions
-- [] Mx Samples don't seem to always support velocity. Check velocity/pitter-patter approach and why it has "amplitude" control.
-- [] Some Mx Samples don't seem to respect note_off. Are we terminating those correctly?
-- [] Consider recording start and end times. Should we start the loop on the first note? When "rec" is pressed?
 
 
 ### Done
@@ -53,3 +49,4 @@
 - [x] Optional crow output
 - [x] Universal timeline view
 - [x] Motif view
+- [x] Overdubbing

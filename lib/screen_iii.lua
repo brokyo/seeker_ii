@@ -1,5 +1,5 @@
 -- screen_iii.lua
-local TuningSection = include('lib/ui/sections/tuning_section')
+local ConfigSection = include('lib/ui/sections/config_section')
 local RecordingSection = include('lib/ui/sections/recording_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
@@ -18,7 +18,7 @@ ScreenUI.sections = {}
 function ScreenUI.init()  
   -- Initialize sections
   ScreenUI.sections = {
-    TUNING = TuningSection.new(),
+    CONFIG = ConfigSection.new(),
     RECORDING = RecordingSection.new(),
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),

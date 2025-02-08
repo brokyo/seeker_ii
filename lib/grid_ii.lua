@@ -19,7 +19,7 @@ local Layout = {
   motif_button = {x = 1, y = 6},
   rec_button = {x = 3, y = 6},
   play_button = {x = 4, y = 6},
-  tuning_button = {x = 1, y = 8},
+  config_button = {x = 1, y = 8},
   lane_select = {x = 1, y = 7, width = 4},
   stage_select = {x = 13, y = 7, width = 4},
   fps = 30,
@@ -72,8 +72,8 @@ function is_motif_button(x, y)
   return x == Layout.motif_button.x and y == Layout.motif_button.y
 end
 
-function is_tuning_button(x, y)
-  return x == Layout.tuning_button.x and y == Layout.tuning_button.y
+function is_config_button(x, y)
+  return x == Layout.config_button.x and y == Layout.config_button.y
 end
 
 function is_in_lane_select(x, y)
@@ -121,11 +121,11 @@ function draw_controls()
     GridConstants.BRIGHTNESS.UI.NORMAL
   GridLayers.set(layers.ui, Layout.motif_button.x, Layout.motif_button.y, motif_brightness)
   
-  -- Tuning button
-  local tuning_brightness = (_seeker.ui_state.get_current_section() == "TUNING") and 
+  -- Config button
+  local config_brightness = (_seeker.ui_state.get_current_section() == "CONFIG") and 
     GridConstants.BRIGHTNESS.UI.FOCUSED or 
     GridConstants.BRIGHTNESS.UI.NORMAL
-  GridLayers.set(layers.ui, Layout.tuning_button.x, Layout.tuning_button.y, tuning_brightness)
+  GridLayers.set(layers.ui, Layout.config_button.x, Layout.config_button.y, config_brightness)
  
   -- Lane selector
   for i = 0, Layout.lane_select.width - 1 do
@@ -325,9 +325,9 @@ function GridUI.key(x, y, z)
     if z == 1 then
       focus_motif()
     end
-  elseif is_tuning_button(x, y) then
+  elseif is_config_button(x, y) then
     if z == 1 then
-      _seeker.ui_state.set_current_section("TUNING")
+      _seeker.ui_state.set_current_section("CONFIG")
     end
   elseif is_in_transform_chain(x, y) then
     if z == 1 then

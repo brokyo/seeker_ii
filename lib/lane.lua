@@ -202,7 +202,6 @@ function Lane:schedule_stage(stage_index, start_time)
   local stage = self.stages[stage_index]
   local base_duration = self.motif:get_duration()
   local speed_adjusted_duration = base_duration / self.speed
-  local loop_offset = stage.current_loop * speed_adjusted_duration
   
   -- Create visual markers for the hierarchy
   local stage_marker = stage.current_loop == 0 and "╔" or "╠"
@@ -227,7 +226,7 @@ function Lane:schedule_stage(stage_index, start_time)
   end
 
   -- Print debug info about events
-  self:debug_print_events()
+  self:debug_print_events(false)
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
@@ -240,7 +239,7 @@ function Lane:schedule_stage(stage_index, start_time)
       -- Only start notes that fall within the duration window
       if event_time <= base_duration then
         local speed_adjusted_time = event_time / self.speed
-        local absolute_time = start_time + speed_adjusted_time + loop_offset
+        local absolute_time = start_time + speed_adjusted_time
         
         if not stage.mute then
           _seeker.conductor.insert_event({
@@ -268,7 +267,7 @@ function Lane:schedule_stage(stage_index, start_time)
           speed_adjusted_time = base_duration / self.speed
         end
         
-        local absolute_time = start_time + speed_adjusted_time + loop_offset
+        local absolute_time = start_time + speed_adjusted_time
         
         if not stage.mute then
           _seeker.conductor.insert_event({
@@ -288,7 +287,7 @@ function Lane:schedule_stage(stage_index, start_time)
   end
   
   -- Schedule the next loop or stage transition
-  local end_time = start_time + speed_adjusted_duration  -- Remove loop_offset from end_time calculation
+  local end_time = start_time + speed_adjusted_duration
   
   _seeker.conductor.insert_event({
     time = end_time,
@@ -539,7 +538,7 @@ function Lane:get_active_positions()
 end
 
 -- Temporary debug function for event timing
-function Lane:debug_print_events()
+function Lane:debug_print_events(show_notes)
   print("\n⎆ ═══ Event Debug Info ═══\n")
   print(string.format("⌸ Lane %d  ◈  Stage %d  ◈  Loop %d/%d\n", 
     self.id, 
@@ -560,6 +559,22 @@ function Lane:debug_print_events()
   end
   
   print(string.format("♫ Events: %d  ⎊ Active Transforms: %d\n", #self.motif.events, active_transforms))
+
+  -- Detailed note listing if requested
+  if show_notes then
+    print("\n--- Note Events ---")
+    for i, evt in ipairs(self.motif.events) do
+      if evt.type == "note_on" then
+        print(string.format("[%d] ON  t=%.2f note=%d pos=(%d,%d) vel=%d", 
+          i, evt.time, evt.note, evt.x or -1, evt.y or -1, evt.velocity))
+      elseif evt.type == "note_off" then
+        print(string.format("[%d] OFF t=%.2f note=%d pos=(%d,%d)", 
+          i, evt.time, evt.note, evt.x or -1, evt.y or -1))
+      end
+    end
+    print("----------------\n")
+  end
+  
   print("⎆ ═════════════════════\n")
 end
 

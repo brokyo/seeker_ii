@@ -122,23 +122,33 @@ function Section:draw_params(start_y)
       local y = start_y + (i * ITEM_HEIGHT)
       local is_selected = self.state.selected_index == param_idx
       
-      -- Simple selection highlight
-      if is_selected then
-        screen.level(2)
-        screen.rect(0, y - 6, 128, 8)
-        screen.fill()
+      if param.separator then
+        -- Draw separator
+        screen.level(4)
+        screen.move(2, y)
+        screen.text(param.name)
+        screen.move(2, y + 1)
+        screen.line(126, y + 1)
+        screen.stroke()
+      else
+        -- Draw normal parameter
+        if is_selected then
+          screen.level(2)
+          screen.rect(0, y - 6, 128, 8)
+          screen.fill()
+        end
+        
+        -- Parameter name
+        screen.level(is_selected and 15 or 4)
+        screen.move(2, y)
+        screen.text(param.name)
+        
+        -- Parameter value (right-aligned)
+        local value = self:get_param_value(param)
+        local value_x = 120 - screen.text_extents(value)
+        screen.move(value_x, y)
+        screen.text(value)
       end
-      
-      -- Parameter name
-      screen.level(is_selected and 15 or 4)
-      screen.move(2, y)
-      screen.text(param.name)
-      
-      -- Parameter value (right-aligned)
-      local value = self:get_param_value(param)
-      local value_x = 120 - screen.text_extents(value)
-      screen.move(value_x, y)
-      screen.text(value)
     end
   end
   
@@ -216,7 +226,13 @@ function Section:handle_enc(n, d)
 end
 
 function Section:handle_key(n, z)
-  -- Default implementation does nothing
+  -- Handle K3 press for action items
+  if n == 3 and z == 1 and self.state.selected_index > 0 then
+    local param = self.params[self.state.selected_index]
+    if param.action then
+      self:modify_param(param, 1)  -- Delta doesn't matter for actions
+    end
+  end
 end
 
 function Section:handle_grid_key(x, y, z)
