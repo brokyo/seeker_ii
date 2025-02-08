@@ -37,7 +37,7 @@ function init_musical_params()
 end
 
 function init_recording_params()
-  params:add_group("recording", "RECORDING", 4)  -- Increased group size by 1
+  params:add_group("recording", "RECORDING", 3)  -- Reduced group size by 1
   
   -- Recording mode
   params:add_option("recording_mode", "Recording Mode", {"New", "Overdub"}, 1)
@@ -45,10 +45,6 @@ function init_recording_params()
   -- Quantization settings
   params:add_option("quantize_division", "Quantize Division", 
     {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 6)
-    
-  -- Count-in settings
-  params:add_number("count_in_bars", "Count-in Bars", 0, 4, 1, 
-    function(param) return (param:get() == 0) and "off" or param:get() end)
   
   -- Add sync lanes control
   params:add_binary("sync_lanes", "Sync Lanes", "toggle", 0)

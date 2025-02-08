@@ -98,9 +98,9 @@ function GridAnimations.update_trails(response_layer, trails)
   end
 end
 
--- Draw keyboard outline during recording or count-in
+-- Draw keyboard outline during recording
 function GridAnimations.update_keyboard_outline(response_layer, layout, motif_recorder)
-  if not (motif_recorder.is_recording or motif_recorder.is_counting_in) then
+  if not motif_recorder.is_recording then
     state.keyboard_outline.active = false
     return
   end
@@ -125,11 +125,6 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
   else
     -- Gentler decay between beats
     brightness = math.floor(max_brightness * 0.6 * math.sqrt(1 - beat_phase))
-  end
-
-  -- Boost brightness during count-in
-  if motif_recorder.is_counting_in then
-    brightness = math.floor(brightness * 1.2)  -- 20% brighter during count-in
   end
   
   -- Draw outline rectangle

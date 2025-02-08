@@ -11,18 +11,12 @@ function RecordingSection.new()
     icon = "⏺",
     params = {
         { id = "recording_mode", name = "Mode" },
-        { id = "quantize_division", name = "Quantize" },
-        { id = "count_in_bars", name = "Count-in Bars" }
+        { id = "quantize_division", name = "Quantize" }
     }
   })
   setmetatable(section, RecordingSection)
 
   function section:get_param_value(param)
-    if param.id == "count_in_bars" then
-      local value = params:get("count_in_bars")
-      return value == 0 and "off" or value
-    end
-    
     -- For other parameters, use default behavior
     return Section.get_param_value(self, param)
   end
