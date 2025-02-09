@@ -297,6 +297,33 @@ function Lane:schedule_stage(stage_index, start_time)
       if stage.current_loop < (stage.loops - 1) then
         -- Continue to next loop of current stage
         stage.current_loop = stage.current_loop + 1
+        
+        -- Fire loop end trigger if configured
+        local trigger = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loop_trigger")
+        if trigger > 1 then
+          if trigger <= 5 then
+            -- Crow trigger
+            crow.output[trigger - 1].volts = 5
+            -- Schedule trigger off after 10ms
+            _seeker.conductor.insert_event({
+              time = end_time + 0.01,
+              callback = function()
+                crow.output[trigger - 1].volts = 0
+              end
+            })
+          else
+            -- TXO trigger (subtract 5 to get 1-4 range)
+            crow.ii.txo.tr(trigger - 5, 1)
+            -- Schedule trigger off after 10ms
+            _seeker.conductor.insert_event({
+              time = end_time + 0.01,
+              callback = function()
+                crow.ii.txo.tr(trigger - 5, 0)
+              end
+            })
+          end
+        end
+        
         self:schedule_stage(stage_index, end_time)  -- Use end_time as the start of next loop
       else
         -- Move to next stage

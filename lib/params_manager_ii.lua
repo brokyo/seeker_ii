@@ -148,6 +148,13 @@ function init_lane_params()
         end
       end)
 
+      -- Add loop end trigger
+      params:add_option("lane_" .. i .. "_stage_" .. j .. "_loop_trigger", "Loop Trigger", {
+        "none", 
+        "crow 1", "crow 2", "crow 3", "crow 4",
+        "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"
+      }, 1)
+
       -- Add transform selection for each slot
       local transform_names = {}
       for name, _ in pairs(transforms.available) do

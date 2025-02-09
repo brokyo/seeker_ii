@@ -107,3 +107,4 @@
 - x,y coordinates are converted from grid position to MIDI note in the `grid_ii.lua` methods note_on and note_off using `theory.note_to_name`.
 - `MotifRecorder` returns a table of events in `grid_ii.lua` `toggle_rec_button`. This is then passed to `Lane` `set_motif` method.
 - `Lane` `on_note_on()` is the convergence point for incoming events. It handles scheduled motifs and live on/offs from the grid. This is the place to change note logic.
+- When sending events out of ii we have to deal with magic numbers. Values 1 > 4 are for crow. Values 5 > 8 are for txo.
