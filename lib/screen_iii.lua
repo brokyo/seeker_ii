@@ -5,11 +5,12 @@ local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local TransformSection = include('lib/ui/sections/transform_section')
+local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}
 
 ScreenUI.state = {
-  needs_redraw = true,
+  app_on_screen = true,
   fps = 30
 }
 
@@ -26,14 +27,16 @@ function ScreenUI.init()
     TRANSFORM = TransformSection.new()
   }
   
-  -- Start redraw clock - always redraw for smooth animation
+  -- Initialize screen saver
+  ScreenSaver.init()
+  
+  -- Start redraw clock - constant FPS unless disabled
   clock.run(function()
     while true do
       clock.sync(1/ScreenUI.state.fps)
-      if ScreenUI.state.needs_redraw then
+      -- if ScreenUI.state.app_on_screen then
         ScreenUI.redraw()
-        ScreenUI.state.needs_redraw = false
-      end
+      -- end
     end
   end)
 
@@ -46,6 +49,14 @@ function ScreenUI.get_active_section()
 end
 
 function ScreenUI.key(n, z)
+  if n == 1 then
+    if z == 1 then
+      ScreenUI.state.app_on_screen = not ScreenUI.state.app_on_screen
+      return
+    end
+  end
+
+  ScreenSaver.register_activity()  -- Register any key activity
   local section = ScreenUI.get_active_section()
   if section then
     section:handle_key(n, z)
@@ -54,6 +65,7 @@ function ScreenUI.key(n, z)
 end
 
 function ScreenUI.enc(n, d)
+  ScreenSaver.register_activity()  -- Register any encoder activity
   local section = ScreenUI.get_active_section()
   if section then
     section:handle_enc(n, d)
@@ -68,8 +80,12 @@ end
 function ScreenUI.redraw()
   local section = ScreenUI.get_active_section()
   if section then
-    section:update()  -- Ensure section is updated before drawing
-    section:draw()
+    if ScreenSaver.check_timeout() then
+      ScreenSaver.draw()
+    else
+      section:update()  -- Ensure section is updated before drawing
+      section:draw()
+    end
   end
 end
 

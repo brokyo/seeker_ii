@@ -231,7 +231,6 @@ function Section:handle_enc_default(n, d)
   end
 end
 
--- Required interface methods with default implementations
 function Section:draw()
   self:draw_default()
 end
@@ -245,7 +244,7 @@ function Section:handle_key(n, z)
   if n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self.params[self.state.selected_index]
     if param.action then
-      self:modify_param(param, 1)  -- Delta doesn't matter for actions
+      self:modify_param(param, 1)
     end
   end
 end
