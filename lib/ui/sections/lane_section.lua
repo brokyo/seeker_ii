@@ -19,8 +19,8 @@ function LaneSection.new()
       { id = "lane_" .. new_lane_idx .. "_instrument", name = "Instrument" },
       { id = "lane_" .. new_lane_idx .. "_midi_device", name = "MIDI Device" },
       { id = "lane_" .. new_lane_idx .. "_midi_channel", name = "MIDI Channel" },
-      { id = "lane_" .. new_lane_idx .. "_crow_gate", name = "Gate Out" },
-      { id = "lane_" .. new_lane_idx .. "_crow_cv", name = "CV Out" }
+      { id = "lane_" .. new_lane_idx .. "_gate_out", name = "Gate Out" },
+      { id = "lane_" .. new_lane_idx .. "_cv_out", name = "CV Out" }
     }
     -- Update section name with lane number
     self.name = string.format("Lane %d", new_lane_idx)

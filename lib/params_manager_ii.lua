@@ -86,8 +86,16 @@ function init_lane_params()
     params:add_number("lane_" .. i .. "_midi_channel", "MIDI Channel", 0, 16, 0)
 
     -- Crow parameters
-    params:add_number("lane_" .. i .. "_crow_gate", "Crow Gate Out", 0, 4, 0)
-    params:add_number("lane_" .. i .. "_crow_cv", "Crow CV Out", 0, 4, 0)
+    params:add_option("lane_" .. i .. "_gate_out", "Gate Out", {
+      "none", 
+      "crow 1", "crow 2", "crow 3", "crow 4",
+      "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"
+    }, 1)
+    params:add_option("lane_" .. i .. "_cv_out", "CV Out", {
+      "none", 
+      "crow 1", "crow 2", "crow 3", "crow 4",
+      "txo cv 1", "txo cv 2", "txo cv 3", "txo cv 4"
+    }, 1)
 
     -- Volume
     params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.05, 1, ""))

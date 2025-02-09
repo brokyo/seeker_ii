@@ -354,21 +354,33 @@ function Lane:on_note_on(event)
     })
   end
 
-  -- Send crow output if enabled
-  local gate_out = params:get("lane_" .. self.id .. "_crow_gate")
-  local cv_out = params:get("lane_" .. self.id .. "_crow_cv")
+  -- Send hardware output if enabled
+  local gate_out = params:get("lane_" .. self.id .. "_gate_out")
+  local cv_out = params:get("lane_" .. self.id .. "_cv_out")
+  
+  -- Calculate CV voltage (V/oct)
+  local cv_volts = (event.note - 60) / 12
   
   -- Handle CV output
-  if cv_out > 0 then
-    -- Set CV output (V/oct)
-    local cv_volts = (event.note - 60) / 12
-    crow.output[cv_out].volts = cv_volts
+  if cv_out > 1 then
+    if cv_out <= 5 then
+      -- Crow CV
+      crow.output[cv_out - 1].volts = cv_volts
+    else
+      -- TXO CV (subtract 5 to get 1-4 range as we're passing in an index from params that includes crow)
+      crow.ii.txo.cv(cv_out - 5, cv_volts)
+    end
   end
   
-  -- Handle gate output independently
-  if gate_out > 0 then
-    -- Set gate high
-    crow.output[gate_out].volts = 5
+  -- Handle gate output
+  if gate_out > 1 then
+    if gate_out <= 5 then
+      -- Crow gate
+      crow.output[gate_out - 1].volts = 5
+    else
+      -- TXO gate (subtract 5 to get 1-4 as we're passing in an index from params that includes crow)
+      crow.ii.txo.tr(gate_out - 5, 1)
+    end
   end
 
   -- Track active note with grid position
@@ -403,20 +415,25 @@ function Lane:on_note_off(event)
     })
   end
 
-  -- Stop crow output if enabled
-  local gate_out = params:get("lane_" .. self.id .. "_crow_gate")
-  if gate_out > 0 then
-    -- Remove current note from count
-    local remaining_notes = 0
-    for note, _ in pairs(self.active_notes) do
-      if note ~= event.note then
-        remaining_notes = remaining_notes + 1
-      end
+  -- Stop hardware output if enabled
+  local gate_out = params:get("lane_" .. self.id .. "_gate_out")
+  
+  -- Count remaining active notes
+  local remaining_notes = 0
+  for note, _ in pairs(self.active_notes) do
+    if note ~= event.note then
+      remaining_notes = remaining_notes + 1
     end
-    
-    -- Set gate low only if this was the last note
-    if remaining_notes == 0 then
-      crow.output[gate_out].volts = 0
+  end
+  
+  -- Only turn off gate if this was the last note
+  if remaining_notes == 0 and gate_out > 1 then
+    if gate_out <= 5 then
+      -- Crow gate
+      crow.output[gate_out - 1].volts = 0
+    else
+      -- TXO gate (subtract 5 to get 1-4 range)
+      crow.ii.txo.tr(gate_out - 5, 0)
     end
   end
 

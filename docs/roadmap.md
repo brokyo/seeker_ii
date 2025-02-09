@@ -3,10 +3,10 @@
 ### Next Session
 
 ### Long List
-- [] `ui_state_ii` should handle key and enc events
 - [] TXO Support
 - [] Events on loop/stage end
-- [] Motif pattern generation?
+- [] `ui_state_ii` should handle key and enc events
+- [] Motif pattern generation from preset. "Quickstart presets"
 - [] Improve transform UI
 - [] Review Harmonize transform
 - [] Long press for overdub in rec section
