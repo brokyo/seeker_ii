@@ -1,9 +1,12 @@
 ### Current Session
-- [] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.
 
 ### Next Session
 
 ### Long List
+- [] TXO Support
+- [] Events on loop/stage end
+- [] Motif pattern generation?
+- [] Improve transform UI
 - [] Review Harmonize transform
 - [] Long press for overdub in rec section
 - [] Add param preset saving
@@ -56,3 +59,4 @@
 - [x] Figure out a solution for velocity. There needs to be some way of broadly controlling. Looped MIDI at 127 velocity is just too unpleasant
 - [x] Grid logic cleanup (modular regions)
 - [x] Footer navigation (current lane and stage)
+- [x] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.

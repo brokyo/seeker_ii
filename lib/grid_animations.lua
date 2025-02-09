@@ -21,7 +21,15 @@ local state = {
   points = {},  -- Store state for each LED
   keyboard_outline = {
     phase = 0,
-    active = false
+    active = false,
+    -- Animation configuration
+    config = {
+      attack_time = 0.1,        -- How long the initial flash lasts (in beats)
+      inactive_brightness = 0.15, -- Brightness of inactive edges (0-1)
+      rotation = 1,             -- 1 for clockwise, -1 for counter-clockwise
+      edge_order = {0, 1, 2, 3},-- Order of edge activation (0=top, 1=right, 2=bottom, 3=left)
+      decay_curve = 1,          -- Power of decay curve (1=linear, 2=quadratic, etc)
+    }
   }
 }
 
@@ -110,22 +118,13 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
   
   local max_brightness = GridConstants.BRIGHTNESS.LOW
   local current_beat = clock.get_beats()
-  local beat_in_bar = current_beat % 4
-  local beat_phase = current_beat % 1  -- Phase within current quarter note
+  local config = state.keyboard_outline.config
   
-  -- Base brightness calculation - flash on quarter notes
-  local brightness = 0
-  if beat_phase < 0.1 then
-    -- Flash on quarter note
-    brightness = math.floor(max_brightness * 0.8)
-    -- Extra bright on downbeat (start of bar)
-    if beat_in_bar < 0.1 then
-      brightness = math.floor(max_brightness)
-    end
-  else
-    -- Gentler decay between beats
-    brightness = math.floor(max_brightness * 0.6 * math.sqrt(1 - beat_phase))
-  end
+  -- Calculate beat position based on rotation direction
+  local beat_position = config.rotation > 0 
+    and (current_beat % 4)     -- Clockwise
+    or (3 - (current_beat % 4)) -- Counter-clockwise
+  local beat_phase = current_beat % 1
   
   -- Draw outline rectangle
   local x1 = layout.keyboard.upper_left_x - 1
@@ -133,16 +132,42 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
   local x2 = x1 + layout.keyboard.width + 1
   local y2 = y1 + layout.keyboard.height + 1
   
+  -- Function to get brightness for current edge
+  local function get_edge_brightness(edge_num, phase)
+    -- Map edge number through edge_order configuration
+    local mapped_edge = config.edge_order[edge_num + 1] -- +1 for Lua 1-based indexing
+    local is_active_edge = math.floor(beat_position) == mapped_edge
+    
+    if is_active_edge then
+      -- Active edge: fade in/out during its beat
+      if phase < config.attack_time then
+        -- Quick attack
+        return max_brightness
+      else
+        -- Configurable decay curve
+        local decay_progress = (phase - config.attack_time) / (1 - config.attack_time)
+        return math.floor(max_brightness * (1 - math.pow(decay_progress, config.decay_curve)))
+      end
+    else
+      -- Inactive edge: configurable dim brightness
+      return math.floor(max_brightness * config.inactive_brightness)
+    end
+  end
+  
   -- Draw horizontal lines
   for x = x1, x2 do
-    GridLayers.set(response_layer, x, y1, brightness)
-    GridLayers.set(response_layer, x, y2, brightness)
+    -- Top edge (beat 0)
+    GridLayers.set(response_layer, x, y1, get_edge_brightness(0, beat_phase))
+    -- Bottom edge (beat 2)
+    GridLayers.set(response_layer, x, y2, get_edge_brightness(2, beat_phase))
   end
   
   -- Draw vertical lines
   for y = y1, y2 do
-    GridLayers.set(response_layer, x1, y, brightness)
-    GridLayers.set(response_layer, x2, y, brightness)
+    -- Right edge (beat 1)
+    GridLayers.set(response_layer, x2, y, get_edge_brightness(1, beat_phase))
+    -- Left edge (beat 3)
+    GridLayers.set(response_layer, x1, y, get_edge_brightness(3, beat_phase))
   end
 end
 
@@ -156,6 +181,17 @@ end
 
 function GridAnimations.cleanup()
   state.points = {}
+end
+
+-- Configuration methods
+function GridAnimations.set_outline_config(config)
+  for k, v in pairs(config) do
+    state.keyboard_outline.config[k] = v
+  end
+end
+
+function GridAnimations.get_outline_config()
+  return state.keyboard_outline.config
 end
 
 return GridAnimations 
