@@ -8,14 +8,16 @@ ScreenSaver.state = {
   lines = {},  -- Store scan lines
   -- Scan line configuration
   config = {
-    num_lines = 6,           -- Number of active scan lines
+    num_lines = 4,           -- Reduced from 6 to 4 lines
     min_speed = 0.3,         -- Lines movement speed
     max_speed = 0.8,
     line_width = 1,          -- Width of each line
     max_brightness = 12,
-    fade_length = 8,         -- Length of fade trail
+    fade_length = 6,         -- Reduced fade trail length
     wave_amplitude = 4,      -- How much the lines wave
-    wave_frequency = 0.5     -- Speed of the wave motion
+    wave_frequency = 0.5,
+    line_resolution = 4,     -- Draw line segments every 4 pixels instead of 2
+    fps = 30                 -- Lower framerate for screen saver mode
   }
 }
 
@@ -80,21 +82,25 @@ function ScreenSaver.draw()
     -- Draw main line and fade trail
     for i = 0, ScreenSaver.state.config.fade_length do
       local fade_y = line.going_up and line.y + i or line.y - i
-      local wave_offset = math.sin(line.phase + (i * 0.2)) * ScreenSaver.state.config.wave_amplitude
       
-      -- Calculate brightness based on fade
-      local brightness = math.floor(ScreenSaver.state.config.max_brightness * 
-        (1 - (i / ScreenSaver.state.config.fade_length)))
-      
-      screen.level(brightness)
-      screen.move(0, fade_y)
-      
-      -- Draw wavy line
-      for x = 0, 128, 2 do
-        local y_offset = wave_offset * math.sin(x * 0.05 + line.phase)
-        screen.line(x, fade_y + y_offset)
+      -- Only draw if the line is visible on screen
+      if fade_y >= 0 and fade_y <= 64 then
+        local wave_offset = math.sin(line.phase + (i * 0.2)) * ScreenSaver.state.config.wave_amplitude
+        
+        -- Calculate brightness based on fade
+        local brightness = math.floor(ScreenSaver.state.config.max_brightness * 
+          (1 - (i / ScreenSaver.state.config.fade_length)))
+        
+        screen.level(brightness)
+        screen.move(0, fade_y)
+        
+        -- Draw wavy line with reduced resolution
+        for x = 0, 128, ScreenSaver.state.config.line_resolution do
+          local y_offset = wave_offset * math.sin(x * 0.05 + line.phase)
+          screen.line(x, fade_y + y_offset)
+        end
+        screen.stroke()
       end
-      screen.stroke()
     end
   end
   

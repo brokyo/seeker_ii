@@ -11,7 +11,10 @@ function ConfigSection.new()
     params = {
       { id = "root_note", name = "Root Note" },
       { id = "scale_type", name = "Scale" },
+      { id = "clock_pulse_out", name = "Clock Out" },
+      { id = "clock_division", name = "Clock Div" },
       { separator = true, name = "ACTIONS" },
+      { id = "test_pulse", name = "Test Pulse", action = true },
       { id = "sync_lanes", name = "Sync Lanes", action = true },
       { id = "reset", name = "Reset All", action = true }
     }
@@ -36,6 +39,29 @@ function ConfigSection.new()
         -- Call conductor's sync_lanes function
         _seeker.conductor:sync_lanes()
         print("⚡ Synced all lanes")
+      elseif param.id == "test_pulse" then
+        -- Send a test pulse to the selected output
+        local pulse_out = params:get("clock_pulse_out")
+        if pulse_out > 1 then
+          if pulse_out <= 5 then
+            -- Crow pulse
+            crow.output[pulse_out - 1].volts = 5
+            -- Schedule pulse off after 10ms
+            clock.run(function()
+              clock.sleep(0.01)
+              crow.output[pulse_out - 1].volts = 0
+            end)
+          else
+            -- TXO pulse (subtract 5 to get 1-4 range)
+            crow.ii.txo.tr(pulse_out - 5, 1)
+            -- Schedule pulse off after 10ms
+            clock.run(function()
+              clock.sleep(0.01)
+              crow.ii.txo.tr(pulse_out - 5, 0)
+            end)
+          end
+          print("⚡ Sent test pulse")
+        end
       end
     else
       -- Use default param modification for non-action items

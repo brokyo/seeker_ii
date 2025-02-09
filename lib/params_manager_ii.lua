@@ -17,7 +17,7 @@ function params_manager_ii.get_instrument_list()
 end
 
 function init_musical_params()
-  params:add_group("MUSICAL", 2)
+  params:add_group("MUSICAL", 4)  -- Increased group size for new param
 
   -- Add root note selection
   params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 6)
@@ -34,6 +34,66 @@ function init_musical_params()
   params:set_action("scale_type", function(value)
     theory.print_keyboard_layout()
   end)
+
+  -- Add clock pulse output
+  params:add_option("clock_pulse_out", "Clock Pulse Out", {
+    "none", 
+    "crow 1", "crow 2", "crow 3", "crow 4",
+    "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"
+  }, 1)
+
+  -- Add clock division
+  params:add_option("clock_division", "Clock Division", {
+    "off",
+    "1 beat",
+    "2 beats",
+    "4 beats (bar)",
+    "8 beats",
+    "16 beats"
+  }, 1)
+
+  -- Set up the clock coroutine when either parameter changes
+  local function setup_clock_coroutine()
+    local pulse_out = params:get("clock_pulse_out")
+    local division = params:get("clock_division")
+    
+    -- Clear existing clock coroutine if it exists
+    if _seeker.clock_pulse_coroutine then
+      clock.cancel(_seeker.clock_pulse_coroutine)
+      _seeker.clock_pulse_coroutine = nil
+    end
+    
+    -- Only start if we have an output and division selected
+    if pulse_out > 1 and division > 1 then
+      -- Convert division option to number of beats
+      local beats = {1, 2, 4, 8, 16}
+      local beat_count = beats[division - 1]
+      
+      _seeker.clock_pulse_coroutine = clock.run(function()
+        while true do
+          -- Send pulse
+          if pulse_out <= 5 then
+            -- Crow pulse
+            crow.output[pulse_out - 1].volts = 5
+            clock.sleep(0.01)  -- 10ms pulse
+            crow.output[pulse_out - 1].volts = 0
+          else
+            -- TXO pulse
+            crow.ii.txo.tr(pulse_out - 5, 1)
+            clock.sleep(0.01)  -- 10ms pulse
+            crow.ii.txo.tr(pulse_out - 5, 0)
+          end
+          
+          -- Wait for next pulse
+          clock.sync(beat_count)
+        end
+      end)
+    end
+  end
+
+  -- Set up clock coroutine when either parameter changes
+  params:set_action("clock_pulse_out", setup_clock_coroutine)
+  params:set_action("clock_division", setup_clock_coroutine)
 end
 
 function init_recording_params()

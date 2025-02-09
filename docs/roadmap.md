@@ -1,11 +1,10 @@
 ### Current Session
 
 ### Next Session
+- [] `ui_state_ii` should handle key and enc events
+- [] Use K1 to pause redrawing so we can use the norns global app
 
 ### Long List
-- [] TXO Support
-- [] Events on loop/stage end
-- [] `ui_state_ii` should handle key and enc events
 - [] Motif pattern generation from preset. "Quickstart presets"
 - [] Improve transform UI
 - [] Review Harmonize transform
@@ -61,3 +60,5 @@
 - [x] Grid logic cleanup (modular regions)
 - [x] Footer navigation (current lane and stage)
 - [x] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.
+- [x] TXO Support
+- [] Events on loop/stage end
