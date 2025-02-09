@@ -1,9 +1,7 @@
 ### Current Session
-- [] Figure out a solution for velocity. There needs to be some way of broadly controlling. Looped MIDI at 127 velocity is just too unpleasant
-- [] Grid logic cleanup (modular regions)
+- [x] Footer navigation (current lane and stage)
 
 ### Next Session
-- [] Footer navigation (current lane and stage)
 - [] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.
 
 ### Long List
@@ -56,3 +54,5 @@
 - [x] Universal timeline view
 - [x] Motif view
 - [x] Overdubbing
+- [x] Figure out a solution for velocity. There needs to be some way of broadly controlling. Looped MIDI at 127 velocity is just too unpleasant
+- [x] Grid logic cleanup (modular regions)

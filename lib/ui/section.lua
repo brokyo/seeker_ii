@@ -99,6 +99,21 @@ function Section:draw_footer()
   screen.move(2, 60)
   screen.text(self.name)
   
+  -- Add lane and stage info
+  local lane_idx = _seeker.ui_state.get_focused_lane()
+  local stage_idx = _seeker.ui_state.get_focused_stage()
+  local info_text = string.format("L%d S%d", lane_idx, stage_idx)
+  
+  -- Calculate position to be right-aligned with some padding from blinkenlights
+  local SCREEN_WIDTH = 128
+  local BLINK_PADDING = 26  -- Leave space for blinkenlights
+  local text_width = screen.text_extents(info_text)
+  local x = SCREEN_WIDTH - BLINK_PADDING - text_width
+  
+  screen.level(0)
+  screen.move(x, 60)
+  screen.text(info_text)
+  
   -- Draw system status lights
   self:draw_blinkenlights()
 end

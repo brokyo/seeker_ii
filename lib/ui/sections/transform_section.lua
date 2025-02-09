@@ -7,7 +7,7 @@ TransformSection.__index = TransformSection
 function TransformSection.new()
   local section = Section.new({
     id = "TRANSFORM",
-    name = "Transform Chain",
+    name = "Transform",
     icon = "⚙️",
     params = {}
   })
