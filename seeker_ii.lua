@@ -1,15 +1,15 @@
 -- seeker_ii.lua
 -- awakening.systems
 --
--- Phosphene snap
+-- **P*ho**sph*en*e***sn*ap***
 
 engine.name = "MxSamples"
 
 -- Libraries
-local mxsamples = include("mx.samples/lib/mx.samples")  -- Sample playback engine
-local Lane = include("lib/lane")  -- Lane management
+local mxsamples = include("mx.samples/lib/mx.samples")
+local Lane = include("lib/lane")
 local conductor = include("lib/conductor")
-local lane_archetype = include("lib/lane_archetype")  -- Lane configuration templates
+local lane_archetype = include("lib/lane_archetype")
 local grid = include("lib/grid_ii")
 local screen_ui = include("/lib/screen_iii")
 local params_manager = include('/lib/params_manager_ii')
@@ -20,13 +20,13 @@ local MotifRecorder = include("lib/motif_recorder")
 _seeker = {
   skeys = nil,
   conductor = conductor,
-  lanes = {},            -- Collection of all lanes
-  active_lane = 1,       -- Currently selected lane
-  num_lanes = 4,         -- Number of lanes to create (configurable)
+  lanes = {},
+  active_lane = 1,
+  num_lanes = 4,
   debug_lane = nil,
-  ui_state = nil,        -- Will hold UIState instance
-  screen_ui = nil,       -- Will hold ScreenUI instance
-  grid_ui = nil,         -- Will hold GridUI instance
+  ui_state = nil,
+  screen_ui = nil,
+  grid_ui = nil,
   motif_recorder = nil
 }
 
@@ -40,18 +40,13 @@ function init()
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
     
-  -- Initialize UI state first and store instance
+  -- UI Setup and global access
   _seeker.ui_state = ui_state.init()
-  
-  -- Initialize parameter system
-  params_manager.init_params()
-  
-  -- Initialize UI components in sequence
+  params_manager.init_params()  
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
   
   -- Start the clock
-  -- Check the event queue every 1/64 to see if there are any new events
   clock.run(function()
     print("⎆ Conductor watching")
     while true do
@@ -72,6 +67,7 @@ function init()
   print('⌬ Seeker Online')
 end
 
+-- TODO: key and enc should probably be handled by `ui_state_ii`
 function key(n, z)
   _seeker.screen_ui.key(n, z)
 end
@@ -86,5 +82,4 @@ end
 
 function cleanup()
   print("⌿ Close the world")
-  -- params:write()
 end

@@ -3,6 +3,7 @@
 ### Next Session
 
 ### Long List
+- [] `ui_state_ii` should handle key and enc events
 - [] TXO Support
 - [] Events on loop/stage end
 - [] Motif pattern generation?
