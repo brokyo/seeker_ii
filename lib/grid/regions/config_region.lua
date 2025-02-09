@@ -4,8 +4,8 @@ local GridConstants = include("lib/grid_constants")
 local ConfigRegion = {}
 
 ConfigRegion.layout = {
-  x = 16,  -- Upper right
-  y = 1,   -- Top row
+  x = 16,
+  y = 1,
   width = 1,
   height = 1
 }

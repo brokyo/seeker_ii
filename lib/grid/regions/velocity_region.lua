@@ -6,8 +6,8 @@ local GridConstants = include("lib/grid_constants")
 local VelocityRegion = {}
 
 VelocityRegion.layout = {
-  x = 2,
-  y = 8,
+  x = 1,
+  y = 7,
   width = 4,
   height = 1
 }

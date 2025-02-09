@@ -14,6 +14,7 @@ local grid = include("lib/grid_ii")
 local screen_ui = include("/lib/screen_iii")
 local params_manager = include('/lib/params_manager_ii')
 local ui_state = include('/lib/ui_state_ii')
+local MotifRecorder = include("lib/motif_recorder")
 
 -- Global state
 _seeker = {
@@ -25,7 +26,8 @@ _seeker = {
   debug_lane = nil,
   ui_state = nil,        -- Will hold UIState instance
   screen_ui = nil,       -- Will hold ScreenUI instance
-  grid_ui = nil          -- Will hold GridUI instance
+  grid_ui = nil,         -- Will hold GridUI instance
+  motif_recorder = nil
 }
 
 --------------------------------------------------
@@ -36,6 +38,7 @@ function init()
   print('◎ Open The Next')
   -- Core audio setup
   _seeker.skeys = mxsamples:new()
+  _seeker.motif_recorder = MotifRecorder.new()
     
   -- Initialize UI state first and store instance
   _seeker.ui_state = ui_state.init()
@@ -46,7 +49,7 @@ function init()
   -- Initialize UI components in sequence
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
- 
+  
   -- Start the clock
   -- Check the event queue every 1/64 to see if there are any new events
   clock.run(function()
@@ -58,13 +61,14 @@ function init()
       end
     end
   end)
-
+  
   -- Initialize lanes with default configurations
   for i = 1, _seeker.num_lanes do
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
-
+  
+  _seeker.grid_ui.start()
   print('⌬ Seeker Online')
 end
 

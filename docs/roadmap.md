@@ -14,6 +14,7 @@
 - [] Transforms should update x/y positions
 - [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 - [] Catch MIDI events (rather than grid) in `motif_recorder`
+- [] Review keyboard region in `grid_ii.lua`. Everything else has been refactored into region components. Didn't do keyboard due to potential dependencies.
 
 
 ### Bugs
