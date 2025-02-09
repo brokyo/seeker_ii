@@ -6,6 +6,7 @@ local GridAnimations = include("lib/grid_animations")
 local GridLayers = include("lib/grid_layers")
 local GridConstants = include("lib/grid_constants")
 local VelocityRegion = include("lib/grid/regions/velocity_region")
+local ConfigRegion = include("lib/grid/regions/config_region")
 
 local motif_recorder = MotifRecorder.new({})
 local layers = nil
@@ -122,11 +123,8 @@ function draw_controls()
     GridConstants.BRIGHTNESS.UI.NORMAL
   GridLayers.set(layers.ui, Layout.motif_button.x, Layout.motif_button.y, motif_brightness)
   
-  -- Config button
-  local config_brightness = (_seeker.ui_state.get_current_section() == "CONFIG") and 
-    GridConstants.BRIGHTNESS.UI.FOCUSED or 
-    GridConstants.BRIGHTNESS.UI.NORMAL
-  GridLayers.set(layers.ui, Layout.config_button.x, Layout.config_button.y, config_brightness)
+  -- Draw config region
+  ConfigRegion.draw(layers)
  
   -- Lane selector
   for i = 0, Layout.lane_select.width - 1 do
@@ -330,10 +328,8 @@ function GridUI.key(x, y, z)
     if z == 1 then
       focus_motif()
     end
-  elseif is_config_button(x, y) then
-    if z == 1 then
-      _seeker.ui_state.set_current_section("CONFIG")
-    end
+  elseif ConfigRegion.contains(x, y) then
+    ConfigRegion.handle_key(x, y, z)
   elseif is_in_transform_chain(x, y) then
     if z == 1 then
       local stage_idx = (x - Layout.transform_chain.x) + 1
