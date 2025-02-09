@@ -256,64 +256,169 @@ transforms.available = {
 
   harmonize = {
     name = "Harmonize",
-    description = "Probabilistically add harmonized notes",
+    description = "Add intelligent harmonies based on musical context",
     params = {
-      probability = {
+      harmony_preset = {
+        type = "integer",
+        default = 1,
+        min = 1,
+        max = 8,
+        step = 1,
+        formatter = function(param)
+          local presets = {
+            "Major Third",     -- +4
+            "Minor Third",     -- +3
+            "Perfect Fifth",   -- +7
+            "Major Triad",     -- +4, +7
+            "Minor Triad",     -- +3, +7
+            "Major 7th",       -- +4, +7, +11
+            "Minor 7th",       -- +3, +7, +10
+            "Octave"          -- +12
+          }
+          return presets[param]
+        end
+      },
+      density = {
         type = "continuous",
-        default = 0.5,
+        default = 0.7,
         min = 0.0,
         max = 1.0,
-        step = 0.05  -- Optional: for finer control
+        step = 0.05,
+        formatter = function(param)
+          if param < 0.33 then return "Sparse"
+          elseif param < 0.66 then return "Medium"
+          else return "Dense" end
+        end
       },
-      interval = {
+      velocity_factor = {
+        type = "continuous",
+        default = 0.8,
+        min = 0.1,
+        max = 1.0,
+        step = 0.05
+      },
+      pattern = {
         type = "integer",
-        default = 4,
+        default = 1,
         min = 1,
-        max = 12,
-        step = 1
+        max = 4,
+        step = 1,
+        formatter = function(param)
+          local patterns = {"Random", "Alternating", "Ascending", "Descending"}
+          return patterns[param]
+        end
       }
     },
     fn = function(events, params)
-      local probability = params.probability or 0.5
-      local interval = params.interval or 4
       local result = {}
+      local note_sequence = {}
+      local total_duration = 0
       
-      -- First copy all original events
+      -- Define harmony presets (intervals from root)
+      local harmony_presets = {
+        {4},           -- Major Third
+        {3},           -- Minor Third
+        {7},           -- Perfect Fifth
+        {4, 7},        -- Major Triad
+        {3, 7},        -- Minor Triad
+        {4, 7, 11},    -- Major 7th
+        {3, 7, 10},    -- Minor 7th
+        {12}           -- Octave
+      }
+      
+      -- Get intervals for selected preset
+      local intervals = harmony_presets[params.harmony_preset]
+      
+      -- First pass: collect notes and find total duration
+      for _, event in ipairs(events) do
+        if event.type == "note_on" then
+          table.insert(note_sequence, {
+            note = event.note,
+            time = event.time,
+            velocity = event.velocity,
+            x = event.x,
+            y = event.y,
+            duration = nil  -- Will be filled when we find note_off
+          })
+        elseif event.type == "note_off" then
+          -- Find matching note_on and set duration
+          for _, note in ipairs(note_sequence) do
+            if note.note == event.note and note.duration == nil then
+              note.duration = event.time - note.time
+              break
+            end
+          end
+        end
+        if event.time > total_duration then
+          total_duration = event.time
+        end
+      end
+      
+      -- Copy original events
       for _, event in ipairs(events) do
         local new_event = {}
         for k, v in pairs(event) do
           new_event[k] = v
         end
         table.insert(result, new_event)
+      end
+      
+      -- Add harmonized notes based on pattern
+      for i, note in ipairs(note_sequence) do
+        local should_harmonize = false
         
-        -- Probabilistically add harmonized notes for note_on events
-        if event.type == "note_on" and math.random() < probability then
-          -- Add harmonized note_on
-          table.insert(result, {
-            type = "note_on",
-            time = event.time,
-            note = event.note + interval,
-            velocity = event.velocity
-          })
-          
-          -- Find corresponding note_off and add harmonized note_off
-          for j = 1, #events do
-            if events[j].type == "note_off" and 
-               events[j].note == event.note and
-               events[j].time > event.time then
-              table.insert(result, {
-                type = "note_off",
-                time = events[j].time,
-                note = event.note + interval
-              })
-              break
-            end
+        -- Pattern-based decision making
+        if params.pattern == 1 then  -- Random
+          should_harmonize = math.random() < params.density
+        elseif params.pattern == 2 then  -- Alternating
+          should_harmonize = i % 2 == 0
+        elseif params.pattern == 3 then  -- Ascending
+          should_harmonize = i > #note_sequence / 2
+        elseif params.pattern == 4 then  -- Descending
+          should_harmonize = i <= #note_sequence / 2
+        end
+        
+        if should_harmonize then
+          -- Add harmonized notes for each interval
+          for _, interval in ipairs(intervals) do
+            -- Add note_on
+            table.insert(result, {
+              type = "note_on",
+              time = note.time,
+              note = note.note + interval,
+              velocity = math.floor(note.velocity * params.velocity_factor),
+              x = note.x,  -- Preserve grid position if available
+              y = note.y
+            })
+            
+            -- Add corresponding note_off
+            table.insert(result, {
+              type = "note_off",
+              time = note.time + note.duration,
+              note = note.note + interval,
+              x = note.x,
+              y = note.y
+            })
           end
         end
       end
       
       -- Sort by time
       table.sort(result, function(a, b) return a.time < b.time end)
+      
+      -- Log transform summary
+      print("\n=== HARMONIZE TRANSFORM ===")
+      print(string.format("Original notes: %d", #note_sequence))
+      local preset_names = {
+        "Major Third", "Minor Third", "Perfect Fifth",
+        "Major Triad", "Minor Triad", "Major 7th",
+        "Minor 7th", "Octave"
+      }
+      print(string.format("Harmony: %s", preset_names[params.harmony_preset]))
+      print(string.format("Pattern: %s", ({"Random", "Alternating", "Ascending", "Descending"})[params.pattern]))
+      print(string.format("Density: %.2f", params.density))
+      print(string.format("Total events: %d", #result))
+      print("========================\n")
       
       return result
     end

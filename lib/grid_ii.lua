@@ -5,6 +5,7 @@ local MotifRecorder = include("lib/motif_recorder")
 local GridAnimations = include("lib/grid_animations")
 local GridLayers = include("lib/grid_layers")
 local GridConstants = include("lib/grid_constants")
+local VelocityRegion = include("lib/grid/regions/velocity_region")
 
 local motif_recorder = MotifRecorder.new({})
 local layers = nil
@@ -23,7 +24,7 @@ local Layout = {
   lane_select = {x = 1, y = 7, width = 4},
   stage_select = {x = 13, y = 7, width = 4},
   fps = 30,
-  transform_chain = {x = 13, y = 6, width = 4},
+  transform_chain = {x = 13, y = 6, width = 4}
 }
 
 function GridUI.init()
@@ -142,6 +143,9 @@ function draw_controls()
       GridConstants.BRIGHTNESS.UI.NORMAL
     GridLayers.set(layers.ui, Layout.stage_select.x + i, Layout.stage_select.y, brightness)
   end
+
+  -- Draw velocity region
+  VelocityRegion.draw(layers)
 
   -- Transform chain indicators
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -269,11 +273,12 @@ end
 function note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
+  
   local event = {
     x = x,
     y = y,
     note = theory.grid_to_note(x, y, octave),
-    velocity = 127
+    velocity = VelocityRegion.get_current_velocity()
   }
 
   if motif_recorder.is_recording then  
@@ -335,6 +340,8 @@ function GridUI.key(x, y, z)
       _seeker.ui_state.set_focused_stage(stage_idx)
       _seeker.ui_state.set_current_section("TRANSFORM")
     end
+  elseif VelocityRegion.contains(x, y) then
+    VelocityRegion.handle_key(x, y, z)
   end
 end
 

@@ -1,9 +1,13 @@
 ### Current Session
-- [] Improve Harmonize transform
+- [] Figure out a solution for velocity. There needs to be some way of broadly controlling. Looped MIDI at 127 velocity is just too unpleasant
+- [] Grid logic cleanup (modular regions)
 
 ### Next Session
+- [] Footer navigation (current lane and stage)
+- [] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.
 
 ### Long List
+- [] Review Harmonize transform
 - [] Long press for overdub in rec section
 - [] Add param preset saving
 - [] Reverse transform may break duration

@@ -12,6 +12,7 @@ function ConfigSection.new()
       { id = "root_note", name = "Root Note" },
       { id = "scale_type", name = "Scale" },
       { separator = true, name = "ACTIONS" },
+      { id = "sync_lanes", name = "Sync Lanes", action = true },
       { id = "reset", name = "Reset All", action = true }
     }
   })
@@ -31,6 +32,10 @@ function ConfigSection.new()
           end
         end
         print("⚡ Reset to defaults")
+      elseif param.id == "sync_lanes" then
+        -- Call conductor's sync_lanes function
+        _seeker.conductor:sync_lanes()
+        print("⚡ Synced all lanes")
       end
     else
       -- Use default param modification for non-action items

@@ -339,13 +339,18 @@ function Lane:on_note_on(event)
     self.midi_out_device:note_on(event.note, event.velocity * self.volume, channel)
   end
 
+  -- Normalize velocity for MX Samples
+  local engine_velocity = (event.velocity / 127) * self.volume
+
   -- Play engine using instrument from params
+  -- NB: MX Samples uses amp as a value between 0 and 1. This isn't clear from the documentation.
   local instrument = self:get_instrument()
+
   if instrument then
     _seeker.skeys:on({
       name = instrument,
       midi = event.note,
-      velocity = event.velocity * self.volume
+      amp = engine_velocity
     })
   end
 
@@ -401,14 +406,16 @@ function Lane:on_note_off(event)
   -- Stop crow output if enabled
   local gate_out = params:get("lane_" .. self.id .. "_crow_gate")
   if gate_out > 0 then
-    -- Only set gate low if this was the last active note
-    local has_active_notes = false
-    for _ in pairs(self.active_notes) do
-      has_active_notes = true
-      break
+    -- Remove current note from count
+    local remaining_notes = 0
+    for note, _ in pairs(self.active_notes) do
+      if note ~= event.note then
+        remaining_notes = remaining_notes + 1
+      end
     end
-    if not has_active_notes then
-      -- Set gate low
+    
+    -- Set gate low only if this was the last note
+    if remaining_notes == 0 then
       crow.output[gate_out].volts = 0
     end
   end
