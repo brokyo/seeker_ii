@@ -124,7 +124,7 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 14) -- Increased group size for crow params
+    params:add_group("lane_" .. i, "LANE " .. i, 15) -- Increased group size by 1
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Octave selection for this lane
@@ -155,6 +155,13 @@ function init_lane_params()
       "none", 
       "crow 1", "crow 2", "crow 3", "crow 4",
       "txo cv 1", "txo cv 2", "txo cv 3", "txo cv 4"
+    }, 1)
+
+    -- Add loop start trigger
+    params:add_option("lane_" .. i .. "_loop_start_trigger", "Loop Start Trigger", {
+      "none", 
+      "crow 1", "crow 2", "crow 3", "crow 4",
+      "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"
     }, 1)
 
     -- Volume
