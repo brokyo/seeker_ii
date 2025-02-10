@@ -168,22 +168,28 @@ function GridUI.key(x, y, z)
     else
       note_off(x, y)
     end
-  elseif regions.lane.contains(x, y) then
-    regions.lane.handle_key(x, y, z)
-  elseif regions.stage.contains(x, y) then
-    regions.stage.handle_key(x, y, z)
-  elseif regions.rec.contains(x, y) then
-    regions.rec.handle_key(x, y, z)
-  elseif regions.play.contains(x, y) then
-    regions.play.handle_key(x, y, z)
-  elseif regions.motif.contains(x, y) then
-    regions.motif.handle_key(x, y, z)
-  elseif regions.config.contains(x, y) then
-    regions.config.handle_key(x, y, z)
-  elseif regions.transform.contains(x, y) then
-    regions.transform.handle_key(x, y, z)
-  elseif regions.velocity.contains(x, y) then
-    regions.velocity.handle_key(x, y, z)
+  else
+    -- Register activity for any non-keyboard interaction
+    _seeker.ui_state.register_activity()
+    
+    -- Handle region interactions
+    if regions.lane.contains(x, y) then
+      regions.lane.handle_key(x, y, z)
+    elseif regions.stage.contains(x, y) then
+      regions.stage.handle_key(x, y, z)
+    elseif regions.rec.contains(x, y) then
+      regions.rec.handle_key(x, y, z)
+    elseif regions.play.contains(x, y) then
+      regions.play.handle_key(x, y, z)
+    elseif regions.motif.contains(x, y) then
+      regions.motif.handle_key(x, y, z)
+    elseif regions.config.contains(x, y) then
+      regions.config.handle_key(x, y, z)
+    elseif regions.transform.contains(x, y) then
+      regions.transform.handle_key(x, y, z)
+    elseif regions.velocity.contains(x, y) then
+      regions.velocity.handle_key(x, y, z)
+    end
   end
 end
 

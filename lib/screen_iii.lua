@@ -34,9 +34,9 @@ function ScreenUI.init()
   clock.run(function()
     while true do
       clock.sync(1/ScreenUI.state.fps)
-      -- if ScreenUI.state.app_on_screen then
+      if ScreenUI.state.app_on_screen then
         ScreenUI.redraw()
-      -- end
+      end
     end
   end)
 
@@ -49,14 +49,6 @@ function ScreenUI.get_active_section()
 end
 
 function ScreenUI.key(n, z)
-  if n == 1 then
-    if z == 1 then
-      ScreenUI.state.app_on_screen = not ScreenUI.state.app_on_screen
-      return
-    end
-  end
-
-  ScreenSaver.register_activity()  -- Register any key activity
   local section = ScreenUI.get_active_section()
   if section then
     section:handle_key(n, z)
@@ -65,7 +57,6 @@ function ScreenUI.key(n, z)
 end
 
 function ScreenUI.enc(n, d)
-  ScreenSaver.register_activity()  -- Register any encoder activity
   local section = ScreenUI.get_active_section()
   if section then
     section:handle_enc(n, d)

@@ -7,6 +7,7 @@
 ### Long List
 - [] Motif pattern generation from preset. "Quickstart presets"
 - [] Improve transform UI
+- [] Add MIDI CC to control ableton recording
 - [] Review Harmonize transform
 - [] Long press for overdub in rec section
 - [] Add param preset saving

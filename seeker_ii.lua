@@ -69,11 +69,11 @@ end
 
 -- TODO: key and enc should probably be handled by `ui_state_ii`
 function key(n, z)
-  _seeker.screen_ui.key(n, z)
+  _seeker.ui_state.key(n, z)
 end
 
 function enc(n, d)
-  _seeker.screen_ui.enc(n, d)
+  _seeker.ui_state.enc(n, d)
 end
 
 function redraw()

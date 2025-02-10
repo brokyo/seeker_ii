@@ -2,7 +2,6 @@
 local ScreenSaver = {}
 
 ScreenSaver.state = {
-  last_activity_time = util.time(),
   is_active = false,
   timeout_seconds = 30,
   lines = {},  -- Store scan lines
@@ -47,19 +46,15 @@ function ScreenSaver.init()
 end
 
 function ScreenSaver.check_timeout()
-  if not ScreenSaver.state.is_active and 
-     (util.time() - ScreenSaver.state.last_activity_time) > ScreenSaver.state.timeout_seconds then
-    ScreenSaver.state.is_active = true
+  local time_since_last_action = util.time() - _seeker.ui_state.state.last_action_time
+  local should_be_active = time_since_last_action > ScreenSaver.state.timeout_seconds
+  
+  -- Update active state if it changed
+  if should_be_active ~= ScreenSaver.state.is_active then
+    ScreenSaver.state.is_active = should_be_active
   end
+  
   return ScreenSaver.state.is_active
-end
-
-function ScreenSaver.register_activity()
-  ScreenSaver.state.last_activity_time = util.time()
-  if ScreenSaver.state.is_active then
-    ScreenSaver.state.is_active = false
-    _seeker.ui_state.set_current_section("CONFIG")  -- Wake up to config view
-  end
 end
 
 function ScreenSaver.draw()

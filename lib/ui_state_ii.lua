@@ -5,7 +5,8 @@ local UIState = {}
 UIState.state = {
   focused_lane = 1,
   focused_stage = 1,
-  current_section = "LANE"
+  current_section = "LANE",
+  last_action_time = util.time()
 }
 
 function UIState.init()
@@ -62,6 +63,39 @@ end
 
 function UIState.get_current_section()
   return UIState.state.current_section
+end
+
+function UIState.register_activity()
+  UIState.state.last_action_time = util.time()
+end
+
+function UIState.key(n, z)
+  UIState.register_activity()
+
+  print("⎍ Key pressed", n, z)
+  -- Handle global controls first
+  if n == 1 and z == 1 then
+    -- Toggle app visibility
+    if _seeker.screen_ui then
+      _seeker.screen_ui.state.app_on_screen = not _seeker.screen_ui.state.app_on_screen
+      print("⎍ App visibility toggled")
+      return
+    end
+  end
+  
+  -- Pass to screen UI if visible
+  if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
+    _seeker.screen_ui.key(n, z)
+  end
+end
+
+function UIState.enc(n, d)
+  UIState.register_activity()
+
+  -- Pass to screen UI if visible
+  if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
+    _seeker.screen_ui.enc(n, d)
+  end
 end
 
 return UIState 
