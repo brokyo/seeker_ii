@@ -1,5 +1,8 @@
 ### Current Session
-- [x] Motif pattern generation from preset. "Quickstart presets"
+- [x] Fix footer padding
+- [x] Set default UI section to CONFIG
+- [x] Flash grid outline when motif is generated
+- [x] Improve grid recording state animation
 
 ### Next Session
 
@@ -64,3 +67,4 @@
 - [x] TXO Support
 - [x] Events on loop/stage end
 - [x] `ui_state_ii` should handle key and enc events
+- [x] Motif pattern generation from preset. "Quickstart presets"

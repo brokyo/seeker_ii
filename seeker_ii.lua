@@ -65,6 +65,7 @@ function init()
   end
   
   _seeker.grid_ui.start()
+  _seeker.ui_state.set_current_section("CONFIG")
   print('⌬ Seeker Online')
 end
 

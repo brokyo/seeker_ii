@@ -116,58 +116,28 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
   -- Activate outline animation if not already active
   state.keyboard_outline.active = true
   
-  local max_brightness = GridConstants.BRIGHTNESS.LOW
   local current_beat = clock.get_beats()
-  local config = state.keyboard_outline.config
+  local beat_in_bar = current_beat % 4  -- Which beat we're on (0-3)
+  local beat_phase = current_beat % 1    -- Phase within current beat (0-1)
   
-  -- Calculate beat position based on rotation direction
-  local beat_position = config.rotation > 0 
-    and (current_beat % 4)     -- Clockwise
-    or (3 - (current_beat % 4)) -- Counter-clockwise
-  local beat_phase = current_beat % 1
+  -- Calculate brightness
+  local brightness
+  if beat_in_bar < 0.1 then  -- First beat (with a small window to catch it)
+    brightness = GridConstants.BRIGHTNESS.MEDIUM
+  else
+    -- Pulse on each beat with quick decay
+    local decay = 1 - (beat_phase * 1.5)  -- Faster decay
+    if decay < 0 then decay = 0 end
+    brightness = math.floor(GridConstants.BRIGHTNESS.LOW * decay)
+  end
   
-  -- Draw outline rectangle
+  -- Draw top bar
   local x1 = layout.keyboard.upper_left_x - 1
-  local y1 = layout.keyboard.upper_left_y - 1
   local x2 = x1 + layout.keyboard.width + 1
-  local y2 = y1 + layout.keyboard.height + 1
+  local y1 = layout.keyboard.upper_left_y - 1
   
-  -- Function to get brightness for current edge
-  local function get_edge_brightness(edge_num, phase)
-    -- Map edge number through edge_order configuration
-    local mapped_edge = config.edge_order[edge_num + 1] -- +1 for Lua 1-based indexing
-    local is_active_edge = math.floor(beat_position) == mapped_edge
-    
-    if is_active_edge then
-      -- Active edge: fade in/out during its beat
-      if phase < config.attack_time then
-        -- Quick attack
-        return max_brightness
-      else
-        -- Configurable decay curve
-        local decay_progress = (phase - config.attack_time) / (1 - config.attack_time)
-        return math.floor(max_brightness * (1 - math.pow(decay_progress, config.decay_curve)))
-      end
-    else
-      -- Inactive edge: configurable dim brightness
-      return math.floor(max_brightness * config.inactive_brightness)
-    end
-  end
-  
-  -- Draw horizontal lines
   for x = x1, x2 do
-    -- Top edge (beat 0)
-    GridLayers.set(response_layer, x, y1, get_edge_brightness(0, beat_phase))
-    -- Bottom edge (beat 2)
-    GridLayers.set(response_layer, x, y2, get_edge_brightness(2, beat_phase))
-  end
-  
-  -- Draw vertical lines
-  for y = y1, y2 do
-    -- Right edge (beat 1)
-    GridLayers.set(response_layer, x2, y, get_edge_brightness(1, beat_phase))
-    -- Left edge (beat 3)
-    GridLayers.set(response_layer, x1, y, get_edge_brightness(3, beat_phase))
+    GridLayers.set(response_layer, x, y1, brightness)
   end
 end
 
