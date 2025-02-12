@@ -27,7 +27,7 @@ _seeker = {
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
-  motif_recorder = nil
+  motif_recorder = nil,
 }
 
 --------------------------------------------------
@@ -43,6 +43,7 @@ function init()
   -- UI Setup and global access
   _seeker.ui_state = ui_state.init()
   params_manager.init_params()  
+
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
   

@@ -5,13 +5,15 @@ local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local TransformSection = include('lib/ui/sections/transform_section')
+local GenerateSection = include('lib/ui/sections/generate_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}
 
 ScreenUI.state = {
+  fps = 30,
   app_on_screen = true,
-  fps = 30
+  needs_redraw = false
 }
 
 ScreenUI.sections = {}
@@ -24,19 +26,22 @@ function ScreenUI.init()
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
-    TRANSFORM = TransformSection.new()
+    TRANSFORM = TransformSection.new(),
+    GENERATE = GenerateSection.new()
   }
   
-  -- Initialize screen saver
   ScreenSaver.init()
   
-  -- Start redraw clock - constant FPS unless disabled
   clock.run(function()
     while true do
-      clock.sync(1/ScreenUI.state.fps)
-      if ScreenUI.state.app_on_screen then
+      if ScreenSaver.check_timeout() then
         ScreenUI.redraw()
+      else
+        if ScreenUI.state.needs_redraw then
+          ScreenUI.redraw()
+        end
       end
+      clock.sync(1/ScreenUI.state.fps)
     end
   end)
 
@@ -50,7 +55,7 @@ end
 
 function ScreenUI.key(n, z)
   local section = ScreenUI.get_active_section()
-  if section then
+  if section and section.state.is_active then
     section:handle_key(n, z)
     ScreenUI.set_needs_redraw()
   end
@@ -58,7 +63,7 @@ end
 
 function ScreenUI.enc(n, d)
   local section = ScreenUI.get_active_section()
-  if section then
+  if section and section.state.is_active then
     section:handle_enc(n, d)
     ScreenUI.set_needs_redraw()
   end
@@ -69,14 +74,14 @@ function ScreenUI.set_needs_redraw()
 end
 
 function ScreenUI.redraw()
-  local section = ScreenUI.get_active_section()
-  if section then
-    if ScreenSaver.check_timeout() then
-      ScreenSaver.draw()
-    else
-      section:update()  -- Ensure section is updated before drawing
+  if ScreenSaver.check_timeout() then
+    ScreenSaver.draw()
+  else
+    local section = ScreenUI.get_active_section()
+    if section.state.is_active then
       section:draw()
     end
+    ScreenUI.state.needs_redraw = false
   end
 end
 

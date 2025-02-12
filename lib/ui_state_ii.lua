@@ -18,7 +18,6 @@ function UIState.set_focused_lane(lane_idx)
   if lane_idx == UIState.state.focused_lane then return end
   
   UIState.state.focused_lane = lane_idx
-  print(string.format("⎍ Focused lane %d", lane_idx))
   
   -- Update UI
   _seeker.screen_ui.sections.LANE:update_focused_lane(lane_idx)
@@ -32,7 +31,6 @@ function UIState.set_focused_stage(stage_idx)
   if stage_idx == UIState.state.focused_stage then return end
   
   UIState.state.focused_stage = stage_idx
-  print(string.format("⎍ Focused stage %d", stage_idx))
   
   -- Update UI
   _seeker.screen_ui.sections.STAGE:update_focused_stage(stage_idx)
@@ -45,8 +43,19 @@ end
 function UIState.set_current_section(section_id)
   if section_id == UIState.state.current_section then return end
   
+  -- Exit old section
+  local old_section = _seeker.screen_ui.sections[UIState.state.current_section]
+  if old_section then
+    old_section:exit()
+  end
+  
   UIState.state.current_section = section_id
-  print(string.format("⎍ Current section: %s", section_id))
+  
+  -- Enter new section
+  local new_section = _seeker.screen_ui.sections[section_id]
+  if new_section then
+    new_section:enter()
+  end
   
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()

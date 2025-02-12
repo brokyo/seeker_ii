@@ -59,6 +59,9 @@
 - Individual windows in the UI
 - Front end for params that handle configuration and action
 - Inherit from `/lib/ui/section.lua` and are manually overwritten when needed
+- Two types of sections:
+  - Static sections (like `config_section.lua`) with fixed parameter structures
+  - Dynamic sections (like `generate_section.lua` and `transform_section.lua`) that rebuild their parameter structure based on user interaction
 
 ### `screen_saver.lua`
 - Blinkenlights that kick in after a period of inactivity
@@ -104,6 +107,7 @@
 - Controls debug lane
 
 ## Areas To Monitor
+- Dynamic UI sections (`generate_section.lua`, `transform_section.lua`) use a lifecycle pattern (`enter()`, `exit()`, `update()`) to manage parameter rebuilding. Only needed when parameter structure changes based on user interaction.
 - x,y coordinates are converted from grid position to MIDI note in the `grid_ii.lua` methods note_on and note_off using `theory.note_to_name`.
 - `MotifRecorder` returns a table of events in `grid_ii.lua` `toggle_rec_button`. This is then passed to `Lane` `set_motif` method.
 - `Lane` `on_note_on()` is the convergence point for incoming events. It handles scheduled motifs and live on/offs from the grid. This is the place to change note logic.

@@ -12,7 +12,8 @@ function Section.new(config)
   section.params = config.params or {}
   section.state = {
     selected_index = 0,
-    scroll_offset = 0
+    scroll_offset = 0,
+    is_active = false     -- Track if section is currently active
   }
   return section
 end
@@ -23,69 +24,34 @@ function Section:get_param_value(param)
 end
 
 function Section:modify_param(param, delta)
-  -- Default implementation just deltas the parameter
+  -- Check if the parameter is one of our custom cases that doesn't use the norns PARAM system
+  if param.spec then
+    if param.spec.type == "option" then
+      local options = param.spec.options
+      -- Find current index
+      local current_idx = 1
+      for i, opt in ipairs(options) do
+        if opt == param.value then
+          current_idx = i
+          break
+        end
+      end
+      -- Calculate new index with wrap-around
+      local new_idx = ((current_idx - 1 + delta) % #options) + 1
+      return options[new_idx]
+    elseif param.spec.type == "integer" then
+      -- Handle integer parameters with min/max bounds
+      local new_value = param.value + delta
+      return util.clamp(new_value, param.spec.min, param.spec.max)
+    end
+  end
+  
+  -- Default implementation for norns params
   params:delta(param.id, delta)
 end
 
 function Section:draw_blinkenlights()
-  local lights = {}
-  local FOOTER_CENTER_Y = 56  -- Footer spans 52-64, so center is at 58
-  local START_Y = FOOTER_CENTER_Y - 3  -- Center the 4 rows (3px up from center)
-  
-  -- Lane status lights (right-aligned, starting at 106)
-  for lane_idx = 1, 4 do
-    local lane = _seeker.lanes[lane_idx]
-    local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
-    
-    -- Lane activity light
-    table.insert(lights, {
-      x = 106,
-      y = START_Y + (lane_idx * 2),
-      is_active = lane.playing,
-      speed = 0,  -- No pulse when playing, just steady light
-      base_level = is_focused and 4 or 2  -- Brighter when focused, still visible when playing
-    })
-    
-    -- Stage status lights for this lane
-    for stage_idx = 1, 4 do
-      local stage = lane.stages[stage_idx]
-      local is_stage_focused = is_focused and stage_idx == _seeker.ui_state.get_focused_stage()
-      local is_stage_active = lane.playing and stage_idx == lane.current_stage_index  -- Only active if lane is playing
-      local has_active_notes = stage and stage.active_notes and #stage.active_notes > 0
-      
-      table.insert(lights, {
-        x = 110 + ((stage_idx - 1) * 4),
-        y = START_Y + (lane_idx * 2),
-        is_active = is_stage_active or has_active_notes,
-        speed = has_active_notes and 8 or 0,  -- Quick flash for note events
-        base_level = is_stage_focused and 4 or (is_stage_active and 2 or 1)
-      })
-    end
-  end
-  
-  -- Draw all lights
-  for _, light in ipairs(lights) do
-    local brightness = light.base_level
-    
-    if light.is_active then
-      if light.speed > 0 then
-        -- Pulsing light (for stages)
-        local activity = (util.time() * light.speed) % 1
-        if activity < 0.1 then
-          brightness = 15
-        elseif activity < 0.2 then
-          brightness = math.floor((0.2 - activity) * 150)
-        end
-      else
-        -- Steady light (for playing lanes)
-        brightness = 12
-      end
-    end
-    
-    screen.level(brightness)
-    screen.circle(light.x, light.y, 1.25)  -- Slightly smaller circles to fit better
-    screen.fill()
-  end
+  -- Temporarily disabled while we optimize screen drawing
 end
 
 function Section:draw_footer()
@@ -114,11 +80,9 @@ function Section:draw_footer()
   screen.move(x, 60)
   screen.text(info_text)
   
-  -- Draw system status lights
   self:draw_blinkenlights()
 end
 
--- Draw parameter list with more horizontal space
 function Section:draw_params(start_y)
   local FOOTER_Y = 52
   local ITEM_HEIGHT = 10
@@ -180,22 +144,15 @@ function Section:draw_params(start_y)
   end
 end
 
--- Default drawing implementation
 function Section:draw_default()
   screen.clear()
-  
-  -- Draw vertical header on left
   self:draw_footer()
-  
-  -- Draw parameters with full width
   if #self.params > 0 then
     self:draw_params(0)
   end
-  
   screen.update()
 end
 
--- Default parameter navigation
 function Section:handle_enc_default(n, d)
   if n == 2 then
     -- Navigate parameters
@@ -253,17 +210,21 @@ function Section:handle_grid_key(x, y, z)
   -- Default implementation does nothing
 end
 
--- Optional lifecycle methods
+-- Lifecycle Methods --
+
 function Section:enter()
   -- Called when section becomes active
+  self.state.is_active = true
+  self:update()
 end
 
 function Section:exit()
   -- Called when leaving this section
+  self.state.is_active = false
 end
 
 function Section:update()
-  -- Called on each UI update
+  -- Override in child classes to update section state
 end
 
 return Section 

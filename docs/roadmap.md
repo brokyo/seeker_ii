@@ -1,15 +1,15 @@
 ### Current Session
+- [x] Motif pattern generation from preset. "Quickstart presets"
 
 ### Next Session
-- [] `ui_state_ii` should handle key and enc events
-- [] Use K1 to pause redrawing so we can use the norns global app
 
 ### Long List
-- [] Motif pattern generation from preset. "Quickstart presets"
+- [] app_on_screen is vestigial. Remove it.
+- [] Review `theory_utils.grid_to_note()` — `scales[scale_type].intervals` isn't real. What is this thing even doing?
+- [] Long press for overdub in rec section
 - [] Improve transform UI
 - [] Add MIDI CC to control ableton recording
 - [] Review Harmonize transform
-- [] Long press for overdub in rec section
 - [] Add param preset saving
 - [] Reverse transform may break duration
 - [] Transforms should update x/y positions
@@ -62,4 +62,5 @@
 - [x] Footer navigation (current lane and stage)
 - [x] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.
 - [x] TXO Support
-- [] Events on loop/stage end
+- [x] Events on loop/stage end
+- [x] `ui_state_ii` should handle key and enc events

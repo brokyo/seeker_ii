@@ -6,6 +6,7 @@ local musicutil = require('musicutil')
 -- Create the theory utilities table
 local theory = {}
 
+-- TODO: Review this!!!! Scales[scale_type].intervals isn't real!!!!
 -- Converts grid x,y coordinates to a MIDI note number using modal Tonnetz layout
 -- Moving right = up a third in the scale
 -- Moving up (lower y) = up in pitch
@@ -77,6 +78,13 @@ function theory.print_keyboard_layout()
     print(row)
   end
   print("▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁")
+end
+
+-- Get an array of MIDI note numbers for the current scale
+function theory.get_scale()
+  local root = params:get("root_note")
+  local scale_type = params:get("scale_type")
+  return musicutil.generate_scale(root, musicutil.SCALES[scale_type].name, 10)
 end
 
 return theory

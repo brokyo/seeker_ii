@@ -12,6 +12,7 @@ local StageRegion = include("lib/grid/regions/stage_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local PlayRegion = include("lib/grid/regions/play_region")
 local RecRegion = include("lib/grid/regions/rec_region")
+local GenerateRegion = include("lib/grid/regions/generate_region")
 local TransformRegion = include("lib/grid/regions/transform_region")
 
 -- Keep regions in their own namespace
@@ -23,6 +24,7 @@ local regions = {
   motif = MotifRegion,
   play = PlayRegion,
   rec = RecRegion,
+  generate = GenerateRegion,
   transform = TransformRegion
 }
 
@@ -85,6 +87,7 @@ function draw_controls()
   regions.motif.draw(GridUI.layers)
   regions.play.draw(GridUI.layers)
   regions.rec.draw(GridUI.layers)
+  regions.generate.draw(GridUI.layers)
   regions.transform.draw(GridUI.layers)
 end
 
@@ -179,6 +182,8 @@ function GridUI.key(x, y, z)
       regions.stage.handle_key(x, y, z)
     elseif regions.rec.contains(x, y) then
       regions.rec.handle_key(x, y, z)
+    elseif regions.generate.contains(x, y) then
+      regions.generate.handle_key(x, y, z)
     elseif regions.play.contains(x, y) then
       regions.play.handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
