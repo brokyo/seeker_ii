@@ -1,10 +1,11 @@
 ### Current Session
-- [x] Fix footer padding
-- [x] Set default UI section to CONFIG
-- [x] Flash grid outline when motif is generated
-- [x] Improve grid recording state animation
+- [x] Lane button toggle playback state.
+- [x] Add double-tap pattern for executing actions with regions
 
 ### Next Session
+- [] Review how we create the grid in theory_utils.lua
+- [] Generated patterns to create x/y values
+- [] Improve starlight transform
 
 ### Long List
 - [] app_on_screen is vestigial. Remove it.
@@ -68,3 +69,7 @@
 - [x] Events on loop/stage end
 - [x] `ui_state_ii` should handle key and enc events
 - [x] Motif pattern generation from preset. "Quickstart presets"
+- [x] Fix footer padding
+- [x] Set default UI section to CONFIG
+- [x] Flash grid outline when motif is generated
+- [x] Improve grid recording state animation
