@@ -1,13 +1,11 @@
 ### Current Session
-- [x] Lane button toggle playback state.
-- [x] Add double-tap pattern for executing actions with regions
 
 ### Next Session
-- [] Review how we create the grid in theory_utils.lua
 - [] Generated patterns to create x/y values
 - [] Improve starlight transform
 
 ### Long List
+- [] Confirmation animations on double click
 - [] app_on_screen is vestigial. Remove it.
 - [] Review `theory_utils.grid_to_note()` — `scales[scale_type].intervals` isn't real. What is this thing even doing?
 - [] Long press for overdub in rec section
@@ -73,3 +71,7 @@
 - [x] Set default UI section to CONFIG
 - [x] Flash grid outline when motif is generated
 - [x] Improve grid recording state animation
+- [x] Lane button toggle playback state.
+- [x] Add double-tap pattern for executing actions with regions
+- [x] Review how we create the grid in theory_utils.lua
+

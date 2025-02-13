@@ -6,23 +6,23 @@ local musicutil = require('musicutil')
 -- Create the theory utilities table
 local theory = {}
 
--- TODO: Review this!!!! Scales[scale_type].intervals isn't real!!!!
 -- Converts grid x,y coordinates to a MIDI note number using modal Tonnetz layout
--- Moving right = up a third in the scale
--- Moving up (lower y) = up in pitch
+-- The layout creates a grid where:
+-- - Root note is at bottom left (6,7)
+-- - Moving right: up a third in the current scale (2 scale degrees)
+-- - Moving up (lower y): up a second in the current scale (1 scale degree)
+-- - All notes stay within the selected scale
 function theory.grid_to_note(x, y, octave)
-  
   local root = params:get("root_note") - 1  -- Convert 1-based index to 0-based
   local scale_type = params:get("scale_type")
   local scale = musicutil.SCALES[scale_type].intervals
   local scale_length = #scale
   
-  -- Calculate base MIDI note
-  local base_midi = (octave * 12) + root
-  
   -- Calculate scale degree offsets
-  local x_scale_steps = (x - 6) * 2    -- Each step right from x=6 moves up two scale degrees
-  local y_scale_steps = (7 - y)        -- Each step up from y=7 moves up one scale degree
+  -- Moving right: up by thirds (2 scale degrees)
+  local x_scale_steps = (x - 6) * 2    -- Each step right moves up two scale degrees (a third)
+  -- Moving up: up by seconds (1 scale degree)
+  local y_scale_steps = (7 - y)        -- Each step up moves up one scale degree
   
   -- Combine steps and handle wrapping within scale
   local total_scale_steps = x_scale_steps + y_scale_steps
@@ -31,8 +31,10 @@ function theory.grid_to_note(x, y, octave)
   local scale_position = ((total_scale_steps % scale_length) + scale_length) % scale_length + 1
   
   -- Calculate octave offset based on how many complete scales we've moved through
-  -- Divide by scale_length and round down to get complete octaves
-  local octave_offset = math.floor(total_scale_steps / scale_length) + 2  -- +2 to compensate for scale degree math
+  local octave_offset = math.floor(total_scale_steps / scale_length)
+  
+  -- Calculate base MIDI note (applying octave after scale position is calculated)
+  local base_midi = (octave * 12) + root
   
   -- Get the interval from our scale for this position
   local interval = scale[scale_position]
@@ -45,7 +47,7 @@ end
 function theory.print_keyboard_layout()
   local root = params:get("root_note")
   local scale_type = params:get("scale_type")
-  local focused_lane = _seeker.ui_state.focused_lane
+  local focused_lane = _seeker.ui_state.state.focused_lane
   local octave = params:get("lane_" .. focused_lane .. "_octave")
   
   -- Get root name directly from params option list
