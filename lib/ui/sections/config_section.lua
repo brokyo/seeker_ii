@@ -14,6 +14,7 @@ function ConfigSection.new()
       { id = "scale_type", name = "Scale" },
       { id = "clock_pulse_out", name = "Clock Out" },
       { id = "clock_division", name = "Clock Div" },
+      { id = "background_brightness", name = "Background Brightness" },
       { separator = true, name = "ACTIONS" },
       { id = "test_pulse", name = "Test Pulse", action = true },
       { id = "sync_lanes", name = "Sync Lanes", action = true },

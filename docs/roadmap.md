@@ -1,10 +1,10 @@
 ### Current Session
-- [] Change transforms back to one-per-stage
 
 ### Next Session
 - [] Improve starlight transform
 
 ### Long List
+- [] Consider motif length and if recording should record silence
 - [] Confirmation animations on double click
 - [] app_on_screen is vestigial. Remove it.
 - [] Review `theory_utils.grid_to_note()` — `scales[scale_type].intervals` isn't real. What is this thing even doing?
@@ -75,3 +75,4 @@
 - [x] Add double-tap pattern for executing actions with regions
 - [x] Review how we create the grid in theory_utils.lua
 - [x] Generated patterns to create x/y values
+- [x] Change transforms back to one-per-stage

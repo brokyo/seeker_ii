@@ -17,7 +17,7 @@ function params_manager_ii.get_instrument_list()
 end
 
 function init_musical_params()
-  params:add_group("MUSICAL", 5)  -- Increased for new tuning param
+  params:add_group("MUSICAL", 6)  -- Increased for new background param
 
   -- Add tuning presets
   params:add_option("tuning_preset", "Tuning Preset", {
@@ -52,6 +52,12 @@ function init_musical_params()
       -- Then trigger the keyboard layout update
       theory.print_keyboard_layout()
     end
+  end)
+
+  -- Add background animation brightness control
+  params:add_number("background_brightness", "Background Brightness", 0, 15, 8)
+  params:set_action("background_brightness", function(value)
+    -- No action needed - the animation will pick up the new value automatically
   end)
 
   -- Add root note selection

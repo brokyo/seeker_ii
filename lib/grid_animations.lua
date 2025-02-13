@@ -9,7 +9,7 @@ local GridAnimations = {}
 -- Use GridConstants brightness values as our range
 -- but keep as local for quick access in tight animation loops
 local BRIGHTNESS = {
-  high = GridConstants.BRIGHTNESS.MEDIUM,  -- Using MEDIUM for background animations to leave headroom for UI/response
+  high = function() return params:get("background_brightness") end,  -- Use param value
   low = GridConstants.BRIGHTNESS.OFF
 }
 
@@ -66,7 +66,7 @@ function GridAnimations.update_background(background_layer)
       
       -- Calculate brightness with full range (keeping floating point for smooth animation)
       local base = (math.sin(point.phase) + 1) / 2
-      local brightness = base * BRIGHTNESS.high
+      local brightness = base * BRIGHTNESS.high()
       
       -- Apply gradient from edges to center
       local center_distance = math.abs(x - 6.5) / 7.5

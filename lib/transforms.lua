@@ -1,15 +1,5 @@
 -- transforms.lua
 -- Transform System: An algorithmic garden for pattern manipulation
---
--- Core Responsibility:
--- Define a registry of available pattern transformations
---
--- Each transform provides:
--- 1. name: Human readable name
--- 2. description: What the transform does
--- 3. params: Parameter specifications with defaults/ranges
--- 4. fn: The transform implementation that takes (events, params)
---    and returns new transformed events
 
 local transforms = {}
 
