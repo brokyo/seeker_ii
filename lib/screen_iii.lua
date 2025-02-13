@@ -4,7 +4,6 @@ local RecordingSection = include('lib/ui/sections/recording_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
-local TransformSection = include('lib/ui/sections/transform_section')
 local GenerateSection = include('lib/ui/sections/generate_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
@@ -26,7 +25,6 @@ function ScreenUI.init()
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
-    TRANSFORM = TransformSection.new(),
     GENERATE = GenerateSection.new()
   }
   

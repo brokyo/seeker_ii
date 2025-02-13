@@ -13,7 +13,6 @@ local MotifRegion = include("lib/grid/regions/motif_region")
 local PlayRegion = include("lib/grid/regions/play_region")
 local RecRegion = include("lib/grid/regions/rec_region")
 local GenerateRegion = include("lib/grid/regions/generate_region")
-local TransformRegion = include("lib/grid/regions/transform_region")
 
 -- Keep regions in their own namespace
 local regions = {
@@ -24,8 +23,7 @@ local regions = {
   motif = MotifRegion,
   play = PlayRegion,
   rec = RecRegion,
-  generate = GenerateRegion,
-  transform = TransformRegion
+  generate = GenerateRegion
 }
 
 GridUI.layers = nil
@@ -88,7 +86,6 @@ function draw_controls()
   regions.play.draw(GridUI.layers)
   regions.rec.draw(GridUI.layers)
   regions.generate.draw(GridUI.layers)
-  regions.transform.draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -190,8 +187,6 @@ function GridUI.key(x, y, z)
       regions.motif.handle_key(x, y, z)
     elseif regions.config.contains(x, y) then
       regions.config.handle_key(x, y, z)
-    elseif regions.transform.contains(x, y) then
-      regions.transform.handle_key(x, y, z)
     elseif regions.velocity.contains(x, y) then
       regions.velocity.handle_key(x, y, z)
     end

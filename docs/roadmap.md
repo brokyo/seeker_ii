@@ -1,4 +1,5 @@
 ### Current Session
+- [] Change transforms back to one-per-stage
 
 ### Next Session
 - [] Improve starlight transform

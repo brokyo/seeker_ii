@@ -239,8 +239,8 @@ function init_lane_params()
         end
       end)
       
-      -- Set reset_motif to 1 (true) for stage 1, 0 (false) for others
-      params:add_binary("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "Reset Motif", "toggle", j == 1 and 1 or 0)
+      -- Set reset_motif to 1 (true) for all stages
+      params:add_binary("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "Reset Motif", "toggle", 1)
       params:set_action("lane_" .. i .. "_stage_" .. j .. "_reset_motif", function(value)
         if _seeker.lanes[i] then
           _seeker.lanes[i]:sync_stage_from_params(j)
