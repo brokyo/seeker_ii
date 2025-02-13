@@ -9,6 +9,7 @@ function ConfigSection.new()
     name = "CONFIG",
     icon = "⚙",
     params = {
+      { id = "tuning_preset", name = "Tuning" },
       { id = "root_note", name = "Root Note" },
       { id = "scale_type", name = "Scale" },
       { id = "clock_pulse_out", name = "Clock Out" },

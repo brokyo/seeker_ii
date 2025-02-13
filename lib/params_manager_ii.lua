@@ -17,11 +17,48 @@ function params_manager_ii.get_instrument_list()
 end
 
 function init_musical_params()
-  params:add_group("MUSICAL", 4)  -- Increased group size for new param
+  params:add_group("MUSICAL", 5)  -- Increased for new tuning param
+
+  -- Add tuning presets
+  params:add_option("tuning_preset", "Tuning Preset", {
+    "Custom",
+    "Ethereal",
+    "Mysterious",
+    "Melancholic",
+    "Hopeful",
+    "Contemplative",
+    "Triumphant",
+    "Dreamy",
+    "Ancient",
+    "Floating"
+  }, 1)
+  params:set_action("tuning_preset", function(value)
+    if value > 1 then  -- Skip action for "Custom"
+      local presets = {
+        {6, 7},    -- F Lydian
+        {3, 5},    -- D Dorian
+        {10, 2},   -- A Minor (Natural)
+        {8, 1},    -- G Major
+        {5, 2},    -- E Minor (Natural)
+        {1, 1},    -- C Major
+        {2, 1},    -- Db Major
+        {3, 6},    -- D Phrygian
+        {1, 12}    -- C Whole Tone
+      }
+      local preset = presets[value - 1]
+      -- Silently update individual params
+      params:set("root_note", preset[1], true)
+      params:set("scale_type", preset[2], true)
+      -- Then trigger the keyboard layout update
+      theory.print_keyboard_layout()
+    end
+  end)
 
   -- Add root note selection
   params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 6)
   params:set_action("root_note", function(value)
+    -- Set tuning preset to custom when manually changing root
+    params:set("tuning_preset", 1, true)
     theory.print_keyboard_layout()
   end)
 
@@ -32,6 +69,8 @@ function init_musical_params()
   end
   params:add_option("scale_type", "Scale", scale_names, 8)
   params:set_action("scale_type", function(value)
+    -- Set tuning preset to custom when manually changing scale
+    params:set("tuning_preset", 1, true)
     theory.print_keyboard_layout()
   end)
 
