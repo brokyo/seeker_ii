@@ -30,7 +30,7 @@ local NOTE_PARAM = {
 -- TODO: Figure this out. Should probably come from `theory_utils.lua`
 -- Helper to find first valid grid position for a note
 local function find_grid_position(note)
-  return nil
+  return theory.note_to_grid(note)
 end
 
 -- Helper method to add note events to the events table

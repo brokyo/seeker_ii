@@ -1,7 +1,6 @@
 ### Current Session
 
 ### Next Session
-- [] Generated patterns to create x/y values
 - [] Improve starlight transform
 
 ### Long List
@@ -74,4 +73,4 @@
 - [x] Lane button toggle playback state.
 - [x] Add double-tap pattern for executing actions with regions
 - [x] Review how we create the grid in theory_utils.lua
-
+- [x] Generated patterns to create x/y values
