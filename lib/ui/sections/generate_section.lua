@@ -11,27 +11,38 @@ function GenerateSection.new()
     params = {}
   })
   setmetatable(section, GenerateSection)
+  
+  -- Section state
+  section.state = {
+    selected_index = 1,  -- Initialize to first parameter
+    scroll_offset = 0,
+    is_active = false,
+    current_generator = "starlight",
+    param_values = MotifGenerator.get_default_params("starlight")
+  }
 
+  -- Get param value for display
   function section:get_param_value(param)
     if param.id == "generator_type" then
-      return MotifGenerator.get_current()
+      local gen = MotifGenerator.get_generator_spec(self.state.current_generator)
+      return gen.name
     else
-      local params = MotifGenerator.get_params(MotifGenerator.get_current())
-      local param_data = params[param.id]
-      return param_data.spec.formatter and param_data.spec.formatter(param_data.value) or tostring(param_data.value)
+      local gen = MotifGenerator.get_generator_spec(self.state.current_generator)
+      local spec = gen.params[param.id]
+      return MotifGenerator.format_param_value(self.state.param_values[param.id], spec)
     end
   end
 
+  -- Handle parameter modification
   function section:modify_param(param, delta)
     if param.id == "generator_type" then
       -- Get ordered list of generators
       local generators = MotifGenerator.get_generators()
-      local current = MotifGenerator.get_current()
       
       -- Find current index
       local current_idx = 1
       for i, gen in ipairs(generators) do
-        if gen.id == current then
+        if gen.id == self.state.current_generator then
           current_idx = i
           break
         end
@@ -41,50 +52,67 @@ function GenerateSection.new()
       local new_idx = util.clamp(current_idx + delta, 1, #generators)
       local new_generator = generators[new_idx].id
       
-      if new_generator ~= current then
-        if MotifGenerator.select_generator(new_generator) then
-          self:update_param_list()
-        end
+      if new_generator ~= self.state.current_generator then
+        -- Switch generator and initialize params
+        self.state.current_generator = new_generator
+        self.state.param_values = MotifGenerator.get_default_params(new_generator)
+        self:update_param_list()
       end
     else
-      -- Modify parameter value
-      local params = MotifGenerator.get_params(MotifGenerator.get_current())
-      local param_data = params[param.id]
-
-      -- Section handler for custom params
-      local new_value = Section.modify_param(self, {
-        id = param.id,
-        value = param_data.value,
-        spec = param_data.spec
-      }, delta)
-
-      MotifGenerator.set_param(param.id, new_value)
+      -- Get generator spec
+      local gen = MotifGenerator.get_generator_spec(self.state.current_generator)
+      local spec = gen.params[param.id]
+      
+      -- Update parameter value using delta
+      self.state.param_values[param.id] = MotifGenerator.process_param_update(
+        param.id,
+        delta,
+        spec,
+        true,  -- Always delta-based in our UI
+        self.state.param_values[param.id]
+      )
     end
   end
 
+  -- Generate a motif with current parameters
+  function section:generate_motif()
+    return MotifGenerator.generate(
+      self.state.current_generator,
+      self.state.param_values
+    )
+  end
+
+  -- Update parameter list based on current generator
   function section:update_param_list()
-    -- Get current generator info
-    local current = MotifGenerator.get_current()
-    local params = MotifGenerator.get_params(current)
-    
-    -- Build parameter list
+    -- Start with generator type selector
     self.params = {
       {
         id = "generator_type",
         name = "Generator Type",
         spec = { 
           type = "option", 
-          values = MotifGenerator.get_generators() 
+          values = MotifGenerator.get_generators()
         }
       }
     }
     
+    -- Get current generator's parameters
+    local gen = MotifGenerator.get_generator_spec(self.state.current_generator)
+    
+    -- Add separator with generator description
+    if gen.description then
+      table.insert(self.params, { 
+        separator = true, 
+        name = gen.description 
+      })
+    end
+    
     -- Add generator-specific parameters
-    for id, param_data in pairs(params) do
+    for param_id, spec in pairs(gen.params) do
       table.insert(self.params, {
-        id = id,
-        name = "  " .. (param_data.spec.name or id),
-        spec = param_data.spec
+        id = param_id,
+        name = "  " .. (spec.name or param_id),  -- Indent params
+        spec = spec
       })
     end
   end

@@ -1,27 +1,21 @@
 ### Current Session
 
 ### Next Session
-- [] Improve starlight transform
+- [] Playing lane illumination jumps to zero when playing and selected.
+- [] Confirmation animations on double click
+- [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 
 ### Long List
-- [] Consider motif length and if recording should record silence
-- [] Confirmation animations on double click
+- [] Consider motif length and if recording should record silences
 - [] app_on_screen is vestigial. Remove it.
-- [] Review `theory_utils.grid_to_note()` — `scales[scale_type].intervals` isn't real. What is this thing even doing?
 - [] Long press for overdub in rec section
-- [] Improve transform UI
 - [] Add MIDI CC to control ableton recording
-- [] Review Harmonize transform
 - [] Add param preset saving
-- [] Reverse transform may break duration
-- [] Transforms should update x/y positions
-- [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 - [] Catch MIDI events (rather than grid) in `motif_recorder`
 - [] Review keyboard region in `grid_ii.lua`. Everything else has been refactored into region components. Didn't do keyboard due to potential dependencies.
 
 
 ### Bugs
-
 ### Open Questions
 
 
@@ -76,3 +70,4 @@
 - [x] Review how we create the grid in theory_utils.lua
 - [x] Generated patterns to create x/y values
 - [x] Change transforms back to one-per-stage
+- [x] Improve transform UI

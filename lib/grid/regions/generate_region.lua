@@ -1,6 +1,5 @@
 -- generate_region.lua
 local GridConstants = include("lib/grid_constants")
-local MotifGenerator = include("lib/motif_generator")
 
 local GenerateRegion = {}
 
@@ -44,7 +43,8 @@ function GenerateRegion.handle_key(x, y, z)
       -- Double tap detected - generate new motif
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local lane = _seeker.lanes[focused_lane]
-      local motif_data = MotifGenerator.generate()
+      local section = _seeker.screen_ui.sections.GENERATE
+      local motif_data = section:generate_motif()
       lane:set_motif(motif_data)
       -- Reset last press to prevent triple-tap
       GenerateRegion.last_press.time = 0
