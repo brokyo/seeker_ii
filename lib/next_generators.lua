@@ -305,4 +305,193 @@
         return { events = events, duration = time }
       end
     end
+  },
+
+  starlight = {
+    name = "Starlight",
+    description = "Gentle, twinkling patterns inspired by the night sky",
+    params = {
+      note = NOTE_PARAM,
+      style = {
+        type = "option",
+        options = {"Gentle", "Meteor", "Aurora"},
+        default = "Gentle",
+        formatter = function(param)
+          local options = {"Gentle", "Meteor", "Aurora"}
+          return options[param]
+        end
+      }
+    },
+    generate = function(params)
+      local events = {}
+      local notes = theory.get_scale()
+      local root_idx = params.note
+      local style = params.style
+      
+      if style == "Gentle" then
+        -- Soft, random twinkles using pentatonic intervals
+        local intervals = {0, 2, 4, 7, 9}  -- Pentatonic scale degrees
+        local num_twinkles = math.random(12, 16)
+        local total_duration = 4.0  -- 4 seconds total
+        
+        for i = 1, num_twinkles do
+          -- Choose a random interval from our pentatonic set
+          local interval = intervals[math.random(#intervals)]
+          local note_idx = root_idx + interval
+          local note = notes[note_idx]
+          
+          if note then
+            local pos = find_grid_position(note)
+            -- Random timing within our duration
+            local time = (i-1) * (total_duration / num_twinkles) + 
+                        math.random() * 0.1  -- Small random offset
+            
+            -- Gentle velocities with occasional brighter twinkles
+            local brightness = math.random() < 0.2 and 
+                             math.random(75, 85) or  -- Bright twinkle
+                             math.random(45, 65)     -- Soft twinkle
+            
+            -- Note on
+            table.insert(events, {
+              time = time,
+              type = "note_on",
+              note = note,
+              velocity = brightness,
+              x = pos and pos.x or nil,
+              y = pos and pos.y or nil
+            })
+            
+            -- Note off - variable duration for each twinkle
+            table.insert(events, {
+              time = time + math.random(0.2, 0.4),
+              type = "note_off",
+              note = note,
+              x = pos and pos.x or nil,
+              y = pos and pos.y or nil
+            })
+          end
+        end
+        return { events = events, duration = total_duration }
+        
+      elseif style == "Meteor" then
+        -- Quick descending pattern with trailing notes
+        local duration = 3.0
+        local time = 0
+        -- Start high and descend
+        local intervals = {16, 14, 11, 9, 7, 4, 2, 0}
+        
+        for i, interval in ipairs(intervals) do
+          local note_idx = root_idx + interval
+          local note = notes[note_idx]
+          
+          if note then
+            local pos = find_grid_position(note)
+            -- Faster at start, slowing down
+            local step_time = 0.15 + (i/#intervals * 0.1)
+            
+            -- Main meteor note
+            table.insert(events, {
+              time = time,
+              type = "note_on",
+              note = note,
+              velocity = math.max(40, 90 - (i * 5)),  -- Fading velocity
+              x = pos and pos.x or nil,
+              y = pos and pos.y or nil
+            })
+            
+            table.insert(events, {
+              time = time + (step_time * 0.8),
+              type = "note_off",
+              note = note,
+              x = pos and pos.x or nil,
+              y = pos and pos.y or nil
+            })
+            
+            -- Add quiet trailing notes
+            if i > 1 and i < #intervals then
+              local trail_note_idx = root_idx + intervals[i-1]
+              local trail_note = notes[trail_note_idx]
+              if trail_note then
+                local trail_pos = find_grid_position(trail_note)
+                table.insert(events, {
+                  time = time + (step_time * 0.2),
+                  type = "note_on",
+                  note = trail_note,
+                  velocity = 30,  -- Very quiet trail
+                  x = trail_pos and trail_pos.x or nil,
+                  y = trail_pos and trail_pos.y or nil
+                })
+                
+                table.insert(events, {
+                  time = time + (step_time * 0.6),
+                  type = "note_off",
+                  note = trail_note,
+                  x = trail_pos and trail_pos.x or nil,
+                  y = trail_pos and trail_pos.y or nil
+                })
+              end
+            end
+            
+            time = time + step_time
+          end
+        end
+        return { events = events, duration = duration }
+        
+      else -- Aurora
+        -- Flowing waves of notes with subtle shifts
+        local duration = 4.0
+        local base_intervals = {0, 4, 7, 11}  -- Extended chord
+        local num_waves = 3
+        local notes_per_wave = 8
+        local time = 0
+        
+        for wave = 1, num_waves do
+          -- Shift intervals slightly for each wave
+          local wave_offset = wave - 2  -- -1, 0, 1
+          
+          for step = 1, notes_per_wave do
+            -- Choose two intervals to play together
+            local intervals = {
+              base_intervals[math.random(#base_intervals)] + wave_offset,
+              base_intervals[math.random(#base_intervals)] + wave_offset
+            }
+            
+            for _, interval in ipairs(intervals) do
+              local note_idx = root_idx + interval
+              local note = notes[note_idx]
+              
+              if note then
+                local pos = find_grid_position(note)
+                -- Smooth wave-like velocity changes
+                local phase = (step-1) / notes_per_wave * math.pi * 2
+                local velocity = math.floor(55 + math.sin(phase) * 20)
+                
+                table.insert(events, {
+                  time = time,
+                  type = "note_on",
+                  note = note,
+                  velocity = velocity,
+                  x = pos and pos.x or nil,
+                  y = pos and pos.y or nil
+                })
+                
+                table.insert(events, {
+                  time = time + 0.3,  -- Longer, overlapping notes
+                  type = "note_off",
+                  note = note,
+                  x = pos and pos.x or nil,
+                  y = pos and pos.y or nil
+                })
+              end
+            end
+            
+            time = time + 0.2
+          end
+          
+          -- Small pause between waves
+          time = time + 0.3
+        end
+        return { events = events, duration = duration }
+      end
+    end
   }

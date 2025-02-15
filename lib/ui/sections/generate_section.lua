@@ -63,10 +63,20 @@ function GenerateSection.new()
       local gen = MotifGenerator.get_generator_spec(self.state.current_generator)
       local spec = gen.params[param.id]
       
-      -- Update parameter value using delta
+      -- Scale delta based on parameter type
+      local scaled_delta = delta
+      if spec.type == "number" then
+        -- Use smaller steps for number params
+        scaled_delta = delta * (spec.step or 0.1)
+      elseif spec.type == "control" then
+        -- Use larger steps for control params
+        scaled_delta = delta * (spec.step or 5)
+      end
+      
+      -- Update parameter value using scaled delta
       self.state.param_values[param.id] = MotifGenerator.process_param_update(
         param.id,
-        delta,
+        scaled_delta,
         spec,
         true,  -- Always delta-based in our UI
         self.state.param_values[param.id]

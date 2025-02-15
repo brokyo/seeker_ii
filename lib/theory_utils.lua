@@ -13,7 +13,7 @@ local theory = {}
 -- - Moving up (lower y): up a second in the current scale (1 scale degree)
 -- - All notes stay within the selected scale
 function theory.grid_to_note(x, y, octave)
-  local root = params:get("root_note") - 1  -- Convert 1-based index to 0-based
+  local root = params:get("root_note")  -- Use 1-based root directly
   local scale_type = params:get("scale_type")
   local scale = musicutil.SCALES[scale_type].intervals
   local scale_length = #scale
@@ -34,7 +34,7 @@ function theory.grid_to_note(x, y, octave)
   local octave_offset = math.floor(total_scale_steps / scale_length)
   
   -- Calculate base MIDI note (applying octave after scale position is calculated)
-  local base_midi = (octave * 12) + root
+  local base_midi = (octave * 12) + (root - 1)  -- Adjust for 0-based MIDI notes here
   
   -- Get the interval from our scale for this position
   local interval = scale[scale_position]
@@ -84,9 +84,10 @@ end
 
 -- Get an array of MIDI note numbers for the current scale
 function theory.get_scale()
-  local root = params:get("root_note")
+  local root = params:get("root_note")  -- Use 1-based root directly
   local scale_type = params:get("scale_type")
-  return musicutil.generate_scale(root, musicutil.SCALES[scale_type].name, 10)
+  -- musicutil.generate_scale expects MIDI note numbers (0-based)
+  return musicutil.generate_scale(root - 1, musicutil.SCALES[scale_type].name, 10)
 end
 
 -- Find the first valid grid position for a given MIDI note

@@ -71,3 +71,4 @@
 - [x] Generated patterns to create x/y values
 - [x] Change transforms back to one-per-stage
 - [x] Improve transform UI
+- [x] Refactor generator system for better logic handling and future extensibility.
