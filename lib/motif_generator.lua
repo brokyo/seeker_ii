@@ -9,7 +9,8 @@ local musicutil = require('musicutil')
 local generators = {
   starlight = include('lib/generators/starlight'),
   pulse = include('lib/generators/pulse'),
-  pulsar = include('lib/generators/pulsar')
+  pulsar = include('lib/generators/pulsar'),
+  foundations = include('lib/generators/foundations')
 }
 
 -- Parameter type handlers with their update and format logic
