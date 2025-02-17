@@ -4,6 +4,7 @@ local Motif = include('lib/motif_ii')
 local forms = include('lib/forms')
 local transforms = include('lib/transforms')
 local GridConstants = include('lib/grid_constants')
+local theory = include('lib/theory_utils')
 local Lane = {}
 Lane.__index = Lane
 
@@ -405,6 +406,9 @@ function Lane:on_note_on(event)
   -- Each semitone = 1/12 volt
   local cv_volts = (note - 12) / 12  -- Reference from C0 (MIDI note 12)
   
+  -- Always update the octave section (it will handle whether to display)
+  _seeker.screen_ui.sections.OCTAVE:update_last_note(note, cv_volts)
+  
   -- Handle CV output
   if cv_out > 1 then
     if cv_out <= 5 then
@@ -430,13 +434,16 @@ function Lane:on_note_on(event)
   -- Track active note with grid position
   if event.x and event.y then
     local key = note  -- Use the offset-adjusted note as the key
-    self.active_notes[key] = {
-      x = event.x,
-      y = event.y,
-      note = note,  -- Store the offset-adjusted note
-      velocity = event.velocity,
-      original_note = event.note  -- Store the original note for reference
-    }
+    local grid_pos = theory.note_to_grid(note)  -- Find current valid position for this note
+    if grid_pos then
+      self.active_notes[key] = {
+        x = grid_pos.x,
+        y = grid_pos.y,
+        note = note,
+        velocity = event.velocity,
+        original_note = event.note  -- Store the original note for reference
+      }
+    end
   end
 end
 

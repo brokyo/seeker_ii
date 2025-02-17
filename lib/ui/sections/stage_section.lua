@@ -107,11 +107,12 @@ function StageSection.new()
     
     -- Build param list starting with stage controls
     self.params = {
+      { separator = true, name = "CONFIG" },
       { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_mute", name = "Mute" },
       { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_reset_motif", name = "Reset Motif" },
       { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loops", name = "Loops" },
       { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loop_trigger", name = "Loop Trigger" },
-      { separator = true, name = "TRANSFORM" }
+      { separator = true, name = "TRANSFORM" },
     }
 
     -- Add transform params if stage has transforms
