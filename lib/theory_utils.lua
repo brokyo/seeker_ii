@@ -18,14 +18,18 @@ function theory.grid_to_note(x, y, octave)
   local scale = musicutil.SCALES[scale_type].intervals
   local scale_length = #scale
   
+  -- Get grid offset for current lane
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local grid_offset = params:get("lane_" .. focused_lane .. "_grid_offset")
+  
   -- Calculate scale degree offsets
   -- Moving right: up by thirds (2 scale degrees)
   local x_scale_steps = (x - 6) * 2    -- Each step right moves up two scale degrees (a third)
   -- Moving up: up by seconds (1 scale degree)
   local y_scale_steps = (7 - y)        -- Each step up moves up one scale degree
   
-  -- Combine steps and handle wrapping within scale
-  local total_scale_steps = x_scale_steps + y_scale_steps
+  -- Add grid offset to total steps
+  local total_scale_steps = x_scale_steps + y_scale_steps + grid_offset
   
   -- Calculate position in scale (1-based)
   local scale_position = ((total_scale_steps % scale_length) + scale_length) % scale_length + 1

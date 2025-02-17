@@ -1,11 +1,13 @@
 ### Current Session
 
 ### Next Session
-- [] Playing lane illumination jumps to zero when playing and selected.
+
+- [] Add motif record region with buttons for record, generate, overdub, and play
 - [] Confirmation animations on double click
-- [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
 
 ### Long List
+- [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
+- [] Playing lane illumination jumps to zero when playing and selected.
 - [] Consider motif length and if recording should record silences
 - [] app_on_screen is vestigial. Remove it.
 - [] Long press for overdub in rec section
@@ -72,3 +74,4 @@
 - [x] Change transforms back to one-per-stage
 - [x] Improve transform UI
 - [x] Refactor generator system for better logic handling and future extensibility.
+- [x] Grid octave control (distinct from Motif)

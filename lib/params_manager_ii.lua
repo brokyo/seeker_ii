@@ -175,6 +175,9 @@ function init_lane_params()
     -- Keyboard octave control (for grid input)
     params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
     
+    -- Grid offset (shifts starting position within scale)
+    params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, 0)
+    
     -- Playback octave offset
     params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
 
