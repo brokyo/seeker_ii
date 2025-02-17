@@ -401,7 +401,9 @@ function Lane:on_note_on(event)
   local cv_out = params:get("lane_" .. self.id .. "_cv_out")
   
   -- Calculate CV voltage (V/oct)
-  local cv_volts = (note - 60) / 12
+  -- Standard: C0 (MIDI note 12) = 0V, C1 = 1V, C2 = 2V, etc.
+  -- Each semitone = 1/12 volt
+  local cv_volts = (note - 12) / 12  -- Reference from C0 (MIDI note 12)
   
   -- Handle CV output
   if cv_out > 1 then
@@ -427,12 +429,13 @@ function Lane:on_note_on(event)
 
   -- Track active note with grid position
   if event.x and event.y then
-    local key = note
+    local key = note  -- Use the offset-adjusted note as the key
     self.active_notes[key] = {
       x = event.x,
       y = event.y,
-      note = note,
-      velocity = event.velocity
+      note = note,  -- Store the offset-adjusted note
+      velocity = event.velocity,
+      original_note = event.note  -- Store the original note for reference
     }
   end
 end
@@ -468,12 +471,13 @@ function Lane:on_note_off(event)
   -- Stop hardware output if enabled
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
   
+  -- Remove this note from active notes
+  self.active_notes[note] = nil
+  
   -- Count remaining active notes
   local remaining_notes = 0
-  for n, _ in pairs(self.active_notes) do
-    if n ~= note then
-      remaining_notes = remaining_notes + 1
-    end
+  for _, active_note in pairs(self.active_notes) do
+    remaining_notes = remaining_notes + 1
   end
   
   -- Only turn off gate if this was the last note
@@ -494,8 +498,6 @@ function Lane:on_note_off(event)
       brightness = GridConstants.BRIGHTNESS.HIGH,
       decay = 0.95
     }
-    -- Remove from active notes
-    self.active_notes[note] = nil
   end
 end
 
