@@ -405,10 +405,7 @@ function Lane:on_note_on(event)
   -- Standard: C0 (MIDI note 12) = 0V, C1 = 1V, C2 = 2V, etc.
   -- Each semitone = 1/12 volt
   local cv_volts = (note - 12) / 12  -- Reference from C0 (MIDI note 12)
-  
-  -- Always update the octave section (it will handle whether to display)
-  _seeker.screen_ui.sections.OCTAVE:update_last_note(note, cv_volts)
-  
+    
   -- Handle CV output
   if cv_out > 1 then
     if cv_out <= 5 then

@@ -7,7 +7,7 @@ GenerateSection.__index = GenerateSection
 function GenerateSection.new()
   local section = Section.new({
     id = "GENERATE",
-    name = "Generate",
+    name = "Motif:Generate",
     params = {}
   })
   setmetatable(section, GenerateSection)

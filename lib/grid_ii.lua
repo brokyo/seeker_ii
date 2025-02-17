@@ -10,7 +10,7 @@ local ConfigRegion = include("lib/grid/regions/config_region")
 local LaneRegion = include("lib/grid/regions/lane_region")
 local StageRegion = include("lib/grid/regions/stage_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
-local PlayRegion = include("lib/grid/regions/play_region")
+local OverdubRegion = include("lib/grid/regions/overdub_region")
 local RecRegion = include("lib/grid/regions/rec_region")
 local GenerateRegion = include("lib/grid/regions/generate_region")
 local OctaveRegion = include("lib/grid/regions/octave_region")
@@ -22,7 +22,7 @@ local regions = {
   lane = LaneRegion,
   stage = StageRegion,
   motif = MotifRegion,
-  play = PlayRegion,
+  overdub = OverdubRegion,
   rec = RecRegion,
   generate = GenerateRegion,
   octave = OctaveRegion
@@ -85,7 +85,7 @@ function draw_controls()
   regions.stage.draw(GridUI.layers)
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
-  regions.play.draw(GridUI.layers)
+  regions.overdub.draw(GridUI.layers)
   regions.rec.draw(GridUI.layers)
   regions.generate.draw(GridUI.layers)
   regions.octave.draw(GridUI.layers)
@@ -191,8 +191,8 @@ function GridUI.key(x, y, z)
       regions.rec.handle_key(x, y, z)
     elseif regions.generate.contains(x, y) then
       regions.generate.handle_key(x, y, z)
-    elseif regions.play.contains(x, y) then
-      regions.play.handle_key(x, y, z)
+    elseif regions.overdub.contains(x, y) then
+      regions.overdub.handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
       regions.motif.handle_key(x, y, z)
     elseif regions.config.contains(x, y) then

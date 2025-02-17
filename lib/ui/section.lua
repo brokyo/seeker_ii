@@ -4,6 +4,9 @@
 local Section = {}
 Section.__index = Section
 
+-- Constants for long press detection
+Section.LONG_PRESS_THRESHOLD = 0.5  -- Time in seconds to trigger long press
+
 function Section.new(config)
   local section = setmetatable({}, Section)
   section.id = config.id
@@ -15,7 +18,46 @@ function Section.new(config)
     scroll_offset = 0,
     is_active = false     -- Track if section is currently active
   }
+  
+  -- Long press tracking
+  section.press_state = {
+    start_time = nil,
+    pressed_keys = {}  -- Track multiple simultaneous presses
+  }
+  
   return section
+end
+
+-- Long press helper functions
+function Section:start_press(key_id)
+  self.press_state.pressed_keys[key_id] = {
+    start_time = util.time(),
+    long_press_triggered = false
+  }
+end
+
+function Section:end_press(key_id)
+  self.press_state.pressed_keys[key_id] = nil
+end
+
+function Section:is_long_press(key_id)
+  local press = self.press_state.pressed_keys[key_id]
+  if press then
+    local elapsed = util.time() - press.start_time
+    if elapsed >= Section.LONG_PRESS_THRESHOLD and not press.long_press_triggered then
+      press.long_press_triggered = true
+      return true
+    end
+  end
+  return false
+end
+
+function Section:get_press_duration(key_id)
+  local press = self.press_state.pressed_keys[key_id]
+  if press then
+    return util.time() - press.start_time
+  end
+  return 0
 end
 
 function Section:get_param_value(param)

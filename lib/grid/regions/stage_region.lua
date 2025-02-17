@@ -17,10 +17,22 @@ function StageRegion.contains(x, y)
 end
 
 function StageRegion.draw(layers)
+  local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  
   for i = 0, StageRegion.layout.width - 1 do
-    local brightness = (i + 1 == _seeker.ui_state.get_focused_stage()) and 
-      GridConstants.BRIGHTNESS.UI.FOCUSED or 
-      GridConstants.BRIGHTNESS.UI.NORMAL
+    local stage_idx = i + 1
+    local is_focused = stage_idx == _seeker.ui_state.get_focused_stage()
+    local is_active = focused_lane.playing and stage_idx == focused_lane.current_stage_index
+    
+    local brightness
+    if is_focused then
+      brightness = GridConstants.BRIGHTNESS.UI.FOCUSED
+    elseif is_active then
+      brightness = GridConstants.BRIGHTNESS.UI.UNFOCUSED
+    else
+      brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+    end
+    
     layers.ui[StageRegion.layout.x + i][StageRegion.layout.y] = brightness
   end
 end

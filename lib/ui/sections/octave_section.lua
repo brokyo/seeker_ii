@@ -18,25 +18,8 @@ function OctaveSection.new()
   section.state = {
     selected_index = 0,
     scroll_offset = 0,
-    is_active = false,
-    last_notes = {}  -- Track last played notes
+    is_active = false
   }
-  
-  -- Add method to update last played note
-  function section:update_last_note(note, voltage)
-    print("⌨ Updating note display:", note, voltage) -- Debug
-    local note_name = musicutil.note_num_to_name(note, true)
-    table.insert(self.state.last_notes, 1, {
-      note = note_name,
-      voltage = voltage,
-      time = util.time()
-    })
-    -- Keep only last 3 notes
-    while #self.state.last_notes > 3 do
-      table.remove(self.state.last_notes)
-    end
-    _seeker.screen_ui.set_needs_redraw()
-  end
   
   -- Override draw to show a custom view
   function section:draw()
@@ -74,22 +57,7 @@ function OctaveSection.new()
     screen.text_center("(1,5) (2,5)")
     screen.move(96, 50)
     screen.text_center("(3,5) (4,5)")
-    
-    -- Draw last played notes
-    if #self.state.last_notes > 0 then
-      screen.font_size(8)
-      for i, note_info in ipairs(self.state.last_notes) do
-        -- Make sure alpha calculation is an integer
-        local time_diff = util.time() - note_info.time
-        local alpha = math.floor(util.clamp(15 - (time_diff * 8), 2, 15))
-        screen.level(alpha)
-        screen.move(2, 15 + (i-1) * 8)
-        local note_text = string.format("%s (%.2fV)", note_info.note, note_info.voltage)
-        print("Drawing note:", note_text, "at alpha:", alpha) -- Debug
-        screen.text(note_text)
-      end
-    end
-    
+
     -- Draw footer
     self:draw_footer()
     

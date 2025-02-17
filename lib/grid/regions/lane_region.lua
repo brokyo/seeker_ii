@@ -1,7 +1,9 @@
 -- lane_region.lua
 local GridConstants = include("lib/grid_constants")
+local Section = include("lib/ui/section")
 
-local LaneRegion = {}
+local LaneRegion = setmetatable({}, Section)
+LaneRegion.__index = LaneRegion
 
 LaneRegion.layout = {
   x = 13,
@@ -10,10 +12,10 @@ LaneRegion.layout = {
   height = 1
 }
 
--- Track last press time for double tap detection
-LaneRegion.last_press = {
-  time = 0,
-  lane = nil
+-- Shared press state
+LaneRegion.press_state = {
+  start_time = nil,
+  pressed_keys = {}
 }
 
 function LaneRegion.contains(x, y)
@@ -29,17 +31,17 @@ function LaneRegion.draw(layers)
     local lane = _seeker.lanes[lane_idx]
     
     local brightness
-    if lane.playing then
-      -- Pulse when playing (similar to rec button)
+    if lane.playing and #lane.active_notes > 0 then
+      -- Pulse only when there are active notes
       local pulse = math.sin(clock.get_beats() * 4) * 3
       brightness = is_focused and
         math.floor(GridConstants.BRIGHTNESS.UI.FOCUSED + pulse) or
         math.floor(GridConstants.BRIGHTNESS.UI.UNFOCUSED + pulse)
     else
-      -- Static brightness when not playing
+      -- Static brightness when not playing or no active notes
       brightness = is_focused and 
         GridConstants.BRIGHTNESS.UI.FOCUSED or 
-        GridConstants.BRIGHTNESS.UI.NORMAL
+        (lane.playing and GridConstants.BRIGHTNESS.UI.UNFOCUSED or GridConstants.BRIGHTNESS.UI.NORMAL)
     end
     
     layers.ui[LaneRegion.layout.x + i][LaneRegion.layout.y] = brightness
@@ -47,32 +49,28 @@ function LaneRegion.draw(layers)
 end
 
 function LaneRegion.handle_key(x, y, z)
-  if z == 1 then -- Only handle key down
-    local new_lane_idx = (x - LaneRegion.layout.x) + 1
-    local current_time = util.time()
+  local key_id = string.format("%d,%d", x, y)
+  local new_lane_idx = (x - LaneRegion.layout.x) + 1
+  
+  if z == 1 then -- Key pressed
+    LaneRegion:start_press(key_id)
     
-    -- Always focus the lane
+    -- Always focus the lane on press
     _seeker.ui_state.set_focused_lane(new_lane_idx)
     _seeker.ui_state.set_current_section("LANE")
     
-    -- Check for double tap (within 0.3 seconds)
-    if new_lane_idx == LaneRegion.last_press.lane and 
-       (current_time - LaneRegion.last_press.time) < 0.3 then
-      -- Double tap detected - toggle playback
+  else -- Key released
+    if LaneRegion:is_long_press(key_id) then
+      -- Long press - toggle playback
       local lane = _seeker.lanes[new_lane_idx]
       if lane.playing then
         lane:stop()
       else
         lane:play()
       end
-      -- Reset last press to prevent triple-tap
-      LaneRegion.last_press.time = 0
-      LaneRegion.last_press.lane = nil
-    else
-      -- Update last press info
-      LaneRegion.last_press.time = current_time
-      LaneRegion.last_press.lane = new_lane_idx
     end
+    
+    LaneRegion:end_press(key_id)
   end
 end
 

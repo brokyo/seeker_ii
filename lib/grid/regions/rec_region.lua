@@ -1,7 +1,9 @@
 -- rec_region.lua
 local GridConstants = include("lib/grid_constants")
+local Section = include("lib/ui/section")
 
-local RecRegion = {}
+local RecRegion = setmetatable({}, Section)
+RecRegion.__index = RecRegion
 
 RecRegion.layout = {
   x = 3,
@@ -10,9 +12,10 @@ RecRegion.layout = {
   height = 1
 }
 
--- Track last press time for double tap detection
-RecRegion.last_press = {
-  time = 0
+-- Shared press state
+RecRegion.press_state = {
+  start_time = nil,
+  pressed_keys = {}
 }
 
 function RecRegion.contains(x, y)
@@ -35,42 +38,34 @@ function RecRegion.draw(layers)
 end
 
 function RecRegion.handle_key(x, y, z)
-  if z == 1 then -- Only handle key down
-    local current_time = util.time()
+  local key_id = string.format("%d,%d", x, y)
+  
+  if z == 1 then -- Key pressed
+    RecRegion:start_press(key_id)
     
-    -- Always switch to recording section
+    -- Switch to recording section
     _seeker.ui_state.set_current_section("RECORDING")
     
-    -- Check for double tap (within 0.3 seconds)
-    if (current_time - RecRegion.last_press.time) < 0.3 then
-      -- Double tap detected - toggle recording
-      if not _seeker.motif_recorder.is_recording then
-        -- Get existing motif if we're overdubbing
-        local existing_motif = nil
-        if params:get("recording_mode") == 2 then -- 2 = Overdub
-          local focused_lane = _seeker.ui_state.get_focused_lane()
-          existing_motif = _seeker.lanes[focused_lane].motif
-          -- Don't allow overdub if no existing motif
-          if #existing_motif.events == 0 then
-            print("⚠ Cannot overdub: No existing motif")
-            return
-          end
-        end
-        
-        -- Start recording
-        _seeker.motif_recorder:start_recording(existing_motif)
-      else
-        -- Stop recording and save motif
-        local focused_lane = _seeker.ui_state.get_focused_lane()
-        local motif = _seeker.motif_recorder:stop_recording()
-        _seeker.lanes[focused_lane]:set_motif(motif)
-      end
-      -- Reset last press to prevent triple-tap
-      RecRegion.last_press.time = 0
-    else
-      -- Update last press info
-      RecRegion.last_press.time = current_time
+    -- If already recording, stop on any press
+    if _seeker.motif_recorder.is_recording then
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local motif = _seeker.motif_recorder:stop_recording()
+      _seeker.lanes[focused_lane]:set_motif(motif)
+      return
     end
+    
+  else -- Key released
+    if RecRegion:is_long_press(key_id) then
+      -- Long press - start recording (only if not already recording)
+      if not _seeker.motif_recorder.is_recording then
+        -- Set recording mode to "New"
+        params:set("recording_mode", 1)
+        -- Start new recording
+        _seeker.motif_recorder:start_recording(nil)
+      end
+    end
+    
+    RecRegion:end_press(key_id)
   end
 end
 

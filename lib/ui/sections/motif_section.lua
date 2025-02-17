@@ -6,7 +6,7 @@ MotifSection.__index = MotifSection
 function MotifSection.new()
   local section = Section.new({
     id = "MOTIF",
-    name = "Motif",
+    name = "Motif:Playback",
     icon = "☸",
     params = {}
   })
@@ -96,7 +96,6 @@ function MotifSection.new()
       { id = "lane_" .. lane_idx .. "_custom_duration", name = "Duration" }
     }
 
-    self.name = string.format("Lane %d Motif", lane_idx)
   end
 
   -- Initialize with current lane

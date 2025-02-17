@@ -1,11 +1,12 @@
 -- screen_iii.lua
 local ConfigSection = include('lib/ui/sections/config_section')
-local RecordingSection = include('lib/ui/sections/recording_section')
+local RecSection = include('lib/ui/sections/rec_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local GenerateSection = include('lib/ui/sections/generate_section')
 local OctaveSection = include('lib/ui/sections/octave_section')
+local OverdubSection = include('lib/ui/sections/overdub_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}
@@ -22,12 +23,13 @@ function ScreenUI.init()
   -- Initialize sections
   ScreenUI.sections = {
     CONFIG = ConfigSection.new(),
-    RECORDING = RecordingSection.new(),
+    RECORDING = RecSection.new(),
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
     GENERATE = GenerateSection.new(),
-    OCTAVE = OctaveSection.new()
+    OCTAVE = OctaveSection.new(),
+    OVERDUB = OverdubSection.new()
   }
   
   ScreenSaver.init()
