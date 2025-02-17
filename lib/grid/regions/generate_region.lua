@@ -1,5 +1,6 @@
 -- generate_region.lua
 local GridConstants = include("lib/grid_constants")
+local GridAnimations = include("lib/grid_animations")
 
 local GenerateRegion = {}
 
@@ -46,6 +47,8 @@ function GenerateRegion.handle_key(x, y, z)
       local section = _seeker.screen_ui.sections.GENERATE
       local motif_data = section:generate_motif()
       lane:set_motif(motif_data)
+      -- Flash keyboard to confirm generation
+      GridAnimations.flash_keyboard()
       -- Reset last press to prevent triple-tap
       GenerateRegion.last_press.time = 0
     else

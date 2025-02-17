@@ -69,8 +69,12 @@ return {
     local patterns = {
       -- Contemplative: Major with gentle rises
       [1] = {
-        chord = "Major 7",  -- 4 notes: root, 3rd, 5th, 7th
-        pattern = {1, 2, 3, 4, 3, 2},  -- Fixed to use only available chord tones
+        chords = {
+          { root_offset = 0, type = "Major 7" },    -- I maj7
+          { root_offset = 5, type = "Major 7" },    -- IV maj7
+          { root_offset = -5, type = "Major 7" }    -- V maj7
+        },
+        pattern = {1, 2, 3, 4, 3, 2},
         velocities = {1.0, 0.8, 0.9, 0.7, 0.85, 0.75},
         timing_variation = 0.05,
         velocity_variation = 0.1
@@ -78,7 +82,11 @@ return {
       
       -- Melancholic: Minor with emotional drops
       [2] = {
-        chord = "Minor 6",  -- 4 notes: root, m3rd, 5th, 6th
+        chords = {
+          { root_offset = 0, type = "Minor 6" },     -- i min6
+          { root_offset = 3, type = "Minor 6" },     -- iii min6
+          { root_offset = -2, type = "Minor 6" }     -- vii min6
+        },
         pattern = {1, 2, 3, 4, 3, 2},
         velocities = {0.9, 1.0, 0.7, 0.85, 0.8, 0.75},
         timing_variation = 0.08,
@@ -87,7 +95,11 @@ return {
       
       -- Ethereal: Suspended and floating
       [3] = {
-        chord = "Sus4",  -- 3 notes: root, 4th, 5th
+        chords = {
+          { root_offset = 0, type = "Sus4" },       -- Isus4
+          { root_offset = 7, type = "Sus2" },       -- Vsus2
+          { root_offset = 2, type = "Sus4" }        -- IIsus4
+        },
         pattern = {1, 2, 3, 2, 3, 1},
         velocities = {0.8, 0.9, 0.7, 0.85, 0.95, 0.75},
         timing_variation = 0.12,
@@ -96,7 +108,11 @@ return {
       
       -- Tension: Mysterious and uncertain
       [4] = {
-        chord = "Diminished 7",  -- 4 notes: root, m3rd, dim5th, dim7th
+        chords = {
+          { root_offset = 0, type = "Diminished 7" },    -- i dim7
+          { root_offset = 3, type = "Half Diminished" }, -- iii half-dim
+          { root_offset = 6, type = "Diminished 7" }     -- #iv dim7
+        },
         pattern = {1, 2, 3, 4, 3, 2},
         velocities = {1.0, 0.85, 0.9, 0.8, 0.85, 0.75},
         timing_variation = 0.1,
@@ -110,8 +126,12 @@ return {
     -- Get available notes from our scale for snapping
     local scale_notes = theory.get_scale()
     
+    -- Pick a random chord from the style's available chords
+    local chosen_chord = pattern.chords[math.random(#pattern.chords)]
+    local chord_root = root + chosen_chord.root_offset
+    
     -- Generate the chord notes for this pattern
-    local chord_notes = musicutil.generate_chord(root, pattern.chord)
+    local chord_notes = musicutil.generate_chord(chord_root, chosen_chord.type)
     
     -- Helper function to add humanized variation
     local function humanize(value, amount)

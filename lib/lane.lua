@@ -282,7 +282,8 @@ function Lane:schedule_stage(stage_index, start_time)
                 note = event.note,
                 velocity = event.velocity * self.volume,
                 x = event.x,
-                y = event.y
+                y = event.y,
+                is_playback = true  -- Explicitly mark this as a playback event
               }) 
             end
           })
@@ -310,7 +311,8 @@ function Lane:schedule_stage(stage_index, start_time)
                 note = event.note,
                 velocity = 0,
                 x = event.x,
-                y = event.y
+                y = event.y,
+                is_playback = true
               }) 
             end
           })
@@ -365,11 +367,19 @@ end
 --   Send MIDI or engine note_on
 ---------------------------------------------------------
 function Lane:on_note_on(event)
+  -- Get the note, applying playback offset if this is a playback event
+  local note = event.note
+  if event.is_playback then
+    -- This is a playback event, apply offset
+    local offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
+    note = note + offset
+  end
+
   -- Play MIDI if configured
   local device_idx = params:get("lane_" .. self.id .. "_midi_device")
   local channel = params:get("lane_" .. self.id .. "_midi_channel")
   if device_idx > 1 and channel > 0 then
-    self.midi_out_device:note_on(event.note, event.velocity * self.volume, channel)
+    self.midi_out_device:note_on(note, event.velocity * self.volume, channel)
   end
 
   -- Normalize velocity for MX Samples
@@ -378,11 +388,10 @@ function Lane:on_note_on(event)
   -- Play engine using instrument from params
   -- NB: MX Samples uses amp as a value between 0 and 1. This isn't clear from the documentation.
   local instrument = self:get_instrument()
-
   if instrument then
     _seeker.skeys:on({
       name = instrument,
-      midi = event.note,
+      midi = note,
       amp = engine_velocity
     })
   end
@@ -392,7 +401,7 @@ function Lane:on_note_on(event)
   local cv_out = params:get("lane_" .. self.id .. "_cv_out")
   
   -- Calculate CV voltage (V/oct)
-  local cv_volts = (event.note - 60) / 12
+  local cv_volts = (note - 60) / 12
   
   -- Handle CV output
   if cv_out > 1 then
@@ -418,11 +427,11 @@ function Lane:on_note_on(event)
 
   -- Track active note with grid position
   if event.x and event.y then
-    local key = event.note
+    local key = note
     self.active_notes[key] = {
       x = event.x,
       y = event.y,
-      note = event.note,
+      note = note,
       velocity = event.velocity
     }
   end
@@ -432,11 +441,19 @@ end
 -- on_note_off(note)
 ---------------------------------------------------------
 function Lane:on_note_off(event)
+  -- Get the note, applying playback offset if this is a playback event
+  local note = event.note
+  if event.is_playback then
+    -- This is a playback event, apply offset
+    local offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
+    note = note + offset
+  end
+
   -- Stop MIDI if configured
   local device_idx = params:get("lane_" .. self.id .. "_midi_device")
   local channel = params:get("lane_" .. self.id .. "_midi_channel")
   if device_idx > 1 and channel > 0 then
-    self.midi_out_device:note_off(event.note, 0, channel)
+    self.midi_out_device:note_off(note, 0, channel)
   end
   
   -- Stop engine using instrument from params
@@ -444,7 +461,7 @@ function Lane:on_note_off(event)
   if instrument then
     _seeker.skeys:off({
       name = instrument,
-      midi = event.note
+      midi = note
     })
   end
 
@@ -453,8 +470,8 @@ function Lane:on_note_off(event)
   
   -- Count remaining active notes
   local remaining_notes = 0
-  for note, _ in pairs(self.active_notes) do
-    if note ~= event.note then
+  for n, _ in pairs(self.active_notes) do
+    if n ~= note then
       remaining_notes = remaining_notes + 1
     end
   end
@@ -478,7 +495,7 @@ function Lane:on_note_off(event)
       decay = 0.95
     }
     -- Remove from active notes
-    self.active_notes[event.note] = nil
+    self.active_notes[note] = nil
   end
 end
 

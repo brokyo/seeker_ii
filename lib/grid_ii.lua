@@ -13,6 +13,7 @@ local MotifRegion = include("lib/grid/regions/motif_region")
 local PlayRegion = include("lib/grid/regions/play_region")
 local RecRegion = include("lib/grid/regions/rec_region")
 local GenerateRegion = include("lib/grid/regions/generate_region")
+local OctaveRegion = include("lib/grid/regions/octave_region")
 
 -- Keep regions in their own namespace
 local regions = {
@@ -23,7 +24,8 @@ local regions = {
   motif = MotifRegion,
   play = PlayRegion,
   rec = RecRegion,
-  generate = GenerateRegion
+  generate = GenerateRegion,
+  octave = OctaveRegion
 }
 
 GridUI.layers = nil
@@ -86,11 +88,14 @@ function draw_controls()
   regions.play.draw(GridUI.layers)
   regions.rec.draw(GridUI.layers)
   regions.generate.draw(GridUI.layers)
+  regions.octave.draw(GridUI.layers)
 end
 
 function draw_keyboard()
   local root = params:get("root_note") - 1  -- Convert to 0-based
-  local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
+  
   for x = 0, Layout.keyboard.width - 1 do
     for y = 0, Layout.keyboard.height - 1 do
       local grid_x = Layout.keyboard.upper_left_x + x
@@ -130,13 +135,14 @@ end
 
 function note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
+  local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
   
   local event = {
     x = x,
     y = y,
-    note = theory.grid_to_note(x, y, octave),
-    velocity = regions.velocity.get_current_velocity()
+    note = theory.grid_to_note(x, y, keyboard_octave),
+    velocity = regions.velocity.get_current_velocity(),
+    is_playback = false  -- Explicitly mark as live input
   }
 
   if _seeker.motif_recorder.is_recording then  
@@ -148,16 +154,20 @@ end
 
 function note_off(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  local octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_octave")
+  local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
+  
   local event = {
     x = x,
     y = y,
-    note = theory.grid_to_note(x, y, octave),
-    velocity = 0
+    note = theory.grid_to_note(x, y, keyboard_octave),
+    velocity = 0,
+    is_playback = false  -- Explicitly mark as live input
   }
+  
   if _seeker.motif_recorder.is_recording then  
     _seeker.motif_recorder:on_note_off(event)
   end
+  
   focused_lane:on_note_off(event)
 end
 
@@ -189,6 +199,8 @@ function GridUI.key(x, y, z)
       regions.config.handle_key(x, y, z)
     elseif regions.velocity.contains(x, y) then
       regions.velocity.handle_key(x, y, z)
+    elseif regions.octave.contains(x, y) then
+      regions.octave.handle_key(x, y, z)
     end
   end
 end

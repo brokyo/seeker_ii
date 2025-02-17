@@ -5,6 +5,7 @@ local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local GenerateSection = include('lib/ui/sections/generate_section')
+local OctaveSection = include('lib/ui/sections/octave_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}
@@ -25,7 +26,8 @@ function ScreenUI.init()
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
-    GENERATE = GenerateSection.new()
+    GENERATE = GenerateSection.new(),
+    OCTAVE = OctaveSection.new()
   }
   
   ScreenSaver.init()

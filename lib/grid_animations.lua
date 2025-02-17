@@ -30,6 +30,11 @@ local state = {
       edge_order = {0, 1, 2, 3},-- Order of edge activation (0=top, 1=right, 2=bottom, 3=left)
       decay_curve = 1,          -- Power of decay curve (1=linear, 2=quadratic, etc)
     }
+  },
+  generate_flash = {
+    active = false,
+    start_time = 0,
+    duration = 0.2  -- Duration of flash in seconds
   }
 }
 
@@ -108,6 +113,37 @@ end
 
 -- Draw keyboard outline during recording
 function GridAnimations.update_keyboard_outline(response_layer, layout, motif_recorder)
+  -- Handle generate flash animation first
+  if state.generate_flash.active then
+    local elapsed = util.time() - state.generate_flash.start_time
+    if elapsed > state.generate_flash.duration then
+      state.generate_flash.active = false
+    else
+      -- Calculate flash brightness (starts bright, fades out)
+      local progress = elapsed / state.generate_flash.duration
+      local brightness = math.floor(GridConstants.BRIGHTNESS.HIGH * (1 - progress))
+      
+      -- Draw outline
+      local x1 = layout.keyboard.upper_left_x - 1
+      local x2 = x1 + layout.keyboard.width + 1
+      local y1 = layout.keyboard.upper_left_y - 1
+      local y2 = y1 + layout.keyboard.height + 1
+      
+      -- Draw top and bottom
+      for x = x1, x2 do
+        GridLayers.set(response_layer, x, y1, brightness)
+        GridLayers.set(response_layer, x, y2, brightness)
+      end
+      -- Draw sides
+      for y = y1, y2 do
+        GridLayers.set(response_layer, x1, y, brightness)
+        GridLayers.set(response_layer, x2, y, brightness)
+      end
+      return
+    end
+  end
+
+  -- Continue with normal recording outline if not flashing
   if not motif_recorder.is_recording then
     state.keyboard_outline.active = false
     return
@@ -139,6 +175,12 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
   for x = x1, x2 do
     GridLayers.set(response_layer, x, y1, brightness)
   end
+end
+
+-- Trigger a keyboard flash animation
+function GridAnimations.flash_keyboard()
+  state.generate_flash.active = true
+  state.generate_flash.start_time = util.time()
 end
 
 --------------------------------------------------

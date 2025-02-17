@@ -14,10 +14,11 @@ function MotifSection.new()
   setmetatable(section, MotifSection)
 
   function section:get_param_value(param)
-    if param.id == "recorded_duration" then
+    if param.readonly then
       return param.value -- Use the pre-formatted value for read-only param
+    else
+      return Section.get_param_value(self, param) -- Use default behavior for other params
     end
-    return Section.get_param_value(self, param) -- Use default behavior for other params
   end
 
   function section:modify_param(param, delta)
@@ -89,7 +90,7 @@ function MotifSection.new()
     
     self.params = {
       { id = "recorded_duration", name = "Recorded Duration", value = string.format("%.2f", recorded_duration), readonly = true },
-      { id = "lane_" .. lane_idx .. "_octave", name = "Octave" },
+      { id = "lane_" .. lane_idx .. "_playback_offset", name = "Octave Shift" },
       { id = "lane_" .. lane_idx .. "_volume", name = "Volume" },
       { id = "lane_" .. lane_idx .. "_speed", name = "Speed" },
       { id = "lane_" .. lane_idx .. "_custom_duration", name = "Duration" }

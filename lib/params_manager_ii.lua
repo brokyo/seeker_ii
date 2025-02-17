@@ -169,11 +169,14 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,4 do
-    params:add_group("lane_" .. i, "LANE " .. i, 15) -- Increased group size by 1
+    params:add_group("lane_" .. i, "LANE " .. i, 16)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
-    -- Octave selection for this lane
-    params:add_number("lane_" .. i .. "_octave", "Octave", 1, 7, 3)
+    -- Keyboard octave control (for grid input)
+    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
+    
+    -- Playback octave offset
+    params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
 
     -- MIDI Device
     local device_names = {"none"}
