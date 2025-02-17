@@ -105,14 +105,9 @@ function StageSection.new()
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local stage = _seeker.lanes[lane_idx].stages[new_stage_idx]
     
-    -- Build param list starting with stage controls
+    -- Build param list starting with transform controls
     self.params = {
-      { separator = true, name = "CONFIG" },
-      { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_mute", name = "Mute" },
-      { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_reset_motif", name = "Reset Motif" },
-      { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loops", name = "Loops" },
-      { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loop_trigger", name = "Loop Trigger" },
-      { separator = true, name = "TRANSFORM" },
+      { separator = true, name = "TRANSFORM" }
     }
 
     -- Add transform params if stage has transforms
@@ -141,6 +136,13 @@ function StageSection.new()
         end
       end
     end
+
+    -- Add stage controls after transforms
+    table.insert(self.params, { separator = true, name = "CONFIG" })
+    table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_mute", name = "Mute" })
+    table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_reset_motif", name = "Reset Motif" })
+    table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loops", name = "Loops" })
+    table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loop_trigger", name = "Loop Trigger" })
 
     self.name = string.format("Stage %d", new_stage_idx)
     _seeker.ui_state.dirty = true -- Mark UI for refresh
