@@ -47,6 +47,9 @@ function Motif:store_events(recorded_data)
   self.genesis.events = {}
   self.events = {}
   
+  -- Clear custom duration since we're storing new events
+  self.custom_duration = nil
+  
   -- Deep copy events to genesis
   for _, evt in ipairs(recorded_data.events) do
     table.insert(self.genesis.events, self:_copy_event(evt))

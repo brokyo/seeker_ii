@@ -161,6 +161,12 @@ function MotifSection.new()
   local initial_lane = _seeker.ui_state.get_focused_lane()
   section:update_focused_motif(initial_lane)
 
+  -- Add enter method to update when section becomes active
+  function section:enter()
+    Section.enter(self)  -- Call parent enter method
+    self:update_focused_motif(_seeker.ui_state.get_focused_lane())
+  end
+
   return section
 end
 

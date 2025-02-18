@@ -23,6 +23,7 @@ function UIState.set_focused_lane(lane_idx)
   
   -- Update UI
   _seeker.screen_ui.sections.LANE:update_focused_lane(lane_idx)
+  _seeker.screen_ui.sections.MOTIF:update_focused_motif(lane_idx)
   _seeker.screen_ui.set_needs_redraw()
   
   -- Update grid
