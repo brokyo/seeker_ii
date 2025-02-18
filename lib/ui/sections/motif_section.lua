@@ -14,16 +14,65 @@ function MotifSection.new()
   setmetatable(section, MotifSection)
 
   function section:get_param_value(param)
-    if param.readonly then
-      return param.value -- Use the pre-formatted value for read-only param
-    else
-      return Section.get_param_value(self, param) -- Use default behavior for other params
+    if param.id == "recorded_duration" then
+      local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+      if lane and lane.motif then
+        -- Show custom duration if set, otherwise show genesis duration
+        if lane.motif.custom_duration then
+          return string.format("%.2f", lane.motif.custom_duration)
+        else
+          return string.format("%.2f", lane.motif.genesis.duration)
+        end
+      end
+      return "0.00"
     end
+    return Section.get_param_value(self, param)
   end
 
   function section:modify_param(param, delta)
-    if param.readonly then return end -- Don't modify read-only params
-    Section.modify_param(self, param, delta)
+    if param.id == "recorded_duration" then
+      local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+      if lane and lane.motif then
+        -- Get current value (either custom or genesis)
+        local current = lane.motif.custom_duration or lane.motif.genesis.duration
+        
+        -- If this is the first adjustment (no custom duration set), snap to nearest 0.25
+        if not lane.motif.custom_duration then
+          current = math.floor(current * 4 + 0.5) / 4
+        end
+        
+        local new_value = util.clamp(current + (delta * param.spec.step), param.spec.min, param.spec.max)
+        
+        -- Store in custom_duration to preserve genesis
+        lane.motif.custom_duration = new_value
+        
+        -- Update displayed value
+        param.value = string.format("%.2f", new_value)
+      end
+    else
+      Section.modify_param(self, param, delta)
+    end
+  end
+
+  function section:handle_key(n, z)
+    -- Handle K3 press for resetting duration
+    if n == 3 and z == 1 and self.state.selected_index > 0 then
+      local param = self.params[self.state.selected_index]
+      if param.id == "recorded_duration" then
+        local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+        if lane and lane.motif then
+          -- Clear custom duration to revert to genesis
+          lane.motif.custom_duration = nil
+          -- Update displayed value
+          param.value = string.format("%.2f", lane.motif.genesis.duration)
+        end
+      else
+        -- For other params, use default behavior
+        Section.handle_key(self, n, z)
+      end
+    else
+      Section.handle_key(self, n, z)
+    end
   end
 
   -- Override draw_params to customize read-only parameter display
@@ -86,16 +135,24 @@ function MotifSection.new()
   function section:update_focused_motif(lane_idx)
     -- Get the current lane's motif
     local lane = _seeker.lanes[lane_idx]
-    local recorded_duration = lane and lane.motif and lane.motif.genesis.duration or 0
+    local current_duration = lane and lane.motif and (lane.motif.custom_duration or lane.motif.genesis.duration) or 0
     
     self.params = {
-      { id = "recorded_duration", name = "Recorded Duration", value = string.format("%.2f", recorded_duration), readonly = true },
+      { 
+        id = "recorded_duration", 
+        name = "Duration (k3 reset)", 
+        value = string.format("%.2f", current_duration),
+        spec = {
+          type = "number",
+          min = 0.25,  -- Minimum duration of 1/4 beat
+          max = 64,    -- Maximum duration of 64 beats
+          step = 0.25  -- Allow quarter beat increments
+        }
+      },
       { id = "lane_" .. lane_idx .. "_playback_offset", name = "Octave Shift" },
       { id = "lane_" .. lane_idx .. "_volume", name = "Volume" },
-      { id = "lane_" .. lane_idx .. "_speed", name = "Speed" },
-      { id = "lane_" .. lane_idx .. "_custom_duration", name = "Duration" }
+      { id = "lane_" .. lane_idx .. "_speed", name = "Speed" }
     }
-
   end
 
   -- Initialize with current lane
