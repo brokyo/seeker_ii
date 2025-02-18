@@ -3,7 +3,7 @@ local ScreenSaver = {}
 
 ScreenSaver.state = {
   is_active = false,
-  timeout_seconds = 30,
+  timeout_seconds = 60,
   lines = {},  -- Store scan lines
   -- Scan line configuration
   config = {

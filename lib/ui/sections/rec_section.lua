@@ -17,25 +17,42 @@ function RecSection.new(config)
         separator = true
       },
       {
-        id = "rec_status",
-        name = "Status",
-        value = "Ready",
-        spec = {
-          type = "string"
-        }
-      },
-      {
-        id = "rec_length",
-        name = "Length",
-        value = "0 steps",
-        spec = {
-          type = "string"
-        }
+        id = "quantize_division",
+        name = "Quantize"
       }
     }
   })
   
   setmetatable(section, RecSection)
+
+  -- Override draw to add help text above footer
+  function section:draw()
+    screen.clear()
+    
+    -- Draw parameters
+    self:draw_params(0)
+    
+    -- Draw help text just above footer
+    screen.level(2)
+    
+    -- First line
+    local text1 = "Long press to start"
+    local width1 = screen.text_extents(text1)
+    screen.move(64 - width1/2, 42)
+    screen.text(text1)
+    
+    -- Second line
+    local text2 = "Short press to stop"
+    local width2 = screen.text_extents(text2)
+    screen.move(64 - width2/2, 50)
+    screen.text(text2)
+    
+    -- Draw footer
+    self:draw_footer()
+    
+    screen.update()
+  end
+
   return section
 end
 
