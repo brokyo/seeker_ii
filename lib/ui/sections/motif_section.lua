@@ -8,10 +8,57 @@ function MotifSection.new()
     id = "MOTIF",
     name = "Motif:Playback",
     icon = "☸",
-    params = {}
+    params = {
+      {
+        id = "motif_info",
+        name = "Options",
+        get_display_name = function()
+          local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+          if lane and lane.playing then
+            return "Options ⏵"
+          else
+            return "Options"
+          end
+        end,
+        separator = true
+      }
+    }
   })
 
   setmetatable(section, MotifSection)
+
+  -- Override draw to add help text
+  function section:draw()
+    screen.clear()
+    
+    -- Draw parameters
+    self:draw_params(0)
+    
+    -- Draw help text
+    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+    local help_text
+    if lane and lane.playing then
+      help_text = "⏹: hold grid key"
+    else
+      help_text = "⏵: hold grid key"
+    end
+    local width = screen.text_extents(help_text)
+    
+    -- Brighten text during long press
+    if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "MOTIF" then
+      screen.level(15)  -- Full brightness during hold
+    else
+      screen.level(2)   -- Normal dim state
+    end
+    
+    screen.move(64 - width/2, 46)
+    screen.text(help_text)
+    
+    -- Draw footer
+    self:draw_footer()
+    
+    screen.update()
+  end
 
   function section:get_param_value(param)
     if param.id == "recorded_duration" then
@@ -75,69 +122,24 @@ function MotifSection.new()
     end
   end
 
-  -- Override draw_params to customize read-only parameter display
-  function section:draw_params(start_y)
-    local FOOTER_Y = 52
-    local ITEM_HEIGHT = 10
-    local visible_height = FOOTER_Y - start_y
-    local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
-    
-    -- Ensure scroll offset stays in valid range
-    local max_scroll = math.max(0, #self.params - max_visible_items)
-    self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
-    
-    -- Draw visible parameters
-    for i = 1, math.min(max_visible_items, #self.params) do
-      local param_idx = i + self.state.scroll_offset
-      local param = self.params[param_idx]
-      if param then
-        local y = start_y + (i * ITEM_HEIGHT)
-        local is_selected = self.state.selected_index == param_idx
-        
-        -- Simple selection highlight
-        if is_selected then
-          screen.level(2)
-          screen.rect(0, y - 6, 128, 8)
-          screen.fill()
-        end
-        
-        -- Parameter name
-        screen.level(is_selected and 15 or 4)
-        screen.move(2, y)
-        if param.readonly then
-          screen.text("○ " .. param.name) -- Add circle indicator for read-only
-        else
-          screen.text(param.name)
-        end
-        
-        -- Parameter value (right-aligned)
-        local value = self:get_param_value(param)
-        local value_x = 120 - screen.text_extents(value)
-        screen.level(param.readonly and 2 or (is_selected and 15 or 4)) -- Dimmer for read-only
-        screen.move(value_x, y)
-        screen.text(value)
-      end
-    end
-    
-    -- Draw scroll indicators if needed
-    if self.state.scroll_offset > 0 then
-      screen.level(4)
-      screen.move(123, start_y + 4)
-      screen.text("▲")
-    end
-    if self.state.scroll_offset < max_scroll then
-      screen.level(4)
-      screen.move(123, FOOTER_Y - 4)
-      screen.text("▼")
-    end
-  end
-
   function section:update_focused_motif(lane_idx)
     -- Get the current lane's motif
     local lane = _seeker.lanes[lane_idx]
     local current_duration = lane and lane.motif and (lane.motif.custom_duration or lane.motif.genesis.duration) or 0
     
     self.params = {
+      {
+        id = "motif_info",
+        name = "Options",
+        get_display_name = function()
+          if lane and lane.playing then
+            return "Options [⏵]"
+          else
+            return "Options"
+          end
+        end,
+        separator = true
+      },
       { 
         id = "recorded_duration", 
         name = "Duration (k3 reset)", 

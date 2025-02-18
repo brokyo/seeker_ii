@@ -130,6 +130,31 @@ function GenerateSection.new()
   -- Initialize param list
   section:update_param_list()
 
+  -- Override draw to add help text
+  function section:draw()
+    screen.clear()
+    
+    -- Draw parameters
+    self:draw_params(0)
+    
+    -- Draw help text
+    local help_text = "🔄: hold grid key"
+    local width = screen.text_extents(help_text)
+    -- Brighten text during long press
+    if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "GENERATE" then
+      screen.level(15)  -- Full brightness during hold
+    else
+      screen.level(2)   -- Normal dim state
+    end
+    screen.move(64 - width/2, 46)
+    screen.text(help_text)
+    
+    -- Draw footer
+    self:draw_footer()
+    
+    screen.update()
+  end
+
   return section
 end
 

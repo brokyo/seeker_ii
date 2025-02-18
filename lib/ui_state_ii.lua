@@ -6,7 +6,9 @@ UIState.state = {
   focused_lane = 1,
   focused_stage = 1,
   current_section = "LANE",
-  last_action_time = util.time()
+  last_action_time = util.time(),
+  long_press_in_progress = false,  -- Track if we're in a long press
+  long_press_section = nil         -- Which section is being long pressed
 }
 
 function UIState.init()
@@ -105,6 +107,21 @@ function UIState.enc(n, d)
   if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
     _seeker.screen_ui.enc(n, d)
   end
+end
+
+-- Add new methods for long press tracking
+function UIState.set_long_press_state(is_active, section_id)
+  UIState.state.long_press_in_progress = is_active
+  UIState.state.long_press_section = section_id
+  _seeker.screen_ui.set_needs_redraw()
+end
+
+function UIState.is_long_press_active()
+  return UIState.state.long_press_in_progress
+end
+
+function UIState.get_long_press_section()
+  return UIState.state.long_press_section
 end
 
 return UIState 

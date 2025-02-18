@@ -39,8 +39,7 @@ function RecSection.new(config)
     -- Draw parameters
     self:draw_params(0)
     
-    -- Draw compact help text
-    screen.level(2)
+    -- Draw help text
     local help_text
     if _seeker.motif_recorder.is_recording then
       help_text = "⏹: tap grid key"
@@ -48,6 +47,14 @@ function RecSection.new(config)
       help_text = "⏺: hold grid key"
     end
     local width = screen.text_extents(help_text)
+    
+    -- Brighten text during long press
+    if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "RECORDING" then
+      screen.level(15)  -- Full brightness during hold
+    else
+      screen.level(2)   -- Normal dim state
+    end
+    
     screen.move(64 - width/2, 46)
     screen.text(help_text)
     
