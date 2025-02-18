@@ -39,6 +39,13 @@ function ScreenUI.init()
       if ScreenSaver.check_timeout() then
         ScreenUI.redraw()
       else
+        -- Force redraw when recording or when showing active motif playhead
+        if _seeker.motif_recorder.is_recording or 
+          (_seeker.ui_state.get_current_section() == "OVERDUB" and 
+           _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing) then
+          ScreenUI.set_needs_redraw()
+        end
+        
         if ScreenUI.state.needs_redraw then
           ScreenUI.redraw()
         end

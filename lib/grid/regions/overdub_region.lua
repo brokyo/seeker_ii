@@ -57,6 +57,7 @@ function OverdubRegion.handle_key(x, y, z)
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local motif = _seeker.motif_recorder:stop_recording()
       _seeker.lanes[focused_lane]:set_motif(motif)
+      _seeker.screen_ui.set_needs_redraw()  -- Trigger redraw on stop
       return
     end
     
@@ -78,6 +79,7 @@ function OverdubRegion.handle_key(x, y, z)
         params:set("recording_mode", 2)
         -- Start overdub recording
         _seeker.motif_recorder:start_recording(existing_motif)
+        _seeker.screen_ui.set_needs_redraw()  -- Trigger redraw on start
       end
     end
     

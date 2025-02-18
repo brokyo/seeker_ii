@@ -51,6 +51,7 @@ function RecRegion.handle_key(x, y, z)
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local motif = _seeker.motif_recorder:stop_recording()
       _seeker.lanes[focused_lane]:set_motif(motif)
+      _seeker.screen_ui.set_needs_redraw()  -- Trigger redraw on stop
       return
     end
     
@@ -62,6 +63,7 @@ function RecRegion.handle_key(x, y, z)
         params:set("recording_mode", 1)
         -- Start new recording
         _seeker.motif_recorder:start_recording(nil)
+        _seeker.screen_ui.set_needs_redraw()  -- Trigger redraw on start
       end
     end
     

@@ -13,16 +13,15 @@ function OverdubSection.new(config)
     params = {
       {
         id = "overdub_info",
-        name = "Overdub Info",
+        name = "Overdub Info",  -- Static name
+        get_display_name = function()  -- Add custom display function
+          if _seeker.motif_recorder.is_recording then
+            return "Options [⏺]"  -- Using record glyph
+          else
+            return "Options"
+          end
+        end,
         separator = true
-      },
-      {
-        id = "overdub_status",
-        name = "Status",
-        value = "Ready",
-        spec = {
-          type = "string"
-        }
       },
       {
         id = "quantize_division",
@@ -33,27 +32,6 @@ function OverdubSection.new(config)
   
   setmetatable(section, OverdubSection)
   
-  -- Add redraw clock
-  function section:enter()
-    Section.enter(self)
-    -- Start redraw clock when entering section
-    self.redraw_clock = clock.run(function()
-      while self.state.is_active do
-        _seeker.screen_ui.set_needs_redraw()
-        clock.sleep(1/30) -- 30fps to match screen refresh
-      end
-    end)
-  end
-  
-  function section:exit()
-    -- Stop redraw clock when leaving section
-    if self.redraw_clock then
-      clock.cancel(self.redraw_clock)
-      self.redraw_clock = nil
-    end
-    Section.exit(self)
-  end
-
   -- Override draw to add help text and loop visualization
   function section:draw()
     screen.clear()
@@ -63,7 +41,8 @@ function OverdubSection.new(config)
     
     -- Draw loop visualization
     local focused_lane = _seeker.ui_state.get_focused_lane()
-    local motif = _seeker.lanes[focused_lane].motif
+    local lane = _seeker.lanes[focused_lane]
+    local motif = lane.motif
     
     if #motif.events > 0 then
       -- Constants for visualization
@@ -71,6 +50,9 @@ function OverdubSection.new(config)
       local VIS_HEIGHT = 6    -- Height of visualization
       local VIS_X = 8         -- Left margin
       local VIS_WIDTH = 112   -- Width of visualization
+      
+      -- Get the effective duration (handles custom duration)
+      local loop_duration = motif:get_duration()
       
       -- Draw loop outline
       screen.level(4)
@@ -81,8 +63,8 @@ function OverdubSection.new(config)
       screen.level(2)
       for _, event in ipairs(motif.events) do
         if event.type == "note_on" then
-          -- Calculate x position based on event time
-          local x = VIS_X + (event.time / motif.genesis.duration * VIS_WIDTH)
+          -- Calculate x position based on event time relative to loop duration
+          local x = VIS_X + (event.time / loop_duration * VIS_WIDTH)
           -- Draw small vertical line for event
           screen.move(x, VIS_Y)
           screen.line(x, VIS_Y + VIS_HEIGHT)
@@ -92,54 +74,117 @@ function OverdubSection.new(config)
       
       -- Draw new events being recorded (brighter)
       if _seeker.motif_recorder.is_recording then
-        local now = clock.get_beats()
-        local start = _seeker.motif_recorder.start_time
-        
         screen.level(8)  -- Brighter than existing events
         for _, event in ipairs(_seeker.motif_recorder.events) do
-          -- Only show new events (ones added during this overdub session)
           if event.type == "note_on" then
-            -- Calculate time relative to start of recording
-            local event_time = (event.time - start) % motif.genesis.duration
-            local x = VIS_X + (event_time / motif.genesis.duration * VIS_WIDTH)
+            -- Use event time directly from recorder
+            local x = VIS_X + (event.time / loop_duration * VIS_WIDTH)
             -- Draw slightly taller line for new events
             screen.move(x, VIS_Y - 1)
             screen.line(x, VIS_Y + VIS_HEIGHT + 1)
             screen.stroke()
           end
         end
+      end
+
+      -- Draw playhead when recording or playing
+      if _seeker.motif_recorder.is_recording or lane.playing then
+        local position
+        if _seeker.motif_recorder.is_recording then
+          -- Use current time relative to start for recording
+          position = (clock.get_beats() - _seeker.motif_recorder.start_time) % loop_duration
+        else
+          -- Use lane's playback position when playing
+          position = lane.playback_position or 0
+        end
         
-        -- Draw playhead (brightest)
-        local elapsed = now - start
-        local position = elapsed % motif.genesis.duration
-        local x = VIS_X + (position / motif.genesis.duration * VIS_WIDTH)
-        
-        screen.level(15)
+        local x = VIS_X + (position / loop_duration * VIS_WIDTH)
+        screen.level(15)  -- Brightest
         screen.move(x, VIS_Y - 1)
         screen.line(x, VIS_Y + VIS_HEIGHT + 1)
         screen.stroke()
       end
     end
     
-    -- Draw help text just above footer
+    -- Draw compact help text
     screen.level(2)
-    
-    -- First line
-    local text1 = "Long press to start"
-    local width1 = screen.text_extents(text1)
-    screen.move(64 - width1/2, 42)
-    screen.text(text1)
-    
-    -- Second line
-    local text2 = "Short press to stop"
-    local width2 = screen.text_extents(text2)
-    screen.move(64 - width2/2, 50)
-    screen.text(text2)
+    local help_text
+    if _seeker.motif_recorder.is_recording then
+      help_text = "⏹: tap grid key"
+    else
+      help_text = "⏺: hold grid key"
+    end
+    local width = screen.text_extents(help_text)
+    screen.move(64 - width/2, 46)
+    screen.text(help_text)
     
     -- Draw footer
     self:draw_footer()
     
     screen.update()
+  end
+
+  -- Override draw_params to handle dynamic separator names
+  function section:draw_params(start_y)
+    local FOOTER_Y = 52
+    local ITEM_HEIGHT = 10
+    local visible_height = FOOTER_Y - start_y
+    local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
+    
+    -- Ensure scroll offset stays in valid range
+    local max_scroll = math.max(0, #self.params - max_visible_items)
+    self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
+    
+    -- Draw visible parameters
+    for i = 1, math.min(max_visible_items, #self.params) do
+      local param_idx = i + self.state.scroll_offset
+      local param = self.params[param_idx]
+      if param then
+        local y = start_y + (i * ITEM_HEIGHT)
+        local is_selected = self.state.selected_index == param_idx
+        
+        if param.separator then
+          -- Draw separator with dynamic name if available
+          screen.level(4)
+          screen.move(2, y)
+          local display_name = param.get_display_name and param.get_display_name() or param.name
+          screen.text(display_name)
+          screen.move(2, y + 1)
+          screen.line(126, y + 1)
+          screen.stroke()
+        else
+          -- Draw normal parameter
+          if is_selected then
+            screen.level(2)
+            screen.rect(0, y - 6, 128, 8)
+            screen.fill()
+          end
+          
+          -- Parameter name
+          screen.level(is_selected and 15 or 4)
+          screen.move(2, y)
+          screen.text(param.name)
+          
+          -- Parameter value (right-aligned)
+          local value = self:get_param_value(param)
+          local value_x = 120 - screen.text_extents(value)
+          screen.move(value_x, y)
+          screen.text(value)
+        end
+      end
+    end
+    
+    -- Draw scroll indicators if needed
+    if self.state.scroll_offset > 0 then
+      screen.level(4)
+      screen.move(123, start_y + 4)
+      screen.text("▲")
+    end
+    if self.state.scroll_offset < max_scroll then
+      screen.level(4)
+      screen.move(123, FOOTER_Y - 4)
+      screen.text("▼")
+    end
   end
 
   return section

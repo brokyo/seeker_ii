@@ -26,11 +26,11 @@ function StageRegion.draw(layers)
     
     local brightness
     if is_focused then
-      brightness = GridConstants.BRIGHTNESS.UI.FOCUSED
+      brightness = GridConstants.BRIGHTNESS.MEDIUM
     elseif is_active then
-      brightness = GridConstants.BRIGHTNESS.UI.UNFOCUSED
+      brightness = GridConstants.BRIGHTNESS.HIGH
     else
-      brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+      brightness = GridConstants.BRIGHTNESS.LOW
     end
     
     layers.ui[StageRegion.layout.x + i][StageRegion.layout.y] = brightness

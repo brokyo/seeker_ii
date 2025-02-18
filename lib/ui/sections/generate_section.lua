@@ -97,8 +97,16 @@ function GenerateSection.new()
     -- Start with generator type selector
     self.params = {
       {
+        id = "generator_info",
+        name = "Options",
+        get_display_name = function()
+          return "Options"
+        end,
+        separator = true
+      },
+      {
         id = "generator_type",
-        name = "Generator Type",
+        name = "Name",
         spec = { 
           type = "option", 
           values = MotifGenerator.get_generators()
@@ -108,14 +116,6 @@ function GenerateSection.new()
     
     -- Get current generator's parameters
     local gen = MotifGenerator.get_generator_spec(self.state.current_generator)
-    
-    -- Add separator with generator description
-    if gen.description then
-      table.insert(self.params, { 
-        separator = true, 
-        name = gen.description 
-      })
-    end
     
     -- Add generator-specific parameters
     for param_id, spec in pairs(gen.params) do
