@@ -168,7 +168,7 @@ end
 
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
-  for i = 1,4 do
+  for i = 1,8 do  -- Changed from 4 to 8
     params:add_group("lane_" .. i, "LANE " .. i, 16)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 

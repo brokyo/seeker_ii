@@ -5,7 +5,7 @@ local StageRegion = {}
 
 StageRegion.layout = {
   x = 13,
-  y = 6,
+  y = 5,
   width = 4,
   height = 1
 }
