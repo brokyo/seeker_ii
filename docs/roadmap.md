@@ -2,23 +2,18 @@
 
 ### Next Session
 
-- [] Add motif record region with buttons for record, generate, overdub, and play
-- [] Confirmation animations on double click
 
 ### Long List
-- [] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
-- [] Playing lane illumination jumps to zero when playing and selected.
-- [] Consider motif length and if recording should record silences
+- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
 - [] app_on_screen is vestigial. Remove it.
-- [] Long press for overdub in rec section
 - [] Add MIDI CC to control ableton recording
-- [] Add param preset saving
-- [] Catch MIDI events (rather than grid) in `motif_recorder`
+- [] Add param preset saving and "default" param for config to return to
 - [] Review keyboard region in `grid_ii.lua`. Everything else has been refactored into region components. Didn't do keyboard due to potential dependencies.
 
 
 ### Bugs
 ### Open Questions
+- [] Do we want to catch MIDI events from a keyboard?
 
 
 ### Done
@@ -75,3 +70,9 @@
 - [x] Improve transform UI
 - [x] Refactor generator system for better logic handling and future extensibility.
 - [x] Grid octave control (distinct from Motif)
+- [x] Add motif record region with buttons for record, generate, overdub, and play
+- [x] Confirmation animations on double click
+- [x] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
+- [x] Playing lane illumination jumps to zero when playing and selected.
+- [x] Consider motif length and if recording should record silences
+- [x] Long press for overdub in rec section

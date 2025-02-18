@@ -26,6 +26,8 @@ function LaneRegion.contains(x, y)
 end
 
 function LaneRegion.draw(layers)
+  local is_lane_section = _seeker.ui_state.get_current_section() == "LANE"
+  
   for row = 0, LaneRegion.layout.height - 1 do
     for i = 0, LaneRegion.layout.width - 1 do
       local lane_idx = (row * LaneRegion.layout.width) + i + 1
@@ -33,17 +35,18 @@ function LaneRegion.draw(layers)
       local lane = _seeker.lanes[lane_idx]
       
       local brightness
-      if lane.playing and #lane.active_notes > 0 then
-        -- Pulse only when there are active notes
-        local pulse = math.sin(clock.get_beats() * 4) * 3
-        brightness = is_focused and
-          math.floor(GridConstants.BRIGHTNESS.UI.FOCUSED + pulse) or
-          math.floor(GridConstants.BRIGHTNESS.UI.UNFOCUSED + pulse)
+      if is_lane_section then
+        if is_focused then
+          brightness = GridConstants.BRIGHTNESS.FULL
+        else
+          brightness = GridConstants.BRIGHTNESS.HIGH
+        end
       else
-        -- Static brightness when not playing or no active notes
-        brightness = is_focused and 
-          GridConstants.BRIGHTNESS.UI.FOCUSED or 
-          (lane.playing and GridConstants.BRIGHTNESS.UI.UNFOCUSED or GridConstants.BRIGHTNESS.UI.NORMAL)
+        if lane.playing then
+          brightness = GridConstants.BRIGHTNESS.MEDIUM
+        else
+          brightness = GridConstants.BRIGHTNESS.LOW
+        end
       end
       
       layers.ui[LaneRegion.layout.x + i][LaneRegion.layout.y + row] = brightness

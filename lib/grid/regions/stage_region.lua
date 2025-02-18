@@ -18,19 +18,25 @@ end
 
 function StageRegion.draw(layers)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  local is_stage_section = _seeker.ui_state.get_current_section() == "STAGE"
   
   for i = 0, StageRegion.layout.width - 1 do
     local stage_idx = i + 1
-    local is_focused = stage_idx == _seeker.ui_state.get_focused_stage()
     local is_active = focused_lane.playing and stage_idx == focused_lane.current_stage_index
     
     local brightness
-    if is_focused then
-      brightness = GridConstants.BRIGHTNESS.MEDIUM
-    elseif is_active then
-      brightness = GridConstants.BRIGHTNESS.HIGH
+    if is_stage_section then
+      if stage_idx == _seeker.ui_state.get_focused_stage() then
+        brightness = GridConstants.BRIGHTNESS.FULL
+      else
+        brightness = GridConstants.BRIGHTNESS.HIGH
+      end
     else
-      brightness = GridConstants.BRIGHTNESS.LOW
+      if is_active then
+        brightness = GridConstants.BRIGHTNESS.MEDIUM
+      else
+        brightness = GridConstants.BRIGHTNESS.LOW
+      end
     end
     
     layers.ui[StageRegion.layout.x + i][StageRegion.layout.y] = brightness
