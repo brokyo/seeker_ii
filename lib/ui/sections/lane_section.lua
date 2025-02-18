@@ -6,7 +6,7 @@ LaneSection.__index = LaneSection
 function LaneSection.new()
   local section = Section.new({
     id = "LANE",
-    name = "Lane 0",
+    name = "Layer 0",
     icon = "⌸",
     params = {} -- Start empty, will be populated when lane focus changes
   })
@@ -27,7 +27,7 @@ function LaneSection.new()
       { id = "lane_" .. new_lane_idx .. "_loop_start_trigger", name = "Loop Trigger" }
     }
     -- Update section name with lane number
-    self.name = string.format("Lane %d", new_lane_idx)
+    self.name = string.format("Layer %d", new_lane_idx)
   end
   
   -- Initialize with current lane

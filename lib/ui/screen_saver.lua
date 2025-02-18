@@ -104,12 +104,12 @@ function ScreenSaver.draw()
   local SCREEN_HEIGHT = 64
   local CENTER_Y = SCREEN_HEIGHT / 2
   local CENTER_X = SCREEN_WIDTH / 2
-  local LIGHT_SPACING_Y = 5
+  local LIGHT_SPACING_Y = 6  -- Increased from 4 to 6 for better separation
   local LIGHT_SPACING_X = 8
-  local TOTAL_HEIGHT = (4 * LIGHT_SPACING_Y)
-  local START_Y = CENTER_Y - (TOTAL_HEIGHT / 2) + 2  -- Shift up slightly
-  local LANE_LIGHT_X = CENTER_X - 23  -- Move lane lights right
-  local STAGE_START_X = CENTER_X - 12  -- Move stage lights right
+  local TOTAL_HEIGHT = (8 * LIGHT_SPACING_Y)  -- Total height will increase accordingly
+  local START_Y = CENTER_Y - (TOTAL_HEIGHT / 2) + 2  -- Keep centered
+  local LANE_LIGHT_X = CENTER_X - 23  -- Keep existing position
+  local STAGE_START_X = CENTER_X - 12  -- Keep existing position
   
   screen.level(0)
   local PADDING = 4
@@ -132,7 +132,7 @@ function ScreenSaver.draw()
   local STAGE_START_X = CENTER_X - 8  -- Keep consistent with rectangle
   
   -- Lane status lights (centered)
-  for lane_idx = 1, 4 do
+  for lane_idx = 1, 8 do  -- Changed from 4 to 8
     local lane = _seeker.lanes[lane_idx]
     local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
     
@@ -143,7 +143,7 @@ function ScreenSaver.draw()
       is_active = lane.playing,
       speed = 0,
       base_level = is_focused and 8 or 4,
-      size = 2.5
+      size = 2  -- Slightly reduced from 2.5 to maintain clean look with tighter spacing
     })
     
     -- Stage status lights for this lane
@@ -159,7 +159,7 @@ function ScreenSaver.draw()
         is_active = is_stage_active or has_active_notes,
         speed = has_active_notes and 8 or 0,
         base_level = is_stage_focused and 8 or (is_stage_active and 4 or 2),
-        size = 2
+        size = 1.75  -- Slightly reduced from 2 to maintain clean look with tighter spacing
       })
     end
   end
