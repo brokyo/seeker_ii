@@ -18,7 +18,7 @@ local GridConstants = {
   BRIGHTNESS = {
     -- Core levels
     FULL = 15,
-    HIGH = 12,
+    HIGH = 10,
     MEDIUM = 8,
     LOW = 4,
     DIM = 2,

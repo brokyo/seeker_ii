@@ -28,6 +28,8 @@ _seeker = {
   screen_ui = nil,
   grid_ui = nil,
   motif_recorder = nil,
+  -- This one is a hack to get the velocity section to work. There's got to be a better way.
+  velocity = 3  -- Default to f
 }
 
 --------------------------------------------------

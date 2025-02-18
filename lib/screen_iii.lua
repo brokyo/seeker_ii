@@ -7,6 +7,7 @@ local MotifSection = include('lib/ui/sections/motif_section')
 local GenerateSection = include('lib/ui/sections/generate_section')
 local OctaveSection = include('lib/ui/sections/octave_section')
 local OverdubSection = include('lib/ui/sections/overdub_section')
+local VelocitySection = include('lib/ui/sections/velocity_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}
@@ -29,7 +30,8 @@ function ScreenUI.init()
     MOTIF = MotifSection.new(),
     GENERATE = GenerateSection.new(),
     OCTAVE = OctaveSection.new(),
-    OVERDUB = OverdubSection.new()
+    OVERDUB = OverdubSection.new(),
+    VELOCITY = VelocitySection.new()
   }
   
   ScreenSaver.init()
