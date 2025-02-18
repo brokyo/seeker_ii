@@ -6,7 +6,7 @@ local GenerateRegion = {}
 
 GenerateRegion.layout = {
   x = 2,
-  y = 6,
+  y = 7,
   width = 1,
   height = 1
 }

@@ -7,7 +7,7 @@ RecRegion.__index = RecRegion
 
 RecRegion.layout = {
   x = 3,
-  y = 6,
+  y = 7,
   width = 1,
   height = 1
 }

@@ -5,7 +5,7 @@ local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local GenerateSection = include('lib/ui/sections/generate_section')
-local OctaveSection = include('lib/ui/sections/octave_section')
+local TuningSection = include('lib/ui/sections/tuning_section')
 local OverdubSection = include('lib/ui/sections/overdub_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
 local ScreenSaver = include('lib/ui/screen_saver')
@@ -29,7 +29,7 @@ function ScreenUI.init()
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
     GENERATE = GenerateSection.new(),
-    OCTAVE = OctaveSection.new(),
+    TUNING = TuningSection.new(),
     OVERDUB = OverdubSection.new(),
     VELOCITY = VelocitySection.new()
   }
@@ -41,6 +41,7 @@ function ScreenUI.init()
       if ScreenSaver.check_timeout() then
         ScreenUI.redraw()
       else
+        -- TODO: I may not stand behind this. Review.
         -- Force redraw when recording or when showing active motif playhead
         if _seeker.motif_recorder.is_recording or 
           (_seeker.ui_state.get_current_section() == "OVERDUB" and 

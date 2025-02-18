@@ -5,7 +5,7 @@ local MotifRegion = {}
 
 MotifRegion.layout = {
   x = 1,
-  y = 6,
+  y = 7,
   width = 1,
   height = 1
 }

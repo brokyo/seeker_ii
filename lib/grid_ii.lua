@@ -13,7 +13,7 @@ local MotifRegion = include("lib/grid/regions/motif_region")
 local OverdubRegion = include("lib/grid/regions/overdub_region")
 local RecRegion = include("lib/grid/regions/rec_region")
 local GenerateRegion = include("lib/grid/regions/generate_region")
-local OctaveRegion = include("lib/grid/regions/octave_region")
+local TuningRegion = include("lib/grid/regions/tuning_region")
 
 -- Keep regions in their own namespace
 local regions = {
@@ -25,7 +25,7 @@ local regions = {
   overdub = OverdubRegion,
   rec = RecRegion,
   generate = GenerateRegion,
-  octave = OctaveRegion
+  tuning = TuningRegion
 }
 
 GridUI.layers = nil
@@ -88,7 +88,7 @@ function draw_controls()
   regions.overdub.draw(GridUI.layers)
   regions.rec.draw(GridUI.layers)
   regions.generate.draw(GridUI.layers)
-  regions.octave.draw(GridUI.layers)
+  regions.tuning.draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -199,8 +199,8 @@ function GridUI.key(x, y, z)
       regions.config.handle_key(x, y, z)
     elseif regions.velocity.contains(x, y) then
       regions.velocity.handle_key(x, y, z)
-    elseif regions.octave.contains(x, y) then
-      regions.octave.handle_key(x, y, z)
+    elseif regions.tuning.contains(x, y) then
+      regions.tuning.handle_key(x, y, z)
     end
   end
 end
