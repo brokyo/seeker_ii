@@ -101,6 +101,7 @@ function GenerateRegion.handle_key(x, y, z)
       local section = _seeker.screen_ui.sections.GENERATE
       local motif_data = section:generate_motif()
       lane:set_motif(motif_data)
+      lane:play()  -- Start playing immediately after generating
       -- Flash keyboard to confirm generation
       GridAnimations.flash_keyboard()
     end

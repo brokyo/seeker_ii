@@ -103,7 +103,9 @@ function RecRegion.handle_key(x, y, z)
     if _seeker.motif_recorder.is_recording then
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local motif = _seeker.motif_recorder:stop_recording()
-      _seeker.lanes[focused_lane]:set_motif(motif)
+      local lane = _seeker.lanes[focused_lane]
+      lane:set_motif(motif)
+      lane:play()  -- Start playing immediately after recording
       _seeker.screen_ui.set_needs_redraw()
     -- If not recording and it was a long press, start recording
     elseif RecRegion:is_long_press(key_id) then
