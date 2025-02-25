@@ -112,9 +112,6 @@ function OverdubRegion.handle_key(x, y, z)
       else
         params:set("recording_mode", 2)
         _seeker.motif_recorder:start_recording(existing_motif)
-        -- Restart the lane to ensure sync
-        _seeker.lanes[focused_lane]:stop()
-        _seeker.lanes[focused_lane]:play()
         _seeker.screen_ui.set_needs_redraw()
       end
     end

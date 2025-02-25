@@ -91,11 +91,15 @@ function OverdubSection.new(config)
       if _seeker.motif_recorder.is_recording or lane.playing then
         local position
         if _seeker.motif_recorder.is_recording then
-          -- Use current time relative to start for recording
-          position = (clock.get_beats() - _seeker.motif_recorder.start_time) % loop_duration
+          -- Calculate position based on conductor's current beat time
+          local current_beat = clock.get_beats()
+          local start_beat = _seeker.motif_recorder.start_time
+          position = (current_beat - start_beat) % loop_duration
         else
-          -- Use lane's playback position when playing
-          position = lane.playback_position or 0
+          -- Use lane's playback position directly from conductor timing
+          local current_beat = clock.get_beats()
+          local cycle_position = current_beat % loop_duration
+          position = cycle_position
         end
         
         local x = VIS_X + (position / loop_duration * VIS_WIDTH)

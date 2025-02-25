@@ -1,8 +1,7 @@
 ### Current Session
-- [] New screen saver
+- [] Improve overdub visualization.
 
 ### Next Session
-- [] Improve overdub logic. Visualization only works when you're perfectly timed with the start. Instead of trying to fix the scrubber, let's just restart the lane on overdub.
 - [] Selected layer should illuminate as HIGH
 - [] K2 for info
 - [] Move volume control to lane
@@ -15,6 +14,7 @@
 - [] Add MIDI CC to control ableton recording
 - [] Add param preset saving and "default" param for config to return to
 - [] Review keyboard region in `grid_ii.lua`. Everything else has been refactored into region components. Didn't do keyboard due to potential dependencies.
+- [] New screen saver
 
 
 ### Bugs
@@ -82,3 +82,4 @@
 - [x] Playing lane illumination jumps to zero when playing and selected.
 - [x] Consider motif length and if recording should record silences
 - [x] Long press for overdub in rec section
+- [x] Change lane stop logic so that all future events cancel
