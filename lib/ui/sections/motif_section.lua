@@ -147,7 +147,7 @@ function MotifSection.new()
         spec = {
           type = "number",
           min = 0.25,  -- Minimum duration of 1/4 beat
-          max = 64,    -- Maximum duration of 64 beats
+          max = 128,    -- Maximum duration of 64 beats
           step = 0.25  -- Allow quarter beat increments
         }
       },

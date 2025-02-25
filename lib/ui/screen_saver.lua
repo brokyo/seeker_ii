@@ -3,20 +3,20 @@ local ScreenSaver = {}
 
 ScreenSaver.state = {
   is_active = false,
-  timeout_seconds = 60,
-  lines = {},  -- Store scan lines
+  timeout_seconds = 10,
+  lines = {},
   -- Scan line configuration
   config = {
-    num_lines = 4,           -- Reduced from 6 to 4 lines
-    min_speed = 0.3,         -- Lines movement speed
+    num_lines = 4,
+    min_speed = 0.3,
     max_speed = 0.8,
-    line_width = 1,          -- Width of each line
+    line_width = 1,
     max_brightness = 12,
-    fade_length = 6,         -- Reduced fade trail length
-    wave_amplitude = 4,      -- How much the lines wave
+    fade_length = 6,
+    wave_amplitude = 4,
     wave_frequency = 0.5,
-    line_resolution = 4,     -- Draw line segments every 4 pixels instead of 2
-    fps = 30                 -- Lower framerate for screen saver mode
+    line_resolution = 4,
+    fps = 30
   }
 }
 
@@ -89,7 +89,6 @@ function ScreenSaver.draw()
         screen.level(brightness)
         screen.move(0, fade_y)
         
-        -- Draw wavy line with reduced resolution
         for x = 0, 128, ScreenSaver.state.config.line_resolution do
           local y_offset = wave_offset * math.sin(x * 0.05 + line.phase)
           screen.line(x, fade_y + y_offset)
@@ -104,12 +103,12 @@ function ScreenSaver.draw()
   local SCREEN_HEIGHT = 64
   local CENTER_Y = SCREEN_HEIGHT / 2
   local CENTER_X = SCREEN_WIDTH / 2
-  local LIGHT_SPACING_Y = 6  -- Increased from 4 to 6 for better separation
+  local LIGHT_SPACING_Y = 6
   local LIGHT_SPACING_X = 8
-  local TOTAL_HEIGHT = (8 * LIGHT_SPACING_Y)  -- Total height will increase accordingly
-  local START_Y = CENTER_Y - (TOTAL_HEIGHT / 2) + 2  -- Keep centered
-  local LANE_LIGHT_X = CENTER_X - 23  -- Keep existing position
-  local STAGE_START_X = CENTER_X - 12  -- Keep existing position
+  local TOTAL_HEIGHT = (8 * LIGHT_SPACING_Y)
+  local START_Y = CENTER_Y - (TOTAL_HEIGHT / 2) + 2
+  local LANE_LIGHT_X = CENTER_X - 23
+  local STAGE_START_X = CENTER_X - 12
   
   screen.level(0)
   local PADDING = 4
@@ -134,7 +133,6 @@ function ScreenSaver.draw()
   -- Lane status lights (centered)
   for lane_idx = 1, 8 do  -- Changed from 4 to 8
     local lane = _seeker.lanes[lane_idx]
-    local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
     
     -- Lane activity light
     table.insert(lights, {
@@ -142,14 +140,15 @@ function ScreenSaver.draw()
       y = START_Y + (lane_idx * LIGHT_SPACING_Y),
       is_active = lane.playing,
       speed = 0,
-      base_level = is_focused and 8 or 4,
-      size = 2  -- Slightly reduced from 2.5 to maintain clean look with tighter spacing
+      base_level = 4,
+      size = 2,
+      type = "lane",
+      lane_idx = lane_idx
     })
     
     -- Stage status lights for this lane
     for stage_idx = 1, 4 do
       local stage = lane.stages[stage_idx]
-      local is_stage_focused = is_focused and stage_idx == _seeker.ui_state.get_focused_stage()
       local is_stage_active = lane.playing and stage_idx == lane.current_stage_index
       local has_active_notes = stage and stage.active_notes and #stage.active_notes > 0
       
@@ -158,8 +157,11 @@ function ScreenSaver.draw()
         y = START_Y + (lane_idx * LIGHT_SPACING_Y),
         is_active = is_stage_active or has_active_notes,
         speed = has_active_notes and 8 or 0,
-        base_level = is_stage_focused and 8 or (is_stage_active and 4 or 2),
-        size = 1.75  -- Slightly reduced from 2 to maintain clean look with tighter spacing
+        base_level = is_stage_active and 4 or 2,  -- Simplified base levels
+        size = 1.75,
+        type = "stage",
+        lane_idx = lane_idx,
+        stage_idx = stage_idx
       })
     end
   end
@@ -178,6 +180,17 @@ function ScreenSaver.draw()
         end
       else
         brightness = 12
+      end
+    end
+
+    -- Check if this stage has any active notes
+    if light.type == "stage" then
+      local lane = _seeker.lanes[light.lane_idx]
+      if lane and lane.active_notes and next(lane.active_notes) and 
+         lane.current_stage_index == light.stage_idx then
+        -- Create breathing animation using sine wave
+        local breath = math.sin(util.time() * 3) * 0.5 + 0.5  -- Oscillate between 0 and 1
+        brightness = math.floor(util.linlin(0, 1, light.base_level + 2, 15, breath))  -- Map to brightness range and ensure integer
       end
     end
     

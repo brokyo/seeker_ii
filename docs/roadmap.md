@@ -1,7 +1,13 @@
 ### Current Session
+- [] New screen saver
 
 ### Next Session
-
+- [] Improve overdub logic. Visualization only works when you're perfectly timed with the start. Instead of trying to fix the scrubber, let's just restart the lane on overdub.
+- [] Selected layer should illuminate as HIGH
+- [] K2 for info
+- [] Move volume control to lane
+- [] Engine mute option
+- [] Separators in all menus
 
 ### Long List
 - [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.

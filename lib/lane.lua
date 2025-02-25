@@ -260,13 +260,13 @@ function Lane:schedule_stage(stage_index, start_time)
   end
 
   -- Print debug info about events
-  self:debug_print_events(false)
+  -- self:debug_print_events(false)
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
   
   -- Process all events in the motif
-  for _, event in ipairs(self.motif.events) do
+  for i, event in ipairs(self.motif.events) do
     local event_time = event.time
     
     if event.type == "note_on" then
@@ -284,7 +284,8 @@ function Lane:schedule_stage(stage_index, start_time)
                 velocity = event.velocity * self.volume,
                 x = event.x,
                 y = event.y,
-                is_playback = true  -- Explicitly mark this as a playback event
+                is_playback = true,  -- Explicitly mark this as a playback event
+                event_index = i  -- Track which event in the sequence triggered this note
               }) 
             end
           })
@@ -438,7 +439,8 @@ function Lane:on_note_on(event)
         y = grid_pos.y,
         note = note,
         velocity = event.velocity,
-        original_note = event.note  -- Store the original note for reference
+        original_note = event.note,  -- Store the original note for reference
+        event_index = event.event_index  -- Track which event in the sequence triggered this note
       }
     end
   end
