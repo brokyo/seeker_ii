@@ -166,6 +166,8 @@ function Lane:stop()
     stage.current_loop = 0
   end
   self.current_stage_index = 1
+  -- Clear any pending events for this lane
+  _seeker.conductor.clear_events_for_lane(self.id)
   print(string.format('֎ Stopped LANE_%d', self.id))
 end
 
@@ -225,6 +227,7 @@ function Lane:schedule_stage(stage_index, start_time)
     -- Schedule the trigger at the start of the loop
     _seeker.conductor.insert_event({
       time = start_time,
+      lane_id = self.id,
       callback = function()
         if trigger <= 5 then
           -- Crow trigger
@@ -232,6 +235,7 @@ function Lane:schedule_stage(stage_index, start_time)
           -- Schedule trigger off after 10ms
           _seeker.conductor.insert_event({
             time = start_time + 0.01,
+            lane_id = self.id,
             callback = function()
               crow.output[trigger - 1].volts = 0
             end
@@ -242,6 +246,7 @@ function Lane:schedule_stage(stage_index, start_time)
           -- Schedule trigger off after 10ms
           _seeker.conductor.insert_event({
             time = start_time + 0.01,
+            lane_id = self.id,
             callback = function()
               crow.ii.txo.tr(trigger - 5, 0)
             end
@@ -278,14 +283,16 @@ function Lane:schedule_stage(stage_index, start_time)
         if not stage.mute then
           _seeker.conductor.insert_event({
             time = absolute_time,
+            lane_id = self.id,
+            type = event.type,  -- Pass through the motif event type
             callback = function() 
               self:on_note_on({
                 note = event.note,
                 velocity = event.velocity * self.volume,
                 x = event.x,
                 y = event.y,
-                is_playback = true,  -- Explicitly mark this as a playback event
-                event_index = i  -- Track which event in the sequence triggered this note
+                is_playback = true,
+                event_index = i
               }) 
             end
           })
@@ -308,6 +315,9 @@ function Lane:schedule_stage(stage_index, start_time)
         if not stage.mute then
           _seeker.conductor.insert_event({
             time = absolute_time,
+            lane_id = self.id,
+            type = event.type,
+            note = event.note,  -- Store the note in the event data
             callback = function() 
               self:on_note_off({
                 note = event.note,
@@ -328,6 +338,7 @@ function Lane:schedule_stage(stage_index, start_time)
   
   _seeker.conductor.insert_event({
     time = end_time,
+    lane_id = self.id,
     callback = function()
       if not self.playing then return end
 

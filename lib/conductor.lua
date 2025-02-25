@@ -32,8 +32,33 @@ function Conductor.process_events()
   end
 end
 
-function Conductor.clear_events()
-  Conductor.events = {}
+-- Clear all events for a specific lane
+function Conductor.clear_events_for_lane(lane_id)
+  -- Get the lane's currently active notes
+  local lane = _seeker.lanes[lane_id]
+  local active_notes = lane.active_notes
+
+  -- First pass: execute note_off events only for currently active notes
+  for _, evt in ipairs(Conductor.events) do
+    if evt.lane_id == lane_id and evt.type == "note_off" and evt.callback then
+      -- Check if this note_off is for a currently active note
+      local note = evt.note or evt.original_note -- Try both since the event might store it differently
+      if active_notes[note] then
+        evt.callback(evt)
+      end
+    end
+  end
+
+  -- Second pass: remove all events for this lane
+  local i = 1
+  while i <= #Conductor.events do
+    local evt = Conductor.events[i]
+    if evt.lane_id == lane_id then
+      table.remove(Conductor.events, i)
+    else
+      i = i + 1
+    end
+  end
 end
 
 -- Synchronize all lanes by stopping and restarting them
