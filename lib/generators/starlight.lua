@@ -9,15 +9,19 @@ return {
   description = "Celestial patterns in the night sky",
   params = {
     style = {
+      name = "Style",
       type = "option",
       options = {"Constellation", "Nebula", "Pulsar"},
-      default = 1
+      default = 1,
+      step = 1
     },
     root = {
-      type = "integer",
+      name = "Root Position",
+      type = "number",
       min = 1,
       max = 16,
       default = 1,
+      step = 1,
       formatter = function(param) return tostring(param) end
     }
   },
@@ -27,97 +31,103 @@ return {
     local root_x = params.root
     local root_y = 8  -- Start from bottom row
     
-    -- Helper to get valid positions near a point
-    local function get_nearby_positions(x, y, max_distance)
-      local positions = {}
-      for test_x = math.max(1, x - max_distance), math.min(16, x + max_distance) do
-        for test_y = math.max(1, y - max_distance), math.min(8, y + max_distance) do
-          -- Skip the exact point
-          if test_x ~= x or test_y ~= y then
-            table.insert(positions, {x = test_x, y = test_y})
-          end
-        end
-      end
-      return positions
-    end
+    -- Movement patterns for different styles
+    local movements = {
+      -- Constellation: Move in lines/angles
+      [1] = {
+        {dx = 1, dy = -1},   -- up-right
+        {dx = 1, dy = 0},    -- right
+        {dx = 1, dy = 1},    -- down-right
+        {dx = -1, dy = -1},  -- up-left
+        {dx = -1, dy = 0},   -- left
+        {dx = -1, dy = 1}    -- down-left
+      },
+      -- Nebula: Cluster movements
+      [2] = {
+        {dx = 1, dy = 0},    -- right
+        {dx = -1, dy = 0},   -- left
+        {dx = 0, dy = 1},    -- down
+        {dx = 0, dy = -1},   -- up
+        {dx = 1, dy = 1},    -- down-right
+        {dx = -1, dy = -1}   -- up-left
+      },
+      -- Pulsar: Radial movements
+      [3] = {
+        {dx = 2, dy = 0},    -- far right
+        {dx = -2, dy = 0},   -- far left
+        {dx = 1, dy = 1},    -- down-right
+        {dx = -1, dy = 1},   -- down-left
+        {dx = 1, dy = -1},   -- up-right
+        {dx = -1, dy = -1}   -- up-left
+      }
+    }
 
     if style == 1 then  -- Constellation
-      -- A pattern of connected bright points
+      -- Create a connected pattern of stars
       local num_stars = math.random(6, 9)
       local time = 0
-      local last_pos = {x = root_x, y = root_y}
+      local x, y = root_x, root_y
       
       for star = 1, num_stars do
-        -- Get valid positions near the last star
-        local nearby = get_nearby_positions(last_pos.x, last_pos.y, 3)
-        if #nearby == 0 then
-          -- If no nearby positions, reset to root
-          last_pos = {x = root_x, y = root_y}
-          nearby = get_nearby_positions(last_pos.x, last_pos.y, 3)
+        -- Pick a movement that keeps us on the grid
+        local valid_moves = {}
+        for _, move in ipairs(movements[1]) do
+          local new_x = x + move.dx
+          local new_y = y + move.dy
+          if new_x >= 1 and new_x <= 16 and new_y >= 1 and new_y <= 8 then
+            table.insert(valid_moves, move)
+          end
         end
         
-        -- Pick a random nearby position
-        local pos = nearby[math.random(#nearby)]
-        last_pos = pos
-        
-        -- Convert position to note
-        local note = theory.grid_to_note(pos.x, pos.y, 4)  -- Use octave 4 as default
-        
-        -- Longer notes for main stars, shorter for connecting ones
-        local is_main_star = star % 2 == 1
-        local duration = is_main_star and 0.4 or 0.2
-        local velocity = is_main_star and math.random(70, 85) or math.random(45, 60)
-        
-        add_note_event(events, note, time, duration, velocity)
-        
-        -- Variable time between stars
-        time = time + (is_main_star and 0.5 or 0.3)
+        if #valid_moves > 0 then
+          -- Choose random valid movement
+          local move = valid_moves[math.random(#valid_moves)]
+          x = x + move.dx
+          y = y + move.dy
+          
+          -- Get note at this position
+          local note = theory.grid_to_note(x, y, 4)
+          
+          -- Longer notes for main stars, shorter for connecting ones
+          local is_main_star = star % 2 == 1
+          local duration = is_main_star and 0.4 or 0.2
+          local velocity = is_main_star and math.random(70, 85) or math.random(45, 60)
+          
+          add_note_event(events, note, time, duration, velocity)
+          
+          -- Variable time between stars
+          time = time + (is_main_star and 0.5 or 0.3)
+        end
       end
       
       return { events = events, duration = time }
       
     elseif style == 2 then  -- Nebula
-      -- Cloudy, overlapping notes in nearby positions
+      -- Create clusters of overlapping notes
       local duration = 4.0
       local time = 0
-      local last_positions = {}  -- Track recent positions to create clusters
+      local x, y = root_x, root_y
       
       while time < duration do
-        -- Get positions near recent positions or root
-        local valid_positions
-        if #last_positions > 0 then
-          local center = last_positions[math.random(#last_positions)]
-          valid_positions = get_nearby_positions(center.x, center.y, 2)
-        else
-          valid_positions = get_nearby_positions(root_x, root_y, 3)
-        end
+        -- Play 2-3 notes in cluster
+        local num_notes = math.random(2, 3)
         
-        -- Play 2-3 notes together for cloud-like effect
-        local num_simultaneous = math.random(2, 3)
-        
-        for i = 1, num_simultaneous do
-          if #valid_positions > 0 then
-            -- Pick a random position
-            local pos_idx = math.random(#valid_positions)
-            local pos = valid_positions[pos_idx]
-            table.remove(valid_positions, pos_idx)
-            
-            -- Add to recent positions, keeping last 3
-            table.insert(last_positions, pos)
-            if #last_positions > 3 then
-              table.remove(last_positions, 1)
-            end
-            
-            -- Convert position to note
-            local note = theory.grid_to_note(pos.x, pos.y, 4)
-            
-            -- Overlapping note durations
-            local note_duration = math.random() * 0.4 + 0.3
-            -- Gentle velocities with slight variation
-            local velocity = math.random(40, 60)
-            
-            add_note_event(events, note, time, note_duration, velocity)
-          end
+        for i = 1, num_notes do
+          -- Move to nearby position
+          local move = movements[2][math.random(#movements[2])]
+          local new_x = util.clamp(x + move.dx, 1, 16)
+          local new_y = util.clamp(y + move.dy, 1, 8)
+          x, y = new_x, new_y
+          
+          -- Get note at this position
+          local note = theory.grid_to_note(x, y, 4)
+          
+          -- Overlapping note durations
+          local note_duration = math.random() * 0.4 + 0.3
+          -- Gentle velocities with slight variation
+          local velocity = math.random(40, 60)
+          
+          add_note_event(events, note, time, note_duration, velocity)
         end
         
         -- Small random time increments
@@ -127,33 +137,32 @@ return {
       return { events = events, duration = duration }
       
     else  -- Pulsar
-      -- Regular pulses with intensity variations
+      -- Create radiating patterns from center
       local num_pulses = math.random(4, 6)
       local notes_per_pulse = 3
       local time = 0
       
       for pulse = 1, num_pulses do
         local base_velocity = math.random(70, 90)
-        local pulse_positions = get_nearby_positions(root_x, root_y, 2)
+        local x, y = root_x, root_y  -- Start each pulse from root
         
         for note_num = 1, notes_per_pulse do
-          if #pulse_positions > 0 then
-            -- Pick a random position
-            local pos_idx = math.random(#pulse_positions)
-            local pos = pulse_positions[pos_idx]
-            table.remove(pulse_positions, pos_idx)
-            
-            -- Convert position to note
-            local note = theory.grid_to_note(pos.x, pos.y, 4)
-            
-            -- Quick, staccato notes
-            local duration = 0.1
-            -- Velocity decreases through each pulse
-            local velocity = base_velocity * (1 - (note_num-1)/notes_per_pulse * 0.4)
-            
-            add_note_event(events, note, time, duration, velocity)
-            time = time + 0.1
-          end
+          -- Move outward from center
+          local move = movements[3][math.random(#movements[3])]
+          local new_x = util.clamp(x + move.dx, 1, 16)
+          local new_y = util.clamp(y + move.dy, 1, 8)
+          x, y = new_x, new_y
+          
+          -- Get note at this position
+          local note = theory.grid_to_note(x, y, 4)
+          
+          -- Quick, staccato notes
+          local duration = 0.1
+          -- Velocity decreases through each pulse
+          local velocity = base_velocity * (1 - (note_num-1)/notes_per_pulse * 0.4)
+          
+          add_note_event(events, note, time, duration, velocity)
+          time = time + 0.1
         end
         
         -- Gap between pulses

@@ -1,16 +1,15 @@
 ### Current Session
-- [] Generators generate x/y coordinates.
 
 ### Pre-Launch Features
 - [] Separators in all menus
 - [] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
 - [] When layer is selected pulse keyboard ring
+- [] Engine mute option
+- [] Engine pan
 
 ### Pre-Launch Defaults
 - [] background_brightness defaults to 3
 - [] Loops defaults to 2
-- [] Engine mute option
-- [] Engine pan
 
 ### Bugs
 - [] First stage selection always `Stage 0.` Likely not using ui_manager.
@@ -19,6 +18,7 @@
 
 
 ### Long List
+- [] Review everything about generators.
 - [] Overdub stored in generations. Different visual treatment and undo option.
 - [] Screensaver lines should move at bpm.
 - [] Debug menu
@@ -96,3 +96,4 @@
 - [x] Long press for overdub in rec section
 - [x] Change lane stop logic so that all future events cancel
 - [x] Don't convert x/y position to match shifted notes.
+- [x] Generators generate x/y coordinates.
