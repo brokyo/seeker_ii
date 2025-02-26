@@ -137,7 +137,6 @@ function MotifSection.new()
         }
       },
       { id = "lane_" .. lane_idx .. "_playback_offset", name = "Octave Shift" },
-      { id = "lane_" .. lane_idx .. "_volume", name = "Volume" },
       { id = "lane_" .. lane_idx .. "_speed", name = "Speed" }
     }
   end

@@ -399,13 +399,16 @@ function Lane:on_note_on(event)
   local engine_velocity = (event.velocity / 127) * self.volume
 
   -- Play engine using instrument from params
-  -- NB: MX Samples uses amp as a value between 0 and 1. This isn't clear from the documentation.
   local instrument = self:get_instrument()
   if instrument then
     _seeker.skeys:on({
       name = instrument,
       midi = note,
-      amp = engine_velocity
+      amp = engine_velocity,
+      pan = self.pan,
+      lpf = self.lpf,
+      resonance = self.resonance,
+      hpf = self.hpf  -- Add HPF
     })
   end
 

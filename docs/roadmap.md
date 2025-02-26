@@ -1,14 +1,7 @@
 ### Current Session
-- [x] background_brightness defaults to 3
-- [x] k2 for info on every section
-- [x] Separators in all menus
-- [x] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
-- [x] Loops defaults to 2
-- [x] When layer is selected pulse keyboard ring
+
 
 ### Pre-Launch Features
-- [] Engine mute option
-- [] Engine pan
 
 ### Pre-Launch Defaults
 
@@ -99,3 +92,12 @@
 - [x] Change lane stop logic so that all future events cancel
 - [x] Don't convert x/y position to match shifted notes.
 - [x] Generators generate x/y coordinates.
+- [x] background_brightness defaults to 3
+- [x] k2 for info on every section
+- [x] Separators in all menus
+- [x] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
+- [x] Loops defaults to 2
+- [x] When layer is selected pulse keyboard ring
+- [x] Engine mute option
+- [x] Engine pan
+- [x] Filter controls

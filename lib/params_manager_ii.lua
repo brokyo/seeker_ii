@@ -167,8 +167,8 @@ end
 
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
-  for i = 1,8 do  -- Changed from 4 to 8
-    params:add_group("lane_" .. i, "LANE " .. i, 16)
+  for i = 1,8 do
+    params:add_group("lane_" .. i, "LANE " .. i, 36)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Keyboard octave control (for grid input)
@@ -239,6 +239,38 @@ function init_lane_params()
         else
           _seeker.lanes[i].motif.custom_duration = value
         end
+    end)
+
+    -- Add pan control
+    params:add_control("lane_" .. i .. "_pan", "Pan", controlspec.new(-1, 1, 'lin', 0.01, 0, "", 0.01))
+    params:set_action("lane_" .. i .. "_pan", function(value)
+      if _seeker.lanes[i] then
+        -- Store pan value on lane for use during note playback
+        _seeker.lanes[i].pan = value
+      end
+    end)
+
+    -- Add filter controls
+    params:add_control("lane_" .. i .. "_lpf", "LPF Cutoff", controlspec.new(20, 20000, 'exp', 0, 20000, "Hz"))
+    params:set_action("lane_" .. i .. "_lpf", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].lpf = value
+      end
+    end)
+
+    params:add_control("lane_" .. i .. "_resonance", "LPF Resonance", controlspec.new(0, 4, 'lin', 0.01, 0, ""))
+    params:set_action("lane_" .. i .. "_resonance", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].resonance = value
+      end
+    end)
+
+    -- Add high-pass filter
+    params:add_control("lane_" .. i .. "_hpf", "HPF Cutoff", controlspec.new(20, 20000, 'exp', 0, 20, "Hz"))
+    params:set_action("lane_" .. i .. "_hpf", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].hpf = value
+      end
     end)
 
     -- See forms.lua for stage configuration

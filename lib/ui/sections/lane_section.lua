@@ -19,6 +19,11 @@ function LaneSection.new()
     self.params = {
       { separator = true, name = "Mx Samples" },
       { id = "lane_" .. new_lane_idx .. "_instrument", name = "Instrument" },
+      { id = "lane_" .. new_lane_idx .. "_volume", name = "Volume" },
+      { id = "lane_" .. new_lane_idx .. "_pan", name = "Pan" },
+      { id = "lane_" .. new_lane_idx .. "_lpf", name = "LPF Cutoff" },
+      { id = "lane_" .. new_lane_idx .. "_resonance", name = "LPF Resonance" },
+      { id = "lane_" .. new_lane_idx .. "_hpf", name = "HPF Cutoff" },
       { separator = true, name = "MIDI" },
       { id = "lane_" .. new_lane_idx .. "_midi_device", name = "MIDI Device" },
       { id = "lane_" .. new_lane_idx .. "_midi_channel", name = "MIDI Channel" },
