@@ -89,18 +89,9 @@ function OverdubSection.new(config)
 
       -- Draw playhead when recording or playing
       if _seeker.motif_recorder.is_recording or lane.playing then
-        local position
-        if _seeker.motif_recorder.is_recording then
-          -- Calculate position based on conductor's current beat time
-          local current_beat = clock.get_beats()
-          local start_beat = _seeker.motif_recorder.start_time
-          position = (current_beat - start_beat) % loop_duration
-        else
-          -- Use lane's playback position directly from conductor timing
-          local current_beat = clock.get_beats()
-          local cycle_position = current_beat % loop_duration
-          position = cycle_position
-        end
+        -- Always use current beat position in the loop
+        local current_beat = clock.get_beats()
+        local position = current_beat % loop_duration
         
         local x = VIS_X + (position / loop_duration * VIS_WIDTH)
         screen.level(15)  -- Brightest

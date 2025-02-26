@@ -1,23 +1,35 @@
 ### Current Session
-- [] Improve overdub visualization.
+- [] Generators generate x/y coordinates.
 
-### Next Session
-- [] Selected layer should illuminate as HIGH
-- [] K2 for info
-- [] Move volume control to lane
-- [] Engine mute option
+### Pre-Launch Features
 - [] Separators in all menus
+- [] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
+- [] When layer is selected pulse keyboard ring
 
-### Long List
-- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
-- [] app_on_screen is vestigial. Remove it.
-- [] Add MIDI CC to control ableton recording
-- [] Add param preset saving and "default" param for config to return to
-- [] Review keyboard region in `grid_ii.lua`. Everything else has been refactored into region components. Didn't do keyboard due to potential dependencies.
-- [] New screen saver
-
+### Pre-Launch Defaults
+- [] background_brightness defaults to 3
+- [] Loops defaults to 2
+- [] Engine mute option
+- [] Engine pan
 
 ### Bugs
+- [] First stage selection always `Stage 0.` Likely not using ui_manager.
+- [] Overdub visualization is often shifted and in unpredictable ways.
+- [] Overdub visualization doesn't account for speed.
+
+
+### Long List
+- [] Overdub stored in generations. Different visual treatment and undo option.
+- [] Screensaver lines should move at bpm.
+- [] Debug menu
+- [] K2 for info
+- [] Param preset saving and "default" button in config
+- [] app_on_screen is vestigial. Remove it.
+- [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
+- [] Screen saver has dynamic lanes
+- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
+- [] Add MIDI CC to control ableton recording
+
 ### Open Questions
 - [] Do we want to catch MIDI events from a keyboard?
 
@@ -83,3 +95,4 @@
 - [x] Consider motif length and if recording should record silences
 - [x] Long press for overdub in rec section
 - [x] Change lane stop logic so that all future events cancel
+- [x] Don't convert x/y position to match shifted notes.

@@ -440,20 +440,17 @@ function Lane:on_note_on(event)
     end
   end
 
-  -- Track active note with grid position
+  -- Visualize notes with grid position
   if event.x and event.y then
-    local key = note  -- Use the offset-adjusted note as the key
-    local grid_pos = theory.note_to_grid(note)  -- Find current valid position for this note
-    if grid_pos then
-      self.active_notes[key] = {
-        x = grid_pos.x,
-        y = grid_pos.y,
-        note = note,
-        velocity = event.velocity,
-        original_note = event.note,  -- Store the original note for reference
-        event_index = event.event_index  -- Track which event in the sequence triggered this note
-      }
-    end
+    local key = note  -- Use the offset-adjusted note as the key. Keyboard is tunable.
+    self.active_notes[key] = {
+      x = event.x,
+      y = event.y,
+      note = note,
+      velocity = event.velocity,
+      original_note = event.note,  -- Store the original note for reference
+      event_index = event.event_index  -- Track which event in the sequence triggered this note
+    }
   end
 end
 

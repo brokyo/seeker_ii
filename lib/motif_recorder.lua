@@ -8,12 +8,18 @@ MotifRecorder.__index = MotifRecorder
 
 function MotifRecorder.new()
   local m = setmetatable({}, MotifRecorder)
-  m.is_recording = false
-  m.events = {}
-  m.start_time = 0
-  m.loop_length = nil -- Duration to wrap events to during overdub
-  m.waiting_for_first_note = false 
+  m:reset_state()
   return m
+end
+
+-- Reset all internal state
+function MotifRecorder:reset_state()
+  self.is_recording = false
+  self.events = {}
+  self.start_time = 0
+  self.loop_length = nil
+  self.waiting_for_first_note = false
+  self.original_motif = nil  -- Track original motif for overdub
 end
 
 -- Helper function to quantize a beat value using global quantize division
@@ -93,11 +99,14 @@ end
 --- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
 function MotifRecorder:start_recording(existing_motif)
+  -- First reset all state
+  self:reset_state()
+  
   -- If overdubbing, store original duration and events
   if params:get("recording_mode") == 2 and existing_motif then -- 2 = Overdub
     self.loop_length = existing_motif.duration
+    self.original_motif = existing_motif -- Store reference to original
     -- Copy existing events
-    self.events = {}
     for _, evt in ipairs(existing_motif.events) do
       table.insert(self.events, {
         time = evt.time,
@@ -108,11 +117,8 @@ function MotifRecorder:start_recording(existing_motif)
         y = evt.y
       })
     end
-    
   else
     -- New recording
-    self.events = {}
-    self.loop_length = nil
     self.waiting_for_first_note = true  -- Only set this for new recordings
   end
 
