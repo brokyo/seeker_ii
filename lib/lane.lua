@@ -32,7 +32,7 @@ function Lane.new(config)
       id = 1,
       mute = false,
       reset_motif = true,
-      loops = 4,
+      loops = 2,
       transforms = {
         {
           name = "noop",
@@ -52,7 +52,7 @@ function Lane.new(config)
       id = 2,
       mute = false,
       reset_motif = false,
-      loops = 4,
+      loops = 2,
       transforms = {
         {
           name = "noop",
@@ -72,7 +72,7 @@ function Lane.new(config)
       id = 3,
       mute = false,
       reset_motif = false,
-      loops = 4,
+      loops = 2,
       transforms = {
         {
           name = "noop",
@@ -92,7 +92,7 @@ function Lane.new(config)
       id = 4,
       mute = false,
       reset_motif = false,
-      loops = 4,
+      loops = 2,
       transforms = {
         {
           name = "noop",

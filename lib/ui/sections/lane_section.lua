@@ -8,7 +8,8 @@ function LaneSection.new()
     id = "LANE",
     name = "Layer 0",
     icon = "⌸",
-    params = {} -- Start empty, will be populated when lane focus changes
+    description = "Configure a layer's output. Control over norns engine, MIDI, and Eurorack.",
+    params = {}
   })
   
   setmetatable(section, LaneSection)
@@ -16,7 +17,7 @@ function LaneSection.new()
   -- Add method to update params for new lane
   function section:update_focused_lane(new_lane_idx)
     self.params = {
-      { separator = true, name = "Engine — Mx Samples" },
+      { separator = true, name = "Mx Samples" },
       { id = "lane_" .. new_lane_idx .. "_instrument", name = "Instrument" },
       { separator = true, name = "MIDI" },
       { id = "lane_" .. new_lane_idx .. "_midi_device", name = "MIDI Device" },
@@ -24,7 +25,7 @@ function LaneSection.new()
       { separator = true, name = "Eurorack" },
       { id = "lane_" .. new_lane_idx .. "_gate_out", name = "Gate Out" },
       { id = "lane_" .. new_lane_idx .. "_cv_out", name = "CV Out" },
-      { id = "lane_" .. new_lane_idx .. "_loop_start_trigger", name = "Loop Trigger" }
+      { id = "lane_" .. new_lane_idx .. "_loop_start_trigger", name = "Loop Start Out" }
     }
     -- Update section name with lane number
     self.name = string.format("Layer %d", new_lane_idx)

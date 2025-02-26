@@ -9,7 +9,7 @@ function OverdubSection.new(config)
   local section = Section.new({
     id = "OVERDUB",
     name = "Motif Overdub [Alpha]",
-    description = "Overdub motifs by holding grid key. Visuals get out-of-sync but data and sound are correct.",
+    description = "Overdub motifs by holding grid key. Velocity and tuning respected. Visuals get out-of-sync but sound is correct.",
     params = {
       {
         id = "overdub_info",

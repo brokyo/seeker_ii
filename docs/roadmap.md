@@ -2,11 +2,11 @@
 - [x] background_brightness defaults to 3
 - [] k2 for info on every section
 - [] Separators in all menus
-- [] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
+- [x] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
 - [] Loops defaults to 2
+- [x] When layer is selected pulse keyboard ring
 
 ### Pre-Launch Features
-- [] When layer is selected pulse keyboard ring
 - [] Engine mute option
 - [] Engine pan
 
@@ -19,6 +19,7 @@
 
 
 ### Long List
+- [] Pulse playing lanes like we do in motif playback.
 - [] Review everything about generators.
 - [] Overdub stored in generations. Different visual treatment and undo option.
 - [] Screensaver lines should move at bpm.
