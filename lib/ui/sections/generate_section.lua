@@ -1,4 +1,6 @@
 -- generate_section.lua
+-- Algorithmic motif generator. Loads generator presets stored in lib/generators
+
 local Section = include('lib/ui/section')
 local MotifGenerator = include('lib/motif_generator')
 local GenerateSection = setmetatable({}, { __index = Section })
@@ -7,14 +9,15 @@ GenerateSection.__index = GenerateSection
 function GenerateSection.new()
   local section = Section.new({
     id = "GENERATE",
-    name = "Motif:Generate",
+    name = "Motif Generator [Alpha]",
+    description = "Algorithmic motif generation. Hold grid key to generate. Hold again to get new variations.",
     params = {}
   })
   setmetatable(section, GenerateSection)
   
   -- Section state
   section.state = {
-    selected_index = 1,  -- Initialize to first parameter
+    selected_index = 1,
     scroll_offset = 0,
     is_active = false,
     current_generator = "starlight",
@@ -98,10 +101,7 @@ function GenerateSection.new()
     self.params = {
       {
         id = "generator_info",
-        name = "Options",
-        get_display_name = function()
-          return "Options"
-        end,
+        name = "Generator Config",
         separator = true
       },
       {
@@ -133,6 +133,13 @@ function GenerateSection.new()
   -- Override draw to add help text
   function section:draw()
     screen.clear()
+    
+    -- Check if showing description
+    if self.state.showing_description then
+      -- Use parent class's default drawing for description
+      Section.draw_default(self)
+      return
+    end
     
     -- Draw parameters
     self:draw_params(0)

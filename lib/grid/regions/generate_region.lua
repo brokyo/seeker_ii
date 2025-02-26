@@ -45,7 +45,7 @@ function GenerateRegion.draw(layers)
   elseif _seeker.ui_state.get_current_section() == "RECORDING" or
          _seeker.ui_state.get_current_section() == "MOTIF" or
          _seeker.ui_state.get_current_section() == "OVERDUB" then
-    brightness = GridConstants.BRIGHTNESS.HIGH
+    brightness = GridConstants.BRIGHTNESS.MEDIUM
   else
     brightness = GridConstants.BRIGHTNESS.LOW
   end
@@ -98,10 +98,16 @@ function GenerateRegion.handle_key(x, y, z)
     if GenerateRegion:is_long_press(key_id) then
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local lane = _seeker.lanes[focused_lane]
+      
+      -- Clear the lane first
+      lane:clear()
+      
+      -- Generate and set new motif
       local section = _seeker.screen_ui.sections.GENERATE
       local motif_data = section:generate_motif()
       lane:set_motif(motif_data)
       lane:play()  -- Start playing immediately after generating
+      
       -- Flash keyboard to confirm generation
       GridAnimations.flash_keyboard()
     end
