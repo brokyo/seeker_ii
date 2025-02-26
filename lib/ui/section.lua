@@ -13,10 +13,12 @@ function Section.new(config)
   section.name = config.name
   section.icon = config.icon
   section.params = config.params or {}
+  section.description = config.description or "No description available"
   section.state = {
     selected_index = 0,
     scroll_offset = 0,
-    is_active = false     -- Track if section is currently active
+    is_active = false,     -- Track if section is currently active
+    showing_description = false  -- Track if we're showing the description
   }
   
   -- Long press tracking
@@ -188,10 +190,50 @@ end
 
 function Section:draw_default()
   screen.clear()
-  self:draw_footer()
-  if #self.params > 0 then
-    self:draw_params(0)
+  
+  if self.state.showing_description then
+    -- Draw description with manual text wrapping
+    screen.level(15)
+    
+    -- Split description into words
+    local words = {}
+    for word in self.description:gmatch("%S+") do
+      table.insert(words, word)
+    end
+    
+    local line = ""
+    local y = 20  -- Start position
+    local x = 2   -- Left margin
+    local MAX_WIDTH = 124  -- Screen width minus margins
+    
+    for i, word in ipairs(words) do
+      local test_line = line .. (line == "" and "" or " ") .. word
+      local width = screen.text_extents(test_line)
+      
+      if width > MAX_WIDTH then
+        -- Draw current line and start new one
+        screen.move(x, y)
+        screen.text(line)
+        line = word
+        y = y + 11  -- Line height
+      else
+        -- Add word to current line
+        line = test_line
+      end
+    end
+    
+    -- Draw final line
+    if line ~= "" then
+      screen.move(x, y)
+      screen.text(line)
+    end
+  else
+    self:draw_footer()
+    if #self.params > 0 then
+      self:draw_params(0)
+    end
   end
+  
   screen.update()
 end
 
@@ -239,8 +281,11 @@ function Section:handle_enc(n, d)
 end
 
 function Section:handle_key(n, z)
+  if n == 2 then
+    -- Toggle description display on K2 press/release
+    self.state.showing_description = (z == 1)
   -- Handle K3 press for action items
-  if n == 3 and z == 1 and self.state.selected_index > 0 then
+  elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self.params[self.state.selected_index]
     if param.action then
       self:modify_param(param, 1)

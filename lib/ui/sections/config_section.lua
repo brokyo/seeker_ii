@@ -1,4 +1,6 @@
 -- config_section.lua
+-- Global level settings that affect all layers and clocks
+
 local Section = include('lib/ui/section')
 local ConfigSection = setmetatable({}, { __index = Section })
 ConfigSection.__index = ConfigSection
@@ -7,18 +9,21 @@ function ConfigSection.new()
   local section = Section.new({
     id = "CONFIG",
     name = "CONFIG",
-    icon = "⚙",
+    description = "Global level configuration. Press k3 to trigger actions.",
     params = {
-      { id = "tuning_preset", name = "Tuning" },
+      { separator = true, name = "Global Tuning" },
+      { id = "tuning_preset", name = "Preset" },
       { id = "root_note", name = "Root Note" },
       { id = "scale_type", name = "Scale" },
-      { id = "clock_pulse_out", name = "Clock Out" },
-      { id = "clock_division", name = "Clock Div" },
+      { separator = true, name = "Clock" },
+      { id = "clock_tempo", name = "BPM" },
+      { id = "clock_pulse_out", name = "Clock Gate Out" },
+      { id = "clock_division", name = "Clock Division" },
+      { separator = true, name = "Visuals" },
       { id = "background_brightness", name = "Background Brightness" },
-      { separator = true, name = "ACTIONS" },
+      { separator = true, name = "Actions" },
       { id = "test_pulse", name = "Test Pulse", action = true },
-      { id = "sync_lanes", name = "Sync Lanes", action = true },
-      { id = "reset", name = "Reset All", action = true }
+      { id = "reset", name = "Clear Layers", action = true }
     }
   })
   
@@ -28,19 +33,18 @@ function ConfigSection.new()
   function section:modify_param(param, delta)
     if param.action then
       if param.id == "reset" then
-        -- Reset all params to defaults
-        params:reset()
-        -- Sync all lanes with default params
-        for i = 1, 4 do
+        for i = 1, 8 do
           if _seeker.lanes[i] then
-            _seeker.lanes[i]:sync_all_stages_from_params()
+            _seeker.lanes[i]:clear()            
+            -- Reset all stage transforms to noop
+            for stage_idx = 1, 4 do
+              for transform_idx = 1, 3 do
+                _seeker.lanes[i]:change_stage_transform(i, stage_idx, transform_idx, "noop")
+              end
+            end
           end
         end
-        print("⚡ Reset to defaults")
-      elseif param.id == "sync_lanes" then
-        -- Call conductor's sync_lanes function
-        _seeker.conductor:sync_lanes()
-        print("⚡ Synced all lanes")
+        print("⚡ Reset all layers")
       elseif param.id == "test_pulse" then
         -- Send a test pulse to the selected output
         local pulse_out = params:get("clock_pulse_out")
@@ -48,17 +52,17 @@ function ConfigSection.new()
           if pulse_out <= 5 then
             -- Crow pulse
             crow.output[pulse_out - 1].volts = 5
-            -- Schedule pulse off after 10ms
+            -- Schedule pulse off after 100ms
             clock.run(function()
-              clock.sleep(0.01)
+              clock.sleep(0.1)
               crow.output[pulse_out - 1].volts = 0
             end)
           else
             -- TXO pulse (subtract 5 to get 1-4 range)
             crow.ii.txo.tr(pulse_out - 5, 1)
-            -- Schedule pulse off after 10ms
+            -- Schedule pulse off after 100ms
             clock.run(function()
-              clock.sleep(0.01)
+              clock.sleep(0.1)
               crow.ii.txo.tr(pulse_out - 5, 0)
             end)
           end

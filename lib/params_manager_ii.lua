@@ -1,5 +1,5 @@
 -- params_manager_ii.lua
--- A clean start for params management, focused on core functionality
+-- Manage norns-stored params
 
 local params_manager_ii = {}
 local musicutil = require('musicutil')
@@ -17,9 +17,9 @@ function params_manager_ii.get_instrument_list()
 end
 
 function init_musical_params()
-  params:add_group("MUSICAL", 6)  -- Increased for new background param
+  params:add_group("CONFIG", 6)
 
-  -- Add tuning presets
+  -- ** Tuning Presets **
   params:add_option("tuning_preset", "Tuning Preset", {
     "Custom",
     "Ethereal",
@@ -46,21 +46,13 @@ function init_musical_params()
         {1, 12}    -- C Whole Tone
       }
       local preset = presets[value - 1]
-      -- Silently update individual params
       params:set("root_note", preset[1], true)
       params:set("scale_type", preset[2], true)
-      -- Then trigger the keyboard layout update
       theory.print_keyboard_layout()
     end
   end)
 
-  -- Add background animation brightness control
-  params:add_number("background_brightness", "Background Brightness", 0, 15, 8)
-  params:set_action("background_brightness", function(value)
-    -- No action needed - the animation will pick up the new value automatically
-  end)
-
-  -- Add root note selection
+  -- ** Root Note **
   params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 6)
   params:set_action("root_note", function(value)
     -- Set tuning preset to custom when manually changing root
@@ -68,7 +60,7 @@ function init_musical_params()
     theory.print_keyboard_layout()
   end)
 
-  -- Add scale selection
+  -- ** Scale **
   local scale_names = {}
   for i = 1, #musicutil.SCALES do
     scale_names[i] = musicutil.SCALES[i].name
@@ -80,24 +72,31 @@ function init_musical_params()
     theory.print_keyboard_layout()
   end)
 
-  -- Add clock pulse output
+  -- ** Clock Pulse Out **
   params:add_option("clock_pulse_out", "Clock Pulse Out", {
     "none", 
     "crow 1", "crow 2", "crow 3", "crow 4",
     "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"
   }, 1)
 
-  -- Add clock division
+  -- ** Clock Division **
   params:add_option("clock_division", "Clock Division", {
     "off",
-    "1 beat",
-    "2 beats",
-    "4 beats (bar)",
-    "8 beats",
-    "16 beats"
+    "1/16",
+    "1/8",
+    "1/4",
+    "1/2",
+    "1x",
+    "2x",
+    "4x",
+    "8x",
+    "16x"
   }, 1)
 
-  -- Set up the clock coroutine when either parameter changes
+  -- ** Background Brightness **
+  params:add_number("background_brightness", "Background Brightness", 0, 15, 3)
+
+  -- ** Clock Coroutine **
   local function setup_clock_coroutine()
     local pulse_out = params:get("clock_pulse_out")
     local division = params:get("clock_division")
@@ -110,9 +109,9 @@ function init_musical_params()
     
     -- Only start if we have an output and division selected
     if pulse_out > 1 and division > 1 then
-      -- Convert division option to number of beats
-      local beats = {1, 2, 4, 8, 16}
-      local beat_count = beats[division - 1]
+      -- Convert division option to beat fraction
+      local divisions = {1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8, 16}
+      local beat_division = divisions[division - 1]
       
       _seeker.clock_pulse_coroutine = clock.run(function()
         while true do
@@ -120,23 +119,23 @@ function init_musical_params()
           if pulse_out <= 5 then
             -- Crow pulse
             crow.output[pulse_out - 1].volts = 5
-            clock.sleep(0.01)  -- 10ms pulse
+            clock.sleep(0.05)  -- 50ms pulse
             crow.output[pulse_out - 1].volts = 0
           else
             -- TXO pulse
             crow.ii.txo.tr(pulse_out - 5, 1)
-            clock.sleep(0.01)  -- 10ms pulse
+            clock.sleep(0.05)  -- 50ms pulse
             crow.ii.txo.tr(pulse_out - 5, 0)
           end
           
-          -- Wait for next pulse
-          clock.sync(beat_count)
+          -- Wait for next pulse using division
+          clock.sync(beat_division)
         end
       end)
     end
   end
 
-  -- Set up clock coroutine when either parameter changes
+  -- Set up clock division coroutine when either parameter changes
   params:set_action("clock_pulse_out", setup_clock_coroutine)
   params:set_action("clock_division", setup_clock_coroutine)
 end
@@ -149,7 +148,7 @@ function init_recording_params()
   
   -- Quantization settings
   params:add_option("quantize_division", "Quantize Division", 
-    {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 6)
+    {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 2)
   
   -- Add sync lanes control
   params:add_binary("sync_lanes", "Sync Lanes", "toggle", 0)
