@@ -8,7 +8,7 @@ function VelocitySection.new()
   local section = Section.new({
     id = "VELOCITY",
     name = "Velocity",
-    icon = "🎯",
+    description = "Adjust velocity dynamics. Higher values create louder notes.",
     params = {}
   })
 
@@ -16,6 +16,13 @@ function VelocitySection.new()
 
   function section:draw()
     screen.clear()
+
+    -- Check if showing description
+    if self.state.showing_description then
+      -- Use parent class's default drawing for description
+      Section.draw_default(self)
+      return
+    end
 
     local velocity = VelocityRegion.velocity_levels[_seeker.velocity]
     
@@ -56,6 +63,17 @@ function VelocitySection.new()
     self:draw_footer()
     
     screen.update()
+  end
+
+  -- Add key handler for description
+  function section:key(n, z)
+    if n == 2 then
+      self.state.showing_description = z == 1
+      -- Redraw to show/hide description
+      self:dirty()
+    end
+    -- Call parent key handler
+    Section.key(self, n, z)
   end
 
   return section

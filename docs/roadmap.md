@@ -1,15 +1,16 @@
 ### Current Session
-
-### Pre-Launch Features
+- [x] background_brightness defaults to 3
+- [] k2 for info on every section
 - [] Separators in all menus
 - [] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
+- [] Loops defaults to 2
+
+### Pre-Launch Features
 - [] When layer is selected pulse keyboard ring
 - [] Engine mute option
 - [] Engine pan
 
 ### Pre-Launch Defaults
-- [] background_brightness defaults to 3
-- [] Loops defaults to 2
 
 ### Bugs
 - [] First stage selection always `Stage 0.` Likely not using ui_manager.

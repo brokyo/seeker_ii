@@ -33,7 +33,7 @@ function VelocityRegion.draw(layers)
       if is_selected_value then
         brightness = GridConstants.BRIGHTNESS.FULL
       else
-        brightness = GridConstants.BRIGHTNESS.HIGH
+        brightness = GridConstants.BRIGHTNESS.MEDIUM
       end
     else
       if is_selected_value then
