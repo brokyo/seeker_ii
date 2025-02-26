@@ -49,7 +49,7 @@ function MotifRegion.draw(layers)
   elseif _seeker.ui_state.get_current_section() == "GENERATE" or
          _seeker.ui_state.get_current_section() == "RECORDING" or
          _seeker.ui_state.get_current_section() == "OVERDUB" then
-    brightness = GridConstants.BRIGHTNESS.HIGH
+    brightness = GridConstants.BRIGHTNESS.MEDIUM
   else
     brightness = GridConstants.BRIGHTNESS.LOW
   end

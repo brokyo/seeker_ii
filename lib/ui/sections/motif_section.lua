@@ -6,23 +6,8 @@ MotifSection.__index = MotifSection
 function MotifSection.new()
   local section = Section.new({
     id = "MOTIF",
-    name = "Motif:Playback",
-    icon = "☸",
-    params = {
-      {
-        id = "motif_info",
-        name = "Options",
-        get_display_name = function()
-          local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-          if lane and lane.playing then
-            return "Options ⏵"
-          else
-            return "Options"
-          end
-        end,
-        separator = true
-      }
-    }
+    name = "Motif Playback",
+    description = "Configure motifs created in generate or record. Hold grid to start and stop playback.",
   })
 
   setmetatable(section, MotifSection)
@@ -30,6 +15,13 @@ function MotifSection.new()
   -- Override draw to add help text
   function section:draw()
     screen.clear()
+    
+    -- Check if showing description
+    if self.state.showing_description then
+      -- Use parent class's default drawing for description
+      Section.draw_default(self)
+      return
+    end
     
     -- Draw parameters
     self:draw_params(0)
@@ -130,14 +122,7 @@ function MotifSection.new()
     self.params = {
       {
         id = "motif_info",
-        name = "Options",
-        get_display_name = function()
-          if lane and lane.playing then
-            return "Options [⏵]"
-          else
-            return "Options"
-          end
-        end,
+        name = "Motif Config",
         separator = true
       },
       { 
@@ -146,9 +131,9 @@ function MotifSection.new()
         value = string.format("%.2f", current_duration),
         spec = {
           type = "number",
-          min = 0.25,  -- Minimum duration of 1/4 beat
-          max = 128,    -- Maximum duration of 64 beats
-          step = 0.25  -- Allow quarter beat increments
+          min = 0.25,
+          max = 128,
+          step = 0.25  -- Step in beat increment
         }
       },
       { id = "lane_" .. lane_idx .. "_playback_offset", name = "Octave Shift" },
