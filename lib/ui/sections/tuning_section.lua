@@ -8,7 +8,7 @@ function TuningSection.new()
   local section = Section.new({
     id = "TUNING",
     name = "Tuning",
-    icon = "⚘",
+    description = "Adjust the tuning of the keyboard. Change offset via grid keys. Expect UI bugs but they won't affect sound.",
     params = {}
   })
   
@@ -18,12 +18,20 @@ function TuningSection.new()
   section.state = {
     selected_index = 0,
     scroll_offset = 0,
-    is_active = false
+    is_active = false,
+    showing_description = false
   }
   
   -- Override draw to show a custom view
   function section:draw()
     screen.clear()
+    
+    -- Check if showing description
+    if self.state.showing_description then
+      -- Use parent class's default drawing for description
+      Section.draw_default(self)
+      return
+    end
     
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local octave = params:get("lane_" .. lane_idx .. "_keyboard_octave")
@@ -62,6 +70,17 @@ function TuningSection.new()
     self:draw_footer()
     
     screen.update()
+  end
+  
+  -- Add key handler for description
+  function section:key(n, z)
+    if n == 2 then
+      self.state.showing_description = z == 1
+      -- Redraw to show/hide description
+      self:dirty()
+    end
+    -- Call parent key handler
+    Section.key(self, n, z)
   end
   
   -- Override encoder handling
