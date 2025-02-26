@@ -12,6 +12,14 @@ RecRegion.layout = {
   height = 1
 }
 
+-- Add count display coordinates
+RecRegion.count_display = {
+  x_start = 7,
+  x_end = 10,
+  y = 1,
+  pulse_duration = 0.2  -- Duration of pulse in seconds
+}
+
 -- Shared press state
 RecRegion.press_state = {
   start_time = nil,
@@ -37,19 +45,47 @@ function RecRegion.draw(layers)
     end
   end
 
-  -- Draw region button with brightness logic
+  -- Draw count display when recording
+  if _seeker.motif_recorder.is_recording then
+    local current_beat = math.floor(clock.get_beats()) % 4
+    local beat_phase = clock.get_beats() % 1  -- How far we are into current beat (0-1)
+    
+    -- Set all count LEDs to medium brightness initially
+    for x = RecRegion.count_display.x_start, RecRegion.count_display.x_end do
+      layers.ui[x][RecRegion.count_display.y] = GridConstants.BRIGHTNESS.MEDIUM
+    end
+    
+    -- Light up previous beats at medium brightness
+    for x = RecRegion.count_display.x_start, RecRegion.count_display.x_start + current_beat - 1 do
+      layers.ui[x][RecRegion.count_display.y] = GridConstants.BRIGHTNESS.MEDIUM
+    end
+    
+    -- Make current beat pulse
+    if current_beat >= 0 then
+      local current_x = RecRegion.count_display.x_start + current_beat
+      -- Pulse brightness starts at FULL and decays to HIGH over pulse_duration
+      local pulse_progress = beat_phase / RecRegion.count_display.pulse_duration
+      if pulse_progress < 1 then
+        local pulse_brightness = util.linlin(0, 1, GridConstants.BRIGHTNESS.FULL, GridConstants.BRIGHTNESS.HIGH, pulse_progress)
+        layers.ui[current_x][RecRegion.count_display.y] = math.floor(pulse_brightness)
+      else
+        layers.ui[current_x][RecRegion.count_display.y] = GridConstants.BRIGHTNESS.FULL
+      end
+    end
+  end
+
+  -- Draw region button
   local brightness
   if _seeker.ui_state.get_current_section() == "RECORDING" then
     if _seeker.motif_recorder.is_recording then
-      -- Pulsing bright when recording
-      brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
+      brightness = GridConstants.BRIGHTNESS.FULL
     else
       brightness = GridConstants.BRIGHTNESS.FULL
     end
   elseif _seeker.ui_state.get_current_section() == "GENERATE" or
          _seeker.ui_state.get_current_section() == "MOTIF" or
          _seeker.ui_state.get_current_section() == "OVERDUB" then
-    brightness = GridConstants.BRIGHTNESS.HIGH
+    brightness = GridConstants.BRIGHTNESS.MEDIUM
   else
     brightness = GridConstants.BRIGHTNESS.LOW
   end
@@ -110,6 +146,11 @@ function RecRegion.handle_key(x, y, z)
     -- If not recording and it was a long press, start recording
     elseif RecRegion:is_long_press(key_id) then
       params:set("recording_mode", 1)
+      -- Clear the current motif from the focused lane
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local lane = _seeker.lanes[focused_lane]
+      lane:clear()  -- Assuming there's a clear_motif() method
+      -- Start new recording
       _seeker.motif_recorder:start_recording(nil)
       _seeker.screen_ui.set_needs_redraw()
     end

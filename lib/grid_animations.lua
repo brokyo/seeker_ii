@@ -143,37 +143,16 @@ function GridAnimations.update_keyboard_outline(response_layer, layout, motif_re
     end
   end
 
+  -- Don't show recording animation - we're handling this in RecRegion now
+  if motif_recorder.is_recording then
+    state.keyboard_outline.active = false
+    return
+  end
+
   -- Continue with normal recording outline if not flashing
   if not motif_recorder.is_recording then
     state.keyboard_outline.active = false
     return
-  end
-  
-  -- Activate outline animation if not already active
-  state.keyboard_outline.active = true
-  
-  local current_beat = clock.get_beats()
-  local beat_in_bar = current_beat % 4  -- Which beat we're on (0-3)
-  local beat_phase = current_beat % 1    -- Phase within current beat (0-1)
-  
-  -- Calculate brightness
-  local brightness
-  if beat_in_bar < 0.1 then  -- First beat (with a small window to catch it)
-    brightness = GridConstants.BRIGHTNESS.MEDIUM
-  else
-    -- Pulse on each beat with quick decay
-    local decay = 1 - (beat_phase * 1.5)  -- Faster decay
-    if decay < 0 then decay = 0 end
-    brightness = math.floor(GridConstants.BRIGHTNESS.LOW * decay)
-  end
-  
-  -- Draw top bar
-  local x1 = layout.keyboard.upper_left_x - 1
-  local x2 = x1 + layout.keyboard.width + 1
-  local y1 = layout.keyboard.upper_left_y - 1
-  
-  for x = x1, x2 do
-    GridLayers.set(response_layer, x, y1, brightness)
   end
 end
 

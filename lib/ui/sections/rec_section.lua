@@ -8,17 +8,17 @@ setmetatable(RecSection, Section)
 function RecSection.new(config)
   local section = Section.new({
     id = "RECORDING",
-    name = "Motif:Record",
-    icon = "●",
+    name = "Motif Recorder",
+    description = "Record motifs by holding grid key. Recording starts on first note and ends when you press the grid to stop.",
     params = {
       {
         id = "rec_info",
-        name = "Recording Info",
+        name = "Recording Config",
         get_display_name = function()
           if _seeker.motif_recorder.is_recording then
-            return "Options ⏺"
+            return "Recording Config ⏺"
           else
-            return "Options"
+            return "Recording Config"
           end
         end,
         separator = true
@@ -35,6 +35,13 @@ function RecSection.new(config)
   -- Override draw to add help text
   function section:draw()
     screen.clear()
+    
+    -- Check if showing description
+    if self.state.showing_description then
+      -- Use parent class's default drawing for description
+      Section.draw_default(self)
+      return
+    end
     
     -- Draw parameters
     self:draw_params(0)

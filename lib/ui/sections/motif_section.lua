@@ -122,7 +122,7 @@ function MotifSection.new()
     self.params = {
       {
         id = "motif_info",
-        name = "Motif Config",
+        name = "Playback Config",
         separator = true
       },
       { 
