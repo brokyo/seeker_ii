@@ -8,17 +8,17 @@ setmetatable(OverdubSection, Section)
 function OverdubSection.new(config)
   local section = Section.new({
     id = "OVERDUB",
-    name = "Motif:Overdub",
-    icon = "⊕",
+    name = "Motif Overdub [Alpha]",
+    description = "Overdub motifs by holding grid key. Visuals get out-of-sync but data and sound are correct.",
     params = {
       {
         id = "overdub_info",
-        name = "Overdub Info",  -- Static name
-        get_display_name = function()  -- Add custom display function
+        name = "Overdub Config",
+        get_display_name = function() 
           if _seeker.motif_recorder.is_recording then
-            return "Options [⏺]"  -- Using record glyph
+            return "Overdub Config [⏺]"
           else
-            return "Options"
+            return "Overdub Config"
           end
         end,
         separator = true
@@ -35,6 +35,13 @@ function OverdubSection.new(config)
   -- Override draw to add help text and loop visualization
   function section:draw()
     screen.clear()
+    
+    -- Check if showing description
+    if self.state.showing_description then
+      -- Use parent class's default drawing for description
+      Section.draw_default(self)
+      return
+    end
     
     -- Draw parameters
     self:draw_params(0)
@@ -189,38 +196,48 @@ function OverdubSection.new(config)
     end
   end
 
-  return section
-end
-
-function OverdubSection:get_param_value(param)
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local motif = _seeker.lanes[focused_lane].motif
-  
-  if param.id == "overdub_status" then
-    if _seeker.motif_recorder.is_recording then
-      return "Overdubbing..."
-    elseif #motif.events == 0 then
-      return "No motif to overdub"
-    else
-      return "Ready"
+  -- Override key handler to show/hide description
+  function section:key(n, z)
+    if n == 2 then
+      self.state.showing_description = z == 1
+      -- Redraw to show/hide description
+      self:dirty()
     end
-  elseif param.id == "original_length" then
-    if _seeker.motif_recorder.is_recording then
-      -- Show original motif length during overdub
-      return string.format("%d steps", #_seeker.motif_recorder.original_motif.events)
-    else
-      return string.format("%d steps", #motif.events)
-    end
-  elseif param.id == "new_events" then
-    if _seeker.motif_recorder.is_recording then
-      -- Show count of new events added during overdub
-      local new_count = _seeker.motif_recorder:get_current_length() - #_seeker.motif_recorder.original_motif.events
-      return tostring(new_count)
-    end
-    return "0"
+    -- Call parent key handler
+    Section.key(self, n, z)
   end
-  
-  return Section.get_param_value(self, param)
+
+  -- Remove the K2 check from get_param_value since we're handling it differently now
+  function section:get_param_value(param)
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local motif = _seeker.lanes[focused_lane].motif
+    
+    if param.id == "overdub_status" then
+      if _seeker.motif_recorder.is_recording then
+        return "Overdubbing..."
+      elseif #motif.events == 0 then
+        return "No motif to overdub"
+      else
+        return "Ready"
+      end
+    elseif param.id == "original_length" then
+      if _seeker.motif_recorder.is_recording then
+        return string.format("%d steps", #_seeker.motif_recorder.original_motif.events)
+      else
+        return string.format("%d steps", #motif.events)
+      end
+    elseif param.id == "new_events" then
+      if _seeker.motif_recorder.is_recording then
+        local new_count = _seeker.motif_recorder:get_current_length() - #_seeker.motif_recorder.original_motif.events
+        return tostring(new_count)
+      end
+      return "0"
+    end
+    
+    return Section.get_param_value(self, param)
+  end
+
+  return section
 end
 
 return OverdubSection.new() 
