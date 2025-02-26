@@ -1,9 +1,9 @@
 ### Current Session
 - [x] background_brightness defaults to 3
-- [] k2 for info on every section
-- [] Separators in all menus
+- [x] k2 for info on every section
+- [x] Separators in all menus
 - [x] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
-- [] Loops defaults to 2
+- [x] Loops defaults to 2
 - [x] When layer is selected pulse keyboard ring
 
 ### Pre-Launch Features

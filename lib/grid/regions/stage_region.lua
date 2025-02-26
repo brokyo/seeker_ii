@@ -29,7 +29,7 @@ function StageRegion.draw(layers)
       if stage_idx == _seeker.ui_state.get_focused_stage() then
         brightness = GridConstants.BRIGHTNESS.FULL
       else
-        brightness = GridConstants.BRIGHTNESS.HIGH
+        brightness = GridConstants.BRIGHTNESS.MEDIUM
       end
     else
       if is_active then

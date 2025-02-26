@@ -9,6 +9,7 @@ function StageSection.new()
     id = "STAGE",
     name = "Stage 0",
     icon = "⌸",
+    description = "Change stages pattern playback. ",
     params = {}
   })
   
@@ -107,7 +108,7 @@ function StageSection.new()
     
     -- Build param list starting with transform controls
     self.params = {
-      { separator = true, name = "TRANSFORM" }
+      { separator = true, name = "Transform Config" }
     }
 
     -- Add transform params if stage has transforms
@@ -118,7 +119,7 @@ function StageSection.new()
       -- Add transform type selector with header
       table.insert(self.params, {
         id = "transform_type",
-        name = "Transform",
+        name = "Transform Config",
         value = transform.name,
         values = self.transform_names,
         is_header = true
@@ -138,7 +139,7 @@ function StageSection.new()
     end
 
     -- Add stage controls after transforms
-    table.insert(self.params, { separator = true, name = "CONFIG" })
+    table.insert(self.params, { separator = true, name = "Stage Config" })
     table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_mute", name = "Mute" })
     table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_reset_motif", name = "Reset Motif" })
     table.insert(self.params, { id = "lane_" .. lane_idx .. "_stage_" .. new_stage_idx .. "_loops", name = "Loops" })
