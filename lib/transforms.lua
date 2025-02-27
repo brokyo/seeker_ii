@@ -250,7 +250,150 @@ transforms.available = {
       
       return result
     end
+  },
+
+  resonate = {
+    name = "Resonate",
+    description = "Adds subtle harmonic overtones that sustain and blend with the melody",
+    params = {
+      third_chance = {
+        order = 1,  -- Will appear first
+        type = "number",
+        default = 0.3,
+        min = 0,
+        max = 1,
+        step = 0.1
+      },
+      third_volume = {
+        order = 2,
+        type = "number",
+        default = 0.5,
+        min = 0.1,
+        max = 1,
+        step = 0.1
+      },
+      octave_chance = {
+        order = 3,
+        type = "number",
+        default = 0.2,
+        min = 0,
+        max = 1,
+        step = 0.1
+      },
+      octave_volume = {
+        order = 4,
+        type = "number",
+        default = 0.5,
+        min = 0.1,
+        max = 1,
+        step = 0.1
+      }
+    },
+    fn = function(events, params)
+      local third_chance = params.third_chance or 0.3
+      local third_volume = params.third_volume or 0.5
+      local octave_chance = params.octave_chance or 0.2
+      local octave_volume = params.octave_volume or 0.5
+      
+      -- Built-in humanization constants
+      local TIMING_VARIATION = 0.015  -- 15ms maximum timing variation
+      local THIRD_VELOCITY_VARIATION = 0.1   -- ±10% velocity variation for third
+      local OCTAVE_VELOCITY_VARIATION = 0.15 -- ±15% velocity variation for octave
+      
+      -- Helper function for subtle randomization
+      local function humanize_value(base_value, range)
+        return base_value + (math.random() * 2 - 1) * range
+      end
+      
+      local result = {}
+      local active_harmonics = {}
+      
+      for _, event in ipairs(events) do
+        -- Copy original event
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+        table.insert(result, new_event)
+        
+        if event.type == "note_on" then
+          local note_id = event.note
+          -- Store timing variations to reuse in note_off
+          active_harmonics[note_id] = {
+            has_third = math.random() < third_chance,
+            has_octave = math.random() < octave_chance,
+            third_delay = humanize_value(0, TIMING_VARIATION),
+            octave_delay = humanize_value(0, TIMING_VARIATION)
+          }
+          
+          if active_harmonics[note_id].has_third then
+            local third_velocity = math.floor(
+              event.velocity * 
+              humanize_value(third_volume, THIRD_VELOCITY_VARIATION)
+            )
+            
+            -- Add slight pre-delay and longer sustain for third
+            table.insert(result, {
+              type = "note_on",
+              time = event.time + active_harmonics[note_id].third_delay,
+              note = event.note + 16,
+              velocity = third_velocity
+            })
+          end
+          
+          if active_harmonics[note_id].has_octave then
+            local octave_velocity = math.floor(
+              event.velocity * 
+              humanize_value(octave_volume, OCTAVE_VELOCITY_VARIATION)
+            )
+            
+            table.insert(result, {
+              type = "note_on",
+              time = event.time + active_harmonics[note_id].octave_delay,
+              note = event.note - 12,
+              velocity = octave_velocity
+            })
+          end
+        end
+        
+        if event.type == "note_off" then
+          local note_id = event.note
+          
+          if active_harmonics[note_id] then
+            if active_harmonics[note_id].has_third then
+              table.insert(result, {
+                type = "note_off",
+                time = event.time + active_harmonics[note_id].third_delay + 0.1, -- Extra sustain
+                note = event.note + 16
+              })
+            end
+            
+            if active_harmonics[note_id].has_octave then
+              table.insert(result, {
+                type = "note_off",
+                time = event.time + active_harmonics[note_id].octave_delay + 0.05, -- Slight sustain
+                note = event.note - 12
+              })
+            end
+            
+            active_harmonics[note_id] = nil
+          end
+        end
+      end
+      
+      table.sort(result, function(a, b) return a.time < b.time end)
+      return result
+    end
   }
+}
+
+transforms.transform_order = {
+  "noop",
+  "resonate",
+  "transpose",
+  "reverse",
+  "rotate",
+  "skip"
 }
 
 return transforms 

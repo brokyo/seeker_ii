@@ -17,10 +17,9 @@ function StageSection.new()
 
   -- Get sorted list of transform names once
   local transform_names = {}
-  for name, _ in pairs(transforms.available) do
+  for _, name in ipairs(transforms.transform_order) do
     table.insert(transform_names, name)
   end
-  table.sort(transform_names)
   section.transform_names = transform_names
 
   function section:get_param_value(param)
@@ -127,12 +126,22 @@ function StageSection.new()
 
       -- Add transform-specific params
       if transform_def and transform_def.params then
+        -- Collect and sort params by order
+        local ordered_params = {}
         for param_name, param_spec in pairs(transform_def.params) do
+          table.insert(ordered_params, {name = param_name, spec = param_spec})
+        end
+        table.sort(ordered_params, function(a, b) 
+          return (a.spec.order or 100) < (b.spec.order or 100)
+        end)
+        
+        -- Add params in order
+        for _, param in ipairs(ordered_params) do
           table.insert(self.params, {
-            id = "transform_" .. param_name,
-            name = "  " .. param_name,  -- Indent params
-            value = transform.config[param_name],
-            spec = param_spec
+            id = "transform_" .. param.name,
+            name = "  " .. param.name,
+            value = transform.config[param.name],
+            spec = param.spec
           })
         end
       end

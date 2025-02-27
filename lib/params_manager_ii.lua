@@ -290,7 +290,7 @@ function init_lane_params()
         end
       end)
       
-      params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 4)  -- Changed default to 4
+      params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 2)
       params:set_action("lane_" .. i .. "_stage_" .. j .. "_loops", function(value)
         if _seeker.lanes[i] then
           _seeker.lanes[i]:sync_stage_from_params(j)
