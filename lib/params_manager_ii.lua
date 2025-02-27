@@ -250,8 +250,16 @@ function init_lane_params()
       end
     end)
 
-    -- Add filter controls
-    params:add_control("lane_" .. i .. "_lpf", "LPF Cutoff", controlspec.new(20, 20000, 'exp', 0, 20000, "Hz"))
+    -- Add filter controls with taper for better control
+    params:add_taper(
+      "lane_" .. i .. "_lpf", 
+      "LPF Cutoff",
+      20,     -- min
+      20000,  -- max
+      20000,  -- default (maximum = no filtering)
+      3,      -- k (curve shape)
+      "Hz"    -- units
+    )
     params:set_action("lane_" .. i .. "_lpf", function(value)
       if _seeker.lanes[i] then
         _seeker.lanes[i].lpf = value
@@ -265,8 +273,16 @@ function init_lane_params()
       end
     end)
 
-    -- Add high-pass filter
-    params:add_control("lane_" .. i .. "_hpf", "HPF Cutoff", controlspec.new(20, 20000, 'exp', 0, 20, "Hz"))
+    -- Add high-pass filter with taper for better control
+    params:add_taper(
+      "lane_" .. i .. "_hpf", 
+      "HPF Cutoff",
+      20,    -- min
+      20000, -- max
+      20,    -- default (minimum = no filtering)
+      3,     -- k (curve shape)
+      "Hz"   -- units
+    )
     params:set_action("lane_" .. i .. "_hpf", function(value)
       if _seeker.lanes[i] then
         _seeker.lanes[i].hpf = value
