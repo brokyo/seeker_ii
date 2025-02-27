@@ -1,6 +1,5 @@
 ### Current Session
 
-
 ### Pre-Launch Features
 
 ### Pre-Launch Defaults
@@ -12,12 +11,10 @@
 
 
 ### Long List
-- [] Pulse playing lanes like we do in motif playback.
 - [] Review everything about generators.
 - [] Overdub stored in generations. Different visual treatment and undo option.
-- [] Screensaver lines should move at bpm.
 - [] Debug menu
-- [] K2 for info
+- [] Review window manager. May want to have three prototypes (standard params, custom drawing, dynamic params) 
 - [] Param preset saving and "default" button in config
 - [] app_on_screen is vestigial. Remove it.
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
@@ -101,3 +98,7 @@
 - [x] Engine mute option
 - [x] Engine pan
 - [x] Filter controls
+- [x] Resoante transform works, is musically interesting, and is default
+- [x] Pulse playing lanes like we do in motif playback.
+- [x] Screensaver lines should move at bpm.
+- [x] K2 for info
