@@ -25,6 +25,8 @@ function Lane.new(config)
   lane.speed = config.speed or 1.0
   lane.current_stage_index = 1 
   lane.midi_out_device = params:get("lane_" .. lane.id .. "_midi_device")
+  lane.delay_send = params:get("lane_" .. lane.id .. "_delay_send")
+  lane.reverb_send = params:get("lane_" .. lane.id .. "_reverb_send")
   
   -- Initialize with four default stages if none provided
   lane.stages = config.stages or {
@@ -408,7 +410,9 @@ function Lane:on_note_on(event)
       pan = self.pan,
       lpf = self.lpf,
       resonance = self.resonance,
-      hpf = self.hpf  -- Add HPF
+      hpf = self.hpf,
+      delay_send = self.delay_send or 0,
+      reverb_send = self.reverb_send or 0
     })
   end
 

@@ -168,7 +168,7 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,8 do
-    params:add_group("lane_" .. i, "LANE " .. i, 36)
+    params:add_group("lane_" .. i, "LANE " .. i, 38)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Keyboard octave control (for grid input)
@@ -286,6 +286,30 @@ function init_lane_params()
     params:set_action("lane_" .. i .. "_hpf", function(value)
       if _seeker.lanes[i] then
         _seeker.lanes[i].hpf = value
+      end
+    end)
+
+    -- Add delay send
+    params:add_control(
+      "lane_" .. i .. "_delay_send",
+      "Delay Send",
+      controlspec.new(0, 1, 'lin', 0.01, 0, "", 0.01)
+    )
+    params:set_action("lane_" .. i .. "_delay_send", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].delay_send = value
+      end
+    end)
+
+    -- Add reverb send
+    params:add_control(
+      "lane_" .. i .. "_reverb_send",
+      "Reverb Send",
+      controlspec.new(0, 1, 'lin', 0.01, 0, "", 0.01)
+    )
+    params:set_action("lane_" .. i .. "_reverb_send", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].reverb_send = value
       end
     end)
 
