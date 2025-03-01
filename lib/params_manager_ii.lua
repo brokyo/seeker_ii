@@ -360,11 +360,46 @@ function init_lane_params()
   end 
 end
 
+-- Initialize MIDI input parameters
+local function add_midi_input_params()
+  params:add_group("midi_input", "MIDI INPUT", 1)
+  
+  -- MIDI input device selection (None = disabled)
+  local midi_devices = {"None"}
+  for i = 1, #midi.vports do
+    local name = midi.vports[i].name or string.format("Port %d", i)
+    table.insert(midi_devices, name)
+  end
+  
+  params:add{
+    type = "option",
+    id = "midi_input_device",
+    name = "MIDI Input Device",
+    options = midi_devices,
+    default = 2,  -- Default to first available device
+    action = function(value)
+      if _seeker.midi_input then
+        if value > 1 then
+          -- Enable MIDI and set device
+          _seeker.midi_input.set_enabled(true)
+          _seeker.midi_input.set_device(value - 1)
+        else
+          -- Disable MIDI input when "None" is selected
+          _seeker.midi_input.set_enabled(false)
+        end
+      end
+    end
+  }
+end
+
 function params_manager_ii.init_params()
   params:add_separator("seeker_ii_header", "seeker_ii")
   init_musical_params()
   init_recording_params()
   init_lane_params()
+  
+  -- Add MIDI input parameters
+  add_midi_input_params()
 end
 
 return params_manager_ii 

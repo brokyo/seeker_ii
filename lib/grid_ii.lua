@@ -131,6 +131,17 @@ function draw_motif_events()
             end
         end
     end
+    
+    -- Draw MIDI input notes if available
+    if _seeker.midi_input then
+        local midi_positions = _seeker.midi_input.get_active_positions()
+        for _, pos in ipairs(midi_positions) do
+            if is_in_keyboard(pos.x, pos.y) then
+                -- Use a different brightness for MIDI notes to distinguish them
+                GridLayers.set(GridUI.layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.FULL)
+            end
+        end
+    end
 end
 
 function note_on(x, y)

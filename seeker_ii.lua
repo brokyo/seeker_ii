@@ -15,6 +15,7 @@ local screen_ui = include("/lib/screen_iii")
 local params_manager = include('/lib/params_manager_ii')
 local ui_state = include('/lib/ui_state_ii')
 local MotifRecorder = include("lib/motif_recorder")
+local MidiInput = include("lib/midi_input")
 
 -- Global state
 _seeker = {
@@ -28,6 +29,7 @@ _seeker = {
   screen_ui = nil,
   grid_ui = nil,
   motif_recorder = nil,
+  midi_input = nil,
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
   velocity = 3  -- Default to f
 }
@@ -48,6 +50,9 @@ function init()
 
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
+  
+  -- Initialize MIDI input
+  _seeker.midi_input = MidiInput.init()
   
   -- Start the clock
   clock.run(function()

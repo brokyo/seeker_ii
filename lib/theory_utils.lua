@@ -93,13 +93,24 @@ function theory.get_scale()
   return musicutil.generate_scale(root - 1, musicutil.SCALES[scale_type].name, 10)
 end
 
--- Find the first valid grid position for a given MIDI note
--- Returns {x, y} if found, nil if not found
-function theory.note_to_grid(note)
+-- Find the first valid grid position for a given MIDI note within a specific octave context
+-- The octave parameter is necessary because the grid layout changes based on the chosen octave
+-- For example, the same MIDI note might appear in different grid positions depending on the octave context
+-- 
+-- Parameters:
+--   note: MIDI note number (e.g., 60 for middle C)
+--   octave: The octave number that defines the scale mapping for the grid
+--
+-- Returns: {x, y} if found, nil if not found
+function theory.note_to_grid(note, octave)
+  -- If octave not provided, get it from the params
+  if not octave then
+    octave = params:get("lane_" .. _seeker.ui_state.state.focused_lane .. "_keyboard_octave")
+  end
+  
   -- Search through the keyboard region
   for y = 7, 2, -1 do  -- Bottom to top (7 to 2)
     for x = 6, 11 do   -- Left to right (6 to 11)
-      local octave = params:get("lane_" .. _seeker.ui_state.state.focused_lane .. "_keyboard_octave")
       local grid_note = theory.grid_to_note(x, y, octave)
       if grid_note == note then
         return {x = x, y = y}
