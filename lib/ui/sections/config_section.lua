@@ -21,6 +21,7 @@ function ConfigSection.new()
       { id = "clock_division", name = "Clock Division" },
       { separator = true, name = "Visuals" },
       { id = "background_brightness", name = "Background Brightness" },
+      { id = "snap_midi_to_scale", name = "Snap MIDI to Scale" },
       { separator = true, name = "Actions" },
       { id = "test_pulse", name = "Test Pulse", action = true },
       { id = "reset", name = "Clear Layers", action = true }

@@ -17,7 +17,7 @@ function params_manager_ii.get_instrument_list()
 end
 
 function init_musical_params()
-  params:add_group("CONFIG", 6)
+  params:add_group("CONFIG", 7)
 
   -- ** Tuning Presets **
   params:add_option("tuning_preset", "Tuning Preset", {
@@ -95,6 +95,12 @@ function init_musical_params()
 
   -- ** Background Brightness **
   params:add_number("background_brightness", "Background Brightness", 0, 15, 3)
+  
+  -- ** Snap MIDI to Scale **
+  params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 0)
+  params:set_action("snap_midi_to_scale", function(value)
+    -- Nothing to do here, the value will be checked when MIDI notes are received
+  end)
 
   -- ** Clock Coroutine **
   local function setup_clock_coroutine()

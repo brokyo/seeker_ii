@@ -3,6 +3,7 @@
 
 local MidiInput = {}
 local theory = include("lib/theory_utils")
+local musicutil = require("musicutil")
 
 -- Main MIDI device
 MidiInput.device = nil
@@ -55,6 +56,18 @@ function MidiInput.handle_note_on(msg)
   local note = msg.note
   local velocity = msg.vel
   
+  -- Apply scale snapping if enabled
+  if params:get("snap_midi_to_scale") == 1 then
+    -- Get current scale notes
+    local scale_notes = theory.get_scale()
+    
+    -- Snap the note to the current scale
+    local snapped_note = musicutil.snap_note_to_array(note, scale_notes)
+    
+    -- Use the snapped note instead of the original
+    note = snapped_note
+  end
+  
   -- Map MIDI note to grid position using theory utils
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
@@ -87,6 +100,18 @@ end
 -- Handle MIDI note off
 function MidiInput.handle_note_off(msg)
   local note = msg.note
+  
+  -- Apply scale snapping if enabled
+  if params:get("snap_midi_to_scale") == 1 then
+    -- Get current scale notes
+    local scale_notes = theory.get_scale()
+    
+    -- Snap the note to the current scale
+    local snapped_note = musicutil.snap_note_to_array(note, scale_notes)
+    
+    -- Use the snapped note instead of the original
+    note = snapped_note
+  end
   
   -- Get stored grid position for this note
   local grid_pos = MidiInput.active_notes[note]
