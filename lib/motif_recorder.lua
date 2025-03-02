@@ -20,6 +20,7 @@ function MotifRecorder:reset_state()
   self.loop_length = nil
   self.waiting_for_first_note = false
   self.original_motif = nil  -- Track original motif for overdub
+  self.current_generation = 1  -- Track which generation we're recording
 end
 
 -- Helper function to quantize a beat value using global quantize division
@@ -54,7 +55,7 @@ function MotifRecorder:on_note_on(event)
   
   local quantized_time = self:_quantize_beat(position)
   if self.loop_length then
-    print(string.format("⊕ Recording note %d at position: %.3f", event.note, quantized_time))
+    print(string.format("⊕ Recording note %d at position: %.3f (gen: %d)", event.note, quantized_time, self.current_generation))
   end
     
   -- Store note_on event
@@ -64,7 +65,8 @@ function MotifRecorder:on_note_on(event)
     note = event.note,
     velocity = event.velocity,
     x = event.x,
-    y = event.y
+    y = event.y,
+    generation = self.current_generation  -- Add generation to event
   })
 end
 
@@ -92,7 +94,8 @@ function MotifRecorder:on_note_off(event)
     type = "note_off",
     note = event.note,
     x = event.x,
-    y = event.y
+    y = event.y,
+    generation = self.current_generation  -- Add generation to event
   })
 end
 
@@ -106,20 +109,34 @@ function MotifRecorder:start_recording(existing_motif)
   if params:get("recording_mode") == 2 and existing_motif then -- 2 = Overdub
     self.loop_length = existing_motif.duration
     self.original_motif = existing_motif -- Store reference to original
-    -- Copy existing events
+    
+    -- Copy existing events and preserve their generations
+    local max_gen = 1
     for _, evt in ipairs(existing_motif.events) do
+      -- Add events to recorder
       table.insert(self.events, {
         time = evt.time,
         type = evt.type,
         note = evt.note,
         velocity = evt.velocity,
         x = evt.x,
-        y = evt.y
+        y = evt.y,
+        generation = evt.generation
       })
+      
+      -- Track the highest generation we've seen
+      if evt.generation and evt.generation > max_gen then
+        max_gen = evt.generation
+      end
     end
+    
+    -- Set new generation for upcoming events
+    self.current_generation = max_gen + 1
+    print(string.format("⊕ Starting overdub with generation %d", self.current_generation))
   else
     -- New recording
     self.waiting_for_first_note = true  -- Only set this for new recordings
+    self.current_generation = 1
   end
 
   -- Start recording

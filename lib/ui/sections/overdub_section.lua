@@ -66,10 +66,23 @@ function OverdubSection.new(config)
       screen.rect(VIS_X, VIS_Y, VIS_WIDTH, VIS_HEIGHT)
       screen.stroke()
       
-      -- Draw existing event markers
-      screen.level(2)
+      -- First find the maximum generation for brightness scaling
+      local max_gen = 1
+      for _, event in ipairs(motif.events) do
+        if event.generation and event.generation > max_gen then
+          max_gen = event.generation
+        end
+      end
+
+      -- Draw existing event markers with generation-based brightness
       for _, event in ipairs(motif.events) do
         if event.type == "note_on" then
+          -- Calculate brightness based on generation (older=dimmer, newer=brighter)
+          local gen = event.generation or 1
+          -- Scale brightness from 2-12 based on generation
+          local brightness = 2 + math.floor((gen / max_gen) * 10)
+          screen.level(brightness)
+          
           -- Calculate x position based on event time relative to loop duration
           local x = VIS_X + (event.time / loop_duration * VIS_WIDTH)
           -- Draw small vertical line for event
@@ -79,11 +92,12 @@ function OverdubSection.new(config)
         end
       end
       
-      -- Draw new events being recorded (brighter)
+      -- Draw new events being recorded (brightest)
       if _seeker.motif_recorder.is_recording then
-        screen.level(8)  -- Brighter than existing events
+        screen.level(15)  -- Brightest
         for _, event in ipairs(_seeker.motif_recorder.events) do
-          if event.type == "note_on" then
+          -- Only show newly added events (not the copied ones from previous generations)
+          if event.generation == _seeker.motif_recorder.current_generation and event.type == "note_on" then
             -- Use event time directly from recorder
             local x = VIS_X + (event.time / loop_duration * VIS_WIDTH)
             -- Draw slightly taller line for new events

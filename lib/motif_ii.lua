@@ -70,8 +70,6 @@ function Motif:reset_to_genesis()
     table.insert(self.events, self:_copy_event(evt))
   end
   self.duration = self.genesis.duration
-  -- Note: We intentionally don't reset custom_duration here
-  -- as it should persist across resets
 end
 
 -- Get the current effective duration

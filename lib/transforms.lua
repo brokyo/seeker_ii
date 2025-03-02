@@ -26,6 +26,60 @@ transforms.available = {
     end
   },
   
+  generation_filter = {
+    name = "Generation Filter",
+    description = "Filter events to include only specific generations",
+    params = {
+      mode = {
+        type = "option",
+        default = 1,
+        options = {"All", "Up to", "Only", "Except"}
+      },
+      generation = {
+        type = "integer",
+        default = 1,
+        min = 1,
+        max = 10,
+        step = 1
+      }
+    },
+    fn = function(events, params)
+      local mode = params.mode or 1
+      local target_gen = params.generation or 1
+      
+      local result = {}
+      
+      for _, event in ipairs(events) do
+        local gen = event.generation or 1
+        local include = false
+        
+        if mode == 1 then
+          -- "All" - include everything
+          include = true
+        elseif mode == 2 then
+          -- "Up to" - include generations <= target
+          include = (gen <= target_gen)
+        elseif mode == 3 then
+          -- "Only" - include only the target generation
+          include = (gen == target_gen)
+        elseif mode == 4 then
+          -- "Except" - include everything except target
+          include = (gen ~= target_gen)
+        end
+        
+        if include then
+          local new_event = {}
+          for k, v in pairs(event) do
+            new_event[k] = v
+          end
+          table.insert(result, new_event)
+        end
+      end
+      
+      return result
+    end
+  },
+  
   transpose = {
     name = "Transpose",
     description = "Shift all notes up or down by a number of semitones",
@@ -389,6 +443,7 @@ transforms.available = {
 
 transforms.transform_order = {
   "noop",
+  "generation_filter",
   "resonate",
   "transpose",
   "reverse",

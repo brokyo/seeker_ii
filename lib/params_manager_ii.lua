@@ -147,7 +147,7 @@ function init_musical_params()
 end
 
 function init_recording_params()
-  params:add_group("recording", "RECORDING", 3)  -- Reduced group size by 1
+  params:add_group("recording", "RECORDING", 3)  
   
   -- Recording mode
   params:add_option("recording_mode", "Recording Mode", {"New", "Overdub"}, 1)
