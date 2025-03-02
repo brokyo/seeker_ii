@@ -147,7 +147,7 @@ function init_musical_params()
 end
 
 function init_recording_params()
-  params:add_group("recording", "RECORDING", 3)  
+  params:add_group("recording", "RECORDING", 5)
   
   -- Recording mode
   params:add_option("recording_mode", "Recording Mode", {"New", "Overdub"}, 1)
@@ -169,6 +169,10 @@ function init_recording_params()
       end)
     end
   end)
+
+  -- Add MIDI notes for recording and overdub toggle (-1 = disabled)
+  params:add_number("record_midi_note", "Record Toggle Key", -1, 127, -1)
+  params:add_number("overdub_midi_note", "Overdub Toggle Key", -1, 127, -1)
 end
 
 function init_lane_params()

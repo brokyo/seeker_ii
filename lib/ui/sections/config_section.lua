@@ -23,6 +23,8 @@ function ConfigSection.new()
       { id = "background_brightness", name = "Background Brightness" },
       { separator = true, name = "MIDI" },
       { id = "snap_midi_to_scale", name = "Snap MIDI to Scale" },
+      { id = "record_midi_note", name = "Record Toggle Note" },
+      { id = "overdub_midi_note", name = "Overdub Toggle Note" },
       { separator = true, name = "Actions" },
       { id = "test_pulse", name = "Test Pulse", action = true },
       { id = "reset", name = "Clear Layers", action = true }

@@ -1,8 +1,8 @@
 ### Current Session
-- [] All equivalent notes light up when key press
+- [x] MIDI for record and overdub
 
 ### Near Term Priorities
-- [] Dynamic Params for stage>transform (see: overdub-filter)
+- [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 
 ### Bugs
 - [] First stage selection always `Stage 0.` Likely not using ui_manager.
@@ -101,3 +101,4 @@
 - [x] Overdub visualization is often shifted and in unpredictable ways.
 - [x] Overdub stored in generations. Different visual treatment and undo option.
 - [x] Do we want to catch MIDI events from a keyboard?
+- [x] All equivalent notes light up when key press

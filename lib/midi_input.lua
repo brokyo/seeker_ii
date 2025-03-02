@@ -39,6 +39,51 @@ function MidiInput.process_midi_event(data)
   
   -- Handle note on messages
   if msg.type == "note_on" then
+    -- Check for record/overdub toggle notes first
+    local record_note = params:get("record_midi_note")
+    local overdub_note = params:get("overdub_midi_note")
+    
+    if msg.note == record_note and record_note >= 0 then
+      -- Toggle recording
+      if _seeker.motif_recorder.is_recording then
+        -- Stop recording
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local motif = _seeker.motif_recorder:stop_recording()
+        local lane = _seeker.lanes[focused_lane]
+        lane:set_motif(motif)
+        lane:play()  -- Start playing immediately after recording
+      else
+        -- Start new recording
+        params:set("recording_mode", 1)
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local lane = _seeker.lanes[focused_lane]
+        lane:clear()
+        _seeker.motif_recorder:start_recording(nil)
+      end
+      _seeker.screen_ui.set_needs_redraw()
+      return
+    elseif msg.note == overdub_note and overdub_note >= 0 then
+      -- Toggle overdub
+      if _seeker.motif_recorder.is_recording then
+        -- Stop recording
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local motif = _seeker.motif_recorder:stop_recording()
+        _seeker.lanes[focused_lane]:set_motif(motif)
+      else
+        -- Start overdub if we have a motif
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local existing_motif = _seeker.lanes[focused_lane].motif
+        if #existing_motif.events == 0 then
+          print("⚠ Cannot overdub: No existing motif")
+        else
+          params:set("recording_mode", 2)
+          _seeker.motif_recorder:start_recording(existing_motif)
+        end
+      end
+      _seeker.screen_ui.set_needs_redraw()
+      return
+    end
+    
     -- Note velocity of 0 is treated as note off in MIDI
     if msg.vel == 0 then
       MidiInput.handle_note_off(msg)
