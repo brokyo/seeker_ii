@@ -46,8 +46,25 @@ function MotifRecorder:on_note_on(event)
   local position
   
   if self.loop_length then
-    -- For overdub, just use the current position in the loop
-    position = now % self.loop_length
+    -- For overdub, properly sync with current playback position
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local lane = _seeker.lanes[focused_lane]
+    
+    if lane.playing then
+      -- Get timing from the currently playing stage
+      local current_stage = lane.stages[lane.current_stage_index]
+      if current_stage.last_start_time then
+        -- Calculate position based on lane's stage start time, same as visualization
+        local elapsed_time = now - current_stage.last_start_time
+        position = (elapsed_time * lane.speed) % self.loop_length
+      else
+        -- Fallback if stage start time not available
+        position = now % self.loop_length
+      end
+    else
+      -- Not playing, use modulo loop length
+      position = now % self.loop_length
+    end
   else
     -- For new recording, measure from start
     position = now - self.start_time
@@ -79,8 +96,25 @@ function MotifRecorder:on_note_off(event)
   local position
   
   if self.loop_length then
-    -- For overdub, just use the current position in the loop
-    position = now % self.loop_length
+    -- For overdub, properly sync with current playback position
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local lane = _seeker.lanes[focused_lane]
+    
+    if lane.playing then
+      -- Get timing from the currently playing stage
+      local current_stage = lane.stages[lane.current_stage_index]
+      if current_stage.last_start_time then
+        -- Calculate position based on lane's stage start time, same as visualization
+        local elapsed_time = now - current_stage.last_start_time
+        position = (elapsed_time * lane.speed) % self.loop_length
+      else
+        -- Fallback if stage start time not available
+        position = now % self.loop_length
+      end
+    else
+      -- Not playing, use modulo loop length
+      position = now % self.loop_length
+    end
   else
     -- For new recording, measure from start
     position = now - self.start_time
