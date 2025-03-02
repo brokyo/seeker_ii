@@ -208,6 +208,9 @@ function Lane:schedule_stage(stage_index, start_time)
   local base_duration = self.motif:get_duration()
   local speed_adjusted_duration = base_duration / self.speed
   
+  -- Store the start time in the stage for visualization synchronization
+  stage.last_start_time = start_time
+  
   -- Create visual markers for the hierarchy
   local stage_marker = stage.current_loop == 0 and "╔" or "╠"
   local timing_info = string.format("@%.2f", start_time)

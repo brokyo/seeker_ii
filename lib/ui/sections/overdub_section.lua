@@ -8,7 +8,7 @@ setmetatable(OverdubSection, Section)
 function OverdubSection.new(config)
   local section = Section.new({
     id = "OVERDUB",
-    name = "Motif Overdub [Alpha]",
+    name = "Motif Overdub",
     description = "Overdub motifs by holding grid key. Velocity and tuning respected. Visuals get out-of-sync but sound is correct.",
     params = {
       {
@@ -113,6 +113,17 @@ function OverdubSection.new(config)
         -- Always use current beat position in the loop
         local current_beat = clock.get_beats()
         local position = current_beat % loop_duration
+        
+        -- If playing, use the lane's timing reference for better sync
+        if lane.playing then
+          local current_stage = lane.stages[lane.current_stage_index]
+          if current_stage.last_start_time then
+            -- Calculate elapsed time since stage start
+            local elapsed_time = current_beat - current_stage.last_start_time
+            -- Adjust for lane speed (multiply by speed to match how far into motif we are)
+            position = (elapsed_time * lane.speed) % loop_duration
+          end
+        end
         
         local x = VIS_X + (position / loop_duration * VIS_WIDTH)
         screen.level(15)  -- Brightest

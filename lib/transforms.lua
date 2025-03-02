@@ -26,45 +26,55 @@ transforms.available = {
     end
   },
   
-  generation_filter = {
-    name = "Generation Filter",
-    description = "Filter events to include only specific generations",
+  overdub_filter = {
+    name = "Overdub Filter",
+    description = "Filter events to include only specific overdub rounds",
     params = {
       mode = {
         type = "option",
         default = 1,
-        options = {"All", "Up to", "Only", "Except"}
+        options = {"Up to", "Only", "Except"}
       },
-      generation = {
+      round = {
         type = "integer",
         default = 1,
         min = 1,
-        max = 10,
+        max = 1,  -- Set to 1 initially, will be dynamically updated based on the motif
         step = 1
       }
     },
     fn = function(events, params)
+      -- Find the maximum rounds in the events
+      local max_round = 1
+      for _, event in ipairs(events) do
+        local round = event.round or 1
+        if round > max_round then
+          max_round = round
+        end
+      end
+      
+      -- Clamp the target generation to the maximum found
       local mode = params.mode or 1
-      local target_gen = params.generation or 1
+      local target_round = params.round or 1
+      if target_round > max_round then
+        target_round = max_round
+      end
       
       local result = {}
       
       for _, event in ipairs(events) do
-        local gen = event.generation or 1
+        local round = event.round or 1
         local include = false
         
         if mode == 1 then
-          -- "All" - include everything
-          include = true
+          -- "Up to" - include rounds <= target
+          include = (round <= target_round)
         elseif mode == 2 then
-          -- "Up to" - include generations <= target
-          include = (gen <= target_gen)
+          -- "Only" - include only the target round
+          include = (round == target_round)
         elseif mode == 3 then
-          -- "Only" - include only the target generation
-          include = (gen == target_gen)
-        elseif mode == 4 then
           -- "Except" - include everything except target
-          include = (gen ~= target_gen)
+          include = (round ~= target_round)
         end
         
         if include then
@@ -443,7 +453,7 @@ transforms.available = {
 
 transforms.transform_order = {
   "noop",
-  "generation_filter",
+  "overdub_filter",
   "resonate",
   "transpose",
   "reverse",
