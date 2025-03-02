@@ -1,18 +1,15 @@
 ### Current Session
 
-### Pre-Launch Features
-
-### Pre-Launch Defaults
+### Near Term Priorities
+- [] All equivalent notes light up when key press
+- [] Dynamic Params for stage>transform (see: overdub-filter)
 
 ### Bugs
 - [] First stage selection always `Stage 0.` Likely not using ui_manager.
-- [] Overdub visualization is often shifted and in unpredictable ways.
 - [] Overdub visualization doesn't account for speed.
-
 
 ### Long List
 - [] Review everything about generators.
-- [] Overdub stored in generations. Different visual treatment and undo option.
 - [] Debug menu
 - [] Review window manager. May want to have three prototypes (standard params, custom drawing, dynamic params) 
 - [] Param preset saving and "default" button in config
@@ -23,7 +20,6 @@
 - [] Add MIDI CC to control ableton recording
 
 ### Open Questions
-- [] Do we want to catch MIDI events from a keyboard?
 
 
 ### Done
@@ -102,3 +98,6 @@
 - [x] Pulse playing lanes like we do in motif playback.
 - [x] Screensaver lines should move at bpm.
 - [x] K2 for info
+- [x] Overdub visualization is often shifted and in unpredictable ways.
+- [x] Overdub stored in generations. Different visual treatment and undo option.
+- [x] Do we want to catch MIDI events from a keyboard?

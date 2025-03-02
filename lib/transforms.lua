@@ -39,42 +39,42 @@ transforms.available = {
         type = "integer",
         default = 1,
         min = 1,
-        max = 1,  -- Set to 1 initially, will be dynamically updated based on the motif
+        max = 10,  -- Hard coded to 10 because I don't have a working way to set dynamic parameters
         step = 1
       }
     },
     fn = function(events, params)
-      -- Find the maximum rounds in the events
-      local max_round = 1
+      -- Find the maximum generations in the events
+      local max_generation = 1
       for _, event in ipairs(events) do
-        local round = event.round or 1
-        if round > max_round then
-          max_round = round
+        local generation = event.generation or 1
+        if generation > max_generation then
+          max_generation = generation
         end
       end
       
       -- Clamp the target generation to the maximum found
       local mode = params.mode or 1
-      local target_round = params.round or 1
-      if target_round > max_round then
-        target_round = max_round
+      local target_generation = params.round or 1
+      if target_generation > max_generation then
+        target_generation = max_generation
       end
       
       local result = {}
       
       for _, event in ipairs(events) do
-        local round = event.round or 1
+        local generation = event.generation or 1
         local include = false
         
         if mode == 1 then
-          -- "Up to" - include rounds <= target
-          include = (round <= target_round)
+          -- "Up to" - include generations <= target
+          include = (generation <= target_generation)
         elseif mode == 2 then
-          -- "Only" - include only the target round
-          include = (round == target_round)
+          -- "Only" - include only the target generation
+          include = (generation == target_generation)
         elseif mode == 3 then
           -- "Except" - include everything except target
-          include = (round ~= target_round)
+          include = (generation ~= target_generation)
         end
         
         if include then

@@ -24,23 +24,6 @@ function StageSection.new()
   
   -- Store dynamic parameter specs separated from the original definitions
   section.dynamic_param_specs = {}
-
-  -- Helper function to get the max round value from a motif
-  function section:get_max_round_from_motif(lane_idx)
-    local motif = _seeker.lanes[lane_idx].motif
-    local max_round = 1
-    
-    if motif and motif.events then
-      for _, event in ipairs(motif.events) do
-        local round = event.round or 1
-        if round > max_round then
-          max_round = round
-        end
-      end
-    end
-    
-    return max_round
-  end
   
   -- Helper function to get the dynamic param spec (with context-specific values)
   function section:get_dynamic_param_spec(transform_name, param_name)
@@ -59,11 +42,6 @@ function StageSection.new()
       local dynamic_spec = {}
       for k, v in pairs(orig_spec) do
         dynamic_spec[k] = v
-      end
-      
-      -- Apply dynamic updates based on parameter and transform type
-      if transform_name == "overdub_filter" and param_name == "round" then
-        dynamic_spec.max = self:get_max_round_from_motif(lane_idx)
       end
       
       -- Store the dynamic spec
