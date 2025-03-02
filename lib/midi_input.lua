@@ -51,6 +51,31 @@ function MidiInput.process_midi_event(data)
   end
 end
 
+-- Create a standardized note event
+function MidiInput.create_note_event(note, velocity, grid_positions)
+  -- If we got a single position instead of an array, wrap it
+  if grid_positions and not grid_positions[1] then
+    grid_positions = {grid_positions}
+  end
+  
+  -- Create base event
+  local event = {
+    note = note,
+    velocity = velocity or 0,
+    positions = grid_positions or {},  -- Store all positions
+    is_playback = false,
+    source = "midi"
+  }
+  
+  -- For backward compatibility, include x,y of first position if available
+  if grid_positions and grid_positions[1] then
+    event.x = grid_positions[1].x
+    event.y = grid_positions[1].y
+  end
+  
+  return event
+end
+
 -- Handle MIDI note on
 function MidiInput.handle_note_on(msg)
   local note = msg.note
@@ -58,33 +83,21 @@ function MidiInput.handle_note_on(msg)
   
   -- Apply scale snapping if enabled
   if params:get("snap_midi_to_scale") == 1 then
-    -- Get current scale notes
     local scale_notes = theory.get_scale()
-    
-    -- Snap the note to the current scale
-    local snapped_note = musicutil.snap_note_to_array(note, scale_notes)
-    
-    -- Use the snapped note instead of the original
-    note = snapped_note
+    note = musicutil.snap_note_to_array(note, scale_notes)
   end
   
-  -- Map MIDI note to grid position using theory utils
+  -- Map MIDI note to all grid positions
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-  local grid_pos = theory.note_to_grid(note, keyboard_octave)
+  local grid_positions = theory.note_to_grid(note, keyboard_octave)
     
-  -- Create event in the format expected by the motif recorder
-  local event = {
-    note = note,
-    velocity = velocity,
-    x = grid_pos and grid_pos.x or nil,
-    y = grid_pos and grid_pos.y or nil,
-    is_playback = false
-  }
+  -- Create standardized note event
+  local event = MidiInput.create_note_event(note, velocity, grid_positions)
   
-  -- Store active note for visualization (only if grid position is available)
-  if grid_pos then
-    MidiInput.active_notes[note] = grid_pos
+  -- Store active note positions for visualization
+  if grid_positions then
+    MidiInput.active_notes[note] = grid_positions
   end
   
   -- Pass event to focused lane
@@ -103,34 +116,22 @@ function MidiInput.handle_note_off(msg)
   
   -- Apply scale snapping if enabled
   if params:get("snap_midi_to_scale") == 1 then
-    -- Get current scale notes
     local scale_notes = theory.get_scale()
-    
-    -- Snap the note to the current scale
-    local snapped_note = musicutil.snap_note_to_array(note, scale_notes)
-    
-    -- Use the snapped note instead of the original
-    note = snapped_note
+    note = musicutil.snap_note_to_array(note, scale_notes)
   end
   
   -- Get stored grid position for this note
-  local grid_pos = MidiInput.active_notes[note]
+  local grid_positions = MidiInput.active_notes[note]
   
   -- If we don't have a stored position, try to calculate it
-  if not grid_pos then
+  if not grid_positions then
     local focused_lane = _seeker.ui_state.get_focused_lane()
     local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-    grid_pos = theory.note_to_grid(note, keyboard_octave)
+    grid_positions = theory.note_to_grid(note, keyboard_octave)
   end
   
-  -- Create event in the format expected by the motif recorder
-  local event = {
-    note = note,
-    velocity = 0,
-    x = grid_pos and grid_pos.x or nil,
-    y = grid_pos and grid_pos.y or nil,
-    is_playback = false
-  }
+  -- Create standardized note event
+  local event = MidiInput.create_note_event(note, 0, grid_positions)
   
   -- Remove from active notes if it was stored
   MidiInput.active_notes[note] = nil
@@ -148,8 +149,10 @@ end
 -- Get active positions for grid visualization
 function MidiInput.get_active_positions()
   local positions = {}
-  for note, pos in pairs(MidiInput.active_notes) do
-    table.insert(positions, {x = pos.x, y = pos.y})
+  for note, pos_array in pairs(MidiInput.active_notes) do
+    for _, pos in ipairs(pos_array) do
+      table.insert(positions, {x = pos.x, y = pos.y})
+    end
   end
   return positions
 end

@@ -144,17 +144,30 @@ function draw_motif_events()
     end
 end
 
+-- Create a standardized note event
+function create_note_event(x, y, note, velocity)
+  return {
+    note = note,
+    velocity = velocity or 0,
+    x = x,
+    y = y,
+    is_playback = false,
+    source = "grid"  -- Track input source
+  }
+end
+
 function note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
+  local note = theory.grid_to_note(x, y, keyboard_octave)
   
-  local event = {
-    x = x,
-    y = y,
-    note = theory.grid_to_note(x, y, keyboard_octave),
-    velocity = regions.velocity.get_current_velocity(),
-    is_playback = false  -- Explicitly mark as live input
-  }
+  -- Create standardized note event
+  local event = create_note_event(
+    x, 
+    y, 
+    note,
+    regions.velocity.get_current_velocity()
+  )
 
   if _seeker.motif_recorder.is_recording then  
     _seeker.motif_recorder:on_note_on(event)
@@ -166,14 +179,10 @@ end
 function note_off(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
+  local note = theory.grid_to_note(x, y, keyboard_octave)
   
-  local event = {
-    x = x,
-    y = y,
-    note = theory.grid_to_note(x, y, keyboard_octave),
-    velocity = 0,
-    is_playback = false  -- Explicitly mark as live input
-  }
+  -- Create standardized note event
+  local event = create_note_event(x, y, note, 0)
   
   if _seeker.motif_recorder.is_recording then  
     _seeker.motif_recorder:on_note_off(event)

@@ -1,7 +1,7 @@
 ### Current Session
+- [] All equivalent notes light up when key press
 
 ### Near Term Priorities
-- [] All equivalent notes light up when key press
 - [] Dynamic Params for stage>transform (see: overdub-filter)
 
 ### Bugs
