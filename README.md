@@ -1,27 +1,59 @@
 # Seeker II
 
-A pattern sequencer for Monome Norns that turns musical exploration into performance.
+Seeker II is a looper for Monome Norns that stores and procedurally transforms musical patterns.
 
-## Core Concept
+## Core Concepts
 
-Seeker II lets you capture musical patterns and transform them in real-time while maintaining perfect timing. It's built around a "no wrong notes" interface that makes musical exploration intuitive and performative.
+Seeker II is built around three interconnected musical ideas:
 
-## Key Features
+### Layers
 
-- **Musical Grid**: A "no wrong notes" interface where every position is guaranteed to be in key
-- **Multi-Lane System**: Up to 4 independent pattern lanes, each evolving through different stages
-- **Perfect Timing**: Sub-10ms accuracy using absolute beat timing
-- **Pattern Evolution**: Transform your patterns in real-time while maintaining musical coherence
-- **Visual Feedback**: Organic, responsive animations that reflect the musical state
+Layers are independent musical channels that allow you to compose looping patterns:
 
-## Documentation
+- **Multiple Independent Tracks**: Each layer operates as a separate voice with its own instrument, settings, and playback status.
+- **Stage-Based Progression**: Layers play through four sequential stages, each of which can optionally modify the content of the loop.
+- **Output Flexibility**: By default layers us the Mx Samples engine but can also output to MIDI, Crow, or TXO.
 
-For detailed information about:
-- System architecture and design: [docs/context.md](docs/context.md)
-- Grid layout and playing techniques: [docs/grid_layout.md](docs/grid_layout.md)
-- Development status and roadmap: [docs/roadmap.md](docs/roadmap.md)
+
+### Motifs
+
+Motifs are the musical patterns at the core of Seeker II:
+
+- **Performable Memory**: Record patterns in real-time using the grid or MIDI input.
+- **Overdub Generations**: Motifs can be overdubbed with groups of notes that can be individually adressed in transformations 
+- **Generate Patterns [Alpha]**: A series of generators enables one-click motif generation across common musical concepts.
+
+### Transformations
+
+Once created, motifs can be transformed in sequenced stages:
+
+- **Non-Destructive Changes**: Transform patterns while preserving the original motif.
+- **Stage-Based Evolution**: Apply different transformations at each stage of a lane.
+- **Musical Operations**: Transpose, reverse, rotate, stretch, or add resonance to patterns.
+
+
+## Getting Started
+
+### Setting Up
+
+1. Select a layer using the layer selection buttons (Rows 6 > 7, Columns 13 > 16)
+2. Configure the lane's instrument and output settings (Norns screen)
+
+### Recording A Motif
+
+### Generating A Motif
+
+### Overdubbing A Motif
+
+
 
 ## Requirements
 
 - Monome Norns
-- Grid (128 or 64)
+- Grid
+- Optional: MIDI In/Out, Crow, or Eurorack integration
+
+## Addition Notes
+- [Some thoughts on additional eurorack stuff like loop triggers]
+- [Some thoughts on output]
+- [Config and debug menus]
