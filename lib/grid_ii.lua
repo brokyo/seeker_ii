@@ -146,13 +146,19 @@ end
 
 -- Create a standardized note event
 function create_note_event(x, y, note, velocity)
+  -- Get all positions for this note
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
+  local all_positions = theory.note_to_grid(note, keyboard_octave)
+  
   return {
     note = note,
     velocity = velocity or 0,
-    x = x,
+    x = x,  -- Keep original x,y for reference
     y = y,
+    positions = all_positions or {{x = x, y = y}},  -- Use all positions or fallback to original
     is_playback = false,
-    source = "grid"  -- Track input source
+    source = "grid"
   }
 end
 
@@ -161,7 +167,7 @@ function note_on(x, y)
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
   local note = theory.grid_to_note(x, y, keyboard_octave)
   
-  -- Create standardized note event
+  -- Create standardized note event with all positions
   local event = create_note_event(
     x, 
     y, 
@@ -181,7 +187,7 @@ function note_off(x, y)
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
   local note = theory.grid_to_note(x, y, keyboard_octave)
   
-  -- Create standardized note event
+  -- Create standardized note event with all positions
   local event = create_note_event(x, y, note, 0)
   
   if _seeker.motif_recorder.is_recording then  

@@ -450,16 +450,24 @@ function Lane:on_note_on(event)
     end
   end
 
-  -- Visualize notes with grid position
-  if event.x and event.y then
-    local key = note  -- Use the offset-adjusted note as the key. Keyboard is tunable.
-    self.active_notes[key] = {
-      x = event.x,
-      y = event.y,
+  -- Get all grid positions for this note
+  local positions
+  if event.positions then
+    positions = event.positions
+  elseif event.x and event.y then
+    -- If we only got a single position, get all positions for this note
+    local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
+    positions = theory.note_to_grid(note, keyboard_octave) or {{x = event.x, y = event.y}}
+  end
+
+  -- Store note with all its positions
+  if positions then
+    self.active_notes[note] = {
+      positions = positions,
       note = note,
       velocity = event.velocity,
-      original_note = event.note,  -- Store the original note for reference
-      event_index = event.event_index  -- Track which event in the sequence triggered this note
+      original_note = event.note,
+      event_index = event.event_index
     }
   end
 end
@@ -495,7 +503,8 @@ function Lane:on_note_off(event)
   -- Stop hardware output if enabled
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
   
-  -- Remove this note from active notes
+  -- Remove this note from active notes and get its positions
+  local note_data = self.active_notes[note]
   self.active_notes[note] = nil
   
   -- Count remaining active notes
@@ -510,17 +519,29 @@ function Lane:on_note_off(event)
       -- Crow gate
       crow.output[gate_out - 1].volts = 0
     else
-      -- TXO gate (subtract 5 to get 1-4 range)
+      -- TXo gate
       crow.ii.txo.tr(gate_out - 5, 0)
     end
   end
 
-  -- Add trail and remove from active notes
-  if event.x and event.y then
+  -- Add trails for all positions
+  if note_data and note_data.positions then
+    for _, pos in ipairs(note_data.positions) do
+      local key = trail_key(pos.x, pos.y)
+      -- Create new trail or update existing one to full brightness
+      self.trails[key] = {
+        brightness = GridConstants.BRIGHTNESS.HIGH,
+        decay = 0.95,
+        is_new = true  -- Mark as new activation
+      }
+    end
+  elseif event.x and event.y then
+    -- Fallback for direct position
     local key = trail_key(event.x, event.y)
     self.trails[key] = {
       brightness = GridConstants.BRIGHTNESS.HIGH,
-      decay = 0.95
+      decay = 0.95,
+      is_new = true
     }
   end
 end
@@ -630,8 +651,10 @@ end
 function Lane:get_active_positions()
   local positions = {}
   for _, note in pairs(self.active_notes) do
-    if note.x and note.y then
-      table.insert(positions, {x = note.x, y = note.y})
+    if note.positions then
+      for _, pos in ipairs(note.positions) do
+        table.insert(positions, {x = pos.x, y = pos.y})
+      end
     end
   end
   return positions

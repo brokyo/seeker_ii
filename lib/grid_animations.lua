@@ -92,8 +92,12 @@ function GridAnimations.update_trails(response_layer, trails)
     local target = GridConstants.BRIGHTNESS.LOW
     local diff = trail.brightness - target
     
-    -- Update brightness, moving towards LOW
-    trail.brightness = target + (diff * trail.decay)
+    -- Only decay if this isn't a newly activated trail
+    if not trail.is_new then
+      -- Update brightness, moving towards LOW
+      trail.brightness = target + (diff * trail.decay)
+    end
+    trail.is_new = false
     
     -- Calculate new difference after decay
     local new_diff = trail.brightness - target
@@ -105,8 +109,13 @@ function GridAnimations.update_trails(response_layer, trails)
       -- Parse x,y from key
       local x, y = string.match(key, "(%d+),(%d+)")
       x, y = tonumber(x), tonumber(y)
-      -- Add trail brightness to response layer
-      GridLayers.set(response_layer, x, y, math.floor(trail.brightness))
+      
+      -- Get current brightness in response layer
+      local current = GridLayers.get(response_layer, x, y) or 0
+      
+      -- Use maximum of current and trail brightness
+      local new_brightness = math.max(current, math.floor(trail.brightness))
+      GridLayers.set(response_layer, x, y, new_brightness)
     end
   end
 end
