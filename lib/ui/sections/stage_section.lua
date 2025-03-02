@@ -7,7 +7,7 @@ StageSection.__index = StageSection
 function StageSection.new()
   local section = Section.new({
     id = "STAGE",
-    name = "Stage 0",
+    name = "Stage 1",
     icon = "⌸",
     description = "Change stages pattern playback. ",
     params = {}
@@ -235,6 +235,12 @@ function StageSection.new()
 
     self.name = string.format("Stage %d", new_stage_idx)
     _seeker.ui_state.dirty = true -- Mark UI for refresh
+  end
+
+  -- Add enter method to ensure section is initialized with current stage
+  function section:enter()
+    Section.enter(self)  -- Call parent enter method
+    self:update_focused_stage(_seeker.ui_state.get_focused_stage())
   end
 
   return section

@@ -1,11 +1,9 @@
 ### Current Session
-- [x] MIDI for record and overdub
 
 ### Near Term Priorities
 - [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 
 ### Bugs
-- [] First stage selection always `Stage 0.` Likely not using ui_manager.
 - [] Overdub visualization doesn't account for speed.
 
 ### Long List
@@ -102,3 +100,5 @@
 - [x] Overdub stored in generations. Different visual treatment and undo option.
 - [x] Do we want to catch MIDI events from a keyboard?
 - [x] All equivalent notes light up when key press
+- [x] MIDI for record and overdub
+- [x] First stage selection always `Stage 0.` Likely not using ui_manager.

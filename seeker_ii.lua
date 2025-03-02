@@ -72,7 +72,7 @@ function init()
   end
   
   _seeker.grid_ui.start()
-  _seeker.ui_state.set_current_section("CONFIG")
+  _seeker.ui_state.set_current_section("LANE")
   print('⌬ Seeker Online')
 end
 

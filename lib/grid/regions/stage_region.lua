@@ -46,8 +46,8 @@ end
 function StageRegion.handle_key(x, y, z)
   if z == 1 then -- Only handle key down
     local new_stage_idx = (x - StageRegion.layout.x) + 1
-    _seeker.ui_state.set_focused_stage(new_stage_idx)
     _seeker.ui_state.set_current_section("STAGE")
+    _seeker.ui_state.set_focused_stage(new_stage_idx)
   end
 end
 
