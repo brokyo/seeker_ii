@@ -415,7 +415,11 @@ function Lane:on_note_on(event)
       resonance = self.resonance,
       hpf = self.hpf,
       delay_send = self.delay_send or 0,
-      reverb_send = self.reverb_send or 0
+      reverb_send = self.reverb_send or 0,
+      attack = params:get("lane_" .. self.id .. "_attack"),
+      decay = params:get("lane_" .. self.id .. "_decay"),
+      sustain = params:get("lane_" .. self.id .. "_sustain"),
+      release = params:get("lane_" .. self.id .. "_release")
     })
   end
 

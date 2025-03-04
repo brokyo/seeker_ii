@@ -323,6 +323,51 @@ function init_lane_params()
       end
     end)
 
+    -- Add ADSR envelope controls
+    params:add_control(
+      "lane_" .. i .. "_attack",
+      "Attack",
+      controlspec.new(0, 10, 'lin', 0.01, 0.015, "s", 0.01)
+    )
+    params:set_action("lane_" .. i .. "_attack", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].attack = value
+      end
+    end)
+
+    params:add_control(
+      "lane_" .. i .. "_decay",
+      "Decay",
+      controlspec.new(0, 10, 'lin', 0.01, 1, "s", 0.01)
+    )
+    params:set_action("lane_" .. i .. "_decay", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].decay = value
+      end
+    end)
+
+    params:add_control(
+      "lane_" .. i .. "_sustain",
+      "Sustain",
+      controlspec.new(0, 1, 'lin', 0.01, 0.9, "", 0.01)
+    )
+    params:set_action("lane_" .. i .. "_sustain", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].sustain = value
+      end
+    end)
+
+    params:add_control(
+      "lane_" .. i .. "_release",
+      "Release",
+      controlspec.new(0, 10, 'lin', 0.01, 2, "s", 0.01)
+    )
+    params:set_action("lane_" .. i .. "_release", function(value)
+      if _seeker.lanes[i] then
+        _seeker.lanes[i].release = value
+      end
+    end)
+
     -- See forms.lua for stage configuration
     for j = 1, 4 do
       params:add_binary("lane_" .. i .. "_stage_" .. j .. "_mute", "Mute", "toggle", 0)
