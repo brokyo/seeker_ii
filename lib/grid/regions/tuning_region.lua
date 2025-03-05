@@ -5,17 +5,17 @@ local TuningRegion = {}
 
 TuningRegion.layout = {
   octave = {
-    decrease = {x = 1, y = 5},
-    increase = {x = 2, y = 5}
+    decrease = {x = 1, y = 2},
+    increase = {x = 2, y = 2}
   },
   offset = {
-    decrease = {x = 3, y = 5},
-    increase = {x = 4, y = 5}
+    decrease = {x = 3, y = 2},
+    increase = {x = 4, y = 2}
   }
 }
 
 function TuningRegion.contains(x, y)
-  return (x >= 1 and x <= 4 and y == 5)  -- All controls are on row 5
+  return (x >= 1 and x <= 4 and y == 2)
 end
 
 function TuningRegion.draw(layers)

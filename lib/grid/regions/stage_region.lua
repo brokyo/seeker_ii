@@ -5,7 +5,7 @@ local StageRegion = {}
 
 StageRegion.layout = {
   x = 13,
-  y = 5,
+  y = 2,
   width = 4,
   height = 1
 }
@@ -23,20 +23,21 @@ function StageRegion.draw(layers)
   for i = 0, StageRegion.layout.width - 1 do
     local stage_idx = i + 1
     local is_active = focused_lane.playing and stage_idx == focused_lane.current_stage_index
+    local is_focused = stage_idx == _seeker.ui_state.get_focused_stage()
     
     local brightness
-    if is_stage_section then
-      if stage_idx == _seeker.ui_state.get_focused_stage() then
-        brightness = GridConstants.BRIGHTNESS.FULL
-      else
-        brightness = GridConstants.BRIGHTNESS.MEDIUM
-      end
+    -- First handle focused stage in stage section
+    if is_stage_section and is_focused then
+      brightness = GridConstants.BRIGHTNESS.FULL
+    -- Then handle active stage pulsing (unless it's the focused stage in stage section)
+    elseif is_active then
+      brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
+    -- Show MEDIUM brightness for non-active stages only in stage section
+    elseif is_stage_section then
+      brightness = GridConstants.BRIGHTNESS.MEDIUM
+    -- Otherwise show LOW brightness
     else
-      if is_active then
-        brightness = GridConstants.BRIGHTNESS.MEDIUM
-      else
-        brightness = GridConstants.BRIGHTNESS.LOW
-      end
+      brightness = GridConstants.BRIGHTNESS.LOW
     end
     
     layers.ui[StageRegion.layout.x + i][StageRegion.layout.y] = brightness

@@ -7,7 +7,7 @@ local VelocityRegion = {}
 
 VelocityRegion.layout = {
   x = 1,
-  y = 6,
+  y = 3,
   width = 4,
   height = 1
 }

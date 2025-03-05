@@ -1,12 +1,10 @@
 ### Current Session
-- [x] Only show current Lane's illumination
-- [x] Tuning affects illumination
+- [x] Grid UI changes
+-- [x] Change section positions
+-- [x] Pulse active stage
 
 
 ### Near Term Priorities
-- [] Grid UI changes
--- [] Change section positions
--- [] Pulse active stage
 - [] Interval steps for motif (not just octave)
 - [] Footer shows lane and stage
 - [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
@@ -119,3 +117,5 @@
 -- [x] Align defaults with Mx Samples defaults (https://github.com/schollz/mx.samples/blob/main/lib/mx.samples.lua)
 -- [x] Store ADSR, amp, and velocity on note events so playback respects them
 -- [x] Change playback in `Lane` so it takes these values rather than
+- [x] Only show current Lane's illumination
+- [x] Tuning affects illumination
