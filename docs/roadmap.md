@@ -1,9 +1,6 @@
 ### Current Session
-- [] ADSR Integration
--- [x] Align defaults with Mx Samples defaults (https://github.com/schollz/mx.samples/blob/main/lib/mx.samples.lua)
--- [x] Store ADSR, amp, and velocity on note events so playback respects them
--- [x] Change playback in `Lane` so it takes these values rather than
-
+- [x] Only show current Lane's illumination
+- [x] Tuning affects illumination
 
 
 ### Near Term Priorities
@@ -118,3 +115,7 @@
 - [x] All equivalent notes light up when key press
 - [x] MIDI for record and overdub
 - [x] First stage selection always `Stage 0.` Likely not using ui_manager.
+- [x] ADSR Integration
+-- [x] Align defaults with Mx Samples defaults (https://github.com/schollz/mx.samples/blob/main/lib/mx.samples.lua)
+-- [x] Store ADSR, amp, and velocity on note events so playback respects them
+-- [x] Change playback in `Lane` so it takes these values rather than

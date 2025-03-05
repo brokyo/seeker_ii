@@ -114,21 +114,17 @@ function draw_keyboard()
 end
 
 function draw_motif_events()
-    -- Draw events for all lanes, with focused lane brighter
-    for lane_id, lane in pairs(_seeker.lanes) do
-        -- Get active positions from lane
-        local active_positions = lane:get_active_positions()
-        
-        -- Determine brightness based on whether this is the focused lane
-        local brightness = (lane_id == _seeker.ui_state.get_focused_lane()) and 
-            GridConstants.BRIGHTNESS.UI.ACTIVE or 
-            GridConstants.BRIGHTNESS.UI.UNFOCUSED
-
-        -- Illuminate active positions
-        for _, pos in ipairs(active_positions) do
-            if is_in_keyboard(pos.x, pos.y) then
-                GridLayers.set(GridUI.layers.response, pos.x, pos.y, brightness)
-            end
+    -- Only draw events for focused lane
+    local focused_lane_id = _seeker.ui_state.get_focused_lane()
+    local focused_lane = _seeker.lanes[focused_lane_id]
+    
+    -- Get active positions from focused lane
+    local active_positions = focused_lane:get_active_positions()
+    
+    -- Illuminate active positions at full brightness
+    for _, pos in ipairs(active_positions) do
+        if is_in_keyboard(pos.x, pos.y) then
+            GridLayers.set(GridUI.layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.UI.ACTIVE)
         end
     end
     

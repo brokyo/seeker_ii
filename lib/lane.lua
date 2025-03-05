@@ -676,9 +676,13 @@ end
 
 function Lane:get_active_positions()
   local positions = {}
+  local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
+  
   for _, note in pairs(self.active_notes) do
-    if note.positions then
-      for _, pos in ipairs(note.positions) do
+    -- Recalculate positions based on current octave
+    local current_positions = theory.note_to_grid(note.note, keyboard_octave)
+    if current_positions then
+      for _, pos in ipairs(current_positions) do
         table.insert(positions, {x = pos.x, y = pos.y})
       end
     end
