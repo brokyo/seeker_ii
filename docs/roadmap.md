@@ -1,15 +1,31 @@
 ### Current Session
+- [] ADSR Integration
+-- [x] Align defaults with Mx Samples defaults (https://github.com/schollz/mx.samples/blob/main/lib/mx.samples.lua)
+-- [x] Store ADSR, amp, and velocity on note events so playback respects them
+-- [x] Change playback in `Lane` so it takes these values rather than
+
+
 
 ### Near Term Priorities
+- [] Grid UI changes
+-- [] Change section positions
+-- [] Pulse active stage
+- [] Interval steps for motif (not just octave)
+- [] Footer shows lane and stage
 - [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 
 ### Bugs
 - [] Overdub visualization doesn't account for speed.
 
 ### Long List
+- [] Note Event Refactoring
+-- [] Create consistent note event structure in a single place
+-- [] Separate live vs playback event creation logic
+-- [] Move event param handling out of `Lane:on_note_on`
 - [] Review everything about generators.
 - [] Debug menu
-- [] Review window manager. May want to have three prototypes (standard params, custom drawing, dynamic params) 
+- [] Rebuilt window manager.
+-- [] Reduce dependency on params system 
 - [] Param preset saving and "default" button in config
 - [] app_on_screen is vestigial. Remove it.
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.

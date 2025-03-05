@@ -327,7 +327,7 @@ function init_lane_params()
     params:add_control(
       "lane_" .. i .. "_attack",
       "Attack",
-      controlspec.new(0, 10, 'lin', 0.01, 0.015, "s", 0.01)
+      controlspec.new(0, 10, 'lin', 0, 0, "s")
     )
     params:set_action("lane_" .. i .. "_attack", function(value)
       if _seeker.lanes[i] then
@@ -338,7 +338,7 @@ function init_lane_params()
     params:add_control(
       "lane_" .. i .. "_decay",
       "Decay",
-      controlspec.new(0, 10, 'lin', 0.01, 1, "s", 0.01)
+      controlspec.new(0, 10, 'lin', 0, 1, "s")
     )
     params:set_action("lane_" .. i .. "_decay", function(value)
       if _seeker.lanes[i] then
@@ -349,7 +349,7 @@ function init_lane_params()
     params:add_control(
       "lane_" .. i .. "_sustain",
       "Sustain",
-      controlspec.new(0, 1, 'lin', 0.01, 0.9, "", 0.01)
+      controlspec.new(0, 2, 'lin', 0, 0.9, "amp")
     )
     params:set_action("lane_" .. i .. "_sustain", function(value)
       if _seeker.lanes[i] then
@@ -360,7 +360,7 @@ function init_lane_params()
     params:add_control(
       "lane_" .. i .. "_release",
       "Release",
-      controlspec.new(0, 10, 'lin', 0.01, 2, "s", 0.01)
+      controlspec.new(0, 10, 'lin', 0, 2, "s")
     )
     params:set_action("lane_" .. i .. "_release", function(value)
       if _seeker.lanes[i] then

@@ -297,7 +297,13 @@ function Lane:schedule_stage(stage_index, start_time)
                 x = event.x,
                 y = event.y,
                 is_playback = true,
-                event_index = i
+                event_index = i,
+                -- Pass through the stored ADSR and pan values
+                attack = event.attack,
+                decay = event.decay,
+                sustain = event.sustain,
+                release = event.release,
+                pan = event.pan
               }) 
             end
           })
@@ -406,20 +412,36 @@ function Lane:on_note_on(event)
   -- Play engine using instrument from params
   local instrument = self:get_instrument()
   if instrument then
+    -- Get ADSR/pan values from event if it's playback, otherwise from current params
+    local attack, decay, sustain, release, pan
+    if event.is_playback then
+      attack = event.attack
+      decay = event.decay
+      sustain = event.sustain
+      release = event.release
+      pan = event.pan
+    else
+      attack = params:get("lane_" .. self.id .. "_attack")
+      decay = params:get("lane_" .. self.id .. "_decay")
+      sustain = params:get("lane_" .. self.id .. "_sustain")
+      release = params:get("lane_" .. self.id .. "_release")
+      pan = params:get("lane_" .. self.id .. "_pan")
+    end
+    
     _seeker.skeys:on({
       name = instrument,
       midi = note,
       amp = engine_velocity,
-      pan = self.pan,
+      pan = pan,
       lpf = self.lpf,
       resonance = self.resonance,
       hpf = self.hpf,
       delay_send = self.delay_send or 0,
       reverb_send = self.reverb_send or 0,
-      attack = params:get("lane_" .. self.id .. "_attack"),
-      decay = params:get("lane_" .. self.id .. "_decay"),
-      sustain = params:get("lane_" .. self.id .. "_sustain"),
-      release = params:get("lane_" .. self.id .. "_release")
+      attack = attack,
+      decay = decay,
+      sustain = sustain,
+      release = release
     })
   end
 

@@ -76,6 +76,7 @@ function MotifRecorder:on_note_on(event)
   end
     
   -- Store note_on event
+  local focused_lane = _seeker.ui_state.get_focused_lane()
   table.insert(self.events, {
     time = quantized_time,
     type = "note_on",
@@ -83,7 +84,12 @@ function MotifRecorder:on_note_on(event)
     velocity = event.velocity,
     x = event.x,
     y = event.y,
-    generation = self.current_generation  -- Add generation to event
+    generation = self.current_generation,
+    attack = params:get("lane_" .. focused_lane .. "_attack"),
+    decay = params:get("lane_" .. focused_lane .. "_decay"),
+    sustain = params:get("lane_" .. focused_lane .. "_sustain"),
+    release = params:get("lane_" .. focused_lane .. "_release"),
+    pan = params:get("lane_" .. focused_lane .. "_pan")
   })
 end
 
@@ -155,7 +161,12 @@ function MotifRecorder:start_recording(existing_motif)
         velocity = evt.velocity,
         x = evt.x,
         y = evt.y,
-        generation = evt.generation
+        generation = evt.generation,
+        attack = evt.attack,
+        decay = evt.decay,
+        sustain = evt.sustain,
+        release = evt.release,
+        pan = evt.pan
       })
       
       -- Track the highest generation we've seen
