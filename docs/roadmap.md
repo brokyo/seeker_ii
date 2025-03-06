@@ -1,16 +1,12 @@
 ### Current Session
-- [x] Grid UI changes
--- [x] Change section positions
--- [x] Pulse active stage
+- [x] Scale degree offset for motif
 
 
 ### Near Term Priorities
-- [] Interval steps for motif (not just octave)
 - [] Footer shows lane and stage
 - [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 
 ### Bugs
-- [] Overdub visualization doesn't account for speed.
 
 ### Long List
 - [] Note Event Refactoring
@@ -18,14 +14,14 @@
 -- [] Separate live vs playback event creation logic
 -- [] Move event param handling out of `Lane:on_note_on`
 - [] Review everything about generators.
-- [] Debug menu
-- [] Rebuilt window manager.
+- [] Rebuild window manager.
 -- [] Reduce dependency on params system 
+-- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
 - [] Param preset saving and "default" button in config
+- [] Debug menu
 - [] app_on_screen is vestigial. Remove it.
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
 - [] Screen saver has dynamic lanes
-- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
 - [] Add MIDI CC to control ableton recording
 
 ### Open Questions
@@ -119,3 +115,7 @@
 -- [x] Change playback in `Lane` so it takes these values rather than
 - [x] Only show current Lane's illumination
 - [x] Tuning affects illumination
+- [x] Grid UI changes
+-- [x] Change section positions
+-- [x] Pulse active stage
+- [x] Overdub visualization doesn't account for speed.

@@ -189,6 +189,9 @@ function init_lane_params()
     
     -- Playback octave offset
     params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
+    
+    -- Scale degree offset for in-scale transposition
+    params:add_number("lane_" .. i .. "_scale_degree_offset", "Scale Degree Offset", -7, 7, 0)
 
     -- MIDI Device
     local device_names = {"none"}

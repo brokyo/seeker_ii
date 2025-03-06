@@ -5,6 +5,7 @@ local forms = include('lib/forms')
 local transforms = include('lib/transforms')
 local GridConstants = include('lib/grid_constants')
 local theory = include('lib/theory_utils')
+local musicutil = require('musicutil')
 local Lane = {}
 Lane.__index = Lane
 
@@ -394,9 +395,28 @@ function Lane:on_note_on(event)
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
-    -- This is a playback event, apply offset
-    local offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
-    note = note + offset
+    -- This is a playback event, apply offsets that come from `MotifSection`
+    local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
+    local scale_degree_offset = params:get("lane_" .. self.id .. "_scale_degree_offset")
+    
+    if scale_degree_offset ~= 0 then
+      -- Get current scale and find the new note by moving scale degrees
+      local scale = musicutil.generate_scale(0, musicutil.SCALES[params:get("scale_type")].name, 128)
+      -- Find current note's position in scale
+      local current_pos = 1
+      for i, scale_note in ipairs(scale) do
+        if scale_note > note then break end
+        if scale_note == note then current_pos = i end
+      end
+      -- Calculate new position and get the note
+      local new_pos = current_pos + scale_degree_offset
+      if new_pos >= 1 and new_pos <= #scale then
+        note = scale[new_pos]
+      end
+    end
+    
+    -- Apply octave offset after scale degree offset
+    note = note + octave_offset
   end
 
   -- Play MIDI if configured
@@ -505,9 +525,28 @@ function Lane:on_note_off(event)
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
-    -- This is a playback event, apply offset
-    local offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
-    note = note + offset
+    -- This is a playback event, apply offsets that come from `MotifSection`
+    local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
+    local scale_degree_offset = params:get("lane_" .. self.id .. "_scale_degree_offset")
+    
+    if scale_degree_offset ~= 0 then
+      -- Get current scale and find the new note by moving scale degrees
+      local scale = musicutil.generate_scale(0, musicutil.SCALES[params:get("scale_type")].name, 128)
+      -- Find current note's position in scale
+      local current_pos = 1
+      for i, scale_note in ipairs(scale) do
+        if scale_note > note then break end
+        if scale_note == note then current_pos = i end
+      end
+      -- Calculate new position and get the note
+      local new_pos = current_pos + scale_degree_offset
+      if new_pos >= 1 and new_pos <= #scale then
+        note = scale[new_pos]
+      end
+    end
+    
+    -- Apply octave offset after scale degree offset
+    note = note + octave_offset
   end
 
   -- Stop MIDI if configured
