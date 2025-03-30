@@ -81,19 +81,21 @@ function EurorackOutputSection.new()
     section.state.output_params["TXO CV " .. i] = {
       { id = "txo_cv_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"LFO"} } },
       { id = "txo_cv_" .. i .. "_shape", name = "Shape", spec = { type = "option", values = {"Sine", "Triangle", "Saw", "Pulse", "Noise"} } },
+      { id = "txo_cv_" .. i .. "_morph", name = "Morph", spec = { type = "number", min = -50, max = 50, step = 1 } },
       { id = "txo_cv_" .. i .. "_depth", name = "Depth", spec = { type = "number", min = 0, max = 10, step = 0.1 } },
       { id = "txo_cv_" .. i .. "_time", name = "Time", spec = { type = "number", min = 0.1, max = 20, step = 0.1 } },
       { id = "txo_cv_" .. i .. "_offset", name = "Offset", spec = { type = "number", min = -5, max = 5, step = 0.1 } },
-      { id = "txo_cv_" .. i .. "_rect", name = "Rect", spec = { type = "number", min = -2, max = 2, step = 1 } }
+      { id = "txo_cv_" .. i .. "_rect", name = "Rect", spec = { type = "option", values = {"Negative Half", "Negative Clipped", "Full Range", "Positive Clipped", "Positive Half"} } }
     }
     
     -- Initialize default values for TXO CV outputs
     section.state.values["txo_cv_" .. i .. "_type"] = "LFO"
     section.state.values["txo_cv_" .. i .. "_shape"] = "Sine"
+    section.state.values["txo_cv_" .. i .. "_morph"] = 0
     section.state.values["txo_cv_" .. i .. "_depth"] = 2.5
     section.state.values["txo_cv_" .. i .. "_time"] = 1
     section.state.values["txo_cv_" .. i .. "_offset"] = 0
-    section.state.values["txo_cv_" .. i .. "_rect"] = 0
+    section.state.values["txo_cv_" .. i .. "_rect"] = "Full Range"
   end
 
   -- Override get_param_value to use our state
@@ -393,17 +395,57 @@ function EurorackOutputSection:update_txo_cv(output_num)
 
   -- Get LFO parameters
   local shape = self.state.values["txo_cv_" .. output_num .. "_shape"]
+  local morph = self.state.values["txo_cv_" .. output_num .. "_morph"]
   local depth = self.state.values["txo_cv_" .. output_num .. "_depth"]
   local time = self.state.values["txo_cv_" .. output_num .. "_time"]
   local offset = self.state.values["txo_cv_" .. output_num .. "_offset"]
   local rect = self.state.values["txo_cv_" .. output_num .. "_rect"]
 
-  -- Convert shape to TXO wave type
-  local wave_type = 0  -- Default to sine
-  if shape == "Triangle" then wave_type = 100
-  elseif shape == "Saw" then wave_type = 200
-  elseif shape == "Pulse" then wave_type = 300
-  elseif shape == "Noise" then wave_type = 400
+  -- Convert rect name to TXO rect value
+  local rect_value = 0  -- Default to Full Range
+  if rect == "Negative Half" then rect_value = -2
+  elseif rect == "Negative Clipped" then rect_value = -1
+  elseif rect == "Positive Clipped" then rect_value = 1
+  elseif rect == "Positive Half" then rect_value = 2
+  end
+
+  -- Convert shape to TXO wave type and apply morphing
+  local base_wave_type = 0  -- Default to sine
+  if shape == "Triangle" then base_wave_type = 100
+  elseif shape == "Saw" then base_wave_type = 200
+  elseif shape == "Pulse" then base_wave_type = 300
+  elseif shape == "Noise" then base_wave_type = 400
+  end
+
+  -- Calculate morphing wave types in both directions
+  local prev_wave_type = base_wave_type
+  local next_wave_type = base_wave_type
+  
+  if shape == "Sine" then
+    prev_wave_type = 400  -- Morph towards noise
+    next_wave_type = 100  -- Morph towards triangle
+  elseif shape == "Triangle" then
+    prev_wave_type = 0    -- Morph towards sine
+    next_wave_type = 200  -- Morph towards saw
+  elseif shape == "Saw" then
+    prev_wave_type = 100  -- Morph towards triangle
+    next_wave_type = 300  -- Morph towards pulse
+  elseif shape == "Pulse" then
+    prev_wave_type = 200  -- Morph towards saw
+    next_wave_type = 400  -- Morph towards noise
+  elseif shape == "Noise" then
+    prev_wave_type = 300  -- Morph towards pulse
+    next_wave_type = 0    -- Morph towards sine
+  end
+
+  -- Interpolate between wave types based on morph value
+  local wave_type
+  if morph < 0 then
+    -- Morph towards previous shape
+    wave_type = base_wave_type + ((prev_wave_type - base_wave_type) * (math.abs(morph) / 50))
+  else
+    -- Morph towards next shape
+    wave_type = base_wave_type + ((next_wave_type - base_wave_type) * (morph / 50))
   end
 
   -- Initialize the CV output
@@ -414,7 +456,7 @@ function EurorackOutputSection:update_txo_cv(output_num)
   crow.ii.txo.osc_cyc(output_num, time * 1000)  -- Convert time to milliseconds
   crow.ii.txo.cv(output_num, depth)       -- Set amplitude
   crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))  -- Set offset (convert to raw value)
-  crow.ii.txo.osc_rect(output_num, rect)  -- Set rectification
+  crow.ii.txo.osc_rect(output_num, rect_value)  -- Set rectification
 end
 
 return EurorackOutputSection 
