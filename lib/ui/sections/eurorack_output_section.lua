@@ -34,8 +34,8 @@ function EurorackOutputSection.new()
   -- Crow outputs (1-4)
   for i = 1, 4 do
     section.state.output_params["Crow " .. i] = {
-      { id = "crow_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Burst", "Gate", "LFO"} } },
-      { id = "crow_" .. i .. "_clock_div", name = "Division", spec = { type = "option", values = {"1/16", "1/8", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "8", "16"} } },
+      { id = "crow_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Gate", "Burst", "LFO"} } },
+      { id = "crow_" .. i .. "_clock_div", name = "Division", spec = { type = "option", values = {"0", "1/16", "1/8", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "8", "16"} } },
       -- Burst parameters
       { id = "crow_" .. i .. "_burst_count", name = "Burst Count", spec = { type = "number", min = 1, max = 16 } },
       { id = "crow_" .. i .. "_burst_time", name = "Burst Time", spec = { type = "number", min = 0.01, max = 1, step = 0.01 } },
@@ -50,8 +50,8 @@ function EurorackOutputSection.new()
     }
     
     -- Initialize default values for Crow outputs
-    section.state.values["crow_" .. i .. "_type"] = "Burst"
-    section.state.values["crow_" .. i .. "_clock_div"] = "1/4"
+    section.state.values["crow_" .. i .. "_type"] = "Gate"
+    section.state.values["crow_" .. i .. "_clock_div"] = "0"  -- Start Crow outputs off by default
     section.state.values["crow_" .. i .. "_burst_count"] = 1
     section.state.values["crow_" .. i .. "_burst_time"] = 0.1
     section.state.values["crow_" .. i .. "_gate_length"] = 50
@@ -65,9 +65,21 @@ function EurorackOutputSection.new()
   -- TXO TR outputs (1-4)
   for i = 1, 4 do
     section.state.output_params["TXO TR " .. i] = {
-      { id = "txo_tr_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Burst", "Gate", "LFO"} } }
-      -- Other parameters will be added later
+      { id = "txo_tr_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Gate", "Burst"} } },
+      { id = "txo_tr_" .. i .. "_clock_div", name = "Division", spec = { type = "option", values = {"0", "1/16", "1/8", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "8", "16"} } },
+      -- Burst parameters
+      { id = "txo_tr_" .. i .. "_burst_count", name = "Burst Count", spec = { type = "number", min = 1, max = 16 } },
+      { id = "txo_tr_" .. i .. "_burst_time", name = "Burst Time", spec = { type = "number", min = 0.01, max = 1, step = 0.01 } },
+      -- Gate parameters
+      { id = "txo_tr_" .. i .. "_gate_length", name = "Gate Length %", spec = { type = "number", min = 1, max = 100, step = 1 } }
     }
+    
+    -- Initialize default values for TXO TR outputs
+    section.state.values["txo_tr_" .. i .. "_type"] = "Gate"
+    section.state.values["txo_tr_" .. i .. "_clock_div"] = "0"  -- Start TXO TR outputs off by default
+    section.state.values["txo_tr_" .. i .. "_burst_count"] = 1
+    section.state.values["txo_tr_" .. i .. "_burst_time"] = 0.1
+    section.state.values["txo_tr_" .. i .. "_gate_length"] = 50
   end
 
   -- TXO CV outputs (1-4)
@@ -108,6 +120,9 @@ function EurorackOutputSection.new()
         if param.id:match("^crow_%d+_") then
           local output_num = tonumber(param.id:match("crow_(%d+)_"))
           self:update_clock(output_num)
+        elseif param.id:match("^txo_tr_%d+_") then
+          local output_num = tonumber(param.id:match("txo_tr_(%d+)_"))
+          self:update_txo_tr(output_num)
         end
       elseif param.spec.type == "number" then
         local current = self.state.values[param.id]
@@ -121,6 +136,9 @@ function EurorackOutputSection.new()
         if param.id:match("^crow_%d+_") then
           local output_num = tonumber(param.id:match("crow_(%d+)_"))
           self:update_clock(output_num)
+        elseif param.id:match("^txo_tr_%d+_") then
+          local output_num = tonumber(param.id:match("txo_tr_(%d+)_"))
+          self:update_txo_tr(output_num)
         end
       end
     end
@@ -168,6 +186,22 @@ function EurorackOutputSection.new()
         table.insert(self.params, output_params[9]) -- Offset
         table.insert(self.params, output_params[10]) -- Sync
       end
+    elseif self.state.values.selected_output:match("^TXO TR") then
+      local output_num = tonumber(self.state.values.selected_output:match("%d+"))
+      local type = self.state.values["txo_tr_" .. output_num .. "_type"]
+      
+      -- Add division parameter for both Burst and Gate
+      if type == "Burst" or type == "Gate" then
+        table.insert(self.params, output_params[2]) -- Division
+      end
+      
+      -- Add type-specific parameters
+      if type == "Burst" then
+        table.insert(self.params, output_params[3]) -- Burst Count
+        table.insert(self.params, output_params[4]) -- Burst Time
+      elseif type == "Gate" then
+        table.insert(self.params, output_params[5]) -- Gate Length
+      end
     else
       -- For other outputs, just show their parameters
       for i = 2, #output_params do
@@ -179,9 +213,10 @@ function EurorackOutputSection.new()
   -- Initialize param list
   section:update_param_list()
   
-  -- Start clocks for all Crow outputs by default
+  -- Start clocks for all outputs by default
   for i = 1, 4 do
     section:update_clock(i)
+    section:update_txo_tr(i)
   end
   
   return section
@@ -189,6 +224,11 @@ end
 
 -- Helper function to convert division string to beats
 function EurorackOutputSection:division_to_beats(div)
+  -- Handle "0" as off
+  if div == "0" then
+    return 0
+  end
+  
   -- Handle integer values (1, 2, 3, etc)
   if tonumber(div) then
     return tonumber(div)
@@ -203,12 +243,12 @@ function EurorackOutputSection:division_to_beats(div)
   return 1 -- default to quarter note
 end
 
--- Function to start/stop clock for a specific output
+-- Function to start/stop clock for a specific Crow output
 function EurorackOutputSection:update_clock(output_num)
   -- Stop existing clock if any
-  if self.state.active_clocks[output_num] then
-    clock.cancel(self.state.active_clocks[output_num])
-    self.state.active_clocks[output_num] = nil
+  if self.state.active_clocks["crow_" .. output_num] then
+    clock.cancel(self.state.active_clocks["crow_" .. output_num])
+    self.state.active_clocks["crow_" .. output_num] = nil
   end
 
   -- Get clock parameters
@@ -217,6 +257,12 @@ function EurorackOutputSection:update_clock(output_num)
 
   local div = self.state.values["crow_" .. output_num .. "_clock_div"]
   local beats = self:division_to_beats(div)
+  
+  -- If division is 0, just stop the clock
+  if beats == 0 then
+    crow.output[output_num].volts = 0
+    return
+  end
   
   -- Create clock function
   local function clock_function()
@@ -250,7 +296,63 @@ function EurorackOutputSection:update_clock(output_num)
   end
   
   -- Start the clock
-  self.state.active_clocks[output_num] = clock.run(clock_function)
+  self.state.active_clocks["crow_" .. output_num] = clock.run(clock_function)
+end
+
+-- Function to start/stop clock for a specific TXO TR output
+function EurorackOutputSection:update_txo_tr(output_num)
+  -- Stop existing clock if any
+  if self.state.active_clocks["txo_tr_" .. output_num] then
+    clock.cancel(self.state.active_clocks["txo_tr_" .. output_num])
+    self.state.active_clocks["txo_tr_" .. output_num] = nil
+  end
+
+  -- Get clock parameters
+  local type = self.state.values["txo_tr_" .. output_num .. "_type"]
+  if type ~= "Burst" and type ~= "Gate" then return end
+
+  local div = self.state.values["txo_tr_" .. output_num .. "_clock_div"]
+  local beats = self:division_to_beats(div)
+  
+  -- If division is 0, just stop the clock
+  if beats == 0 then
+    crow.ii.txo.tr(output_num, 0)
+    return
+  end
+  
+  -- Create clock function
+  local function clock_function()
+    while true do
+      if type == "Burst" then
+        -- Burst mode
+        local burst_count = self.state.values["txo_tr_" .. output_num .. "_burst_count"]
+        local burst_time = self.state.values["txo_tr_" .. output_num .. "_burst_time"]
+        
+        -- Send burst of pulses using TXO TR commands
+        for i = 1, burst_count do
+          crow.ii.txo.tr(output_num, 1) -- Set high
+          clock.sleep(burst_time / burst_count)
+          crow.ii.txo.tr(output_num, 0) -- Set low
+          clock.sleep(burst_time / burst_count)
+        end
+      else
+        -- Gate mode
+        local gate_length = self.state.values["txo_tr_" .. output_num .. "_gate_length"] / 100
+        local beat_sec = clock.get_beat_sec()
+        local gate_time = beat_sec * beats * gate_length
+        
+        crow.ii.txo.tr(output_num, 1) -- Set high
+        clock.sleep(gate_time)
+        crow.ii.txo.tr(output_num, 0) -- Set low
+      end
+      
+      -- Wait for next interval
+      clock.sync(beats)
+    end
+  end
+  
+  -- Start the clock
+  self.state.active_clocks["txo_tr_" .. output_num] = clock.run(clock_function)
 end
 
 return EurorackOutputSection 
