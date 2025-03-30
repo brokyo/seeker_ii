@@ -8,6 +8,7 @@ local GenerateSection = include('lib/ui/sections/generate_section')
 local TuningSection = include('lib/ui/sections/tuning_section')
 local OverdubSection = include('lib/ui/sections/overdub_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
+local EurorackOutputSection = include('lib/ui/sections/eurorack_output_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}
@@ -31,7 +32,8 @@ function ScreenUI.init()
     GENERATE = GenerateSection.new(),
     TUNING = TuningSection.new(),
     OVERDUB = OverdubSection.new(),
-    VELOCITY = VelocitySection.new()
+    VELOCITY = VelocitySection.new(),
+    EURORACK_OUTPUT = EurorackOutputSection.new()
   }
   
   ScreenSaver.init()

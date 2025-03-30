@@ -1,19 +1,19 @@
 ### Current Session
-- [x] Scale degree offset for motif
-
+- [] Eurorack Control Menu
+-- [] Crow CV/Gate Options
+-- [] TXO CV/Gate Options
 
 ### Near Term Priorities
-- [] Footer shows lane and stage
-- [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 
 ### Bugs
 
 ### Long List
+- [] Better fundamental generator.
+- [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 - [] Note Event Refactoring
 -- [] Create consistent note event structure in a single place
 -- [] Separate live vs playback event creation logic
 -- [] Move event param handling out of `Lane:on_note_on`
-- [] Review everything about generators.
 - [] Rebuild window manager.
 -- [] Reduce dependency on params system 
 -- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
@@ -119,3 +119,4 @@
 -- [x] Change section positions
 -- [x] Pulse active stage
 - [x] Overdub visualization doesn't account for speed.
+- [x] Scale degree offset for motif
