@@ -42,11 +42,8 @@ function EurorackOutputSection.new()
       -- Gate parameters
       { id = "crow_" .. i .. "_gate_length", name = "Gate Length %", spec = { type = "number", min = 1, max = 100, step = 1 } },
       -- LFO parameters
-      { id = "crow_" .. i .. "_lfo_shape", name = "Shape", spec = { type = "option", values = {"Sine", "Saw", "Square", "Triangle"} } },
-      { id = "crow_" .. i .. "_lfo_freq", name = "Frequency", spec = { type = "number", min = 0.1, max = 20, step = 0.1 } },
-      { id = "crow_" .. i .. "_lfo_amp", name = "Amplitude", spec = { type = "number", min = 0, max = 5, step = 0.1 } },
-      { id = "crow_" .. i .. "_lfo_offset", name = "Offset", spec = { type = "number", min = -5, max = 5, step = 0.1 } },
-      { id = "crow_" .. i .. "_lfo_sync", name = "Sync", spec = { type = "option", values = {"On", "Off"} } }
+      { id = "crow_" .. i .. "_lfo_time", name = "Time", spec = { type = "number", min = 0.1, max = 20, step = 0.1 } },
+      { id = "crow_" .. i .. "_lfo_level", name = "Level", spec = { type = "number", min = 0, max = 10, step = 0.1 } }
     }
     
     -- Initialize default values for Crow outputs
@@ -55,11 +52,8 @@ function EurorackOutputSection.new()
     section.state.values["crow_" .. i .. "_burst_count"] = 1
     section.state.values["crow_" .. i .. "_burst_time"] = 0.1
     section.state.values["crow_" .. i .. "_gate_length"] = 50
-    section.state.values["crow_" .. i .. "_lfo_shape"] = "Sine"
-    section.state.values["crow_" .. i .. "_lfo_freq"] = 1
-    section.state.values["crow_" .. i .. "_lfo_amp"] = 2.5
-    section.state.values["crow_" .. i .. "_lfo_offset"] = 0
-    section.state.values["crow_" .. i .. "_lfo_sync"] = "Off"
+    section.state.values["crow_" .. i .. "_lfo_time"] = 1
+    section.state.values["crow_" .. i .. "_lfo_level"] = 2.5
   end
 
   -- TXO TR outputs (1-4)
@@ -180,11 +174,8 @@ function EurorackOutputSection.new()
         table.insert(self.params, output_params[5]) -- Gate Length
       else
         -- LFO parameters
-        table.insert(self.params, output_params[6]) -- Shape
-        table.insert(self.params, output_params[7]) -- Frequency
-        table.insert(self.params, output_params[8]) -- Amplitude
-        table.insert(self.params, output_params[9]) -- Offset
-        table.insert(self.params, output_params[10]) -- Sync
+        table.insert(self.params, output_params[6]) -- Time
+        table.insert(self.params, output_params[7]) -- Level
       end
     elseif self.state.values.selected_output:match("^TXO TR") then
       local output_num = tonumber(self.state.values.selected_output:match("%d+"))
@@ -253,6 +244,25 @@ function EurorackOutputSection:update_clock(output_num)
 
   -- Get clock parameters
   local type = self.state.values["crow_" .. output_num .. "_type"]
+  
+  -- Handle LFO mode
+  if type == "LFO" then
+    local time = self.state.values["crow_" .. output_num .. "_lfo_time"]
+    local level = self.state.values["crow_" .. output_num .. "_lfo_level"]
+    
+    -- Reset output to 0V first
+    crow.output[output_num].volts = 0
+    
+    -- Set up LFO action with time and level
+    crow.output[output_num].action = string.format("lfo(%f,%f)", time, level)
+    
+    -- Start the LFO by calling the output
+    crow.output[output_num]()
+    
+    return
+  end
+  
+  -- Handle other modes (Burst and Gate)
   if type ~= "Burst" and type ~= "Gate" then return end
 
   local div = self.state.values["crow_" .. output_num .. "_clock_div"]
