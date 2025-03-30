@@ -79,9 +79,21 @@ function EurorackOutputSection.new()
   -- TXO CV outputs (1-4)
   for i = 1, 4 do
     section.state.output_params["TXO CV " .. i] = {
-      { id = "txo_cv_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Burst", "Gate", "LFO"} } }
-      -- Other parameters will be added later
+      { id = "txo_cv_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"LFO"} } },
+      { id = "txo_cv_" .. i .. "_shape", name = "Shape", spec = { type = "option", values = {"Sine", "Triangle", "Saw", "Pulse", "Noise"} } },
+      { id = "txo_cv_" .. i .. "_depth", name = "Depth", spec = { type = "number", min = 0, max = 10, step = 0.1 } },
+      { id = "txo_cv_" .. i .. "_time", name = "Time", spec = { type = "number", min = 0.1, max = 20, step = 0.1 } },
+      { id = "txo_cv_" .. i .. "_offset", name = "Offset", spec = { type = "number", min = -5, max = 5, step = 0.1 } },
+      { id = "txo_cv_" .. i .. "_rect", name = "Rect", spec = { type = "number", min = -2, max = 2, step = 1 } }
     }
+    
+    -- Initialize default values for TXO CV outputs
+    section.state.values["txo_cv_" .. i .. "_type"] = "LFO"
+    section.state.values["txo_cv_" .. i .. "_shape"] = "Sine"
+    section.state.values["txo_cv_" .. i .. "_depth"] = 2.5
+    section.state.values["txo_cv_" .. i .. "_time"] = 1
+    section.state.values["txo_cv_" .. i .. "_offset"] = 0
+    section.state.values["txo_cv_" .. i .. "_rect"] = 0
   end
 
   -- Override get_param_value to use our state
@@ -117,6 +129,9 @@ function EurorackOutputSection.new()
         elseif param.id:match("^txo_tr_%d+_") then
           local output_num = tonumber(param.id:match("txo_tr_(%d+)_"))
           self:update_txo_tr(output_num)
+        elseif param.id:match("^txo_cv_%d+_") then
+          local output_num = tonumber(param.id:match("txo_cv_(%d+)_"))
+          self:update_txo_cv(output_num)
         end
       elseif param.spec.type == "number" then
         local current = self.state.values[param.id]
@@ -133,6 +148,9 @@ function EurorackOutputSection.new()
         elseif param.id:match("^txo_tr_%d+_") then
           local output_num = tonumber(param.id:match("txo_tr_(%d+)_"))
           self:update_txo_tr(output_num)
+        elseif param.id:match("^txo_cv_%d+_") then
+          local output_num = tonumber(param.id:match("txo_cv_(%d+)_"))
+          self:update_txo_cv(output_num)
         end
       end
     end
@@ -363,6 +381,40 @@ function EurorackOutputSection:update_txo_tr(output_num)
   
   -- Start the clock
   self.state.active_clocks["txo_tr_" .. output_num] = clock.run(clock_function)
+end
+
+-- Function to update TXO CV LFO settings
+function EurorackOutputSection:update_txo_cv(output_num)
+  -- Stop existing clock if any
+  if self.state.active_clocks["txo_cv_" .. output_num] then
+    clock.cancel(self.state.active_clocks["txo_cv_" .. output_num])
+    self.state.active_clocks["txo_cv_" .. output_num] = nil
+  end
+
+  -- Get LFO parameters
+  local shape = self.state.values["txo_cv_" .. output_num .. "_shape"]
+  local depth = self.state.values["txo_cv_" .. output_num .. "_depth"]
+  local time = self.state.values["txo_cv_" .. output_num .. "_time"]
+  local offset = self.state.values["txo_cv_" .. output_num .. "_offset"]
+  local rect = self.state.values["txo_cv_" .. output_num .. "_rect"]
+
+  -- Convert shape to TXO wave type
+  local wave_type = 0  -- Default to sine
+  if shape == "Triangle" then wave_type = 100
+  elseif shape == "Saw" then wave_type = 200
+  elseif shape == "Pulse" then wave_type = 300
+  elseif shape == "Noise" then wave_type = 400
+  end
+
+  -- Initialize the CV output
+  crow.ii.txo.cv_init(output_num)
+
+  -- Set up the oscillator parameters
+  crow.ii.txo.osc_wave(output_num, wave_type)
+  crow.ii.txo.osc_cyc(output_num, time * 1000)  -- Convert time to milliseconds
+  crow.ii.txo.cv(output_num, depth)       -- Set amplitude
+  crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))  -- Set offset (convert to raw value)
+  crow.ii.txo.osc_rect(output_num, rect)  -- Set rectification
 end
 
 return EurorackOutputSection 
