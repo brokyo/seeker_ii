@@ -80,32 +80,49 @@ function EurorackOutputSection.new()
   for i = 1, 4 do
     section.state.output_params["TXO CV " .. i] = {
       { id = "txo_cv_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"LFO"} } },
+      { id = "txo_cv_" .. i .. "_sync", name = "Sync", spec = { type = "option", values = {"Off", "1/16", "1/8", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "8", "16"} } },
       { id = "txo_cv_" .. i .. "_shape", name = "Shape", spec = { type = "option", values = {"Sine", "Triangle", "Saw", "Pulse", "Noise"} } },
       { id = "txo_cv_" .. i .. "_morph", name = "Morph", spec = { type = "number", min = -50, max = 50, step = 1 } },
       { id = "txo_cv_" .. i .. "_depth", name = "Depth", spec = { type = "number", min = 0, max = 10, step = 0.1 } },
       { id = "txo_cv_" .. i .. "_time", name = "Time", spec = { type = "number", min = 0.1, max = 20, step = 0.1 } },
       { id = "txo_cv_" .. i .. "_offset", name = "Offset", spec = { type = "number", min = -5, max = 5, step = 0.1 } },
-      { id = "txo_cv_" .. i .. "_rect", name = "Rect", spec = { type = "option", values = {"Negative Half", "Negative Clipped", "Full Range", "Positive Clipped", "Positive Half"} } }
+      { id = "txo_cv_" .. i .. "_phase", name = "Phase", spec = { type = "number", min = 0, max = 360, step = 1 } },
+      { id = "txo_cv_" .. i .. "_rect", name = "Rect", spec = { type = "option", values = {"Negative Half", "Negative Clipped", "Full Range", "Positive Clipped", "Positive Half"} } },
+      { id = "txo_cv_" .. i .. "_restart", name = "Restart LFO", action = true }
     }
     
     -- Initialize default values for TXO CV outputs
     section.state.values["txo_cv_" .. i .. "_type"] = "LFO"
+    section.state.values["txo_cv_" .. i .. "_sync"] = "Off"
     section.state.values["txo_cv_" .. i .. "_shape"] = "Sine"
     section.state.values["txo_cv_" .. i .. "_morph"] = 0
     section.state.values["txo_cv_" .. i .. "_depth"] = 2.5
     section.state.values["txo_cv_" .. i .. "_time"] = 1
     section.state.values["txo_cv_" .. i .. "_offset"] = 0
+    section.state.values["txo_cv_" .. i .. "_phase"] = 0
     section.state.values["txo_cv_" .. i .. "_rect"] = "Full Range"
   end
 
-  -- Override get_param_value to use our state
+  -- Override get_param_value to handle action items
   function section:get_param_value(param)
-    return self.state.values[param.id] or ""
+    if param.action then
+      return "► Press K3"
+    else
+      return self.state.values[param.id] or ""
+    end
   end
 
-  -- Override modify_param to update our state
+  -- Override modify_param to handle action items
   function section:modify_param(param, delta)
-    if param.spec then
+    if param.action then
+      if param.id:match("^txo_cv_%d+_restart$") then
+        -- Restart all TXO CV LFOs
+        for i = 1, 4 do
+          self:update_txo_cv(i)
+        end
+        print("⚡ Restarted all LFOs")
+      end
+    elseif param.spec then
       if param.spec.type == "option" then
         local current_idx = 1
         for i, value in ipairs(param.spec.values) do
@@ -120,7 +137,7 @@ function EurorackOutputSection.new()
         print("Option changed:", param.id, "to:", self.state.values[param.id])
         
         -- If we changed the selected output or type, update the params list
-        if param.id == "selected_output" or param.id:match("_type$") then
+        if param.id == "selected_output" or param.id:match("_type$") or param.id:match("_sync$") then
           self:update_param_list()
         end
         
@@ -214,10 +231,30 @@ function EurorackOutputSection.new()
         table.insert(self.params, output_params[5]) -- Gate Length
       end
     else
-      -- For other outputs, just show their parameters
-      for i = 2, #output_params do
-        table.insert(self.params, output_params[i])
+      -- For TXO CV outputs, show parameters conditionally
+      local output_num = tonumber(self.state.values.selected_output:match("%d+"))
+      local sync = self.state.values["txo_cv_" .. output_num .. "_sync"]
+      
+      -- Add sync parameter
+      table.insert(self.params, output_params[2])
+      
+      -- Add shape and morph
+      table.insert(self.params, output_params[3])
+      table.insert(self.params, output_params[4])
+      
+      -- Add depth
+      table.insert(self.params, output_params[5])
+      
+      -- Add time only if not synced
+      if sync == "Off" then
+        table.insert(self.params, output_params[6])
       end
+      
+      -- Add remaining parameters
+      table.insert(self.params, output_params[7]) -- offset
+      table.insert(self.params, output_params[8]) -- phase
+      table.insert(self.params, output_params[9]) -- rect
+      table.insert(self.params, output_params[10]) -- restart
     end
   end
 
@@ -399,7 +436,9 @@ function EurorackOutputSection:update_txo_cv(output_num)
   local depth = self.state.values["txo_cv_" .. output_num .. "_depth"]
   local time = self.state.values["txo_cv_" .. output_num .. "_time"]
   local offset = self.state.values["txo_cv_" .. output_num .. "_offset"]
+  local phase = self.state.values["txo_cv_" .. output_num .. "_phase"]
   local rect = self.state.values["txo_cv_" .. output_num .. "_rect"]
+  local sync = self.state.values["txo_cv_" .. output_num .. "_sync"]
 
   -- Convert rect name to TXO rect value
   local rect_value = 0  -- Default to Full Range
@@ -453,10 +492,24 @@ function EurorackOutputSection:update_txo_cv(output_num)
 
   -- Set up the oscillator parameters
   crow.ii.txo.osc_wave(output_num, wave_type)
-  crow.ii.txo.osc_cyc(output_num, time * 1000)  -- Convert time to milliseconds
+  
+  -- Handle sync mode
+  if sync ~= "Off" then
+    local beats = self:division_to_beats(sync)
+    local beat_sec = clock.get_beat_sec()
+    local cycle_time = beat_sec * beats * 1000  -- Convert to milliseconds
+    crow.ii.txo.osc_cyc(output_num, cycle_time)
+  else
+    crow.ii.txo.osc_cyc(output_num, time * 1000)  -- Use time parameter when not synced
+  end
+  
   crow.ii.txo.cv(output_num, depth)       -- Set amplitude
   crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))  -- Set offset (convert to raw value)
   crow.ii.txo.osc_rect(output_num, rect_value)  -- Set rectification
+  
+  -- Set phase offset (convert degrees to raw value, 0-16384)
+  local phase_raw = math.floor((phase / 360) * 16384)
+  crow.ii.txo.osc_phase(output_num, phase_raw)
 end
 
 return EurorackOutputSection 
