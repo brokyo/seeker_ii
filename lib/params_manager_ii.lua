@@ -178,7 +178,7 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,8 do
-    params:add_group("lane_" .. i, "LANE " .. i, 38)
+    params:add_group("lane_" .. i, "LANE " .. i, 39)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Keyboard octave control (for grid input)
@@ -380,6 +380,22 @@ function init_lane_params()
     params:set_action("lane_" .. i .. "_release", function(value)
       if _seeker.lanes[i] then
         _seeker.lanes[i].release = value
+      end
+    end)
+
+    -- Add Just Friends
+    params:add_binary("lane_" .. i .. "_just_friends_active", "Just Friends Active", "toggle", 0)
+    params:set_action("lane_" .. i .. "_just_friends_active", function(value)
+      -- Turn JF on or off based on parameter
+      if value == 1 then
+        print("⚡ Setting JF to synthesis mode...")
+        crow.ii.jf.mode(1)
+        -- Send a test note
+        print("⚡ Sending test note to JF...")
+        crow.ii.jf.play_note(0, 5) -- Play C4 at 5V velocity
+      else
+        print("⚡ Setting JF to off...")
+        crow.ii.jf.mode(0)
       end
     end)
 

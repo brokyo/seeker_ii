@@ -496,6 +496,14 @@ function Lane:on_note_on(event)
     end
   end
 
+  -- Handle Just Friends if active
+  local just_friends_active = params:get("lane_" .. self.id .. "_just_friends_active")
+  if just_friends_active == 1 then
+    -- Convert MIDI velocity (0-127) to JF velocity (0-10V)
+    local jf_velocity = (event.velocity / 127) * 10
+    crow.ii.jf.play_note((note - 60) / 12, jf_velocity)
+  end
+
   -- Get all grid positions for this note
   local positions
   if event.positions then

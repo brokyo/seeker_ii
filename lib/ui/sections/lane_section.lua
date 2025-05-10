@@ -37,7 +37,9 @@ function LaneSection.new()
       { separator = true, name = "Eurorack" },
       { id = "lane_" .. new_lane_idx .. "_gate_out", name = "Gate Out" },
       { id = "lane_" .. new_lane_idx .. "_cv_out", name = "CV Out" },
-      { id = "lane_" .. new_lane_idx .. "_loop_start_trigger", name = "Loop Start Out" }
+      { id = "lane_" .. new_lane_idx .. "_loop_start_trigger", name = "Loop Start Out" },
+      { separator = true, name = "Just Friends" },
+      { id = "lane_" .. new_lane_idx .. "_just_friends_active", name = "Just Friends Active" }
     }
     -- Update section name with lane number
     self.name = string.format("Layer %d", new_lane_idx)
