@@ -178,7 +178,7 @@ end
 function init_lane_params()
   local instruments = params_manager_ii.get_instrument_list()
   for i = 1,8 do
-    params:add_group("lane_" .. i, "LANE " .. i, 39)
+    params:add_group("lane_" .. i, "LANE " .. i, 48)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- Keyboard octave control (for grid input)
@@ -388,15 +388,67 @@ function init_lane_params()
     params:set_action("lane_" .. i .. "_just_friends_active", function(value)
       -- Turn JF on or off based on parameter
       if value == 1 then
-        print("⚡ Setting JF to synthesis mode...")
         crow.ii.jf.mode(1)
-        -- Send a test note
-        print("⚡ Sending test note to JF...")
-        crow.ii.jf.play_note(0, 5) -- Play C4 at 5V velocity
       else
-        print("⚡ Setting JF to off...")
         crow.ii.jf.mode(0)
       end
+    end)
+
+    -- Add w/ synth mode
+    params:add_binary("lane_" .. i .. "_w_synth_active", "w/ FM Synth Active", "toggle", 0)
+    params:set_action("lane_" .. i .. "_w_synth_active", function(value)
+    end)
+
+    -- w/syn parameters
+    params:add_option("lane_" .. i .. "_wsyn_ar_mode", "AR Mode", {"Off", "On"}, 1)
+    params:set_action("lane_" .. i .. "_wsyn_ar_mode", function(value)
+      if value == 2 then
+        crow.ii.wsyn.ar_mode(1)
+      else
+        crow.ii.wsyn.ar_mode(0)
+      end
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_curve", "Curve", 
+      controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_curve", function(value)
+      crow.ii.wsyn.curve(value)
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_ramp", "Ramp", 
+      controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_ramp", function(value)
+      crow.ii.wsyn.ramp(value)
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_fm_index", "FM Index", 
+      controlspec.new(0, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_fm_index", function(value)
+      crow.ii.wsyn.fm_index(value)
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_fm_env", "FM Env", 
+      controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_fm_env", function(value)
+      crow.ii.wsyn.fm_env(value)
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_fm_ratio", "FM Ratio", 
+      controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_fm_ratio", function(value)
+      crow.ii.wsyn.fm_ratio(value)
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_lpg_time", "LPG Time", 
+      controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_lpg_time", function(value)
+      crow.ii.wsyn.lpg_time(value)
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_lpg_symmetry", "LPG Symmetry", 
+      controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:set_action("lane_" .. i .. "_wsyn_lpg_symmetry", function(value)
+      crow.ii.wsyn.lpg_symmetry(value)
     end)
 
     -- See forms.lua for stage configuration

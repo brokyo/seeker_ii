@@ -39,7 +39,17 @@ function LaneSection.new()
       { id = "lane_" .. new_lane_idx .. "_cv_out", name = "CV Out" },
       { id = "lane_" .. new_lane_idx .. "_loop_start_trigger", name = "Loop Start Out" },
       { separator = true, name = "Just Friends" },
-      { id = "lane_" .. new_lane_idx .. "_just_friends_active", name = "Just Friends Active" }
+      { id = "lane_" .. new_lane_idx .. "_just_friends_active", name = "Just Friends Active" },
+      { separator = true, name = "w/syn" },
+      { id = "lane_" .. new_lane_idx .. "_w_synth_active", name = "w/syn Active" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_ar_mode", name = "AR Mode" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_curve", name = "Curve" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_ramp", name = "Ramp" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_fm_index", name = "FM Index" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_fm_env", name = "FM Env" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_fm_ratio", name = "FM Ratio" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_time", name = "LPG Time" },
+      { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_symmetry", name = "LPG Symmetry" }
     }
     -- Update section name with lane number
     self.name = string.format("Layer %d", new_lane_idx)

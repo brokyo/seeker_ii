@@ -42,9 +42,11 @@ function EurorackOutputSection.new()
       { id = "crow_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Gate", "Burst", "LFO", "Looped Random", "Clocked Random"} } },
       { id = "crow_" .. i .. "_clock_div", name = "Clock Mod", spec = { type = "option", values = sync_options } },
       -- Burst parameters
+      { id = "crow_" .. i .. "_burst_voltage", name = "Voltage", spec = { type = "number", min = -10, max = 10, step = 0.1 } },
       { id = "crow_" .. i .. "_burst_count", name = "Burst Count", spec = { type = "number", min = 1, max = 16 } },
-      { id = "crow_" .. i .. "_burst_time", name = "Burst Time", spec = { type = "number", min = 0.01, max = 1, step = 0.01 } },
+      { id = "crow_" .. i .. "_burst_time", name = "Burst Window", spec = { type = "number", min = 0.01, max = 1, step = 0.01 } },
       -- Gate parameters
+      { id = "crow_" .. i .. "_gate_voltage", name = "Voltage", spec = { type = "number", min = -10, max = 10, step = 0.1 } },
       { id = "crow_" .. i .. "_gate_length", name = "Gate Length %", spec = { type = "number", min = 1, max = 100, step = 1 } },
       -- LFO parameters
       { id = "crow_" .. i .. "_lfo_shape", name = "CV Shape", spec = { type = "option", values = shape_options} },
@@ -69,9 +71,11 @@ function EurorackOutputSection.new()
     section.state.values["crow_" .. i .. "_type"] = "Gate"
     section.state.values["crow_" .. i .. "_clock_div"] = "0"  -- Start Crow outputs off by default
     -- Burst Defaults
+    section.state.values["crow_" .. i .. "_burst_voltage"] = 0
     section.state.values["crow_" .. i .. "_burst_count"] = 1
     section.state.values["crow_" .. i .. "_burst_time"] = 0.1
     -- Gate Defaults  
+    section.state.values["crow_" .. i .. "_gate_voltage"] = 0
     section.state.values["crow_" .. i .. "_gate_length"] = 50
     -- LFO Defaults
     section.state.values["crow_" .. i .. "_lfo_shape"] = "sine"
@@ -245,27 +249,29 @@ function EurorackOutputSection.new()
       
       -- Add type-specific parameters based on the selected output type
       if type == "Burst" then
-        table.insert(self.params, output_params[3]) -- Burst Count
-        table.insert(self.params, output_params[4]) -- Burst Time
+        table.insert(self.params, output_params[3]) -- Burst Voltage
+        table.insert(self.params, output_params[4]) -- Burst Count
+        table.insert(self.params, output_params[5]) -- Burst Time
       elseif type == "Gate" then
-        table.insert(self.params, output_params[5]) -- Gate Length
+        table.insert(self.params, output_params[6]) -- Gate Voltage
+        table.insert(self.params, output_params[7]) -- Gate Length
       elseif type == "LFO" then
-        table.insert(self.params, output_params[6]) -- Shape
-        table.insert(self.params, output_params[7]) -- Min
-        table.insert(self.params, output_params[8]) -- Max
+        table.insert(self.params, output_params[8]) -- Shape
+        table.insert(self.params, output_params[9]) -- Min
+        table.insert(self.params, output_params[10]) -- Max
       elseif type == "Looped Random" then
-        table.insert(self.params, output_params[9]) -- Shape
-        table.insert(self.params, output_params[10]) -- Quantize
-        table.insert(self.params, output_params[11]) -- Steps
-        table.insert(self.params, output_params[12]) -- Loops
-        table.insert(self.params, output_params[13]) -- Min
-        table.insert(self.params, output_params[14]) -- Max
+        table.insert(self.params, output_params[11]) -- Shape
+        table.insert(self.params, output_params[12]) -- Quantize
+        table.insert(self.params, output_params[13]) -- Steps
+        table.insert(self.params, output_params[14]) -- Loops
+        table.insert(self.params, output_params[15]) -- Min
+        table.insert(self.params, output_params[16]) -- Max
       elseif type == "Clocked Random" then
-        table.insert(self.params, output_params[15]) -- Trigger
-        table.insert(self.params, output_params[16]) -- Shape
-        table.insert(self.params, output_params[17]) -- Quantize
-        table.insert(self.params, output_params[18]) -- Min
-        table.insert(self.params, output_params[19]) -- Max
+        table.insert(self.params, output_params[17]) -- Trigger
+        table.insert(self.params, output_params[18]) -- Shape
+        table.insert(self.params, output_params[19]) -- Quantize
+        table.insert(self.params, output_params[20]) -- Min
+        table.insert(self.params, output_params[21]) -- Max
       end
 
 
@@ -537,94 +543,114 @@ function EurorackOutputSection:update_crow(output_num)
     return
   end
   
-  -- Handle Stepped Random mode
-  if type == "Clocked Random" then
+  -- -- Handle Stepped Random mode
+  -- if type == "Clocked Random" then
+  --   local div = self.state.values["crow_" .. output_num .. "_clock_div"]
+  --   local beats = self:division_to_beats(div)
+  --   local min_value = self.state.values["crow_" .. output_num .. "_random_min"]
+  --   local max_value = self.state.values["crow_" .. output_num .. "_random_max"]
+  --   local shape = self.state.values["crow_" .. output_num .. "_random_shape"]
+  --   local slew = self.state.values["crow_" .. output_num .. "_random_slew"]
+    
+  --   -- If division is 0 or invalid, turn off the output
+  --   if beats <= 0 or div == "Off" then
+  --     crow.output[output_num].volts = 0
+  --     return
+  --   end
+    
+  --   -- Convert beats to seconds based on current tempo
+  --   local beat_sec = clock.get_beat_sec()
+  --   local time = beat_sec * beats
+    
+  --   -- Calculate slew time based on percentage
+  --   local slew_time = (slew / 100) * time
+    
+  --   -- Create stepped random function that uses ASL for each step
+  --   local function stepped_random_function()
+  --     while true do
+  --       -- Generate new random value
+  --       local random_value = min_value + math.random() * (max_value - min_value)
+        
+  --       -- Create a single step ASL that holds the value
+  --       local asl_string = string.format("to(%f,%f,'%s')", random_value, time, shape)
+  --       crow.output[output_num].action = asl_string
+  --       crow.output[output_num]()
+        
+  --       -- Wait for next step based on clock division
+  --       clock.sync(beats)
+  --     end
+  --   end
+    
+  --   -- Start the random generator
+  --   self.state.active_clocks["crow_" .. output_num] = clock.run(stepped_random_function)
+  --   return
+  -- end
+
+  if type == "Burst" then
     local div = self.state.values["crow_" .. output_num .. "_clock_div"]
     local beats = self:division_to_beats(div)
-    local min_value = self.state.values["crow_" .. output_num .. "_random_min"]
-    local max_value = self.state.values["crow_" .. output_num .. "_random_max"]
-    local shape = self.state.values["crow_" .. output_num .. "_random_shape"]
-    local slew = self.state.values["crow_" .. output_num .. "_random_slew"]
     
-    -- If division is 0 or invalid, turn off the output
-    if beats <= 0 or div == "Off" then
+    if beats == 0 then
       crow.output[output_num].volts = 0
       return
     end
-    
-    -- Convert beats to seconds based on current tempo
-    local beat_sec = clock.get_beat_sec()
-    local time = beat_sec * beats
-    
-    -- Calculate slew time based on percentage
-    local slew_time = (slew / 100) * time
-    
-    -- Create stepped random function that uses ASL for each step
-    local function stepped_random_function()
-      while true do
-        -- Generate new random value
-        local random_value = min_value + math.random() * (max_value - min_value)
-        
-        -- Create a single step ASL that holds the value
-        local asl_string = string.format("to(%f,%f,'%s')", random_value, time, shape)
-        crow.output[output_num].action = asl_string
-        crow.output[output_num]()
-        
-        -- Wait for next step based on clock division
-        clock.sync(beats)
-      end
-    end
-    
-    -- Start the random generator
-    self.state.active_clocks["crow_" .. output_num] = clock.run(stepped_random_function)
-    return
-  end
-  
-  -- Handle other modes (Burst and Gate)
-  if type ~= "Burst" and type ~= "Gate" then return end
 
-  local div = self.state.values["crow_" .. output_num .. "_clock_div"]
-  local beats = self:division_to_beats(div)
-  
-  -- If division is 0, just stop the clock
-  if beats == 0 then
-    crow.output[output_num].volts = 0
-    return
-  end
-  
-  -- Create clock function
-  local function clock_function()
-    while true do
-      if type == "Burst" then
-        -- Burst mode
+    -- Create clock function for burst mode
+    local clock_fn = function()
+      while true do
+        local burst_voltage = self.state.values["crow_" .. output_num .. "_burst_voltage"]
         local burst_count = self.state.values["crow_" .. output_num .. "_burst_count"]
         local burst_time = self.state.values["crow_" .. output_num .. "_burst_time"]
         
         -- Send burst of pulses
         for i = 1, burst_count do
-          crow.output[output_num].volts = 5
+          crow.output[output_num].volts = burst_voltage
           clock.sleep(burst_time / burst_count)
           crow.output[output_num].volts = 0
           clock.sleep(burst_time / burst_count)
         end
-      else
-        -- Gate mode
+        
+        -- Wait for next interval
+        clock.sync(beats)
+      end
+    end
+    
+    -- Start the clock
+    self.state.active_clocks["crow_" .. output_num] = clock.run(clock_fn)
+    return
+  end
+
+  if type == "Gate" then
+    local div = self.state.values["crow_" .. output_num .. "_clock_div"]
+    local beats = self:division_to_beats(div)
+    
+    if beats == 0 then
+      crow.output[output_num].volts = 0
+      return
+    end
+
+    -- Create clock function for gate mode
+    local clock_fn = function()
+      while true do
+        local gate_voltage = self.state.values["crow_" .. output_num .. "_gate_voltage"]
         local gate_length = self.state.values["crow_" .. output_num .. "_gate_length"] / 100
         local beat_sec = clock.get_beat_sec()
         local gate_time = beat_sec * beats * gate_length
         
-        crow.output[output_num].volts = 5
+        -- Send gate pulse
+        crow.output[output_num].volts = gate_voltage
         clock.sleep(gate_time)
         crow.output[output_num].volts = 0
+        
+        -- Wait for next interval
+        clock.sync(beats)
       end
-      
-      -- Wait for next interval
-      clock.sync(beats)
     end
+    
+    -- Start the clock
+    self.state.active_clocks["crow_" .. output_num] = clock.run(clock_fn)
+    return
   end
-  
-  -- Start the clock
-  self.state.active_clocks["crow_" .. output_num] = clock.run(clock_function)
 end
 
 -- Function to start/stop clock for a specific TXO TR output
