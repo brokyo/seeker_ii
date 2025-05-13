@@ -1,10 +1,12 @@
 ### Current Session
-- [] Eurorack Control Menu
--- [] Crow CV/Gate Options
--- [] TXO CV/Gate Options
+- [] Lane Voice Improvements
+-- [x] Add volume per voice
+-- [x] Conditional display in UI
+-- [] Ensure voice volume is appropriate used in playback (probably in motif)
+-- [] Check volume double counting issue (probably in motif_recorder)
 
 ### Near Term Priorities
-
+- [] More motif playback speed options
 ### Bugs
 
 ### Long List
@@ -121,3 +123,6 @@
 -- [x] Pulse active stage
 - [x] Overdub visualization doesn't account for speed.
 - [x] Scale degree offset for motif
+- [x] Eurorack Control Menu
+-- [x] Crow CV/Gate Options
+-- [x] TXO CV/Gate Options

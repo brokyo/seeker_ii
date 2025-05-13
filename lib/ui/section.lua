@@ -62,9 +62,26 @@ function Section:get_press_duration(key_id)
   return 0
 end
 
+-- Helper function to format binary values
+function Section:format_binary_value(value)
+  if value == 1 then
+    return "true"
+  else
+    return "false"
+  end
+end
+
 function Section:get_param_value(param)
-  -- Default implementation just returns the parameter's string value
-  return params:string(param.id) or ""
+  if param.id then
+    local param_info = params:lookup_param(param.id)
+    if param_info.t == params.tBINARY then
+      return self:format_binary_value(params:get(param.id))
+    elseif param_info.t == params.tOPTION then
+      return param_info.options[params:get(param.id)]
+    end
+    return params:string(param.id)
+  end
+  return param.value or ""
 end
 
 function Section:modify_param(param, delta)
