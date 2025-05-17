@@ -18,7 +18,6 @@ function Arc.init()
 
     -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
     device.new_section = function(params)
-      print("new_section")
       -- HOTFIX: Check if we should ignore this section
       -- TODO: Refactor to properly handle sections with custom parameter systems
       local current_section_id = _seeker.ui_state.get_current_section()
@@ -62,7 +61,6 @@ function Arc.init()
       -- HOTFIX: Skip Arc updates for special sections
       if device.skip_current_section then return end
       
-      print("update_display")
       device:refresh()
     end
 
@@ -132,7 +130,6 @@ function Arc.init()
     device.update_param_key_display = function()
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
-      print("update_param_key_display")
       -- Set base illumination
       for i = 1, 64 do
         device:led(1, i, 3)
@@ -279,7 +276,6 @@ function Arc.init()
             
             -- Handle numb types
             if param_type == params.tNUMBER or param_type == params.tTAPER then
-              print("norns number")
 
               local value = params:get(param.id)
               local min = param_info.min
@@ -289,29 +285,25 @@ function Arc.init()
 
             -- Handle control types
             elseif param_type == params.tCONTROL then
-              print("norns control")
 
               local value = params:get(param.id)
               local min = param_info.controlspec.minval
               local max = param_info.controlspec.maxval
               local step = param_info.controlspec.step
 
-              tab.print(param_info.controlspec)
-
               update_stepped_number_ring(value, min, max, step)
 
             -- Handle option types  
             elseif param_type == params.tOPTION then
-              print("norns option")
 
               update_option_ring(params:get(param.id), #param_info.options)
 
             -- Handle binary types
             elseif param_type == params.tBINARY then
-              print("norns binary")
 
               update_binary_ring(params:get(param.id))
             else
+              print("Unhandled Param Type")
               print("type: other (" .. param_type .. ")")
               print("value: " .. params:get(param.id))
             end
