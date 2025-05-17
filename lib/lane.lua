@@ -294,7 +294,7 @@ function Lane:schedule_stage(stage_index, start_time)
             callback = function() 
               self:on_note_on({
                 note = event.note,
-                velocity = event.velocity * self.volume,
+                velocity = event.velocity,
                 x = event.x,
                 y = event.y,
                 is_playback = true,
@@ -394,6 +394,7 @@ end
 function Lane:on_note_on(event)
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
+  print(note)
   if event.is_playback then
     -- This is a playback event, apply offsets that come from `MotifSection`
     local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
@@ -419,91 +420,6 @@ function Lane:on_note_on(event)
     note = note + octave_offset
   end
 
-  -- Play MIDI if configured
-  local device_idx = params:get("lane_" .. self.id .. "_midi_device")
-  local channel = params:get("lane_" .. self.id .. "_midi_channel")
-  if device_idx > 1 and channel > 0 then
-    self.midi_out_device:note_on(note, event.velocity * self.volume, channel)
-  end
-
-  -- Normalize velocity for MX Samples
-  local engine_velocity = (event.velocity / 127) * self.volume
-
-  -- Play engine using instrument from params
-  local instrument = self:get_instrument()
-  if instrument then
-    -- Get ADSR/pan values from event if it's playback, otherwise from current params
-    local attack, decay, sustain, release, pan
-    if event.is_playback then
-      attack = event.attack
-      decay = event.decay
-      sustain = event.sustain
-      release = event.release
-      pan = event.pan
-    else
-      attack = params:get("lane_" .. self.id .. "_attack")
-      decay = params:get("lane_" .. self.id .. "_decay")
-      sustain = params:get("lane_" .. self.id .. "_sustain")
-      release = params:get("lane_" .. self.id .. "_release")
-      pan = params:get("lane_" .. self.id .. "_pan")
-    end
-    
-    _seeker.skeys:on({
-      name = instrument,
-      midi = note,
-      amp = engine_velocity,
-      pan = pan,
-      lpf = self.lpf,
-      resonance = self.resonance,
-      hpf = self.hpf,
-      delay_send = self.delay_send or 0,
-      reverb_send = self.reverb_send or 0,
-      attack = attack,
-      decay = decay,
-      sustain = sustain,
-      release = release
-    })
-  end
-
-  -- Send hardware output if enabled
-  local gate_out = params:get("lane_" .. self.id .. "_gate_out")
-  local cv_out = params:get("lane_" .. self.id .. "_cv_out")
-  
-  -- Calculate CV voltage (V/oct)
-  -- Standard: C0 (MIDI note 12) = 0V, C1 = 1V, C2 = 2V, etc.
-  -- Each semitone = 1/12 volt
-  local cv_volts = (note - 12) / 12  -- Reference from C0 (MIDI note 12)
-    
-  -- Handle CV output
-  if cv_out > 1 then
-    if cv_out <= 5 then
-      -- Crow CV
-      crow.output[cv_out - 1].volts = cv_volts
-    else
-      -- TXO CV (subtract 5 to get 1-4 range as we're passing in an index from params that includes crow)
-      crow.ii.txo.cv(cv_out - 5, cv_volts)
-    end
-  end
-  
-  -- Handle gate output
-  if gate_out > 1 then
-    if gate_out <= 5 then
-      -- Crow gate
-      crow.output[gate_out - 1].volts = 5
-    else
-      -- TXO gate (subtract 5 to get 1-4 as we're passing in an index from params that includes crow)
-      crow.ii.txo.tr(gate_out - 5, 1)
-    end
-  end
-
-  -- Handle Just Friends if active
-  local just_friends_active = params:get("lane_" .. self.id .. "_just_friends_active")
-  if just_friends_active == 1 then
-    -- Convert MIDI velocity (0-127) to JF velocity (0-10V)
-    local jf_velocity = (event.velocity / 127) * 10
-    crow.ii.jf.play_note((note - 60) / 12, jf_velocity)
-  end
-
   -- Get all grid positions for this note
   local positions
   if event.positions then
@@ -523,6 +439,131 @@ function Lane:on_note_on(event)
       original_note = event.note,
       event_index = event.event_index
     }
+  end 
+
+  -- If MIDI is active, play the note
+  local midi_active = params:get("lane_" .. self.id .. "_midi_active")
+  if midi_active == 1 then
+    local midi_voice_volume = params:get("lane_" .. self.id .. "_midi_voice_volume")
+    local device_idx = params:get("lane_" .. self.id .. "_midi_device")
+    local channel = params:get("lane_" .. self.id .. "_midi_channel")
+    if device_idx > 1 and channel > 0 then
+      self.midi_out_device:note_on(note, event.velocity * midi_voice_volume, channel)
+    end
+  end
+
+  --------------------------------
+  -- MX Samples Output
+  --------------------------------
+
+  -- If MX Samples is active, play the event using that voice
+  local mx_samples_active = params:get("lane_" .. self.id .. "_mx_samples_active")
+  if mx_samples_active == 1 then
+    -- Normalize velocity for MX Samples
+    local mx_samples_volume = (event.velocity / 127) * params:get("lane_" .. self.id .. "_mx_voice_volume")
+
+    -- Play engine using instrument from params
+    local instrument = self:get_instrument()
+    if instrument then
+      -- Get ADSR/pan values from event if it's playback, otherwise from current params
+      local attack, decay, sustain, release, pan
+      if event.is_playback then
+        attack = event.attack
+        decay = event.decay
+        sustain = event.sustain
+        release = event.release
+        pan = event.pan
+      else
+        attack = params:get("lane_" .. self.id .. "_attack")
+        decay = params:get("lane_" .. self.id .. "_decay")
+        sustain = params:get("lane_" .. self.id .. "_sustain")
+        release = params:get("lane_" .. self.id .. "_release")
+        pan = params:get("lane_" .. self.id .. "_pan")
+      end
+      
+      _seeker.skeys:on({
+        name = instrument,
+        midi = note,
+        amp = mx_samples_volume,
+        pan = pan,
+        lpf = self.lpf,
+        resonance = self.resonance,
+        hpf = self.hpf,
+        delay_send = self.delay_send or 0,
+        reverb_send = self.reverb_send or 0,
+        attack = attack,
+        decay = decay,
+        sustain = sustain,
+        release = release
+      })
+    end
+  end
+
+  --------------------------------
+  -- CV/Gate Output
+  --------------------------------
+
+  -- If CV/Gate is active, send the note via Crow/TXO
+  local cv_gate_active = params:get("lane_" .. self.id .. "_eurorack_active")
+  if cv_gate_active == 1 then
+    -- Send hardware output if enabled
+    local gate_out = params:get("lane_" .. self.id .. "_gate_out")
+    local cv_out = params:get("lane_" .. self.id .. "_cv_out")
+    
+    -- Calculate CV voltage (V/oct)
+    local cv_volts = (note - 12) / 12  -- Reference from C0 (MIDI note 12)
+      
+    -- Handle CV output
+    if cv_out > 1 then
+      if cv_out <= 5 then
+        -- Crow CV
+        crow.output[cv_out - 1].volts = cv_volts
+      else
+        -- TXO CV (subtract 5 to get 1-4 range as we're passing in an index from params that includes crow)
+        crow.ii.txo.cv(cv_out - 5, cv_volts)
+      end
+    end
+    
+    -- Handle gate output
+    if gate_out > 1 then
+      if gate_out <= 5 then
+        -- Calculate crow gate volume with 5v as max
+        local gate_volume = params:get("lane_" .. self.id .. "_euro_voice_volume")
+        crow.output[gate_out - 1].volts = gate_volume * 5
+      else
+        -- TXO gate (subtract 5 to get 1-4 as we're passing in an index from params that includes crow)
+        crow.ii.txo.tr(gate_out - 5, 1)
+      end
+    end
+  end
+
+  --------------------------------
+  -- Just Friends Output
+  --------------------------------  
+
+  -- Handle Just Friends if active
+  local just_friends_active = params:get("lane_" .. self.id .. "_just_friends_active")
+
+  if just_friends_active == 1 then
+    -- Convert MIDI velocity (0-127) to JF velocity (0-10V)
+    local just_friends_voice_volume = params:get("lane_" .. self.id .. "_just_friends_voice_volume")
+    local jf_velocity = (event.velocity / 127) * just_friends_voice_volume * 5
+
+    -- TODO: I'm not entirely sure why subtracting 60 bring this into a reasonable range. It's held over from previous code.
+    local adjusted_note = note - 60
+    crow.ii.jf.play_note(adjusted_note / 12, jf_velocity)
+  end
+
+  --------------------------------
+  -- w/syn Output
+  --------------------------------
+
+  local wsyn_active = params:get("lane_" .. self.id .. "_wsyn_active")
+  if wsyn_active == 1 then
+    local wsyn_volume = (event.velocity / 127) * params:get("lane_" .. self.id .. "_wsyn_voice_volume")
+    -- TODO: I'm not entirely sure why subtracting 60 bring this into a reasonable range. It's held over from previous code.
+    local adjusted_note = note - 60
+    crow.ii.wsyn.play_note(adjusted_note/12, wsyn_volume)
   end
 end
 

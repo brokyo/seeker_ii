@@ -175,7 +175,7 @@ function create_mx_samples_params(i)
     params:set_action("lane_" .. i .. "_mx_samples_active", function(value)
         if value == 1 then
             _seeker.lanes[i].mx_samples_active = true
-        end            -- Update lane section if it's currently showing this lane
+        end
 
         if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
             _seeker.ui_state.get_focused_lane() == i then
@@ -291,6 +291,20 @@ function create_midi_params(i)
         if value == 1 then
             _seeker.lanes[i].midi_active = true
         end
+
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+            _seeker.ui_state.get_focused_lane() == i then
+            _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
+
+    -- MIDI voice volume
+    params:add_control("lane_" .. i .. "_midi_voice_volume", "MIDI Volume", controlspec.new(0, 1, 'lin', 0.02, 1, ""))
+    params:set_action("lane_" .. i .. "_midi_voice_volume", function(value)
+        if _seeker.lanes[i] then
+            _seeker.lanes[i].midi_voice_volume = value
+        end
     end)
 
     local device_names = {"none"}
@@ -314,6 +328,12 @@ function create_crow_txo_params(i)
     params:set_action("lane_" .. i .. "_eurorack_active", function(value)
         if value == 1 then
             _seeker.lanes[i].eurorack_active = true
+        end
+
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+            _seeker.ui_state.get_focused_lane() == i then
+            _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+            _seeker.screen_ui.set_needs_redraw()
         end
     end)
 
@@ -342,6 +362,12 @@ function create_just_friends_params(i)
         else
             crow.ii.jf.mode(0)
         end
+
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+        _seeker.ui_state.get_focused_lane() == i then
+        _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+        _seeker.screen_ui.set_needs_redraw()
+        end
     end)
     -- Voice volume
     params:add_control("lane_" .. i .. "_just_friends_voice_volume", "Voice Volume",
@@ -353,10 +379,15 @@ function create_just_friends_params(i)
     end)
 end
 
-function create_w_syn_params(i)
+function create_wsyn_params(i)
     -- Add w/ synth mode
-    params:add_binary("lane_" .. i .. "_w_synth_active", "w/ FM Synth Active", "toggle", 0)
-    params:set_action("lane_" .. i .. "_w_synth_active", function(value)
+    params:add_binary("lane_" .. i .. "_wsyn_active", "w/Synth Active", "toggle", 0)
+    params:set_action("lane_" .. i .. "_wsyn_active", function(value)
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+        _seeker.ui_state.get_focused_lane() == i then
+        _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+        _seeker.screen_ui.set_needs_redraw()
+        end
     end)
 
     -- Voice volume
@@ -377,38 +408,50 @@ function create_w_syn_params(i)
         end
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_curve", "Curve", controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:add_control("lane_" .. i .. "_wsyn_curve", "Curve", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
     params:set_action("lane_" .. i .. "_wsyn_curve", function(value)
         crow.ii.wsyn.curve(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_ramp", "Ramp", controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:add_control("lane_" .. i .. "_wsyn_ramp", "Ramp", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
     params:set_action("lane_" .. i .. "_wsyn_ramp", function(value)
         crow.ii.wsyn.ramp(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_index", "FM Index", controlspec.new(0, 5, 'lin', 0.1, 0, "", 0.1))
+    params:add_control("lane_" .. i .. "_wsyn_fm_index", "FM Index", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
     params:set_action("lane_" .. i .. "_wsyn_fm_index", function(value)
         crow.ii.wsyn.fm_index(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_env", "FM Env", controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:add_control("lane_" .. i .. "_wsyn_fm_env", "FM Env", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
     params:set_action("lane_" .. i .. "_wsyn_fm_env", function(value)
         crow.ii.wsyn.fm_env(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_ratio", "FM Ratio", controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
-    params:set_action("lane_" .. i .. "_wsyn_fm_ratio", function(value)
-        crow.ii.wsyn.fm_ratio(value)
+    -- Add numerator and denominator parameters
+    params:add_number("lane_" .. i .. "_wsyn_fm_ratio_num", "FM Ratio Numerator", 1, 16, 1)
+    params:set_action("lane_" .. i .. "_wsyn_fm_ratio_num", function(numerator)
+        if _seeker.lanes[i] then
+            local denominator = params:get("lane_" .. i .. "_wsyn_fm_ratio_denom")
+            crow.ii.wsyn.fm_ratio(numerator, denominator)
+        end
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_lpg_time", "LPG Time", controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+    params:add_number("lane_" .. i .. "_wsyn_fm_ratio_denom", "FM Ratio Denominator", 1, 16, 1)
+    params:set_action("lane_" .. i .. "_wsyn_fm_ratio_denom", function(denominator)
+        if _seeker.lanes[i] then
+            local numerator = params:get("lane_" .. i .. "_wsyn_fm_ratio_num") 
+            crow.ii.wsyn.fm_ratio(numerator, denominator)
+        end
+    end)
+
+    params:add_control("lane_" .. i .. "_wsyn_lpg_time", "LPG Time", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
     params:set_action("lane_" .. i .. "_wsyn_lpg_time", function(value)
         crow.ii.wsyn.lpg_time(value)
     end)
 
     params:add_control("lane_" .. i .. "_wsyn_lpg_symmetry", "LPG Symmetry",
-        controlspec.new(-5, 5, 'lin', 0.1, 0, "", 0.1))
+        controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
     params:set_action("lane_" .. i .. "_wsyn_lpg_symmetry", function(value)
         crow.ii.wsyn.lpg_symmetry(value)
     end)
@@ -520,7 +563,7 @@ function init_lane_params()
         create_midi_params(i)
         create_crow_txo_params(i)
         create_just_friends_params(i)
-        create_w_syn_params(i)
+        create_wsyn_params(i)
         create_stage_tracker_params(i)
         create_motif_playback_params(i)
     end

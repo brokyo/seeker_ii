@@ -51,6 +51,7 @@ function LaneSection.new()
       
       -- Only show additional MIDI params if active
       if params:get("lane_" .. new_lane_idx .. "_midi_active") == 1 then
+        table.insert(self.params, { id = 'lane_' .. new_lane_idx .. '_midi_voice_volume', name = 'MIDI Volume' })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_midi_device", name = "MIDI Device" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_midi_channel", name = "MIDI Channel" })
       end
@@ -75,19 +76,21 @@ function LaneSection.new()
       end
     elseif visible_voice == 5 then -- w/syn
       table.insert(self.params, { separator = true, name = "w/syn" })
-      table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_w_synth_active", name = "w/syn Active" })
+      table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_active", name = "w/syn Active" })
       
       -- Only show additional w/syn params if active
-      if params:get("lane_" .. new_lane_idx .. "_w_synth_active") == 1 then
-        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_ar_mode", name = "AR Mode" })
+      if params:get("lane_" .. new_lane_idx .. "_wsyn_active") == 1 then
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_ar_mode", name = "Pluck Mode" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_voice_volume", name = "Voice Volume" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_curve", name = "Curve" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_ramp", name = "Ramp" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_index", name = "FM Index" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_env", name = "FM Env" })
-        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_ratio", name = "FM Ratio" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_ratio_num", name = "FM Ratio Numerator" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_ratio_denom", name = "FM Ratio Denominator" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_time", name = "LPG Time" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_symmetry", name = "LPG Symmetry" })
+
       end
     end
     
