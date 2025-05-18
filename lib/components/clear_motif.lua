@@ -84,8 +84,6 @@ function ClearMotif.init()
         screen.update()
     end
     
-
-
     --------------------------------
     -- Grid Overrides
     --------------------------------

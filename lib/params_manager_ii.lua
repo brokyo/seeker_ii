@@ -611,7 +611,10 @@ end
 -- New Component Approach
 local CreateMotif = include("lib/components/create_motif")
 local ClearMotif = include("lib/components/clear_motif")
+local StageConfig = include("lib/components/stage_config")
+
 CreateMotif.init().params.create()
 ClearMotif.init().params.create()
+StageConfig.init().params.create()
 
 return params_manager_ii

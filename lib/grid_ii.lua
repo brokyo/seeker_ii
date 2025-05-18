@@ -8,7 +8,6 @@ local GridConstants = include("lib/grid_constants")
 local VelocityRegion = include("lib/grid/regions/velocity_region")
 local ConfigRegion = include("lib/grid/regions/config_region")
 local LaneRegion = include("lib/grid/regions/lane_region")
-local StageRegion = include("lib/grid/regions/stage_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 local EurorackOutputRegion = include("lib/grid/regions/eurorack_output_region")
@@ -16,21 +15,21 @@ local EurorackOutputRegion = include("lib/grid/regions/eurorack_output_region")
 -- New Component Approach
 local CreateMotif = include("lib/components/create_motif")
 local ClearMotif = include("lib/components/clear_motif")
-local create_motif = CreateMotif.init()
-local clear_motif = ClearMotif.init()
+local StageConfig = include("lib/components/stage_config")
 
 -- Keep regions in their own namespace
 local regions = {
   velocity = VelocityRegion,
   config = ConfigRegion,
   lane = LaneRegion,
-  stage = StageRegion,
   motif = MotifRegion,
   tuning = TuningRegion,
   eurorack_output = EurorackOutputRegion,
+
   -- Components
-  create_motif = create_motif.grid,
-  clear_motif = clear_motif.grid,
+  create_motif = CreateMotif.init().grid,
+  clear_motif = ClearMotif.init().grid,
+  stage_config = StageConfig.init().grid,
 }
 
 GridUI.layers = nil
@@ -87,7 +86,6 @@ function draw_controls()
   -- Draw all regions using local regions table
   regions.config.draw(GridUI.layers)
   regions.lane.draw(GridUI.layers)
-  regions.stage.draw(GridUI.layers)
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
   regions.tuning.draw(GridUI.layers)
@@ -96,6 +94,7 @@ function draw_controls()
   -- Components
   regions.create_motif:draw(GridUI.layers)
   regions.clear_motif:draw(GridUI.layers)
+  regions.stage_config:draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -214,12 +213,6 @@ function GridUI.key(x, y, z)
     -- Handle region interactions
     if regions.lane.contains(x, y) then
       regions.lane.handle_key(x, y, z)
-    elseif regions.stage.contains(x, y) then
-      regions.stage.handle_key(x, y, z)
-    elseif regions.create_motif:contains(x, y) then
-      regions.create_motif:handle_key(x, y, z)
-    elseif regions.clear_motif:contains(x, y) then
-      regions.clear_motif:handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
       regions.motif.handle_key(x, y, z)
     elseif regions.config.contains(x, y) then
@@ -230,6 +223,13 @@ function GridUI.key(x, y, z)
       regions.tuning.handle_key(x, y, z)
     elseif regions.eurorack_output.contains(x, y) then
       regions.eurorack_output.handle_key(x, y, z)
+    -- Components
+    elseif regions.create_motif:contains(x, y) then
+      regions.create_motif:handle_key(x, y, z)
+    elseif regions.clear_motif:contains(x, y) then
+      regions.clear_motif:handle_key(x, y, z)
+    elseif regions.stage_config:contains(x, y) then
+      regions.stage_config:handle_key(x, y, z)
     end
   end
 end

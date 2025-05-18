@@ -1,57 +1,132 @@
-## Creating A New UI Component
+# Creating a New Component in Seeker II
 
-### Traditional Approach (Multiple Files)
+## Overview
+Components in Seeker II are self-contained modules that can integrate with multiple parts of the system: params, screen UI, and grid UI. This guide explains how to create and integrate a new component.
 
-1. Create region in `/lib/grid/regions/[name]_region.lua`:
-   - Define `layout` with x, y, width, height
-   - Implement `contains()`, `draw()`, `handle_key()`
-   - Return the region table
+## Step 1: Create the Component File
+Create a new file in `/lib/components/[component_name].lua`:
 
-2. Create section in `/lib/ui/sections/[name]_section.lua`:
-   - Implement UI elements and parameter behavior
-   - Define section params and state
-   - Inherit from base Section class
+```lua
+-- /lib/components/[component_name].lua
+local NornsUI = include("lib/components/classes/norns_ui")
+local GridUI = include("lib/components/classes/grid_ui")
+local GridConstants = include("lib/grid_constants")
 
-3. Add to `/lib/grid_ii.lua`:
-   - Import region at top
-   - Add to `regions` table
-   - Add `draw()` call in `draw_controls()`
-   - Add condition in `GridUI.key()` handler
+local ComponentName = {}
+ComponentName.__index = ComponentName
 
-4. Add to `/lib/screen_iii.lua`:
-   - Import section at top
-   - Add to `ScreenUI.sections` table (use brackets for special characters)
+local instance = nil
 
-### New Component-Based Approach (Single File)
+function ComponentName.init()
+    if instance then return instance end
+    
+    instance = {
+        -- Params interface
+        params = {
+            create = function()
+                -- Define your params here
+                params:add_group("component_name", "COMPONENT NAME", 3)
+                -- Add your params...
+            end
+        },
 
-Create a self-contained component in `/lib/components/[name].lua`:
+        -- Screen interface
+        screen = {
+            instance = NornsUI.new({
+                id = "COMPONENT_NAME",
+                name = "Component Name",
+                description = "Component description",
+                params = {
+                    { separator = true, name = "Component Name" }
+                    -- Add your params...
+                }
+            }),
 
-1. Set up inheritance:
-   ```lua
-   local ComponentName = {}
-   ComponentName.__index = ComponentName
-   setmetatable(ComponentName, { __index = ScreenUI })
-   ```
+            build = function()
+                return instance.screen.instance
+            end
+        },
 
-2. Define interfaces in a single instance:
-   ```lua
-   instance = {
-       params = { create = function() end },
-       screen = { build = function() end },
-       grid = {
-           layout = { x, y, width, height },
-           contains = function() end,
-           draw = function() end,
-           handle_key = function() end
-       }
-   }
-   ```
+        -- Grid interface
+        grid = GridUI.new({
+            id = "COMPONENT_NAME",
+            layout = {
+                x = 1,  -- Grid position X
+                y = 1,  -- Grid position Y
+                width = 1,  -- Width in grid units
+                height = 1  -- Height in grid units
+            }
+        })
+    }
+    
+    return instance
+end
 
-3. In screen.build(), set up inheritance:
-   ```lua
-   setmetatable(screen_ui, { __index = ComponentName })
-   ```
+return ComponentName
+```
 
-4. Add to `/lib/screen_iii.lua`:
-   - Import component
-   - Add to `ScreenUI.sections` table
+## Step 2: Add to Screen UI
+In `/lib/screen_iii.lua`, add your component:
+
+1. Import at the top:
+```lua
+local ComponentName = include('lib/components/[component_name]')
+```
+
+2. Add to sections in the init function:
+```lua
+ScreenUI.sections = {
+    -- ... existing sections ...
+    COMPONENT_NAME = ComponentName.init().screen.build(),
+}
+```
+
+## Step 3: Add to Grid UI
+In `/lib/grid_ii.lua`, add your component:
+
+1. Import at the top:
+```lua
+local ComponentName = include('lib/components/[component_name]')
+```
+
+2. Add to regions table:
+```lua
+local regions = {
+    -- ... existing regions ...
+    component_name = ComponentName.init().grid,
+}
+```
+
+3. Add to draw_controls():
+```lua
+function draw_controls()
+    -- ... existing regions ...
+    regions.component_name:draw(GridUI.layers)
+end
+```
+
+4. Add to key handler:
+```lua
+function GridUI.key(x, y, z)
+    if is_in_keyboard(x, y) then
+        -- ... existing keyboard code ...
+    else
+        -- ... existing regions ...
+        elseif regions.component_name:contains(x, y) then
+            regions.component_name:handle_key(x, y, z)
+    end
+end
+```
+
+## Step 4: Add to Params Manager
+In `/lib/params_manager_ii.lua`, initialize your component's params:
+
+1. Import at the top:
+```lua
+local ComponentName = include("lib/components/[component_name]")
+```
+
+2. Add to bottom of file:
+```lua
+ComponentName.init().params.create()
+```

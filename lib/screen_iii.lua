@@ -1,7 +1,6 @@
 -- screen_iii.lua
 local ConfigSection = include('lib/ui/sections/config_section')
 local LaneSection = include('lib/ui/sections/lane_section')
-local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local TuningSection = include('lib/ui/sections/tuning_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
@@ -11,6 +10,7 @@ local ScreenSaver = include('lib/ui/screen_saver')
 -- New Component Approach
 local CreateMotif = include('lib/components/create_motif')
 local ClearMotif = include('lib/components/clear_motif')
+local StageConfig = include('lib/components/stage_config')
 
 local ScreenUI = {}
 
@@ -27,7 +27,6 @@ function ScreenUI.init()
   ScreenUI.sections = {
     CONFIG = ConfigSection.new(),
     LANE = LaneSection.new(),
-    STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
     TUNING = TuningSection.new(),
     VELOCITY = VelocitySection.new(),
@@ -36,6 +35,7 @@ function ScreenUI.init()
     -- Components
     CREATE_MOTIF = CreateMotif.init().screen.build(),
     CLEAR_MOTIF = ClearMotif.init().screen.build(),
+    STAGE_CONFIG = StageConfig.init().screen.build(),
   }
   
   ScreenSaver.init()

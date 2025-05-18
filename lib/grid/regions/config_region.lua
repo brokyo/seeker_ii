@@ -5,7 +5,7 @@ local ConfigRegion = {}
 
 ConfigRegion.layout = {
   x = 16,
-  y = 1,
+  y = 2,
   width = 1,
   height = 1
 }

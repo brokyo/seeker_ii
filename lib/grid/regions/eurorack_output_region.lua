@@ -4,8 +4,8 @@ local GridConstants = include("lib/grid_constants")
 local EurorackOutputRegion = {}
 
 EurorackOutputRegion.layout = {
-  x = 1,
-  y = 1,
+  x = 15,
+  y = 2,
   width = 1,
   height = 1
 }

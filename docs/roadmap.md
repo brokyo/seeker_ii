@@ -1,10 +1,8 @@
 ### Current Session
-- [] New component architecture
-- [] Combine record/overdub
-
+- [] Port stage to component architecture
 
 ### Near Term Priorities
-
+- [] Place config buttons in stages region
 - [] Arpeggio mode
 - [] wsyn drone mode, play mode, and pluck
 
@@ -136,3 +134,6 @@
 -- [x] Conditional display in UI
 -- [x] Ensure voice volume is appropriate used in playback (probably in motif)
 -- [x] Check volume double counting issue (probably in motif_recorder)
+- [x] New component architecture
+- [x] Combine record/overdub
+- [x] Clear motif
