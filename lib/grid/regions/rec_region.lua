@@ -145,7 +145,7 @@ function RecRegion.handle_key(x, y, z)
       _seeker.screen_ui.set_needs_redraw()
     -- If not recording and it was a long press, start recording
     elseif RecRegion:is_long_press(key_id) then
-      params:set("recording_mode", 1)
+      _seeker.motif_recorder:set_recording_mode(1)
       -- Clear the current motif from the focused lane
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local lane = _seeker.lanes[focused_lane]

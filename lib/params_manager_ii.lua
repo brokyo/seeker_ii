@@ -131,9 +131,6 @@ end
 function init_recording_params()
     params:add_group("recording", "RECORDING", 5)
 
-    -- Recording mode
-    params:add_option("recording_mode", "Recording Mode", {"New", "Overdub"}, 1)
-
     -- Quantization settings
     params:add_option("quantize_division", "Quantize Division",
         {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 2)

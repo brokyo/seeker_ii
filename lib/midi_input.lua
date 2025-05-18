@@ -54,7 +54,7 @@ function MidiInput.process_midi_event(data)
         lane:play()  -- Start playing immediately after recording
       else
         -- Start new recording
-        params:set("recording_mode", 1)
+        _seeker.motif_recorder:set_recording_mode(1)
         local focused_lane = _seeker.ui_state.get_focused_lane()
         local lane = _seeker.lanes[focused_lane]
         lane:clear()
@@ -76,7 +76,7 @@ function MidiInput.process_midi_event(data)
         if #existing_motif.events == 0 then
           print("⚠ Cannot overdub: No existing motif")
         else
-          params:set("recording_mode", 2)
+          _seeker.motif_recorder:set_recording_mode(2)
           _seeker.motif_recorder:start_recording(existing_motif)
         end
       end

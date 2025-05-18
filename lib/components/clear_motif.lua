@@ -2,14 +2,13 @@
 -- Self-contained component for the Clear Motif functionality.
 -- Allows clearing the current lane's motif with a long press
 
-local ScreenUI = include("lib/ui/screen_ui")
-local GridRegion = include("lib/grid/grid_region")
+local NornsUI = include("lib/components/classes/norns_ui")
+local GridUI = include("lib/components/classes/grid_ui")
 local GridConstants = include("lib/grid_constants")
 
 local ClearMotif = {}
 ClearMotif.__index = ClearMotif
 
--- Create a single instance that will be reused
 local instance = nil
 
 function ClearMotif.init()
@@ -25,7 +24,7 @@ function ClearMotif.init()
         
         -- Screen interface used by @screen_iii 
         screen = {
-            instance = ScreenUI.new({
+            instance = NornsUI.new({
                 id = "CLEAR_MOTIF",
                 name = "Clear Motif",
                 description = "Hold to clear the current lane's motif",
@@ -41,14 +40,15 @@ function ClearMotif.init()
         },
 
         -- Grid interface used by @grid_ii
-        grid = GridRegion.new({
+        grid = GridUI.new({
             id = "CLEAR_MOTIF",
             layout = {
-                x = 3,  -- Position next to Create Motif at x=2
+                x = 3,
                 y = 7,
                 width = 1,
                 height = 1
-            }
+            },
+            long_press_threshold = 1.0
         })
     }
     
@@ -57,7 +57,7 @@ function ClearMotif.init()
     --------------------------------
     instance.screen.instance.draw_default = function(self)
         -- Call the original draw method from ScreenUI
-        ScreenUI.draw_default(self)
+        NornsUI.draw_default(self)
         
         -- Show tooltip for clearing motif
         local tooltip
@@ -65,7 +65,7 @@ function ClearMotif.init()
         local lane = _seeker.lanes[focused_lane]
         
         if lane and lane.motif and #lane.motif.events > 0 then
-            tooltip = "✕: hold [clear]"
+            tooltip = "x: hold [clear]"
         else
             tooltip = "No motif to clear"
         end
@@ -90,7 +90,7 @@ function ClearMotif.init()
     -- Grid Overrides
     --------------------------------
     -- Change long_press_threshold because of risk of accidental clearing
-    instance.grid.LONG_PRESS_THRESHOLD = 1.5
+    instance.grid.long_press_threshold = 1.5
     
     -- Store original draw method
     local original_grid_draw = instance.grid.draw
@@ -106,7 +106,12 @@ function ClearMotif.init()
             self:draw_keyboard_outline_highlight(layers)
             
             -- Additionally draw an X pattern inside the keyboard area to indicate clearing
-            local keyboard = self.KEYBOARD_LAYOUT
+            local keyboard = {
+                upper_left_x = 6,
+                upper_left_y = 2,
+                width = 6,
+                height = 6
+            }
             
             -- Diagonal from top-left to bottom-right
             for i = 0, keyboard.width - 1 do
@@ -125,7 +130,7 @@ function ClearMotif.init()
         local key_id = string.format("%d,%d", x, y)
         
         if z == 1 then -- Key pressed
-            self:start_press(key_id)
+            self:key_down(key_id)
             _seeker.ui_state.set_current_section("CLEAR_MOTIF")
             _seeker.ui_state.set_long_press_state(true, "CLEAR_MOTIF")
             _seeker.screen_ui.set_needs_redraw()
@@ -136,20 +141,17 @@ function ClearMotif.init()
                 local lane = _seeker.lanes[focused_lane]
                 
                 if lane and lane.motif and #lane.motif.events > 0 then
-                    lane:clear()  -- Clear current motif
-                    
-                    -- Optional: add visual or audio feedback that motif was cleared
-                    -- Could flash the grid or show a message
+                    lane:clear()
                 end
                 
                 _seeker.screen_ui.set_needs_redraw()
             end
             
-            -- Always clear long press state on release
+            -- Clear long press state on release
             _seeker.ui_state.set_long_press_state(false, nil)
             _seeker.screen_ui.set_needs_redraw()
             
-            self:end_press(key_id)
+            self:key_release(key_id)
         end
     end
     

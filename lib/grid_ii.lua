@@ -10,8 +10,6 @@ local ConfigRegion = include("lib/grid/regions/config_region")
 local LaneRegion = include("lib/grid/regions/lane_region")
 local StageRegion = include("lib/grid/regions/stage_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
-local OverdubRegion = include("lib/grid/regions/overdub_region")
-local GenerateRegion = include("lib/grid/regions/generate_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 local EurorackOutputRegion = include("lib/grid/regions/eurorack_output_region")
 
@@ -28,8 +26,6 @@ local regions = {
   lane = LaneRegion,
   stage = StageRegion,
   motif = MotifRegion,
-  overdub = OverdubRegion,
-  generate = GenerateRegion,
   tuning = TuningRegion,
   eurorack_output = EurorackOutputRegion,
   -- Components
@@ -94,8 +90,6 @@ function draw_controls()
   regions.stage.draw(GridUI.layers)
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
-  regions.overdub.draw(GridUI.layers)
-  regions.generate.draw(GridUI.layers)
   regions.tuning.draw(GridUI.layers)
   regions.eurorack_output.draw(GridUI.layers)
 
@@ -226,10 +220,6 @@ function GridUI.key(x, y, z)
       regions.create_motif:handle_key(x, y, z)
     elseif regions.clear_motif:contains(x, y) then
       regions.clear_motif:handle_key(x, y, z)
-    elseif regions.generate.contains(x, y) then
-      regions.generate.handle_key(x, y, z)
-    elseif regions.overdub.contains(x, y) then
-      regions.overdub.handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
       regions.motif.handle_key(x, y, z)
     elseif regions.config.contains(x, y) then

@@ -10,13 +10,19 @@ function RecordingSection.new()
     name = "Recording",
     icon = "⏺",
     params = {
-        { id = "recording_mode", name = "Mode" },
+        { id = "mode", name = "Mode", custom = true },
         { id = "quantize_division", name = "Quantize" }
     }
   })
   setmetatable(section, RecordingSection)
 
   function section:get_param_value(param)
+    -- Handle our custom mode parameter
+    if param.id == "mode" then
+      local mode_names = {"New", "Overdub"}
+      return mode_names[_seeker.motif_recorder.recording_mode]
+    end
+    
     -- For other parameters, use default behavior
     return Section.get_param_value(self, param)
   end

@@ -3,9 +3,7 @@ local ConfigSection = include('lib/ui/sections/config_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
-local GenerateSection = include('lib/ui/sections/generate_section')
 local TuningSection = include('lib/ui/sections/tuning_section')
-local OverdubSection = include('lib/ui/sections/overdub_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
 local EurorackOutputSection = include('lib/ui/sections/eurorack_output_section')
 local ScreenSaver = include('lib/ui/screen_saver')
@@ -31,9 +29,7 @@ function ScreenUI.init()
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
-    GENERATE = GenerateSection.new(),
     TUNING = TuningSection.new(),
-    OVERDUB = OverdubSection.new(),
     VELOCITY = VelocitySection.new(),
     EURORACK_OUTPUT = EurorackOutputSection.new(),
 
@@ -49,10 +45,12 @@ function ScreenUI.init()
       if ScreenSaver.check_timeout() then
         ScreenUI.redraw()
       else
+        -- Hardcode views that should be constantly updating
         -- TODO: I may not stand behind this. Review.
-        -- Force redraw when recording or when showing active motif playhead
+        
+        -- When we have a motif or are overdubbing
         if _seeker.motif_recorder.is_recording or 
-          (_seeker.ui_state.get_current_section() == "OVERDUB" and 
+          (_seeker.ui_state.get_current_section() == "CREATE_MOTIF" and
            _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing) then
           ScreenUI.set_needs_redraw()
         end

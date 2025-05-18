@@ -8,6 +8,7 @@ MotifRecorder.__index = MotifRecorder
 
 function MotifRecorder.new()
   local m = setmetatable({}, MotifRecorder)
+  m.recording_mode = 1  -- Used to identify if it's a fresh recording or an overdub
   m:reset_state()
   return m
 end
@@ -139,14 +140,21 @@ function MotifRecorder:on_note_off(event)
   })
 end
 
+--- Set the recording mode
+-- @param mode: 1 for New, 2 for Overdub
+function MotifRecorder:set_recording_mode(mode)
+  self.recording_mode = mode
+end
+
 --- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
 function MotifRecorder:start_recording(existing_motif)
-  -- First reset all state
+  -- Reset all state
   self:reset_state()
   
   -- If overdubbing, store original duration and events
-  if params:get("recording_mode") == 2 and existing_motif then -- 2 = Overdub
+  if self.recording_mode == 2 and existing_motif then -- 2 = Overdub
+    print('we dubbing')
     self.loop_length = existing_motif.duration
     self.original_motif = existing_motif -- Store reference to original
     
@@ -180,6 +188,7 @@ function MotifRecorder:start_recording(existing_motif)
     print(string.format("⊕ Starting overdub with generation %d", self.current_generation))
   else
     -- New recording
+    print('we recording')
     self.waiting_for_first_note = true  -- Only set this for new recordings
     self.current_generation = 1
   end

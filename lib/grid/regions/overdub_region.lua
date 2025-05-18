@@ -110,7 +110,7 @@ function OverdubRegion.handle_key(x, y, z)
       if #existing_motif.events == 0 then
         print("⚠ Cannot overdub: No existing motif")
       else
-        params:set("recording_mode", 2)
+        _seeker.motif_recorder:set_recording_mode(2)
         _seeker.motif_recorder:start_recording(existing_motif)
         _seeker.screen_ui.set_needs_redraw()
       end

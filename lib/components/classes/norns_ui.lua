@@ -1,53 +1,60 @@
--- screen_ui.lua
--- Base class for Screen UI sections using singleton pattern
--- Adapted from section.lua to follow a consistent pattern with grid components
+-- norns_ui.lua
+-- Base class for Norns UI components
+-- Handles default logic. Can be overridden by individual components (see: @create_motif.lua)
 
-local ScreenUI = {}
-ScreenUI.__index = ScreenUI
+local NornsUI = {}
+NornsUI.__index = NornsUI
 
--- Constants for long press detection
-ScreenUI.LONG_PRESS_THRESHOLD = 0.5  -- Time in seconds to trigger long press
-
-function ScreenUI.new(config)
-  local screen_ui = setmetatable({}, ScreenUI)
-  screen_ui.id = config.id
-  screen_ui.name = config.name
-  screen_ui.icon = config.icon
-  screen_ui.params = config.params or {}
-  screen_ui.description = config.description or "No description available"
-  screen_ui.state = {
-    selected_index = 0,
+function NornsUI.new(config)
+  local norns_ui = setmetatable({}, NornsUI)
+  --  Base metadata properties for navigation
+  norns_ui.id = config.id
+  norns_ui.name = config.name
+  norns_ui.icon = config.icon
+  norns_ui.params = config.params or {}
+  norns_ui.description = config.description or "No description available"
+  
+  -- State properties for UI management
+  norns_ui.state = {
+    selected_index = 2,
     scroll_offset = 0,
-    is_active = false,     -- Track if section is currently active
-    showing_description = false  -- Track if we're showing the description
+    is_active = false,
+    showing_description = false
   }
   
-  -- Long press tracking
-  screen_ui.press_state = {
+  norns_ui.long_press_threshold = config.long_press_threshold or 0.5  -- Time in seconds to trigger long press
+  -- Keypress state properties for long press detection
+  norns_ui.press_state = {
     start_time = nil,
-    pressed_keys = {}  -- Track multiple simultaneous presses
+    pressed_keys = {}
   }
   
-  return screen_ui
+  return norns_ui
 end
 
+--------------------------------
 -- Long press helper functions
-function ScreenUI:start_press(key_id)
+--------------------------------
+
+-- Begins a timer on Norns key press
+function NornsUI:start_press(key_id)
   self.press_state.pressed_keys[key_id] = {
     start_time = util.time(),
     long_press_triggered = false
   }
 end
 
-function ScreenUI:end_press(key_id)
+-- Resets the timer on Norns key release
+function NornsUI:end_press(key_id)
   self.press_state.pressed_keys[key_id] = nil
 end
 
-function ScreenUI:is_long_press(key_id)
+-- Checks if the key has been pressed for longer than the threshold
+function NornsUI:is_long_press(key_id)
   local press = self.press_state.pressed_keys[key_id]
   if press then
     local elapsed = util.time() - press.start_time
-    if elapsed >= ScreenUI.LONG_PRESS_THRESHOLD and not press.long_press_triggered then
+    if elapsed >= self.long_press_threshold and not press.long_press_triggered then
       press.long_press_triggered = true
       return true
     end
@@ -55,7 +62,7 @@ function ScreenUI:is_long_press(key_id)
   return false
 end
 
-function ScreenUI:get_press_duration(key_id)
+function NornsUI:get_press_duration(key_id)
   local press = self.press_state.pressed_keys[key_id]
   if press then
     return util.time() - press.start_time
@@ -63,33 +70,32 @@ function ScreenUI:get_press_duration(key_id)
   return 0
 end
 
--- Helper function to format binary values
-function ScreenUI:format_binary_value(value)
-  if value == 1 then
-    return "true"
+--------------------------------
+-- Parameter interaction
+--------------------------------
+
+-- Used by drawing methods to display the value of a parameter on screen
+function NornsUI:get_param_value(param)
+  local param_value = nil
+
+  if param.is_custom then -- Handles custom seeker params which do not use the norns param API
+    param_value = param.value
+  elseif param.id then -- Handles norns params which use the standard API
+    param_value = params:string(param.id)
   else
-    return "false"
+    param_value = "!! Malformed param"
   end
+
+  return param_value
 end
 
-function ScreenUI:get_param_value(param)
-  if param.id then
-    local param_info = params:lookup_param(param.id)
-    if param_info.t == params.tBINARY then
-      return self:format_binary_value(params:get(param.id))
-    elseif param_info.t == params.tOPTION then
-      return param_info.options[params:get(param.id)]
-    end
-    return params:string(param.id)
-  end
-  return param.value or ""
-end
-
-function ScreenUI:modify_param(param, delta)
-  -- Check if the parameter is one of our custom cases that doesn't use the norns PARAM system
-  if param.spec then
+-- Used by encoder handling to modify the value of a parameter
+-- Forked logic based on param type
+function NornsUI:modify_param(param, delta)
+  if param.is_custom then -- Handles custom seeker params which do not use the norns param API
     if param.spec.type == "option" then
       local options = param.spec.options
+
       -- Find current index
       local current_idx = 1
       for i, opt in ipairs(options) do
@@ -98,8 +104,9 @@ function ScreenUI:modify_param(param, delta)
           break
         end
       end
+
       -- Calculate new index with wrap-around
-      local new_idx = ((current_idx - 1 + delta) % #options) + 1
+      local new_idx = util.clamp(current_idx + delta, 1, #options)
       return options[new_idx]
     elseif param.spec.type == "integer" then
       -- Handle integer parameters with min/max bounds
@@ -108,15 +115,62 @@ function ScreenUI:modify_param(param, delta)
     end
   end
   
-  -- Default implementation for norns params
+  -- Default implementation for norns params as defined in the API (https://monome.org/docs/norns/api/modules/paramset.html#delta)
   params:delta(param.id, delta)
 end
 
-function ScreenUI:draw_blinkenlights()
-  -- Temporarily disabled while we optimize screen drawing
+--------------------------------
+-- Drawing functions
+--------------------------------
+
+-- Draw consistent content (footer, params, etc) without calling screen.clear() or screen.update().
+-- Useful for components with animation (@create_motif.lua)
+function NornsUI:_draw_standard_ui()
+  -- Write description if k3 held
+  if self.state.showing_description then
+    screen.level(15)
+    -- Split description into words
+    local words = {}
+    for word in self.description:gmatch("%S+") do
+      table.insert(words, word)
+    end
+      
+    local line = ""
+    local y = 20  -- Start position
+    local x = 2   -- Left margin
+    local MAX_WIDTH = 124  -- Screen width minus margins
+    
+    for i, word in ipairs(words) do
+      local test_line = line .. (line == "" and "" or " ") .. word
+      local width = screen.text_extents(test_line)
+      
+      if width > MAX_WIDTH then
+        -- Draw current line and start new one
+        screen.move(x, y)
+        screen.text(line)
+        line = word
+        y = y + 11  -- Line height
+      else
+        -- Add word to current line
+        line = test_line
+      end
+    end
+    
+    -- Draw final line
+    if line ~= "" then
+      screen.move(x, y)
+      screen.text(line)
+    end
+  -- Otherwise draw footer and params
+  else 
+    self:draw_footer()
+    if #self.params > 0 then
+      self:draw_params(0)
+    end
+  end
 end
 
-function ScreenUI:draw_footer()
+function NornsUI:draw_footer()
   -- Draw footer background
   screen.level(8)
   screen.rect(0, 52, 128, 12)
@@ -132,20 +186,18 @@ function ScreenUI:draw_footer()
   local stage_idx = _seeker.ui_state.get_focused_stage()
   local info_text = string.format("L%d", lane_idx)
   
-  -- Calculate position to be right-aligned with some padding from blinkenlights
+  -- Calculate position to be right-aligned
   local SCREEN_WIDTH = 128
-  local PADDING = 6  -- Leave space for blinkenlights
+  local PADDING = 6
   local text_width = screen.text_extents(info_text)
   local x = SCREEN_WIDTH - PADDING - text_width
   
   screen.level(0)
   screen.move(x, 60)
   screen.text(info_text)
-  
-  self:draw_blinkenlights()
 end
 
-function ScreenUI:draw_params(start_y)
+function NornsUI:draw_params(start_y)
   local FOOTER_Y = 52
   local ITEM_HEIGHT = 10
   local visible_height = FOOTER_Y - start_y
@@ -206,61 +258,26 @@ function ScreenUI:draw_params(start_y)
   end
 end
 
-function ScreenUI:draw_default()
+function NornsUI:draw_default()
   screen.clear()
-  
-  if self.state.showing_description then
-    -- Draw description with manual text wrapping
-    screen.level(15)
-    
-    -- Split description into words
-    local words = {}
-    for word in self.description:gmatch("%S+") do
-      table.insert(words, word)
-    end
-    
-    local line = ""
-    local y = 20  -- Start position
-    local x = 2   -- Left margin
-    local MAX_WIDTH = 124  -- Screen width minus margins
-    
-    for i, word in ipairs(words) do
-      local test_line = line .. (line == "" and "" or " ") .. word
-      local width = screen.text_extents(test_line)
-      
-      if width > MAX_WIDTH then
-        -- Draw current line and start new one
-        screen.move(x, y)
-        screen.text(line)
-        line = word
-        y = y + 11  -- Line height
-      else
-        -- Add word to current line
-        line = test_line
-      end
-    end
-    
-    -- Draw final line
-    if line ~= "" then
-      screen.move(x, y)
-      screen.text(line)
-    end
-  else
-    self:draw_footer()
-    if #self.params > 0 then
-      self:draw_params(0)
-    end
-  end
-  
+  self:_draw_standard_ui()
   screen.update()
 end
 
-function ScreenUI:handle_enc_default(n, d)
+function NornsUI:draw()
+  self:draw_default()
+end
+
+--------------------------------
+-- Norns button/encoder handling
+--------------------------------
+
+function NornsUI:handle_enc_default(n, d)
   if n == 2 then
-    -- Navigate parameters
+    -- NB: Starts from index 2 since index 1 is always a separator
     local new_index = util.clamp(
       self.state.selected_index + d,
-      0,
+      2,
       #self.params
     )
     
@@ -290,19 +307,16 @@ function ScreenUI:handle_enc_default(n, d)
   end
 end
 
-function ScreenUI:draw()
-  self:draw_default()
-end
-
-function ScreenUI:handle_enc(n, d)
+function NornsUI:handle_enc(n, d)
   self:handle_enc_default(n, d)
 end
 
-function ScreenUI:handle_key(n, z)
+function NornsUI:handle_key(n, z)
+  -- Toggle description display on K2 press/release
   if n == 2 then
-    -- Toggle description display on K2 press/release
     self.state.showing_description = (z == 1)
-  -- Handle K3 press for action items
+
+    -- Handle K3 press for action items
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self.params[self.state.selected_index]
     if param.action then
@@ -311,29 +325,28 @@ function ScreenUI:handle_key(n, z)
   end
 end
 
-function ScreenUI:handle_grid_key(x, y, z)
-  -- Default implementation does nothing
-end
+--------------------------------
+-- Lifecycle Methods
+--------------------------------
 
--- Lifecycle Methods --
-
-function ScreenUI:enter()
+function NornsUI:enter()
   -- Called when section becomes active
   self.state.is_active = true
 
   -- Get the number of params (and their type) to send to Arc
+  -- TODO: This is a bit of a hack. There should probably be a new_section method and update_params method on Arc.
   _seeker.arc.new_section(self.params)
 
   self:update()
 end
 
-function ScreenUI:exit()
+function NornsUI:exit()
   -- Called when leaving this section
   self.state.is_active = false
 end
 
-function ScreenUI:update()
-  -- Override in child classes to update section state
+function NornsUI:update()
+  -- Override in child classes to update section state/handle dynamic params
 end
 
-return ScreenUI 
+return NornsUI 
