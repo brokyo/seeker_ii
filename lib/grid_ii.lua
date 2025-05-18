@@ -11,10 +11,15 @@ local LaneRegion = include("lib/grid/regions/lane_region")
 local StageRegion = include("lib/grid/regions/stage_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local OverdubRegion = include("lib/grid/regions/overdub_region")
-local RecRegion = include("lib/grid/regions/rec_region")
 local GenerateRegion = include("lib/grid/regions/generate_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 local EurorackOutputRegion = include("lib/grid/regions/eurorack_output_region")
+
+-- New Component Approach
+local CreateMotif = include("lib/components/create_motif")
+local ClearMotif = include("lib/components/clear_motif")
+local create_motif = CreateMotif.init()
+local clear_motif = ClearMotif.init()
 
 -- Keep regions in their own namespace
 local regions = {
@@ -24,10 +29,12 @@ local regions = {
   stage = StageRegion,
   motif = MotifRegion,
   overdub = OverdubRegion,
-  rec = RecRegion,
   generate = GenerateRegion,
   tuning = TuningRegion,
-  eurorack_output = EurorackOutputRegion
+  eurorack_output = EurorackOutputRegion,
+  -- Components
+  create_motif = create_motif.grid,
+  clear_motif = clear_motif.grid,
 }
 
 GridUI.layers = nil
@@ -88,10 +95,13 @@ function draw_controls()
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
   regions.overdub.draw(GridUI.layers)
-  regions.rec.draw(GridUI.layers)
   regions.generate.draw(GridUI.layers)
   regions.tuning.draw(GridUI.layers)
   regions.eurorack_output.draw(GridUI.layers)
+
+  -- Components
+  regions.create_motif:draw(GridUI.layers)
+  regions.clear_motif:draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -212,8 +222,10 @@ function GridUI.key(x, y, z)
       regions.lane.handle_key(x, y, z)
     elseif regions.stage.contains(x, y) then
       regions.stage.handle_key(x, y, z)
-    elseif regions.rec.contains(x, y) then
-      regions.rec.handle_key(x, y, z)
+    elseif regions.create_motif:contains(x, y) then
+      regions.create_motif:handle_key(x, y, z)
+    elseif regions.clear_motif:contains(x, y) then
+      regions.clear_motif:handle_key(x, y, z)
     elseif regions.generate.contains(x, y) then
       regions.generate.handle_key(x, y, z)
     elseif regions.overdub.contains(x, y) then

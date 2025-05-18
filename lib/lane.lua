@@ -394,7 +394,6 @@ end
 function Lane:on_note_on(event)
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
-  print(note)
   if event.is_playback then
     -- This is a playback event, apply offsets that come from `MotifSection`
     local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12

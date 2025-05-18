@@ -429,7 +429,7 @@ function create_wsyn_params(i)
     end)
 
     -- Add numerator and denominator parameters
-    params:add_number("lane_" .. i .. "_wsyn_fm_ratio_num", "FM Ratio Numerator", 1, 16, 1)
+    params:add_control("lane_" .. i .. "_wsyn_fm_ratio_num", "FM Ratio Numerator", controlspec.new(0.01, 1, 'lin', 0.01, 0.5))
     params:set_action("lane_" .. i .. "_wsyn_fm_ratio_num", function(numerator)
         if _seeker.lanes[i] then
             local denominator = params:get("lane_" .. i .. "_wsyn_fm_ratio_denom")
@@ -437,7 +437,7 @@ function create_wsyn_params(i)
         end
     end)
 
-    params:add_number("lane_" .. i .. "_wsyn_fm_ratio_denom", "FM Ratio Denominator", 1, 16, 1)
+    params:add_control("lane_" .. i .. "_wsyn_fm_ratio_denom", "FM Ratio Denominator", controlspec.new(0.01, 1, 'lin', 0.01, 0.5))
     params:set_action("lane_" .. i .. "_wsyn_fm_ratio_denom", function(denominator)
         if _seeker.lanes[i] then
             local numerator = params:get("lane_" .. i .. "_wsyn_fm_ratio_num") 
@@ -610,5 +610,11 @@ function params_manager_ii.init_params()
     -- Add MIDI input parameters
     add_midi_input_params()
 end
+
+-- New Component Approach
+local CreateMotif = include("lib/components/create_motif")
+local ClearMotif = include("lib/components/clear_motif")
+CreateMotif.init().params.create()
+ClearMotif.init().params.create()
 
 return params_manager_ii

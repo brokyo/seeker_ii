@@ -7,7 +7,7 @@ OverdubRegion.__index = OverdubRegion
 
 OverdubRegion.layout = {
   x = 4,  -- Taking over play region's position
-  y = 7,
+  y = 8,
   width = 1,
   height = 1
 }

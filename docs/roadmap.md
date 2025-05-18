@@ -1,15 +1,20 @@
 ### Current Session
-- [] Lane Voice Improvements
--- [x] Add volume per voice
--- [x] Conditional display in UI
--- [] Ensure voice volume is appropriate used in playback (probably in motif)
--- [] Check volume double counting issue (probably in motif_recorder)
+- [] New component architecture
+- [] Combine record/overdub
+
 
 ### Near Term Priorities
-- [] More motif playback speed options
+
+- [] Arpeggio mode
+- [] wsyn drone mode, play mode, and pluck
+
 ### Bugs
 
 ### Long List
+- [] Knob Recorder
+- [] Static voltage outage
+- [] Knob recorder
+- [] More motif playback speed options
 - [] Custom params with options wrap around. They should be bounded.
 - [] Better fundamental generator.
 - [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
@@ -126,3 +131,8 @@
 - [x] Eurorack Control Menu
 -- [x] Crow CV/Gate Options
 -- [x] TXO CV/Gate Options
+- [x] Lane Voice Improvements
+-- [x] Add volume per voice
+-- [x] Conditional display in UI
+-- [x] Ensure voice volume is appropriate used in playback (probably in motif)
+-- [x] Check volume double counting issue (probably in motif_recorder)

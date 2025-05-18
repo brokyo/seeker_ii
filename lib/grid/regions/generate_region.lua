@@ -8,7 +8,7 @@ GenerateRegion.__index = GenerateRegion
 
 GenerateRegion.layout = {
   x = 2,
-  y = 7,
+  y = 8,
   width = 1,
   height = 1
 }

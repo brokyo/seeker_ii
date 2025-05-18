@@ -1,6 +1,5 @@
 -- screen_iii.lua
 local ConfigSection = include('lib/ui/sections/config_section')
-local RecSection = include('lib/ui/sections/rec_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local StageSection = include('lib/ui/sections/stage_section')
 local MotifSection = include('lib/ui/sections/motif_section')
@@ -10,6 +9,10 @@ local OverdubSection = include('lib/ui/sections/overdub_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
 local EurorackOutputSection = include('lib/ui/sections/eurorack_output_section')
 local ScreenSaver = include('lib/ui/screen_saver')
+
+-- New Component Approach
+local CreateMotif = include('lib/components/create_motif')
+local ClearMotif = include('lib/components/clear_motif')
 
 local ScreenUI = {}
 
@@ -25,7 +28,6 @@ function ScreenUI.init()
   -- Initialize sections
   ScreenUI.sections = {
     CONFIG = ConfigSection.new(),
-    RECORDING = RecSection.new(),
     LANE = LaneSection.new(),
     STAGE = StageSection.new(),
     MOTIF = MotifSection.new(),
@@ -33,7 +35,11 @@ function ScreenUI.init()
     TUNING = TuningSection.new(),
     OVERDUB = OverdubSection.new(),
     VELOCITY = VelocitySection.new(),
-    EURORACK_OUTPUT = EurorackOutputSection.new()
+    EURORACK_OUTPUT = EurorackOutputSection.new(),
+
+    -- Components
+    CREATE_MOTIF = CreateMotif.init().screen.build(),
+    CLEAR_MOTIF = ClearMotif.init().screen.build(),
   }
   
   ScreenSaver.init()
