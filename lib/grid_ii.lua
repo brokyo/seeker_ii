@@ -17,6 +17,7 @@ local CreateMotif = include("lib/components/create_motif")
 local ClearMotif = include("lib/components/clear_motif")
 local StageConfig = include("lib/components/stage_config")
 
+
 -- Keep regions in their own namespace
 local regions = {
   velocity = VelocityRegion,
@@ -30,6 +31,9 @@ local regions = {
   create_motif = CreateMotif.init().grid,
   clear_motif = ClearMotif.init().grid,
   stage_config = StageConfig.init().grid,
+
+  -- New New Component Approach
+  wtape = nil
 }
 
 GridUI.layers = nil
@@ -61,7 +65,9 @@ function GridUI.init()
   -- Initialize grid animation system
   GridUI.layers = GridLayers.init()
   GridAnimations.init(g)
-    
+
+  -- Initialize components
+  regions.wtape = _seeker.w_tape.grid
   return GridUI
 end
 
@@ -95,6 +101,9 @@ function draw_controls()
   regions.create_motif:draw(GridUI.layers)
   regions.clear_motif:draw(GridUI.layers)
   regions.stage_config:draw(GridUI.layers)
+
+  -- New New Component Approach
+  regions.wtape:draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -230,6 +239,10 @@ function GridUI.key(x, y, z)
       regions.clear_motif:handle_key(x, y, z)
     elseif regions.stage_config:contains(x, y) then
       regions.stage_config:handle_key(x, y, z)
+
+      -- New New Component Approach
+    elseif regions.wtape:contains(x, y) then  
+      regions.wtape:handle_key(x, y, z)
     end
   end
 end

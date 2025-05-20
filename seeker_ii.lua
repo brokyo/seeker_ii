@@ -18,6 +18,9 @@ local MotifRecorder = include("lib/motif_recorder")
 local MidiInput = include("lib/midi_input")
 local Arc = include("lib/arc")
 
+-- Components
+local WTape = include("lib/components/w_tape")
+
 -- Global state
 _seeker = {
   skeys = nil,
@@ -33,7 +36,10 @@ _seeker = {
   midi_input = nil,
   arc = nil,
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
-  velocity = 3  -- Default to f
+  velocity = 3,
+
+  -- Component Approach
+  w_tape = nil
 }
 
 --------------------------------------------------
@@ -46,6 +52,9 @@ function init()
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
     
+  -- Initialize components
+  _seeker.w_tape = WTape.init()
+
   -- UI Setup and global access
   _seeker.ui_state = ui_state.init()
   params_manager.init_params()  

@@ -36,6 +36,9 @@ function ScreenUI.init()
     CREATE_MOTIF = CreateMotif.init().screen.build(),
     CLEAR_MOTIF = ClearMotif.init().screen.build(),
     STAGE_CONFIG = StageConfig.init().screen.build(),
+
+    -- New New Component Approach
+    WTAPE = _seeker.w_tape.screen
   }
   
   ScreenSaver.init()

@@ -5,6 +5,11 @@ local musicutil = require('musicutil')
 local theory = include('lib/theory_utils')
 local transforms = include('lib/transforms')
 
+-- New Component Approach
+local CreateMotif = include("lib/components/create_motif")
+local ClearMotif = include("lib/components/clear_motif")
+local StageConfig = include("lib/components/stage_config")
+
 -- Get sorted list of available instruments
 function params_manager_ii.get_instrument_list()
     local instruments = {}
@@ -604,17 +609,13 @@ function params_manager_ii.init_params()
     init_recording_params()
     init_lane_params()
 
+    -- Initialize components
+    CreateMotif.init().params.create()
+    ClearMotif.init().params.create()
+    StageConfig.init().params.create()
+    
     -- Add MIDI input parameters
     add_midi_input_params()
 end
-
--- New Component Approach
-local CreateMotif = include("lib/components/create_motif")
-local ClearMotif = include("lib/components/clear_motif")
-local StageConfig = include("lib/components/stage_config")
-
-CreateMotif.init().params.create()
-ClearMotif.init().params.create()
-StageConfig.init().params.create()
 
 return params_manager_ii

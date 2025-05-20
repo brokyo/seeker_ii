@@ -11,7 +11,8 @@ function NornsUI.new(config)
   norns_ui.id = config.id
   norns_ui.name = config.name
   norns_ui.icon = config.icon
-  norns_ui.params = config.params or {}
+  norns_ui.params = config.params
+  norns_ui.active_params = config.active_params
   norns_ui.description = config.description or "No description available"
   
   -- State properties for UI management
@@ -74,23 +75,74 @@ end
 -- Parameter interaction
 --------------------------------
 
--- Used by drawing methods to display the value of a parameter on screen
-function NornsUI:get_param_value(param)
-  local param_value = nil
-
-  if param.is_custom then -- Handles custom seeker params which do not use the norns param API
-    param_value = param.value
-  elseif param.id then -- Handles norns params which use the standard API
-    param_value = params:string(param.id)
-  else
-    param_value = "!! Malformed param"
+function NornsUI:evaluate_condition(condition)
+  if not condition then
+    return true
   end
+
+  for _, viz_check in ipairs(condition) do
+    -- TODO: params:string "Returns the string associated with the current value for a given parameter’s id" 
+    -- Will this work for number param types?
+    local actual_value = params:string(viz_check.id)
+    local test_value = viz_check.value
+
+    if viz_check.operator == ">" then
+      if actual_value > test_value then
+        return true
+      end
+    elseif viz_check.operator == "<" then
+      if actual_value < test_value then
+        return true
+      end
+    elseif viz_check.operator == "=" then
+      if actual_value == test_value then
+        return true
+      end
+    elseif viz_check.operator == "!=" then
+      if actual_value ~= test_value then
+        return true
+      end
+    else
+      return false
+    end
+  end
+  
+end
+
+-- Used in components to update dynamic parameter lists
+-- Result of conditional logic about params (see: @wtape.lua)
+function NornsUI:filter_active_params()
+  -- Reset the active params array
+  self.active_params = {}
+
+  -- Iterate through all potential params
+  for _, potential_param in ipairs(self.params) do
+    -- Always show separators and params with no conditions
+    if potential_param.separator or not potential_param.view_conditions then
+      table.insert(self.active_params, potential_param)
+    else
+      -- Insert param if it's passes the visibility check
+      local is_visible = self:evaluate_condition(potential_param.view_conditions)
+      if is_visible then
+        table.insert(self.active_params, potential_param)
+      end
+    end
+  end
+end
+
+
+-- Used by drawing methods to display the value of a parameter on screen
+-- This exists because we may eventually have custom parameters that need a conditional tree
+function NornsUI:get_param_value(param)
+  local param_value = params:string(param.id)
 
   return param_value
 end
 
 -- Used by encoder handling to modify the value of a parameter
 -- Forked logic based on param type
+
+-- TODO: I think I can get rid of all is_custom logic
 function NornsUI:modify_param(param, delta)
   if param.is_custom then -- Handles custom seeker params which do not use the norns param API
     if param.spec.type == "option" then
@@ -202,15 +254,18 @@ function NornsUI:draw_params(start_y)
   local ITEM_HEIGHT = 10
   local visible_height = FOOTER_Y - start_y
   local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
-  
+ 
+  -- Filter active_params table to only show params that pass the conditional check
+  self:filter_active_params()
+
   -- Ensure scroll offset stays in valid range
-  local max_scroll = math.max(0, #self.params - max_visible_items)
+  local max_scroll = math.max(0, #self.active_params - max_visible_items)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
   
-  -- Draw visible parameters
-  for i = 1, math.min(max_visible_items, #self.params) do
+  -- Draw visible, active parameters
+  for i = 1, math.min(max_visible_items, #self.active_params) do
     local param_idx = i + self.state.scroll_offset
-    local param = self.params[param_idx]
+    local param = self.active_params[param_idx]
     if param then
       local y = start_y + (i * ITEM_HEIGHT)
       local is_selected = self.state.selected_index == param_idx
@@ -219,11 +274,16 @@ function NornsUI:draw_params(start_y)
         -- Draw separator
         screen.level(4)
         screen.move(2, y)
-        screen.text(param.name)
+        screen.text(param.title)
         screen.move(2, y + 1)
         screen.line(126, y + 1)
         screen.stroke()
       else
+        -- Get param metadata using Norns paramset api
+        local param_base = params:lookup_param(param.id)
+        local param_name = param_base.name
+        local param_value = params:string(param.id)
+
         -- Draw normal parameter
         if is_selected then
           screen.level(2)
@@ -234,13 +294,12 @@ function NornsUI:draw_params(start_y)
         -- Parameter name
         screen.level(is_selected and 15 or 4)
         screen.move(2, y)
-        screen.text(param.name)
+        screen.text(param_name)
         
         -- Parameter value (right-aligned)
-        local value = self:get_param_value(param)
-        local value_x = 120 - screen.text_extents(value)
+        local value_x = 120 - screen.text_extents(param_value)
         screen.move(value_x, y)
-        screen.text(value)
+        screen.text(param_value)
       end
     end
   end

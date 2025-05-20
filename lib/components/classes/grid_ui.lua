@@ -26,7 +26,7 @@ function GridUI.new(config)
         pressed_keys = {},
         flash_until = nil  -- For visual feedback
     }
-    
+
     return grid_ui
 end
 

@@ -169,6 +169,11 @@ function Arc.init()
     end
 
     local function update_number_ring(current_pos, min, max)
+      -- Ensure all values are numbers
+      current_pos = tonumber(current_pos)
+      min = tonumber(min)
+      max = tonumber(max)
+
       -- Translate position to LED index
       local led_starting_point = math.floor((current_pos * 64) / (max - min))
 
@@ -182,6 +187,12 @@ function Arc.init()
     end
 
     local function update_stepped_number_ring(current_pos, min, max, step)
+      -- Ensure all values are numbers
+      current_pos = tonumber(current_pos)
+      min = tonumber(min)
+      max = tonumber(max)
+      step = tonumber(step)
+
       -- Calculate total number of steps
       local num_steps = math.floor((max - min) / step)
       
