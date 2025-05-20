@@ -33,8 +33,12 @@ function CreateMotif.init()
                 name = "Create Motif",
                 description = "Motif creation methods. Change type to play live, create arpeggios, or generate automatically",
                 params = {
-                    { separator = true, name = "Create Motif" },
+                    { separator = true, title = "Create Motif" },
                     { id = "create_motif_type", name = "Motif Type" }
+                },
+                active_params = {
+                    { separator = true, title = "Create Motif" },
+                    { id = "create_motif_type" }
                 }
             }),
             

@@ -12,7 +12,7 @@ function NornsUI.new(config)
   norns_ui.name = config.name
   norns_ui.icon = config.icon
   norns_ui.params = config.params
-  norns_ui.active_params = config.active_params
+  norns_ui.active_params = {}
   norns_ui.description = config.description or "No description available"
   
   -- State properties for UI management

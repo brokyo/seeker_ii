@@ -63,10 +63,6 @@ function create_screen_ui()
             { id = "wtape_play_direction", name = "Play Direction", view_conditions = {
                 { id = "wtape_active", operator = "=", value = "True"}
             }}
-        },
-        active_params = {
-            { separator = true, title = "WTape" },
-            { id = "wtape_active" }
         }
     })
 end

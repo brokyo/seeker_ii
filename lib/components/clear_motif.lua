@@ -29,7 +29,7 @@ function ClearMotif.init()
                 name = "Clear Motif",
                 description = "Hold to clear the current lane's motif",
                 params = {
-                    { separator = true, name = "Clear Motif" }
+                    { separator = true, title = "Clear Motif" }
                 }
             }),
             
