@@ -7,13 +7,58 @@ UIState.state = {
   focused_stage = 1,
   current_section = "LANE",
   last_action_time = util.time(),
-  long_press_in_progress = false,  -- Track if we're in a long press
-  long_press_section = nil         -- Which section is being long pressed
+  long_press_in_progress = false,
+  long_press_section = nil,
+  recently_triggered = {},
+  trigger_clocks = {}
 }
+
+-- Constants
+UIState.TRIGGER_VISUAL_DURATION = 0.5 -- Duration in seconds to show trigger feedback
 
 function UIState.init()
   print("⎍ UI state tracking")
   return UIState
+end
+
+-- Methods for global trigger state tracking
+function UIState.trigger_activated(param_id)
+  -- Cancel any existing cleanup clock for this parameter
+  if UIState.state.trigger_clocks[param_id] then
+    clock.cancel(UIState.state.trigger_clocks[param_id])
+  end
+  
+  -- Record activation time
+  UIState.state.recently_triggered[param_id] = util.time()
+  
+  -- Schedule cleanup at exact expiration time
+  UIState.state.trigger_clocks[param_id] = clock.run(function()
+    -- Sleep exactly the visual duration
+    clock.sleep(UIState.TRIGGER_VISUAL_DURATION)
+    
+    -- Remove the trigger state
+    UIState.state.recently_triggered[param_id] = nil
+    UIState.state.trigger_clocks[param_id] = nil
+    
+    -- Request redraw if available
+    if _seeker and _seeker.screen_ui then
+      _seeker.screen_ui.set_needs_redraw()
+    end
+  end)
+  
+  -- Request immediate redraw to show the activated trigger
+  if _seeker and _seeker.screen_ui then
+    _seeker.screen_ui.set_needs_redraw()
+  end
+  
+  -- Trigger arc animation if arc is available
+  if _seeker and _seeker.arc and _seeker.arc.animate_trigger then
+    _seeker.arc.animate_trigger(param_id)
+  end
+end
+
+function UIState.is_recently_triggered(param_id)
+  return UIState.state.recently_triggered[param_id] ~= nil
 end
 
 function UIState.set_focused_lane(lane_idx)

@@ -81,7 +81,7 @@ function NornsUI:evaluate_condition(condition)
   end
 
   for _, viz_check in ipairs(condition) do
-    -- TODO: params:string "Returns the string associated with the current value for a given parameter’s id" 
+    -- TODO: params:string "Returns the string associated with the current value for a given parameter's id" 
     -- Will this work for number param types?
     local actual_value = params:string(viz_check.id)
     local test_value = viz_check.value
@@ -134,7 +134,13 @@ end
 -- Used by drawing methods to display the value of a parameter on screen
 -- This exists because we may eventually have custom parameters that need a conditional tree
 function NornsUI:get_param_value(param)
-  local param_value = params:string(param.id)
+  local param_value = nil
+
+  if param.is_action then
+    param_value = "○"
+  else
+    param_value = params:string(param.id)
+  end
 
   return param_value
 end
@@ -144,26 +150,33 @@ end
 
 -- TODO: I think I can get rid of all is_custom logic
 function NornsUI:modify_param(param, delta)
-  if param.is_custom then -- Handles custom seeker params which do not use the norns param API
-    if param.spec.type == "option" then
-      local options = param.spec.options
+  -- if param.is_custom then -- Handles custom seeker params which do not use the norns param API
+  --   if param.spec.type == "option" then
+  --     local options = param.spec.options
 
-      -- Find current index
-      local current_idx = 1
-      for i, opt in ipairs(options) do
-        if opt == param.value then
-          current_idx = i
-          break
-        end
-      end
+  --     -- Find current index
+  --     local current_idx = 1
+  --     for i, opt in ipairs(options) do
+  --       if opt == param.value then
+  --         current_idx = i
+  --         break
+  --       end
+  --     end
 
-      -- Calculate new index with wrap-around
-      local new_idx = util.clamp(current_idx + delta, 1, #options)
-      return options[new_idx]
-    elseif param.spec.type == "integer" then
-      -- Handle integer parameters with min/max bounds
-      local new_value = param.value + delta
-      return util.clamp(new_value, param.spec.min, param.spec.max)
+  --     -- Calculate new index with wrap-around
+  --     local new_idx = util.clamp(current_idx + delta, 1, #options)
+  --     return options[new_idx]
+  --   elseif param.spec.type == "integer" then
+  --     -- Handle integer parameters with min/max bounds
+  --     local new_value = param.value + delta
+  --     return util.clamp(new_value, param.spec.min, param.spec.max)
+  --   end
+  -- end
+
+  if param.is_action then
+    -- Only allow action triggers through button press, not encoder
+    if delta ~= 1 then
+      return
     end
   end
   
@@ -284,6 +297,23 @@ function NornsUI:draw_params(start_y)
         local param_name = param_base.name
         local param_value = params:string(param.id)
 
+        -- Overwrite displayed param value if it's a toggle or trigger
+        if param_base.behavior == "toggle" then
+          if param_value == 0 then
+            param_value = "○"
+          else 
+            param_value = "◆"
+          end
+        elseif param_base.behavior == "trigger" then
+          local recently_triggered = _seeker.ui_state.is_recently_triggered(param.id)
+          
+          if recently_triggered then
+            param_value = "✓"
+          else
+            param_value = "␣"
+          end
+        end
+
         -- Draw normal parameter
         if is_selected then
           screen.level(2)
@@ -371,6 +401,7 @@ function NornsUI:handle_enc(n, d)
 end
 
 function NornsUI:handle_key(n, z)
+
   -- Toggle description display on K2 press/release
   if n == 2 then
     self.state.showing_description = (z == 1)
@@ -378,7 +409,7 @@ function NornsUI:handle_key(n, z)
     -- Handle K3 press for action items
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self.params[self.state.selected_index]
-    if param.action then
+    if param.is_action then
       self:modify_param(param, 1)
     end
   end

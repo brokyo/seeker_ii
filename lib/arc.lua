@@ -70,8 +70,8 @@ function Arc.init()
       if device.skip_current_section then return end
       
       -- Register activity to wake screen/restart sleep timer
-
       _seeker.ui_state.register_activity()
+      
       -- offset counter on rotation (modulo 64 to stay aligned with the LED ring)
       device.index[n] = device.index[n] + delta % 64
 
@@ -85,6 +85,14 @@ function Arc.init()
           direction = -1
         end
         
+        -- Get current section and selected parameter
+        local current_section_id = _seeker.ui_state.get_current_section()
+        local current_section = _seeker.screen_ui.sections[current_section_id]
+        local selected_param = current_section.params[current_section.state.selected_index]
+        
+        -- Check if selected parameter is an action
+        local is_action_param = selected_param.is_action
+        
         -- Map Arc encoder 1 to Norns encoder 2. Use custom param key illumination logic.
         if n == 1 then
           _seeker.ui_state.enc(2, direction)
@@ -94,11 +102,55 @@ function Arc.init()
           device.update_param_value_display()
 
         -- Map Arc encoder 2 to Norns encoder 3. Use custom param value illumination logic.
-        elseif n == 2 then
+        -- Only send encoder events for non-action params. Action params handled by key press.
+        elseif n == 2 and not is_action_param then
           _seeker.ui_state.enc(3, direction)
           device.update_param_value_display()
         end        
       end
+    end
+
+    -- Add a trigger animation function
+    device.animate_trigger = function(param_id)
+      -- Skip if section should be skipped
+      if device.skip_current_section then return end
+      
+      -- Start a multi-step animation
+      clock.run(function()
+        -- Animation step 1: Bright flash on ring 2
+        for i = 1, 64 do
+          device:led(2, i, 15) -- Brightest level
+        end
+        device:refresh()
+        clock.sleep(0.05)
+        
+        -- Animation step 2: Medium brightness
+        for i = 1, 64 do
+          device:led(2, i, 10)
+        end
+        device:refresh()
+        clock.sleep(0.1)
+        
+        -- Animation step 3: Lower brightness
+        for i = 1, 64 do
+          device:led(2, i, 6)
+        end
+        device:refresh()
+        clock.sleep(0.15)
+        
+        -- Animation step 4: Fade out
+        for i = 1, 64 do
+          device:led(2, i, 3)
+        end
+        device:refresh()
+        clock.sleep(0.2)
+        
+        -- Final step: Clear the ring
+        for i = 1, 64 do
+          device:led(2, i, 0)
+        end
+        device:refresh()
+      end)
     end
 
     device.key = function(n, d)
@@ -112,15 +164,19 @@ function Arc.init()
         local selected_param = current_section.params[current_section.state.selected_index]
         
         -- If selected parameter is an action, trigger it
-        if selected_param and selected_param.action then
+        if selected_param and selected_param.is_action then
           current_section:modify_param(selected_param, 1)
-
-          -- Flash the action LED
-          for i = 1, 64 do
-            device:led(2, i, 10)
+          
+          -- Use the animate_trigger function instead of a simple flash
+          if selected_param.id then
+            device.animate_trigger(selected_param.id)
+          else
+            -- Fallback to simple flash for params without IDs
+            for i = 1, 64 do
+              device:led(2, i, 10)
+            end
+            device:refresh()
           end
-
-          device:refresh()
         end
       end
     end
@@ -233,6 +289,69 @@ function Arc.init()
       end
     end
 
+    -- Add pulse animation for action parameters
+    device.pulse_action_param = nil -- Store the current pulsing parameter ID
+    device.pulse_brightness = 0 -- Current brightness level for pulsing
+    device.pulse_direction = 1 -- 1 = getting brighter, -1 = getting dimmer
+    
+    -- Start a pulse animation for action parameters
+    device.start_action_pulse = function(param_id)
+      -- Cancel existing pulse if any
+      if device.pulse_action_param then
+        device.stop_action_pulse()
+      end
+      
+      -- Store the parameter we're pulsing for
+      device.pulse_action_param = param_id
+      
+      -- Start the pulse animation
+      device.action_pulse_clock = clock.run(function()
+        while device.pulse_action_param do
+          -- Adjust brightness based on direction
+          device.pulse_brightness = device.pulse_brightness + (device.pulse_direction * 0.5)
+          
+          -- Reverse direction at limits
+          if device.pulse_brightness >= 8 then
+            device.pulse_brightness = 8
+            device.pulse_direction = -1
+          elseif device.pulse_brightness <= 3 then
+            device.pulse_brightness = 3
+            device.pulse_direction = 1
+          end
+          
+          -- Update the LEDs with current brightness
+          for i = 1, 64 do
+            device:led(2, i, 0) -- Clear
+          end
+          
+          -- Draw pulsing dots at cardinal positions
+          local brightness = math.floor(device.pulse_brightness)
+          device:led(2, 1, brightness)
+          device:led(2, 17, brightness)
+          device:led(2, 33, brightness)
+          device:led(2, 49, brightness)
+          
+          device:refresh()
+          clock.sleep(0.1) -- Update 10 times per second
+        end
+      end)
+    end
+    
+    -- Stop the pulse animation
+    device.stop_action_pulse = function()
+      if device.action_pulse_clock then
+        clock.cancel(device.action_pulse_clock)
+        device.action_pulse_clock = nil
+      end
+      device.pulse_action_param = nil
+      
+      -- Clear the LEDs
+      for i = 1, 64 do
+        device:led(2, i, 0)
+      end
+      device:refresh()
+    end
+    
     device.update_param_value_display = function()
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
@@ -241,6 +360,19 @@ function Arc.init()
       local current_section_id = _seeker.ui_state.get_current_section()
       local current_section = _seeker.screen_ui.sections[current_section_id]
       local param = current_section.params[current_section.state.selected_index]
+      
+      -- For action parameters, start or update the pulse animation
+      if param and param.is_action then
+        if not device.pulse_action_param or device.pulse_action_param ~= param.id then
+          device.start_action_pulse(param.id)
+        end
+        return -- Don't continue with normal display
+      else
+        -- For non-action params, stop any active pulse
+        if device.pulse_action_param then
+          device.stop_action_pulse()
+        end
+      end
 
       -- Set base illumination
       for i = 1, 64 do

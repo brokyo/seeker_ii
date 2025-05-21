@@ -217,13 +217,13 @@ function Lane:schedule_stage(stage_index, start_time)
   local timing_info = string.format("@%.2f", start_time)
   
   -- Print stage/loop info with timing
-  print(string.format('%s══ L_%d S_%d (%d/%d loops) %s\n', 
-    stage_marker,
-    self.id,
-    stage_index,
-    stage.current_loop + 1,
-    stage.loops,
-    timing_info))
+  -- print(string.format('%s══ L_%d S_%d (%d/%d loops) %s\n', 
+    -- stage_marker,
+    -- self.id,
+    -- stage_index,
+    -- stage.current_loop + 1,
+    -- stage.loops,
+    -- timing_info))
     
   local stage = self.stages[stage_index]
 

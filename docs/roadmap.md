@@ -1,8 +1,9 @@
 ### Current Session
-- [] Port stage to component architecture
+- [] Get WTape working!
 
 ### Near Term Priorities
-- [] Place config buttons in stages region
+- [] Update create motif and clear motif to new architecture
+- [] Port stage to component architecture
 - [] Arpeggio mode
 - [] wsyn drone mode, play mode, and pluck
 
@@ -137,3 +138,4 @@
 - [x] New component architecture
 - [x] Combine record/overdub
 - [x] Clear motif
+- [x] Place config buttons in stages region
