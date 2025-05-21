@@ -15,7 +15,6 @@ local EurorackOutputRegion = include("lib/grid/regions/eurorack_output_region")
 -- New Component Approach
 local CreateMotif = include("lib/components/create_motif")
 local ClearMotif = include("lib/components/clear_motif")
-local StageConfig = include("lib/components/stage_config")
 
 
 -- Keep regions in their own namespace
@@ -30,10 +29,10 @@ local regions = {
   -- Components
   create_motif = CreateMotif.init().grid,
   clear_motif = ClearMotif.init().grid,
-  stage_config = StageConfig.init().grid,
 
   -- New New Component Approach
-  wtape = nil
+  wtape = nil,
+  stage_config = nil
 }
 
 GridUI.layers = nil
@@ -68,6 +67,8 @@ function GridUI.init()
 
   -- Initialize components
   regions.wtape = _seeker.w_tape.grid
+  regions.stage_config = _seeker.stage_config.grid
+  
   return GridUI
 end
 
@@ -100,10 +101,10 @@ function draw_controls()
   -- Components
   regions.create_motif:draw(GridUI.layers)
   regions.clear_motif:draw(GridUI.layers)
-  regions.stage_config:draw(GridUI.layers)
-
+  
   -- New New Component Approach
   regions.wtape:draw(GridUI.layers)
+  regions.stage_config:draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -243,6 +244,8 @@ function GridUI.key(x, y, z)
       -- New New Component Approach
     elseif regions.wtape:contains(x, y) then  
       regions.wtape:handle_key(x, y, z)
+    elseif regions.stage_config:contains(x, y) then
+      regions.stage_config:handle_key(x, y, z)
     end
   end
 end

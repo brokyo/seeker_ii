@@ -420,6 +420,7 @@ end
 --------------------------------
 
 function NornsUI:enter()
+  print("NornsUI:enter")
   -- Called when section becomes active
   self.state.is_active = true
 

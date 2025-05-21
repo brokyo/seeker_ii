@@ -10,7 +10,6 @@ local ScreenSaver = include('lib/ui/screen_saver')
 -- New Component Approach
 local CreateMotif = include('lib/components/create_motif')
 local ClearMotif = include('lib/components/clear_motif')
-local StageConfig = include('lib/components/stage_config')
 
 local ScreenUI = {}
 
@@ -35,10 +34,10 @@ function ScreenUI.init()
     -- Components
     CREATE_MOTIF = CreateMotif.init().screen.build(),
     CLEAR_MOTIF = ClearMotif.init().screen.build(),
-    STAGE_CONFIG = StageConfig.init().screen.build(),
 
     -- New New Component Approach
-    WTAPE = _seeker.w_tape.screen
+    WTAPE = _seeker.w_tape.screen,
+    STAGE_CONFIG = _seeker.stage_config.screen
   }
   
   ScreenSaver.init()

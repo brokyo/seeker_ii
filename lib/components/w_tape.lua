@@ -9,7 +9,7 @@ local WTape = {}
 WTape.__index = WTape
 
 -- wtape api here: https://github.com/monome/crow/blob/main/lua/ii/wtape.lua
-function create_params()
+local function create_params()
     params:add_group("wtape", "WTAPE", 11)
 
     -- Playback
@@ -88,7 +88,7 @@ function create_params()
     
 end
 
-function create_screen_ui()
+local function create_screen_ui()
     return NornsUI.new({
         id = "WTAPE",
         name = "WTape [WIP]",
@@ -150,7 +150,7 @@ function create_screen_ui()
     })
 end
 
-function create_grid_ui()
+local function create_grid_ui()
     return GridUI.new({
         id = "WTAPE",
         layout = {

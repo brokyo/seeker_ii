@@ -20,6 +20,7 @@ local Arc = include("lib/arc")
 
 -- Components
 local WTape = include("lib/components/w_tape")
+local StageConfig = include("lib/components/stage_config")
 
 -- Global state
 _seeker = {
@@ -39,7 +40,8 @@ _seeker = {
   velocity = 3,
 
   -- Component Approach
-  w_tape = nil
+  w_tape = nil,
+  stage_config = nil
 }
 
 --------------------------------------------------
@@ -52,11 +54,12 @@ function init()
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
     
+  _seeker.ui_state = ui_state.init()
+
   -- Initialize components
   _seeker.w_tape = WTape.init()
-
+  _seeker.stage_config = StageConfig.init()
   -- UI Setup and global access
-  _seeker.ui_state = ui_state.init()
   params_manager.init_params()  
 
   _seeker.screen_ui = screen_ui.init()
