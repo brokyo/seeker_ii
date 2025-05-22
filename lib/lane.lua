@@ -185,6 +185,9 @@ function Lane:prepare_stage(stage)
     self.motif:reset_to_genesis()
   end
   
+  -- Sync transform parameters from UI to stage.transforms
+  _seeker.stage_config.sync_transform_params_to_lane(self.id, stage.id)
+
   -- Apply each transform in sequence
   for _, transform in ipairs(stage.transforms) do
     self.motif:apply_transform(transform.name, transform.config)

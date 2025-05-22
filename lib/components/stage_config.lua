@@ -4,11 +4,56 @@
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
 local GridConstants = include("lib/grid_constants")
+local transforms = include("lib/transforms")
 
 local StageConfig = {}
 StageConfig.__index = StageConfig
 
-local transform_types = {"None", "Overdub Filter", "Harmonize", "Transpose", "Rotate", "Ratchet"}
+-- Use transform UI names directly from transforms.lua
+local transform_types = transforms.ui_names
+
+-- Function to sync transform parameters to the Lane's transforms data structure
+function StageConfig.sync_transform_params_to_lane(lane_idx, stage_idx)
+    local transform_type_idx = params:get("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
+    local transform_type = transform_types[transform_type_idx]
+    
+    -- Get the transform name from the UI name using the lookup function
+    local transform_name = transforms.get_transform_id_by_ui_name(transform_type)
+    
+    -- Get the lane
+    local lane = _seeker.lanes[lane_idx]
+    
+    -- Create config object based on transform type
+    local config = {}
+    
+    if transform_name == "overdub_filter" then
+        config.mode = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_mode")
+        config.round = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round")
+    elseif transform_name == "resonate" then
+        -- Map our UI parameters to the resonate transform parameters
+        config.third_chance = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_chance") / 100
+        config.third_volume = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_volume") / 100
+        config.octave_chance = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_chance") / 100
+        config.octave_volume = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_volume") / 100
+    elseif transform_name == "transpose" then
+        config.amount = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transpose_amount")
+    elseif transform_name == "rotate" then
+        config.amount = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_rotate_amount")
+    elseif transform_name == "skip" then
+        -- Set default ratchet parameters - you might want to add UI controls for these
+        config.n = 2  -- Default: play every 2nd note
+        config.offset = 0
+    end
+    
+    -- Update the lane's transform
+    if lane.stages and lane.stages[stage_idx] and lane.stages[stage_idx].transforms then
+        lane.stages[stage_idx].transforms[1] = {
+            name = transform_name,
+            config = config
+        }
+        print("Updated transform for Lane " .. lane_idx .. ", Stage " .. stage_idx .. " to " .. transform_name)
+    end
+end
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
@@ -186,7 +231,8 @@ end
 function StageConfig.init()
     local component = {
         screen = create_screen_ui(),
-        grid = create_grid_ui()
+        grid = create_grid_ui(),
+        sync_transform_params_to_lane = StageConfig.sync_transform_params_to_lane
     }
     create_params()
     
