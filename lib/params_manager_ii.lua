@@ -502,14 +502,6 @@ function create_stage_tracker_params(i)
             end
         end)
 
-        -- Set reset_motif to 1 (true) for all stages
-        params:add_binary("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "Reset Motif", "toggle", 1)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_reset_motif", function(value)
-            if _seeker.lanes[i] then
-                _seeker.lanes[i]:sync_stage_from_params(j)
-            end
-        end)
-
         params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 2)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_loops", function(value)
             if _seeker.lanes[i] then

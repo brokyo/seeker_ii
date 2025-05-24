@@ -38,15 +38,15 @@ function Lane.new(config)
       loops = 2,
       transforms = {
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         }
       }
@@ -58,15 +58,15 @@ function Lane.new(config)
       loops = 2,
       transforms = {
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         }
       }
@@ -78,15 +78,15 @@ function Lane.new(config)
       loops = 2,
       transforms = {
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         }
       }
@@ -98,15 +98,15 @@ function Lane.new(config)
       loops = 2,
       transforms = {
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         },
         {
-          name = "noop",
+          name = "none",
           config = {}
         }
       }
@@ -180,17 +180,16 @@ end
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
-  -- Reset motif if stage requires it
-  if stage.reset_motif then
+  local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 1
+  
+  if reset_motif then
     self.motif:reset_to_genesis()
   end
   
-  -- Sync transform parameters from UI to stage.transforms
-  _seeker.stage_config.sync_transform_params_to_lane(self.id, stage.id)
-
-  -- Apply each transform in sequence
-  for _, transform in ipairs(stage.transforms) do
-    self.motif:apply_transform(transform.name, transform.config)
+  local transform_ui_name = params:string("lane_" .. self.id .. "_transform_stage_" .. stage.id)
+  local transform_id = transforms.get_transform_id_by_ui_name(transform_ui_name)
+  if transform_id and transform_id ~= "none" then
+    self.motif:apply_transform(transform_id, self.id, stage.id)
   end
   
   return true
@@ -793,10 +792,10 @@ function Lane:debug_print_events(show_notes)
     self.motif:get_duration() / self.speed,
     self.speed))
   
-  -- Count transforms that aren't noop
+  -- Count transforms that aren't none
   local active_transforms = 0
   for _, transform in ipairs(self.stages[self.current_stage_index].transforms) do
-    if transform.name ~= "noop" then
+    if transform.name ~= "none" then
       active_transforms = active_transforms + 1
     end
   end

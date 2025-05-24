@@ -1,5 +1,5 @@
 -- transforms.lua
--- Transform System: An algorithmic garden for pattern manipulation
+-- Changes motifs on a schedule. Repository for all transforms. Called by @stage_config.lua. Params created there, too.
 
 local transforms = {}
 
@@ -8,13 +8,12 @@ local transforms = {}
 --------------------------------------------------
 
 transforms.available = {
-  noop = {
+  none = {
     name = "No Operation",
     ui_name = "None",
     ui_order = 1,
     description = "Returns the exact same sequence with no changes",
-    params = {},
-    fn = function(events, params)
+    fn = function(events, lane_id, stage_id)
       -- Deep copy events
       local result = {}
       for _, event in ipairs(events) do
@@ -33,21 +32,11 @@ transforms.available = {
     ui_name = "Overdub Filter",
     ui_order = 2,
     description = "Filter events to include only specific overdub rounds",
-    params = {
-      mode = {
-        type = "option",
-        default = 1,
-        options = {"Up to", "Only", "Except"}
-      },
-      round = {
-        type = "integer",
-        default = 1,
-        min = 1,
-        max = 10,  -- Hard coded to 10 because I don't have a working way to set dynamic parameters
-        step = 1
-      }
-    },
-    fn = function(events, params)
+    fn = function(events, lane_id, stage_id)
+      local mode = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_overdub_filter_mode")
+      local target_generation = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_overdub_filter_round")
+      
+      print("overdub filter")
       -- Find the maximum generations in the events
       local max_generation = 1
       for _, event in ipairs(events) do
@@ -58,8 +47,6 @@ transforms.available = {
       end
       
       -- Clamp the target generation to the maximum found
-      local mode = params.mode or 1
-      local target_generation = params.round or 1
       if target_generation > max_generation then
         target_generation = max_generation
       end
@@ -98,51 +85,21 @@ transforms.available = {
     name = "Resonate",
     ui_name = "Harmonize",
     ui_order = 3,
-    description = "Adds subtle harmonic overtones that sustain and blend with the melody",
-    params = {
-      third_chance = {
-        order = 1,
-        type = "number",
-        default = 0.3,
-        min = 0,
-        max = 1,
-        step = 0.1
-      },
-      third_volume = {
-        order = 2,
-        type = "number",
-        default = 0.5,
-        min = 0.1,
-        max = 1,
-        step = 0.1
-      },
-      octave_chance = {
-        order = 3,
-        type = "number",
-        default = 0.2,
-        min = 0,
-        max = 1,
-        step = 0.1
-      },
-      octave_volume = {
-        order = 4,
-        type = "number",
-        default = 0.5,
-        min = 0.1,
-        max = 1,
-        step = 0.1
-      }
-    },
-    fn = function(events, params)
-      local third_chance = params.third_chance or 0.3
-      local third_volume = params.third_volume or 0.5
-      local octave_chance = params.octave_chance or 0.2
-      local octave_volume = params.octave_volume or 0.5
+    description = "Adds subtle harmonic overtones",
+    fn = function(events, lane_id, stage_id)
+      -- Read params directly inside the transform
+      local sub_octave_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_sub_octave_chance") / 100
+      local sub_octave_volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_sub_octave_volume") / 100
+      local fifth_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_fifth_above_chance") / 100
+      local fifth_volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_fifth_above_volume") / 100
+      local octave_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_octave_above_chance") / 100
+      local octave_volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_octave_above_volume") / 100
       
       -- Built-in humanization constants
       local TIMING_VARIATION = 0.015  -- 15ms maximum timing variation
-      local THIRD_VELOCITY_VARIATION = 0.1   -- ±10% velocity variation for third
+      local FIFTH_VELOCITY_VARIATION = 0.1   -- ±10% velocity variation for fifth
       local OCTAVE_VELOCITY_VARIATION = 0.15 -- ±15% velocity variation for octave
+      local SUB_OCTAVE_VELOCITY_VARIATION = 0.2 -- ±20% velocity variation for sub-octave
       
       -- Helper function for subtle randomization
       local function humanize_value(base_value, range)
@@ -164,27 +121,45 @@ transforms.available = {
           local note_id = event.note
           -- Store timing variations to reuse in note_off
           active_harmonics[note_id] = {
-            has_third = math.random() < third_chance,
+            has_sub_octave = math.random() < sub_octave_chance,
+            has_fifth = math.random() < fifth_chance,
             has_octave = math.random() < octave_chance,
-            third_delay = humanize_value(0, TIMING_VARIATION),
+            sub_octave_delay = humanize_value(0, TIMING_VARIATION),
+            fifth_delay = humanize_value(0, TIMING_VARIATION),
             octave_delay = humanize_value(0, TIMING_VARIATION)
           }
           
-          if active_harmonics[note_id].has_third then
-            local third_velocity = math.floor(
+          -- Add sub-octave harmonic (one octave below)
+          if active_harmonics[note_id].has_sub_octave then
+            local sub_octave_velocity = math.floor(
               event.velocity * 
-              humanize_value(third_volume, THIRD_VELOCITY_VARIATION)
+              humanize_value(sub_octave_volume, SUB_OCTAVE_VELOCITY_VARIATION)
             )
             
-            -- Add slight pre-delay and longer sustain for third
             table.insert(result, {
               type = "note_on",
-              time = event.time + active_harmonics[note_id].third_delay,
-              note = event.note + 16,
-              velocity = third_velocity
+              time = event.time + active_harmonics[note_id].sub_octave_delay,
+              note = event.note - 12, -- One octave below
+              velocity = sub_octave_velocity
             })
           end
           
+          -- Add perfect fifth above
+          if active_harmonics[note_id].has_fifth then
+            local fifth_velocity = math.floor(
+              event.velocity * 
+              humanize_value(fifth_volume, FIFTH_VELOCITY_VARIATION)
+            )
+            
+            table.insert(result, {
+              type = "note_on",
+              time = event.time + active_harmonics[note_id].fifth_delay,
+              note = event.note + 7, -- Perfect fifth above
+              velocity = fifth_velocity
+            })
+          end
+          
+          -- Add octave above
           if active_harmonics[note_id].has_octave then
             local octave_velocity = math.floor(
               event.velocity * 
@@ -194,7 +169,7 @@ transforms.available = {
             table.insert(result, {
               type = "note_on",
               time = event.time + active_harmonics[note_id].octave_delay,
-              note = event.note - 12,
+              note = event.note + 12, -- One octave above
               velocity = octave_velocity
             })
           end
@@ -204,28 +179,42 @@ transforms.available = {
           local note_id = event.note
           
           if active_harmonics[note_id] then
-            if active_harmonics[note_id].has_third then
+            -- Add sub-octave note_off
+            if active_harmonics[note_id].has_sub_octave then
               table.insert(result, {
                 type = "note_off",
-                time = event.time + active_harmonics[note_id].third_delay + 0.1, -- Extra sustain
-                note = event.note + 16
-              })
-            end
-            
-            if active_harmonics[note_id].has_octave then
-              table.insert(result, {
-                type = "note_off",
-                time = event.time + active_harmonics[note_id].octave_delay + 0.05, -- Slight sustain
+                time = event.time + active_harmonics[note_id].sub_octave_delay,
                 note = event.note - 12
               })
             end
             
+            -- Add fifth note_off
+            if active_harmonics[note_id].has_fifth then
+              table.insert(result, {
+                type = "note_off",
+                time = event.time + active_harmonics[note_id].fifth_delay + 0.05, -- Slight sustain
+                note = event.note + 7
+              })
+            end
+            
+            -- Add octave note_off
+            if active_harmonics[note_id].has_octave then
+              table.insert(result, {
+                type = "note_off",
+                time = event.time + active_harmonics[note_id].octave_delay,
+                note = event.note + 12
+              })
+            end
+            
+            -- Clean up tracking
             active_harmonics[note_id] = nil
           end
         end
       end
       
+      -- Sort by time to maintain proper event ordering
       table.sort(result, function(a, b) return a.time < b.time end)
+      
       return result
     end
   },
@@ -235,17 +224,9 @@ transforms.available = {
     ui_name = "Transpose",
     ui_order = 4,
     description = "Shift all notes up or down by a number of semitones",
-    params = {
-      amount = {
-        type = "integer",  -- Explicitly specify parameter type
-        default = 0,
-        min = -24,
-        max = 24,
-        step = 1  -- Optional: specify custom step size if needed
-      }
-    },
-    fn = function(events, params)
-      local amount = params.amount or 0
+    fn = function(events, lane_id, stage_id)
+      local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_transpose_amount")
+      
       local result = {}
       
       for _, event in ipairs(events) do
@@ -271,17 +252,8 @@ transforms.available = {
     ui_name = "Rotate",
     ui_order = 5,
     description = "Rotate the order of notes while preserving their relative timing",
-    params = {
-      amount = {
-        type = "integer",
-        default = 1,
-        min = -12,
-        max = 12,
-        step = 1
-      }
-    },
-    fn = function(events, params)
-      local amount = params.amount or 1
+    fn = function(events, lane_id, stage_id)
+      local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_rotate_amount")
       
       -- Collect just the note events
       local notes = {}
@@ -331,8 +303,7 @@ transforms.available = {
     ui_name = "Reverse",
     ui_order = 6,
     description = "Reverse the order of notes in time while preserving note durations",
-    params = {},
-    fn = function(events, params)
+    fn = function(events, lane_id, stage_id)
       -- First pass: collect note_on/note_off pairs and their durations
       local notes = {}
       local total_duration = 0
@@ -403,28 +374,12 @@ transforms.available = {
 
   skip = {
     name = "Skip",
-    ui_name = "Ratchet",
+    ui_name = "Skip",
     ui_order = 7,
     description = "Play every Nth note, skipping the ones in between",
-    params = {
-      n = {
-        type = "integer",
-        default = 2,
-        min = 1,
-        max = 16,
-        step = 1
-      },
-      offset = {
-        type = "integer",
-        default = 0,
-        min = 0,
-        max = 15,
-        step = 1
-      }
-    },
-    fn = function(events, params)
-      local n = params.n or 2
-      local offset = params.offset or 0
+    fn = function(events, lane_id, stage_id)
+      local n = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_interval")
+      local offset = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_offset")
       
       -- First collect note_on events to determine which notes to keep
       local notes_to_keep = {}
@@ -459,6 +414,95 @@ transforms.available = {
           table.insert(result, new_event)
         end
       end
+      
+      return result
+    end
+  },
+
+  ratchet = {
+    name = "Ratchet", 
+    ui_name = "Ratchet", 
+    ui_order = 8,
+    description = "Repeat notes with probability and timing variations",
+    fn = function(events, lane_id, stage_id)
+      local repeat_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_chance") / 100
+      local max_repeats = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_max_repeats")
+      local timing_division = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_timing")
+      
+      local result = {}
+      local note_pairs = {}
+      
+      -- First pass: collect note_on/note_off pairs
+      for _, event in ipairs(events) do
+        if event.type == "note_on" then
+          note_pairs[event.note] = {
+            note_on = event,
+            note_off = nil,
+            duration = nil
+          }
+        elseif event.type == "note_off" and note_pairs[event.note] then
+          note_pairs[event.note].note_off = event
+          note_pairs[event.note].duration = event.time - note_pairs[event.note].note_on.time
+        end
+      end
+      
+      -- Second pass: create ratcheted events
+      for note, pair in pairs(note_pairs) do
+        if pair.note_off then
+          -- Decide if this note gets ratcheted
+          if math.random() < repeat_chance then
+            local num_repeats = math.random(1, max_repeats)
+            local repeat_interval = 1 / timing_division -- Beat subdivision
+            
+            for i = 0, num_repeats - 1 do
+              local repeat_time = pair.note_on.time + (i * repeat_interval)
+              local repeat_velocity = math.floor(pair.note_on.velocity * (1 - i * 0.1)) -- Decay velocity
+              
+              -- Add note_on
+              table.insert(result, {
+                type = "note_on",
+                time = repeat_time,
+                note = pair.note_on.note,
+                velocity = math.max(repeat_velocity, 20) -- Minimum velocity
+              })
+              
+              -- Add note_off (shorter duration for ratchets)
+              table.insert(result, {
+                type = "note_off", 
+                time = repeat_time + (pair.duration * 0.8), -- Slightly shorter
+                note = pair.note_on.note
+              })
+            end
+          else
+            -- Keep original note unchanged
+            table.insert(result, {
+              type = "note_on",
+              time = pair.note_on.time,
+              note = pair.note_on.note,
+              velocity = pair.note_on.velocity
+            })
+            table.insert(result, {
+              type = "note_off",
+              time = pair.note_off.time,
+              note = pair.note_off.note
+            })
+          end
+        end
+      end
+      
+      -- Add any non-note events
+      for _, event in ipairs(events) do
+        if event.type ~= "note_on" and event.type ~= "note_off" then
+          local new_event = {}
+          for k, v in pairs(event) do
+            new_event[k] = v
+          end
+          table.insert(result, new_event)
+        end
+      end
+      
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
       
       return result
     end
@@ -501,7 +545,7 @@ function transforms.get_transform_id_by_ui_name(ui_name)
       return id
     end
   end
-  return "noop"  -- Default to noop if not found
+  return "none"  -- Default to none if not found
 end
 
 return transforms 

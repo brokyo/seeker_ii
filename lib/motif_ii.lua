@@ -82,19 +82,12 @@ function Motif:get_duration()
 end
 
 -- Apply a transform to the working state
-function Motif:apply_transform(transform_name, params)
+function Motif:apply_transform(transform_name, lane_id, stage_id)
   -- Get transform from registry
   local transform = Transforms.available[transform_name]
   
-  -- Use default params where not specified
-  params = params or {}
-  local final_params = {}
-  for name, spec in pairs(transform.params) do
-    final_params[name] = params[name] or spec.default
-  end
-  
-  -- Apply transform to working state
-  self.events = transform.fn(self.events, final_params)
+  -- Apply transform to working state with new signature
+  self.events = transform.fn(self.events, lane_id, stage_id)
 end
 
 -- Clear all motif data
