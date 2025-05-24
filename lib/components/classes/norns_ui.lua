@@ -434,6 +434,10 @@ end
 function NornsUI:exit()
   -- Called when leaving this section
   self.state.is_active = false
+  
+  -- Reset selected_index to prevent race conditions when transitioning to Section-based UIs
+  -- TODO: After we refactor the full UI out of sections and into components we should be able to remove this
+  self.state.selected_index = 2  -- Safe default for NornsUI (index 1 is always separator)
 end
 
 function NornsUI:update()

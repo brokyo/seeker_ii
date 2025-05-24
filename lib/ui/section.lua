@@ -259,7 +259,7 @@ function Section:handle_enc_default(n, d)
     -- Navigate parameters
     local new_index = util.clamp(
       self.state.selected_index + d,
-      0,
+      1,
       #self.params
     )
     
@@ -319,6 +319,14 @@ end
 function Section:enter()
   -- Called when section becomes active
   self.state.is_active = true
+
+  -- Ensure selected_index is valid for this section's params
+  -- TODO: This is intended to support @arc.lua while refactoring out of sections
+  if #self.params > 0 then
+    self.state.selected_index = math.max(1, math.min(self.state.selected_index, #self.params))
+  else
+    self.state.selected_index = 0
+  end
 
   -- Get the number of params (and their type) to send to Arc
   _seeker.arc.new_section(self.params)
