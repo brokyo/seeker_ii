@@ -193,7 +193,7 @@ local function create_screen_ui()
 end
 
 local function create_grid_ui()
-    return GridUI.new({
+    local grid_ui = GridUI.new({
         id = "STAGE_CONFIG",
         layout = {
             x = 4,
@@ -202,6 +202,75 @@ local function create_grid_ui()
             height = 1
         }
     })
+    
+    -- Add blink state tracking
+    grid_ui.blink_state = {
+        blink_until = nil,
+        stage_number = nil
+    }
+    
+    -- Blink timing configuration - all in one place
+    grid_ui.blink_config = {
+        on_duration = 0.1,      -- 100ms on
+        off_duration = 0.1,     -- 100ms off  
+        inter_blink_pause = 0.1 -- 100ms between blinks
+    }
+    
+    -- Method to trigger blink from outside (called from lane loop starts)
+    function grid_ui:trigger_stage_blink(stage_idx)
+        -- Calculate total duration for the number of blinks using config
+        local cycle_duration = self.blink_config.on_duration + self.blink_config.off_duration + self.blink_config.inter_blink_pause
+        local total_duration = (stage_idx * cycle_duration) - self.blink_config.inter_blink_pause -- Remove last pause
+        
+        self.blink_state.blink_until = util.time() + total_duration
+        self.blink_state.stage_number = stage_idx
+        self.blink_state.start_time = util.time()
+    end
+    
+    -- Override draw method to handle blinking
+    function grid_ui:draw(layers)
+        local x = self.layout.x
+        local y = self.layout.y
+        local brightness = GridConstants.BRIGHTNESS.LOW
+        
+        -- Check if we should blink
+        if self.blink_state.blink_until and util.time() < self.blink_state.blink_until then
+            local elapsed = util.time() - self.blink_state.start_time
+            local stage_number = self.blink_state.stage_number or 1
+            
+            -- Use centralized blink configuration
+            local blink_on_duration = self.blink_config.on_duration
+            local blink_off_duration = self.blink_config.off_duration
+            local inter_blink_pause = self.blink_config.inter_blink_pause
+            local cycle_duration = blink_on_duration + blink_off_duration + inter_blink_pause
+            
+            -- Determine which blink we're in
+            local current_blink = math.floor(elapsed / cycle_duration) + 1
+            
+            if current_blink <= stage_number then
+                -- We're within a valid blink
+                local blink_position = elapsed % cycle_duration
+                
+                if blink_position < blink_on_duration then
+                    -- ON phase
+                    brightness = GridConstants.BRIGHTNESS.MEDIUM
+                else
+                    -- OFF phase or inter-blink pause
+                    brightness = GridConstants.BRIGHTNESS.LOW
+                end
+            else
+                -- All blinks complete
+                brightness = GridConstants.BRIGHTNESS.LOW
+            end
+        else
+            -- Normal brightness when not blinking
+            brightness = GridConstants.BRIGHTNESS.LOW
+        end
+        
+        layers.ui[x][y] = brightness
+    end
+    
+    return grid_ui
 end
 
 function StageConfig.enter(component)

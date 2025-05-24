@@ -229,52 +229,6 @@ function Lane:schedule_stage(stage_index, start_time)
     
   local stage = self.stages[stage_index]
 
-  -- Fire loop start trigger if configured
-  local trigger = params:get("lane_" .. self.id .. "_loop_start_trigger")
-  if trigger > 1 then
-    -- Schedule the trigger at the start of the loop
-    _seeker.conductor.insert_event({
-      time = start_time,
-      lane_id = self.id,
-      callback = function()
-        if trigger <= 5 then
-          -- Crow trigger
-          crow.output[trigger - 1].volts = 5
-          -- Schedule trigger off after 10ms
-          _seeker.conductor.insert_event({
-            time = start_time + 0.01,
-            lane_id = self.id,
-            callback = function()
-              crow.output[trigger - 1].volts = 0
-            end
-          })
-        else
-          -- TXO trigger (subtract 5 to get 1-4 range)
-          crow.ii.txo.tr(trigger - 5, 1)
-          -- Schedule trigger off after 10ms
-          _seeker.conductor.insert_event({
-            time = start_time + 0.01,
-            lane_id = self.id,
-            callback = function()
-              crow.ii.txo.tr(trigger - 5, 0)
-            end
-          })
-        end
-        print(string.format("⚡ Loop start trigger fired for L_%d", self.id))
-      end
-    })
-  end
-  
-  -- Prepare the stage's motif (only on first loop or if reset_motif is true)
-  if stage.current_loop == 0 or stage.reset_motif then
-    if not self:prepare_stage(stage) then
-      return
-    end
-  end
-
-  -- Print debug info about events
-  -- self:debug_print_events(false)
-
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
   
@@ -368,6 +322,66 @@ function Lane:schedule_stage(stage_index, start_time)
       end
     end
   })
+
+  -- Fire loop start trigger if configured
+  local trigger = params:get("lane_" .. self.id .. "_loop_start_trigger")
+  if trigger > 1 then
+    -- Schedule the trigger at the start of the loop
+    _seeker.conductor.insert_event({
+      time = start_time,
+      lane_id = self.id,
+      callback = function()
+        if trigger <= 5 then
+          -- Crow trigger
+          crow.output[trigger - 1].volts = 5
+          -- Schedule trigger off after 10ms
+          _seeker.conductor.insert_event({
+            time = start_time + 0.01,
+            lane_id = self.id,
+            callback = function()
+              crow.output[trigger - 1].volts = 0
+            end
+          })
+        else
+          -- TXO trigger (subtract 5 to get 1-4 range)
+          crow.ii.txo.tr(trigger - 5, 1)
+          -- Schedule trigger off after 10ms
+          _seeker.conductor.insert_event({
+            time = start_time + 0.01,
+            lane_id = self.id,
+            callback = function()
+              crow.ii.txo.tr(trigger - 5, 0)
+            end
+          })
+        end
+        print(string.format("⚡ Loop start trigger fired for L_%d", self.id))
+      end
+    })
+  end
+  
+  -- Prepare the stage's motif (only on first loop or if reset_motif is true)
+  if stage.current_loop == 0 or stage.reset_motif then
+    if not self:prepare_stage(stage) then
+      return
+    end
+  end
+
+  -- Trigger stage_config button blink on stage start (first loop only)
+  if stage.current_loop == 0 and _seeker.stage_config and _seeker.stage_config.grid then
+    -- Only trigger for the focused lane
+    if self.id == _seeker.ui_state.get_focused_lane() then
+      _seeker.conductor.insert_event({
+        time = start_time,
+        lane_id = self.id,
+        callback = function()
+          _seeker.stage_config.grid:trigger_stage_blink(stage_index)
+        end
+      })
+    end
+  end
+
+  -- Print debug info about events
+  -- self:debug_print_events(false)
 end
 
 ---------------------------------------------------------
