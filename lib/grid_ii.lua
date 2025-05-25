@@ -11,8 +11,7 @@ local LaneRegion = include("lib/grid/regions/lane_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 
--- New Component Approach
-local CreateMotif = include("lib/components/create_motif")
+-- Old Component Approach
 local ClearMotif = include("lib/components/clear_motif")
 
 
@@ -24,11 +23,11 @@ local regions = {
   motif = MotifRegion,
   tuning = TuningRegion,
 
-  -- Components
-  create_motif = CreateMotif.init().grid,
+  -- Old Components
   clear_motif = ClearMotif.init().grid,
 
-  -- New New Component Approach
+  -- New Component Approach
+  create_motif = nil,
   wtape = nil,
   stage_config = nil,
   eurorack_output = nil
@@ -65,6 +64,7 @@ function GridUI.init()
   GridAnimations.init(g)
 
   -- Initialize components
+  regions.create_motif = _seeker.create_motif.grid
   regions.wtape = _seeker.w_tape.grid
   regions.stage_config = _seeker.stage_config.grid
   regions.eurorack_output = _seeker.eurorack_output.grid
@@ -97,11 +97,11 @@ function draw_controls()
   regions.motif.draw(GridUI.layers)
   regions.tuning.draw(GridUI.layers)
 
-  -- Components
-  regions.create_motif:draw(GridUI.layers)
+  -- Old Components
   regions.clear_motif:draw(GridUI.layers)
   
-  -- New New Component Approach
+  -- New Component Approach
+  regions.create_motif:draw(GridUI.layers)
   regions.wtape:draw(GridUI.layers)
   regions.stage_config:draw(GridUI.layers)
   regions.eurorack_output:draw(GridUI.layers)
@@ -232,14 +232,14 @@ function GridUI.key(x, y, z)
     elseif regions.tuning.contains(x, y) then
       regions.tuning.handle_key(x, y, z)
     -- Components
-    elseif regions.create_motif:contains(x, y) then
-      regions.create_motif:handle_key(x, y, z)
-    elseif regions.clear_motif:contains(x, y) then
-      regions.clear_motif:handle_key(x, y, z)
-    elseif regions.stage_config:contains(x, y) then
-      regions.stage_config:handle_key(x, y, z)
-
-      -- New New Component Approach
+  elseif regions.clear_motif:contains(x, y) then
+    regions.clear_motif:handle_key(x, y, z)
+  elseif regions.stage_config:contains(x, y) then
+    regions.stage_config:handle_key(x, y, z)
+    
+    -- New New Component Approach
+  elseif regions.create_motif:contains(x, y) then
+    regions.create_motif:handle_key(x, y, z)
     elseif regions.wtape:contains(x, y) then  
       regions.wtape:handle_key(x, y, z)
     elseif regions.stage_config:contains(x, y) then

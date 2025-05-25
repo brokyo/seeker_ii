@@ -1,7 +1,6 @@
 -- create_motif.lua
 -- Self-contained component for the Create Motif functionality.
 -- Handles parameter, screen, grid, and arc initialization and management
--- Intended to be the future structure of the project if it works.
 
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
@@ -10,82 +9,67 @@ local GridConstants = include("lib/grid_constants")
 local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
--- Create a single instance that will be reused
-local instance = nil
-
-function CreateMotif.init()
-    if instance then return instance end
-
-    instance = {
-        -- Params interface used by @params_manager_ii for loading core data
-        -- Monome Params docs https://monome.org/docs/norns/reference/params
-        params = {
-            create = function()
-                params:add_group("create_motif", "CREATE MOTIF", 4)
-                params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
-                
-                -- Arpeggio mode parameters
-                params:add_option("arpeggio_interval", "Arpeggio Interval",
-                    {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
-                params:add_trigger("arpeggio_add_rest", "Add Rest")
-                params:set_action("arpeggio_add_rest", function()
-                    _seeker.motif_recorder:add_arpeggio_rest()
-                end)
-            end
-        },
-        
-        -- Screen interface used by @screen_iii 
-        screen = {
-            instance = NornsUI.new({
-                id = "CREATE_MOTIF",
-                name = "Create Motif",
-                description = "Motif creation methods. Change type to play live, create arpeggios, or generate automatically",
-                params = {
-                    { separator = true, title = "Create Motif" },
-                    { id = "create_motif_type", name = "Motif Type" },
-                    { id = "arpeggio_interval", name = "Arpeggio Interval" },
-                    { id = "arpeggio_add_rest", name = "Add Rest" }
-                },
-                active_params = function()
-                    local base_params = {
-                        { separator = true, title = "Create Motif" },
-                        { id = "create_motif_type" }
-                    }
-                    
-                    -- Only show arpeggio params when in arpeggio mode
-                    if params:get("create_motif_type") == 2 then
-                        table.insert(base_params, { id = "arpeggio_interval" })
-                        table.insert(base_params, { id = "arpeggio_add_rest" })
-                    end
-                    
-                    return base_params
-                end
-            }),
-            
-            -- This build function is needed by screen_iii.lua
-            build = function()
-                return instance.screen.instance
-            end
-        },
-
-        -- Grid interface used by @grid_ii
-        grid = GridUI.new({
-            id = "CREATE_MOTIF",
-            layout = {
-                x = 2,
-                y = 7,
-                width = 1,
-                height = 1
-            }
-        })
-    }
+local function create_params()
+    params:add_group("create_motif", "CREATE MOTIF", 4)
+    params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
+    params:set_action("create_motif_type", function(value)
+        if _seeker and _seeker.create_motif then
+            _seeker.create_motif.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
     
-    --------------------------------
-    -- Screen — Custom logic
-    --------------------------------
+    -- Arpeggio mode parameters
+    params:add_option("arpeggio_interval", "Arpeggio Interval",
+        {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
+    params:add_binary("arpeggio_add_rest", "Add Rest", "trigger", 0)
+    params:set_action("arpeggio_add_rest", function(value)
+        if value == 1 then
+            _seeker.motif_recorder:add_arpeggio_rest()
+            _seeker.ui_state.trigger_activated("arpeggio_add_rest")
+        end
+    end)
+end
+
+local function create_screen_ui()
+    local norns_ui = NornsUI.new({
+        id = "CREATE_MOTIF",
+        name = "Create Motif",
+        description = "Motif creation methods. Change type to play live, create arpeggios, or generate automatically",
+        params = {
+            { separator = true, title = "Create Motif" },
+            { id = "create_motif_type" },
+            { id = "arpeggio_interval" },
+            { id = "arpeggio_add_rest" }
+        }
+    })
+    
+    -- Dynamic parameter rebuilding based on motif type
+    norns_ui.rebuild_params = function(self)
+        local param_table = {
+            { separator = true, title = "Create Motif" },
+            { id = "create_motif_type" }
+        }
+        
+        -- Only show arpeggio params when in arpeggio mode
+        if params:get("create_motif_type") == 2 then
+            table.insert(param_table, { id = "arpeggio_interval" })
+            table.insert(param_table, { id = "arpeggio_add_rest", is_action = true })
+        end
+        
+        -- Update the UI with the new parameter table
+        self.params = param_table
+    end
+    
+    -- Override enter method to build initial params
+    local original_enter = norns_ui.enter
+    norns_ui.enter = function(self)
+        original_enter(self)
+        self:rebuild_params()
+    end
     
     -- Override screen draw method
-    instance.screen.instance.draw_default = function(self)
+    norns_ui.draw_default = function(self)
         screen.clear() -- Clear once at the beginning
 
         -- Call the new internal method from NornsUI to draw base content
@@ -97,8 +81,8 @@ function CreateMotif.init()
         if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
             tooltip = "⏹: tap"
         else
-            local focused_lane_tooltip = _seeker.ui_state.get_focused_lane() -- Renamed to avoid conflict
-            local lane_tooltip = _seeker.lanes[focused_lane_tooltip] -- Renamed
+            local focused_lane_tooltip = _seeker.ui_state.get_focused_lane()
+            local lane_tooltip = _seeker.lanes[focused_lane_tooltip]
             if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                 tooltip = "⏺: hold [overdub]"
             else
@@ -120,12 +104,13 @@ function CreateMotif.init()
             screen.text(tooltip)
         end
         
-        -- Draw loop visualization whenever there's a motif
-        local focused_lane_vis = _seeker.ui_state.get_focused_lane()
-        local lane_vis = _seeker.lanes[focused_lane_vis]
-        local motif_vis = lane_vis.motif
+        -- Draw loop visualization whenever there's a motif (only in tape mode)
+        if params:get("create_motif_type") == 1 then
+            local focused_lane_vis = _seeker.ui_state.get_focused_lane()
+            local lane_vis = _seeker.lanes[focused_lane_vis]
+            local motif_vis = lane_vis.motif
 
-        if motif_vis and #motif_vis.events > 0 then
+            if motif_vis and #motif_vis.events > 0 then
              -- Constants for visualization
             local VIS_Y = 32    
             local VIS_HEIGHT = 6
@@ -204,67 +189,25 @@ function CreateMotif.init()
             screen.move(x_playhead, VIS_Y - 1)
             screen.line(x_playhead, VIS_Y + VIS_HEIGHT + 1)
             screen.stroke()
+            end
         end
         
         screen.update() -- Single update at the very end
     end
     
-    --------------------------------
-    -- Grid — Custom logic
-    --------------------------------
-    
-    -- Store original draw method
-    local original_grid_draw = instance.grid.draw
-    
-    -- Override draw to add keyboard outline during long press
-    instance.grid.draw = function(self, layers)
-        -- Call original draw method
-        original_grid_draw(self, layers)
-        
-        -- Handle different modes
-        if params:get("create_motif_type") == 1 then -- Tape mode
-            -- Draw keyboard outline during long press
-            if self:is_holding_long_press() then
-                -- Use the shared keyboard outline highlight method
-                self:draw_keyboard_outline_highlight(layers)
-            end
-            
-            -- Draw count display when recording
-            if _seeker.motif_recorder.is_recording then
-                -- Use quarter-note subdivisions for metronome
-                local current_quarter = math.floor(clock.get_beats()) % 4
-                
-                -- Count display coordinates
-                local count_display = {
-                    x_start = 7,
-                    x_end = 10,
-                    y = 1,
-                    pulse_duration = 0.25  -- 1/4 of a beat
-                }
-                
-                -- Set all count LEDs to very low brightness initially
-                for x = count_display.x_start, count_display.x_end do
-                    layers.ui[x][count_display.y] = GridConstants.BRIGHTNESS.LOW / 2
-                end
-                
-                -- Determine which position should be highlighted (moves every beat)
-                local highlight_x = count_display.x_start + current_quarter
-                
-                -- Calculate brightness based on sine wave but keep at 1 beat cycle
-                local pulse_brightness = math.floor(math.sin(clock.get_beats() * 4) * 2 + GridConstants.BRIGHTNESS.LOW + 2)
-                layers.ui[highlight_x][count_display.y] = pulse_brightness
-                
-                -- Make the Create Motif button pulsate while recording
-                -- One complete pulse cycle takes 2 beats
-                layers.ui[self.layout.x][self.layout.y] = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 2)
-            end
-        elseif params:get("create_motif_type") == 2 then -- Arpeggio mode
-            -- Make the Create Motif button pulsate while recording
-            if _seeker.motif_recorder.is_recording then
-                layers.ui[self.layout.x][self.layout.y] = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 1)
-            end
-        end
-    end
+    return norns_ui
+end
+
+local function create_grid_ui()
+    local grid_ui = GridUI.new({
+        id = "CREATE_MOTIF",
+        layout = {
+            x = 2,
+            y = 7,
+            width = 1,
+            height = 1
+        }
+    })
     
     -- Helper function for common key press logic
     local function handle_key_press(self)
@@ -346,9 +289,64 @@ function CreateMotif.init()
         
         _seeker.screen_ui.set_needs_redraw()
     end
+    
+    -- Override draw to add keyboard outline during long press
+    grid_ui.draw = function(self, layers)
+        local x = self.layout.x
+        local y = self.layout.y
+        local brightness = (_seeker.ui_state.get_current_section() == self.id) and 
+            GridConstants.BRIGHTNESS.UI.FOCUSED or 
+            GridConstants.BRIGHTNESS.UI.NORMAL
+        
+        -- Handle different modes
+        if params:get("create_motif_type") == 1 then -- Tape mode
+            -- Draw keyboard outline during long press
+            if self:is_holding_long_press() then
+                -- Use the shared keyboard outline highlight method
+                self:draw_keyboard_outline_highlight(layers)
+            end
+            
+            -- Draw count display when recording
+            if _seeker.motif_recorder.is_recording then
+                -- Use quarter-note subdivisions for metronome
+                local current_quarter = math.floor(clock.get_beats()) % 4
+                
+                -- Count display coordinates
+                local count_display = {
+                    x_start = 7,
+                    x_end = 10,
+                    y = 1,
+                    pulse_duration = 0.25  -- 1/4 of a beat
+                }
+                
+                -- Set all count LEDs to very low brightness initially
+                for x_count = count_display.x_start, count_display.x_end do
+                    layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW / 2
+                end
+                
+                -- Determine which position should be highlighted (moves every beat)
+                local highlight_x = count_display.x_start + current_quarter
+                
+                -- Calculate brightness based on sine wave but keep at 1 beat cycle
+                local pulse_brightness = math.floor(math.sin(clock.get_beats() * 4) * 2 + GridConstants.BRIGHTNESS.LOW + 2)
+                layers.ui[highlight_x][count_display.y] = pulse_brightness
+                
+                -- Make the Create Motif button pulsate while recording
+                -- One complete pulse cycle takes 2 beats
+                brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 2)
+            end
+        elseif params:get("create_motif_type") == 2 then -- Arpeggio mode
+            -- Make the Create Motif button pulsate while recording
+            if _seeker.motif_recorder.is_recording then
+                brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 1)
+            end
+        end
+        
+        layers.ui[x][y] = brightness
+    end
 
     -- Override handle_key to implement recording functionality
-    instance.grid.handle_key = function(self, x, y, z)
+    grid_ui.handle_key = function(self, x, y, z)
         local motif_type = params:get("create_motif_type")
         local key_id = string.format("%d,%d", x, y)
         
@@ -377,7 +375,17 @@ function CreateMotif.init()
         end
     end
     
-    return instance
+    return grid_ui
+end
+
+function CreateMotif.init()
+    local component = {
+        screen = create_screen_ui(),
+        grid = create_grid_ui()
+    }
+    create_params()
+    
+    return component
 end
 
 return CreateMotif

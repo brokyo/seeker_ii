@@ -286,7 +286,6 @@ function MotifRecorder:_arpeggio_add_note(event)
   })
   
   self.arpeggio_step = self.arpeggio_step + 1
-  print(string.format("♪ Arpeggio step %d: note %d at %.3f beats", self.arpeggio_step, event.note, note_time))
 end
 
 --- Add a rest to the arpeggio sequence
@@ -307,7 +306,6 @@ function MotifRecorder:add_arpeggio_rest()
   })
   
   self.arpeggio_step = self.arpeggio_step + 1
-  print(string.format("♪ Arpeggio step %d: rest at %.3f beats", self.arpeggio_step, rest_time))
 end
 
 --- Start arpeggio recording
@@ -316,7 +314,6 @@ function MotifRecorder:start_arpeggio_recording()
   self.recording_mode = 3
   self.is_recording = true
   self.arpeggio_step = 0
-  print("♪ Starting arpeggio recording")
 end
 
 --- Stop arpeggio recording and return the event table
