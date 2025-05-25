@@ -1007,7 +1007,9 @@ function EurorackOutput.update_txo_cv(output_num)
     -- Set up the oscillator parameters
     crow.ii.txo.osc_wave(output_num, wave_type)
     
-    -- Set sync mode (sync is guaranteed to not be "Off" at this point)
+    -- TODO: Sync mode doesn't actually sync with clock. Investigate this later
+    -- TODO: Consider using AR rather than LFO
+    -- Set sync mode
     local beats = EurorackOutput.division_to_beats(sync)
     local beat_sec = clock.get_beat_sec()
     local cycle_time = beat_sec * beats * 1000  -- Convert to milliseconds
