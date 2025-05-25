@@ -10,7 +10,6 @@ local ConfigRegion = include("lib/grid/regions/config_region")
 local LaneRegion = include("lib/grid/regions/lane_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
-local EurorackOutputRegion = include("lib/grid/regions/eurorack_output_region")
 
 -- New Component Approach
 local CreateMotif = include("lib/components/create_motif")
@@ -24,7 +23,6 @@ local regions = {
   lane = LaneRegion,
   motif = MotifRegion,
   tuning = TuningRegion,
-  eurorack_output = EurorackOutputRegion,
 
   -- Components
   create_motif = CreateMotif.init().grid,
@@ -32,7 +30,8 @@ local regions = {
 
   -- New New Component Approach
   wtape = nil,
-  stage_config = nil
+  stage_config = nil,
+  eurorack_output = nil
 }
 
 GridUI.layers = nil
@@ -68,6 +67,7 @@ function GridUI.init()
   -- Initialize components
   regions.wtape = _seeker.w_tape.grid
   regions.stage_config = _seeker.stage_config.grid
+  regions.eurorack_output = _seeker.eurorack_output.grid
   
   return GridUI
 end
@@ -96,7 +96,6 @@ function draw_controls()
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
   regions.tuning.draw(GridUI.layers)
-  regions.eurorack_output.draw(GridUI.layers)
 
   -- Components
   regions.create_motif:draw(GridUI.layers)
@@ -105,6 +104,7 @@ function draw_controls()
   -- New New Component Approach
   regions.wtape:draw(GridUI.layers)
   regions.stage_config:draw(GridUI.layers)
+  regions.eurorack_output:draw(GridUI.layers)
 end
 
 function draw_keyboard()
@@ -231,8 +231,6 @@ function GridUI.key(x, y, z)
       regions.velocity.handle_key(x, y, z)
     elseif regions.tuning.contains(x, y) then
       regions.tuning.handle_key(x, y, z)
-    elseif regions.eurorack_output.contains(x, y) then
-      regions.eurorack_output.handle_key(x, y, z)
     -- Components
     elseif regions.create_motif:contains(x, y) then
       regions.create_motif:handle_key(x, y, z)
@@ -246,6 +244,8 @@ function GridUI.key(x, y, z)
       regions.wtape:handle_key(x, y, z)
     elseif regions.stage_config:contains(x, y) then
       regions.stage_config:handle_key(x, y, z)
+    elseif regions.eurorack_output:contains(x, y) then
+      regions.eurorack_output:handle_key(x, y, z)
     end
   end
 end

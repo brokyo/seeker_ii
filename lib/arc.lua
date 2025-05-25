@@ -69,6 +69,12 @@ function Arc.init()
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
       
+      -- Check for knob recording mode and intercept encoder turns
+      if _seeker.ui_state.state.knob_recording_active and n == 2 then
+        _seeker.eurorack_output.handle_encoder_input(delta)
+        return 
+      end
+      
       -- Register activity to wake screen/restart sleep timer
       _seeker.ui_state.register_activity()
       

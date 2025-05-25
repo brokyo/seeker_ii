@@ -10,8 +10,11 @@ UIState.state = {
   long_press_in_progress = false,
   long_press_section = nil,
   recently_triggered = {},
-  trigger_clocks = {}
+  trigger_clocks = {},
+  knob_recording_active = false
 }
+
+
 
 -- Constants
 UIState.TRIGGER_VISUAL_DURATION = 0.5 -- Duration in seconds to show trigger feedback
@@ -147,10 +150,16 @@ end
 
 function UIState.enc(n, d)
   UIState.register_activity()
-
-  -- print("⎍ Encoder moved", n, d)
-
-  -- Pass to screen UI if visible
+  
+  -- Check if knob recording is active and delegate to eurorack output component
+  if UIState.state.knob_recording_active and n == 3 then
+    if _seeker.eurorack_output then
+      _seeker.eurorack_output.handle_encoder_input(d)
+    end
+    return
+  end
+  
+  -- Otherwise, continue execution
   if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
     _seeker.screen_ui.enc(n, d)
   end

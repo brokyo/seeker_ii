@@ -21,6 +21,7 @@ local Arc = include("lib/arc")
 -- Components
 local WTape = include("lib/components/w_tape")
 local StageConfig = include("lib/components/stage_config")
+local EurorackOutput = include("lib/components/eurorack_output")
 
 -- Global state
 _seeker = {
@@ -41,7 +42,8 @@ _seeker = {
 
   -- Component Approach
   w_tape = nil,
-  stage_config = nil
+  stage_config = nil,
+  eurorack_output = nil
 }
 
 --------------------------------------------------
@@ -59,8 +61,10 @@ function init()
   -- Initialize components
   _seeker.w_tape = WTape.init()
   _seeker.stage_config = StageConfig.init()
+  _seeker.eurorack_output = EurorackOutput.init()
+  
   -- UI Setup and global access
-  params_manager.init_params()  
+  params_manager.init_params()
 
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()

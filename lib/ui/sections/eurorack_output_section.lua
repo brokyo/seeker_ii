@@ -39,7 +39,7 @@ function EurorackOutputSection.new()
   -- Crow outputs (1-4)
   for i = 1, 4 do
     section.state.output_params["Crow " .. i] = {
-      { id = "crow_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Gate", "Burst", "LFO", "Looped Random", "Clocked Random"} } },
+      { id = "crow_" .. i .. "_type", name = "Type", spec = { type = "option", values = {"Gate", "Burst", "LFO", "Looped Random", "Clocked Random", "Knob Recorder"} } },
       { id = "crow_" .. i .. "_clock_div", name = "Clock Mod", spec = { type = "option", values = sync_options } },
       -- Burst parameters
       { id = "crow_" .. i .. "_burst_voltage", name = "Voltage", spec = { type = "number", min = -10, max = 10, step = 0.1 } },
@@ -64,7 +64,10 @@ function EurorackOutputSection.new()
       { id = "crow_" .. i .. "_clocked_random_shape", name = "Shape", spec = { type = "option", values = shape_options} },
       { id = "crow_" .. i .. "_clocked_random_quantize", name = "Quantize", spec = { type = "option", values = {"On", "Off"} } },
       { id = "crow_" .. i .. "_clocked_random_min", name = "Min Value", spec = { type = "number", min = -10, max = 10, step = 0.1 } },
-      { id = "crow_" .. i .. "_clocked_random_max", name = "Max Value", spec = { type = "number", min = -10, max = 10, step = 0.1 } }
+      { id = "crow_" .. i .. "_clocked_random_max", name = "Max Value", spec = { type = "number", min = -10, max = 10, step = 0.1 } },
+      -- Knob Recorder parameters
+      { id = "crow_" .. i .. "_knob_recording", name = "Record", action = true, spec = { type = "action"} },
+      { id = "crow_" .. i .. "_knob_clear", name = "Clear", action = true, spec = { type = "action"} }
     }
     
     -- Initialize default values for Crow outputs
@@ -94,6 +97,9 @@ function EurorackOutputSection.new()
     section.state.values["crow_" .. i .. "_clocked_random_quantize"] = "Off"
     section.state.values["crow_" .. i .. "_clocked_random_min"] = -5
     section.state.values["crow_" .. i .. "_clocked_random_max"] = 5
+    -- Knob Recorder Defaults
+    section.state.values["crow_" .. i .. "_knob_recording"] = "Off"
+    section.state.values["crow_" .. i .. "_knob_clear"] = "Off"
   end
 
   -- TXO TR outputs (1-4)
@@ -176,6 +182,7 @@ function EurorackOutputSection.new()
   function section:modify_param(param, delta)
     -- TODO: Action should be on param.spec.type == "action"
     if param.action then
+      --TODO: Need to catch knob recording activation here.
       if param.id:match("^txo_cv_%d+_restart$") then
         -- Restart all TXO CV LFOs
         for i = 1, 4 do

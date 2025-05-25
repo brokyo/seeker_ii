@@ -4,7 +4,6 @@ local LaneSection = include('lib/ui/sections/lane_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local TuningSection = include('lib/ui/sections/tuning_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
-local EurorackOutputSection = include('lib/ui/sections/eurorack_output_section')
 local ScreenSaver = include('lib/ui/screen_saver')
 
 -- New Component Approach
@@ -29,15 +28,15 @@ function ScreenUI.init()
     MOTIF = MotifSection.new(),
     TUNING = TuningSection.new(),
     VELOCITY = VelocitySection.new(),
-    EURORACK_OUTPUT = EurorackOutputSection.new(),
 
     -- Components
     CREATE_MOTIF = CreateMotif.init().screen.build(),
     CLEAR_MOTIF = ClearMotif.init().screen.build(),
-
+    
     -- New New Component Approach
     WTAPE = _seeker.w_tape.screen,
-    STAGE_CONFIG = _seeker.stage_config.screen
+    STAGE_CONFIG = _seeker.stage_config.screen,
+    EURORACK_OUTPUT = _seeker.eurorack_output.screen
   }
   
   ScreenSaver.init()
