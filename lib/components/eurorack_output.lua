@@ -45,7 +45,7 @@ local function reset_recording_state(output_num)
 end
 
 local function create_params()
-    params:add_group("eurorack_output", "EURORACK OUTPUT", 165)
+    params:add_group("eurorack_output", "EURORACK OUTPUT", 161)
     
     -- Output Selection
     params:add_option("selected_output", "Output", {
@@ -261,11 +261,6 @@ local function create_params()
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_control("txo_cv_" .. i .. "_time", "Time", controlspec.new(0.1, 20, 'lin', 0.1, 1))
-        params:set_action("txo_cv_" .. i .. "_time", function(value)
-            EurorackOutput.update_txo_cv(i)
-        end)
-        
         params:add_control("txo_cv_" .. i .. "_offset", "Offset", controlspec.new(-5, 5, 'lin', 0.1, 0))
         params:set_action("txo_cv_" .. i .. "_offset", function(value)
             EurorackOutput.update_txo_cv(i)
@@ -413,11 +408,6 @@ local function create_screen_ui()
                 -- Add depth
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_depth" })
                 
-                -- Add time parameter only if not synced to clock
-                if sync == "Off" then
-                    table.insert(param_table, { id = "txo_cv_" .. output_num .. "_time" })
-                end
-                
                 -- Add remaining LFO parameters
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_offset" })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_phase" })
@@ -472,7 +462,6 @@ function EurorackOutput.handle_encoder_input(delta)
             state.voltage = util.clamp(state.voltage, -10, 10)
             
             -- Send voltage to Crow immediately
-            print("crow")
             crow.output[output_num].volts = state.voltage
         end
     end
@@ -918,16 +907,17 @@ function EurorackOutput.update_txo_cv(output_num)
     local type = params:string("txo_cv_" .. output_num .. "_type")
     local sync = params:string("txo_cv_" .. output_num .. "_sync")
     
+    -- If sync is Off, disable the output and return early
+    if sync == "Off" then
+        -- Stop the oscillator by setting amplitude to 0
+        crow.ii.txo.cv(output_num, 0)
+        return
+    end
+    
     -- Handle Stepped Random type
     if type == "Stepped Random" then
         local min_value = params:get("txo_cv_" .. output_num .. "_random_min")
         local max_value = params:get("txo_cv_" .. output_num .. "_random_max")
-        
-        -- Make sure sync is not Off for Stepped Random
-        if sync == "Off" then
-            params:set("txo_cv_" .. output_num .. "_sync", 9) -- Set to "1/8"
-            sync = "1/8"
-        end
         
         -- Initialize the CV output
         crow.ii.txo.cv_init(output_num)
@@ -955,11 +945,11 @@ function EurorackOutput.update_txo_cv(output_num)
     end
 
     -- Handle LFO type (default)
+    
     -- Get LFO parameters
     local shape = params:string("txo_cv_" .. output_num .. "_shape")
     local morph = params:get("txo_cv_" .. output_num .. "_morph")
     local depth = params:get("txo_cv_" .. output_num .. "_depth")
-    local time = params:get("txo_cv_" .. output_num .. "_time")
     local offset = params:get("txo_cv_" .. output_num .. "_offset")
     local phase = params:get("txo_cv_" .. output_num .. "_phase")
     local rect = params:string("txo_cv_" .. output_num .. "_rect")
@@ -1017,15 +1007,11 @@ function EurorackOutput.update_txo_cv(output_num)
     -- Set up the oscillator parameters
     crow.ii.txo.osc_wave(output_num, wave_type)
     
-    -- Handle sync mode
-    if sync ~= "Off" then
-        local beats = EurorackOutput.division_to_beats(sync)
-        local beat_sec = clock.get_beat_sec()
-        local cycle_time = beat_sec * beats * 1000  -- Convert to milliseconds
-        crow.ii.txo.osc_cyc(output_num, cycle_time)
-    else
-        crow.ii.txo.osc_cyc(output_num, time * 1000)  -- Use time parameter when not synced
-    end
+    -- Set sync mode (sync is guaranteed to not be "Off" at this point)
+    local beats = EurorackOutput.division_to_beats(sync)
+    local beat_sec = clock.get_beat_sec()
+    local cycle_time = beat_sec * beats * 1000  -- Convert to milliseconds
+    crow.ii.txo.osc_cyc(output_num, cycle_time)
     
     crow.ii.txo.cv(output_num, depth)       -- Set amplitude
     crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))  -- Set offset (convert to raw value)
