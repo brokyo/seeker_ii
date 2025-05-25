@@ -1,34 +1,22 @@
 ### Current Session
-- [] Get WTape working!
 
 ### Near Term Priorities
-- [] Update create motif and clear motif to new architecture
-- [] Port stage to component architecture
-- [] Arpeggio mode
+- [] Update motif playback to new architecture
+-- [] More motif playback speed options
+- [] Update clear motif to new architecture
 - [] wsyn drone mode, play mode, and pluck
 
 ### Bugs
 
 ### Long List
-- [] Knob Recorder
-- [] Static voltage outage
-- [] Knob recorder
-- [] More motif playback speed options
-- [] Custom params with options wrap around. They should be bounded.
-- [] Better fundamental generator.
-- [] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
+- [] Static voltage out
 - [] Note Event Refactoring
 -- [] Create consistent note event structure in a single place
 -- [] Separate live vs playback event creation logic
 -- [] Move event param handling out of `Lane:on_note_on`
-- [] Rebuild window manager.
--- [] Reduce dependency on params system 
--- [] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
 - [] Param preset saving and "default" button in config
-- [] Debug menu
 - [] app_on_screen is vestigial. Remove it.
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
-- [] Screen saver has dynamic lanes
 - [] Add MIDI CC to control ableton recording
 
 ### Open Questions
@@ -139,3 +127,13 @@
 - [x] Combine record/overdub
 - [x] Clear motif
 - [x] Place config buttons in stages region
+- [x] Get WTape working!
+- [x] Update create motif to new architecture
+- [x] Port stage to component architecture
+- [x] Arpeggio mode
+- [x] Knob Recorder
+- [x] Custom params with options wrap around. They should be bounded.
+- [x] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
+- [x] Rebuild window manager.
+-- [x] Reduce dependency on params system 
+-- [x] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
