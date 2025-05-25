@@ -21,8 +21,16 @@ function CreateMotif.init()
         -- Monome Params docs https://monome.org/docs/norns/reference/params
         params = {
             create = function()
-                params:add_group("create_motif", "CREATE MOTIF", 2)
-                params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio [TODO]"}, 1)
+                params:add_group("create_motif", "CREATE MOTIF", 4)
+                params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
+                
+                -- Arpeggio mode parameters
+                params:add_option("arpeggio_interval", "Arpeggio Interval",
+                    {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
+                params:add_trigger("arpeggio_add_rest", "Add Rest")
+                params:set_action("arpeggio_add_rest", function()
+                    _seeker.motif_recorder:add_arpeggio_rest()
+                end)
             end
         },
         
@@ -34,12 +42,24 @@ function CreateMotif.init()
                 description = "Motif creation methods. Change type to play live, create arpeggios, or generate automatically",
                 params = {
                     { separator = true, title = "Create Motif" },
-                    { id = "create_motif_type", name = "Motif Type" }
+                    { id = "create_motif_type", name = "Motif Type" },
+                    { id = "arpeggio_interval", name = "Arpeggio Interval" },
+                    { id = "arpeggio_add_rest", name = "Add Rest" }
                 },
-                active_params = {
-                    { separator = true, title = "Create Motif" },
-                    { id = "create_motif_type" }
-                }
+                active_params = function()
+                    local base_params = {
+                        { separator = true, title = "Create Motif" },
+                        { id = "create_motif_type" }
+                    }
+                    
+                    -- Only show arpeggio params when in arpeggio mode
+                    if params:get("create_motif_type") == 2 then
+                        table.insert(base_params, { id = "arpeggio_interval" })
+                        table.insert(base_params, { id = "arpeggio_add_rest" })
+                    end
+                    
+                    return base_params
+                end
             }),
             
             -- This build function is needed by screen_iii.lua
@@ -72,22 +92,23 @@ function CreateMotif.init()
         self:_draw_standard_ui()
 
         -- Original create_motif drawing logic starts here
-        -- Show tooltips for Tape mode
-        if params:get("create_motif_type") == 1 then
-            local tooltip
-            if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
-                tooltip = "⏹: tap"
+        -- Show tooltip
+        local tooltip
+        if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
+            tooltip = "⏹: tap"
+        else
+            local focused_lane_tooltip = _seeker.ui_state.get_focused_lane() -- Renamed to avoid conflict
+            local lane_tooltip = _seeker.lanes[focused_lane_tooltip] -- Renamed
+            if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
+                tooltip = "⏺: hold [overdub]"
             else
-                local focused_lane_tooltip = _seeker.ui_state.get_focused_lane() -- Renamed to avoid conflict
-                local lane_tooltip = _seeker.lanes[focused_lane_tooltip] -- Renamed
-                if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
-                    tooltip = "⏺: hold [overdub]"
-                else
-                    tooltip = "⏺: hold [record]"
-                end
+                tooltip = "⏺: hold [record]"
             end
-            
-            local width_tooltip = screen.text_extents(tooltip) -- Renamed 'width'
+        end
+        
+        -- Draw tooltip if we have one
+        if tooltip then
+            local width_tooltip = screen.text_extents(tooltip)
             
             if _seeker.ui_state.is_long_press_active() then
                 screen.level(15)
@@ -100,11 +121,11 @@ function CreateMotif.init()
         end
         
         -- Draw loop visualization whenever there's a motif
-        local focused_lane_vis = _seeker.ui_state.get_focused_lane() -- Renamed 'focused_lane'
-        local lane_vis = _seeker.lanes[focused_lane_vis] -- Renamed 'lane'
-        local motif_vis = lane_vis.motif -- Renamed 'motif'
+        local focused_lane_vis = _seeker.ui_state.get_focused_lane()
+        local lane_vis = _seeker.lanes[focused_lane_vis]
+        local motif_vis = lane_vis.motif
 
-        if motif_vis and #motif_vis.events > 0 then -- Use renamed motif_vis and check if motif_vis is not nil
+        if motif_vis and #motif_vis.events > 0 then
              -- Constants for visualization
             local VIS_Y = 32    
             local VIS_HEIGHT = 6
@@ -112,7 +133,7 @@ function CreateMotif.init()
             local VIS_WIDTH = 112
                 
             -- Get the effective duration (handles custom duration)
-            local loop_duration = motif_vis:get_duration() -- Use renamed motif_vis
+            local loop_duration = motif_vis:get_duration()
                 
             -- Draw loop outline
             screen.level(4)
@@ -123,22 +144,22 @@ function CreateMotif.init()
             local max_gen = 1
             
             -- Find the latest generation
-            for _, event in ipairs(motif_vis.events) do -- Use renamed motif_vis
+            for _, event in ipairs(motif_vis.events) do
                 if event.generation and event.generation > max_gen then
                     max_gen = event.generation
                 end
             end
 
             -- Draw existing event markers with generation-based brightness
-            for _, event in ipairs(motif_vis.events) do -- Use renamed motif_vis
+            for _, event in ipairs(motif_vis.events) do
                 if event.type == "note_on" then
                     -- Calculate brightness based on generation (older=dimmer, newer=brighter)
-                    local gen = event.generation or 1 -- Ensure gen is not nil
+                    local gen = event.generation or 1
                     local brightness = 2 + math.floor((gen / max_gen) * 10)
                     screen.level(brightness)
                     
                     -- Calculate x position based on event time relative to loop duration
-                    local x_event = VIS_X + (event.time / loop_duration * VIS_WIDTH) -- Renamed 'x'
+                    local x_event = VIS_X + (event.time / loop_duration * VIS_WIDTH)
                   
                     -- Draw small vertical line for event
                     screen.move(x_event, VIS_Y)
@@ -155,7 +176,7 @@ function CreateMotif.init()
                     -- Only show newly added events from current generation
                     if event.type == "note_on" and event.generation == _seeker.motif_recorder.current_generation then
                         -- Use event time directly from recorder
-                        local x_overdub = VIS_X + (event.time / loop_duration * VIS_WIDTH) -- Renamed 'x'
+                        local x_overdub = VIS_X + (event.time / loop_duration * VIS_WIDTH)
                         -- Draw slightly taller line for new events
                         screen.move(x_overdub, VIS_Y - 1)
                         screen.line(x_overdub, VIS_Y + VIS_HEIGHT + 1)
@@ -168,17 +189,17 @@ function CreateMotif.init()
             local current_beat = clock.get_beats()
             local position = current_beat % loop_duration  -- Default position
 
-            if lane_vis.playing then -- Use renamed lane_vis
+            if lane_vis.playing then
                 -- Use more precise position based on stage timing when playing
-                local current_stage = lane_vis.stages[lane_vis.current_stage_index] -- Use renamed lane_vis
+                local current_stage = lane_vis.stages[lane_vis.current_stage_index]
                 if current_stage and current_stage.last_start_time then
                     local elapsed_time = current_beat - current_stage.last_start_time
-                    position = (elapsed_time * lane_vis.speed) % loop_duration -- Use renamed lane_vis
+                    position = (elapsed_time * lane_vis.speed) % loop_duration
                 end
             end
 
             -- Draw playhead
-            local x_playhead = VIS_X + (position / loop_duration * VIS_WIDTH) -- Renamed 'x'
+            local x_playhead = VIS_X + (position / loop_duration * VIS_WIDTH)
             screen.level(15)
             screen.move(x_playhead, VIS_Y - 1)
             screen.line(x_playhead, VIS_Y + VIS_HEIGHT + 1)
@@ -200,8 +221,8 @@ function CreateMotif.init()
         -- Call original draw method
         original_grid_draw(self, layers)
         
-        -- Only in Tape mode
-        if params:get("create_motif_type") == 1 then
+        -- Handle different modes
+        if params:get("create_motif_type") == 1 then -- Tape mode
             -- Draw keyboard outline during long press
             if self:is_holding_long_press() then
                 -- Use the shared keyboard outline highlight method
@@ -237,71 +258,122 @@ function CreateMotif.init()
                 -- One complete pulse cycle takes 2 beats
                 layers.ui[self.layout.x][self.layout.y] = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 2)
             end
+        elseif params:get("create_motif_type") == 2 then -- Arpeggio mode
+            -- Make the Create Motif button pulsate while recording
+            if _seeker.motif_recorder.is_recording then
+                layers.ui[self.layout.x][self.layout.y] = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 1)
+            end
         end
     end
     
+    -- Helper function for common key press logic
+    local function handle_key_press(self)
+        _seeker.ui_state.set_current_section("CREATE_MOTIF")
+        _seeker.ui_state.set_long_press_state(true, "CREATE_MOTIF")
+        _seeker.screen_ui.set_needs_redraw()
+    end
+    
+    -- Helper function for common key release cleanup
+    local function handle_key_release_cleanup(self, key_id)
+        _seeker.ui_state.set_long_press_state(false, nil)
+        _seeker.screen_ui.set_needs_redraw()
+        self:key_release(key_id)
+    end
+    
+    -- Helper function for tape mode recording logic
+    local function handle_tape_recording_stop(self)
+        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
+        local current_lane = _seeker.lanes[focused_lane_idx]
+        
+        -- Determine if it was an overdub by checking if an original_motif was set in the recorder.
+        local was_overdubbing = (_seeker.motif_recorder.original_motif ~= nil)
+        
+        local overdubbed_motif = _seeker.motif_recorder:stop_recording()
+        current_lane:set_motif(overdubbed_motif)
+        
+        if not was_overdubbing then
+            -- New recording finished. Start playing it.
+            current_lane:play()
+        end
+        
+        _seeker.screen_ui.set_needs_redraw()
+    end
+    
+    -- Helper function for tape mode recording start
+    local function handle_tape_recording_start(self)
+        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
+        local current_lane = _seeker.lanes[focused_lane_idx]
+        local existing_motif = current_lane.motif
+        
+        -- Check if lane has a playing motif - if so, overdub instead of recording new
+        if existing_motif and #existing_motif.events > 0 and current_lane.playing then
+            -- Start overdubbing the existing motif
+            _seeker.motif_recorder:set_recording_mode(2) -- Set to overdub mode
+            _seeker.motif_recorder:start_recording(existing_motif)
+        else
+            -- Clear the current motif and start new recording
+            current_lane:clear()  -- Clear current motif
+            
+            -- Start new recording
+            _seeker.motif_recorder:set_recording_mode(1) -- Set to regular recording mode
+            _seeker.motif_recorder:start_recording(nil)
+        end
+        
+        _seeker.screen_ui.set_needs_redraw()
+    end
+    
+    -- Helper function for arpeggio mode recording logic
+    local function handle_arpeggio_recording_stop(self)
+        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
+        local current_lane = _seeker.lanes[focused_lane_idx]
+        
+        local arpeggio_motif = _seeker.motif_recorder:stop_arpeggio_recording()
+        
+        current_lane:set_motif(arpeggio_motif)
+        current_lane:play() -- Start playing immediately after recording
+        
+        _seeker.screen_ui.set_needs_redraw()
+    end
+    
+    -- Helper function for arpeggio mode recording start
+    local function handle_arpeggio_recording_start(self)
+        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
+        local current_lane = _seeker.lanes[focused_lane_idx]
+        
+        -- Clear the current motif and start new arpeggio recording
+        current_lane:clear()
+        _seeker.motif_recorder:start_arpeggio_recording()
+        
+        _seeker.screen_ui.set_needs_redraw()
+    end
+
     -- Override handle_key to implement recording functionality
     instance.grid.handle_key = function(self, x, y, z)
-        -- Only apply recording logic when in Tape mode
-        if params:get("create_motif_type") == 1 then -- Tape mode
-            local key_id = string.format("%d,%d", x, y)
-            
-            if z == 1 then -- Key pressed
-                self:key_down(key_id)
-                _seeker.ui_state.set_current_section("CREATE_MOTIF")
-                _seeker.ui_state.set_long_press_state(true, "CREATE_MOTIF")
-                _seeker.screen_ui.set_needs_redraw()
-            else -- Key released
-                -- If in recording/overdubbing state, stop on key release
-                if _seeker.motif_recorder.is_recording then
-                    local focused_lane_idx = _seeker.ui_state.get_focused_lane()
-                    local current_lane = _seeker.lanes[focused_lane_idx]
-                    
-                    -- Determine if it was an overdub by checking if an original_motif was set in the recorder.
-                    -- Kind of a hack, but it works.
-                    local was_overdubbing = (_seeker.motif_recorder.original_motif ~= nil)
-                    
-                    local overdubbed_motif = _seeker.motif_recorder:stop_recording()
-                    
-                    current_lane:set_motif(overdubbed_motif)
-                    
-                    if was_overdubbing then
-                        -- Don't do anything, we're already playing
-                    else
-                        -- New recording finished. Start playing it.
-                        current_lane:play()
-                    end
-                    
-                    _seeker.screen_ui.set_needs_redraw()
-                -- If not recording and it was a long press, start recording or overdubbing
-                elseif self:is_long_press(key_id) then
-                    local focused_lane_idx = _seeker.ui_state.get_focused_lane()
-                    local current_lane = _seeker.lanes[focused_lane_idx]
-                    local existing_motif = current_lane.motif
-                    
-                    -- Check if lane has a playing motif - if so, overdub instead of recording new
-                    if existing_motif and #existing_motif.events > 0 and current_lane.playing then
-                        -- Start overdubbing the existing motif
-                        _seeker.motif_recorder:set_recording_mode(2) -- Set to overdub mode
-                        _seeker.motif_recorder:start_recording(existing_motif)
-                    else
-                        -- Clear the current motif and start new recording
-                        current_lane:clear()  -- Clear current motif
-                        
-                        -- Start new recording
-                        _seeker.motif_recorder:set_recording_mode(1) -- Set to regular recording mode
-                        _seeker.motif_recorder:start_recording(nil)
-                    end
-                    
-                    _seeker.screen_ui.set_needs_redraw()
+        local motif_type = params:get("create_motif_type")
+        local key_id = string.format("%d,%d", x, y)
+        
+        if z == 1 then -- Key pressed
+            self:key_down(key_id)
+            handle_key_press(self)
+        else -- Key released
+            -- Handle recording stop logic based on mode
+            if _seeker.motif_recorder.is_recording then
+                if motif_type == 1 then -- Tape mode
+                    handle_tape_recording_stop(self)
+                elseif motif_type == 2 and _seeker.motif_recorder.recording_mode == 3 then -- Arpeggio mode
+                    handle_arpeggio_recording_stop(self)
                 end
-                
-                -- Always clear long press state on release
-                _seeker.ui_state.set_long_press_state(false, nil)
-                _seeker.screen_ui.set_needs_redraw()
-                
-                self:key_release(key_id)
+            -- Handle recording start logic for long press
+            elseif self:is_long_press(key_id) then
+                if motif_type == 1 then -- Tape mode
+                    handle_tape_recording_start(self)
+                elseif motif_type == 2 then -- Arpeggio mode
+                    handle_arpeggio_recording_start(self)
+                end
             end
+            
+            -- Always perform cleanup
+            handle_key_release_cleanup(self, key_id)
         end
     end
     

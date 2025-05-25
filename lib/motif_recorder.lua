@@ -8,7 +8,7 @@ MotifRecorder.__index = MotifRecorder
 
 function MotifRecorder.new()
   local m = setmetatable({}, MotifRecorder)
-  m.recording_mode = 1  -- Used to identify if it's a fresh recording or an overdub
+  m.recording_mode = 1  -- 1 = New, 2 = Overdub, 3 = Arpeggio
   m:reset_state()
   return m
 end
@@ -22,6 +22,10 @@ function MotifRecorder:reset_state()
   self.waiting_for_first_note = false
   self.original_motif = nil  -- Track original motif for overdub
   self.current_generation = 1  -- Track which generation we're recording
+  
+  -- Arpeggio mode state
+  self.arpeggio_step = 0  -- Current step in arpeggio sequence
+  self.arpeggio_interval = 1  -- Interval between steps in beats
 end
 
 -- Helper function to quantize a beat value using global quantize division
@@ -35,6 +39,12 @@ end
 --- onNoteOn: called when a grid button is pressed (z=1)
 function MotifRecorder:on_note_on(event)
   if not self.is_recording then return end
+  
+  -- Handle arpeggio mode differently
+  if self.recording_mode == 3 then
+    self:_arpeggio_add_note(event)
+    return
+  end
    
   -- If this is our first note in a new recording, set the start time with a small offset
   if self.waiting_for_first_note then
@@ -97,6 +107,11 @@ end
 --- onNoteOff: called when a grid button is released (z=0)
 function MotifRecorder:on_note_off(event)
   if not self.is_recording then return end
+  
+  -- Arpeggio mode doesn't use note_off events during recording
+  if self.recording_mode == 3 then
+    return
+  end
 
   -- Calculate timing
   local now = clock.get_beats()
@@ -219,6 +234,115 @@ function MotifRecorder:stop_recording()
   self.events = {}
   self.loop_length = nil
   print("⊞ Recording stopped")
+  return recorded_data
+end
+
+--- Helper function to convert interval string to beats
+function MotifRecorder:_interval_to_beats(interval_str)
+  if tonumber(interval_str) then
+    return tonumber(interval_str)
+  end
+  local num, den = interval_str:match("(%d+)/(%d+)")
+  if num and den then
+    return tonumber(num) / tonumber(den)
+  end
+  return 1/8
+end
+
+--- Add a note to the arpeggio sequence
+function MotifRecorder:_arpeggio_add_note(event)
+  -- Get interval directly from params
+  local interval_str = params:string("arpeggio_interval")
+  self.arpeggio_interval = self:_interval_to_beats(interval_str)
+  
+  local note_time = self.arpeggio_step * self.arpeggio_interval
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  
+  -- Add note_on event
+  table.insert(self.events, {
+    time = note_time,
+    type = "note_on",
+    note = event.note,
+    velocity = event.velocity,
+    x = event.x,
+    y = event.y,
+    generation = self.current_generation,
+    attack = params:get("lane_" .. focused_lane .. "_attack"),
+    decay = params:get("lane_" .. focused_lane .. "_decay"),
+    sustain = params:get("lane_" .. focused_lane .. "_sustain"),
+    release = params:get("lane_" .. focused_lane .. "_release"),
+    pan = params:get("lane_" .. focused_lane .. "_pan")
+  })
+  
+  -- Add note_off event at the end of the interval (slightly before next step)
+  local note_off_time = note_time + (self.arpeggio_interval * 0.9) -- 90% of interval duration
+  table.insert(self.events, {
+    time = note_off_time,
+    type = "note_off",
+    note = event.note,
+    x = event.x,
+    y = event.y,
+    generation = self.current_generation
+  })
+  
+  self.arpeggio_step = self.arpeggio_step + 1
+  print(string.format("♪ Arpeggio step %d: note %d at %.3f beats", self.arpeggio_step, event.note, note_time))
+end
+
+--- Add a rest to the arpeggio sequence
+function MotifRecorder:add_arpeggio_rest()
+  if not self.is_recording or self.recording_mode ~= 3 then return end
+  
+  -- Get interval directly from params
+  local interval_str = params:string("arpeggio_interval")
+  self.arpeggio_interval = self:_interval_to_beats(interval_str)
+  
+  local rest_time = self.arpeggio_step * self.arpeggio_interval
+  
+  -- Add rest event
+  table.insert(self.events, {
+    time = rest_time,
+    type = "rest",
+    generation = self.current_generation
+  })
+  
+  self.arpeggio_step = self.arpeggio_step + 1
+  print(string.format("♪ Arpeggio step %d: rest at %.3f beats", self.arpeggio_step, rest_time))
+end
+
+--- Start arpeggio recording
+function MotifRecorder:start_arpeggio_recording()
+  self:reset_state()
+  self.recording_mode = 3
+  self.is_recording = true
+  self.arpeggio_step = 0
+  print("♪ Starting arpeggio recording")
+end
+
+--- Stop arpeggio recording and return the event table
+function MotifRecorder:stop_arpeggio_recording()
+  if not self.is_recording or self.recording_mode ~= 3 then return end
+  
+  self.is_recording = false
+  
+  -- Sort all events by time
+  table.sort(self.events, function(a, b)
+    return a.time < b.time
+  end)
+  
+  -- Calculate total duration based on steps
+  local total_duration = self.arpeggio_step * self.arpeggio_interval
+  
+  -- Create recorded data package
+  local recorded_data = {
+    events = self.events,
+    duration = total_duration
+  }
+
+  -- Clear recorder state
+  self.events = {}
+  self.arpeggio_step = 0
+  print("♪ Arpeggio recording stopped")
   return recorded_data
 end
 
