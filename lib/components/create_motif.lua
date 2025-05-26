@@ -10,7 +10,7 @@ local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
 local function create_params()
-    params:add_group("create_motif", "CREATE MOTIF", 4)
+    params:add_group("create_motif", "CREATE MOTIF", 5)
     params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
     params:set_action("create_motif_type", function(value)
         if _seeker and _seeker.create_motif then
@@ -22,6 +22,7 @@ local function create_params()
     -- Arpeggio mode parameters
     params:add_option("arpeggio_interval", "Arpeggio Interval",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
+    params:add_number("arpeggio_note_duration", "Note Duration", 0, 100, 50, function(param) return param.value .. "%" end)
     params:add_binary("arpeggio_add_rest", "Add Rest", "trigger", 0)
     params:set_action("arpeggio_add_rest", function(value)
         if value == 1 then
@@ -40,6 +41,7 @@ local function create_screen_ui()
             { separator = true, title = "Create Motif" },
             { id = "create_motif_type" },
             { id = "arpeggio_interval" },
+            { id = "arpeggio_note_duration" },
             { id = "arpeggio_add_rest" }
         }
     })
@@ -54,6 +56,7 @@ local function create_screen_ui()
         -- Only show arpeggio params when in arpeggio mode
         if params:get("create_motif_type") == 2 then
             table.insert(param_table, { id = "arpeggio_interval" })
+            table.insert(param_table, { id = "arpeggio_note_duration" })
             table.insert(param_table, { id = "arpeggio_add_rest", is_action = true })
         end
         
@@ -290,6 +293,32 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
     
+    -- Helper function to draw count display when recording
+    local function draw_count_display(self, layers)
+        -- Use quarter-note subdivisions for metronome
+        local current_quarter = math.floor(clock.get_beats()) % 4
+        
+        -- Count display coordinates
+        local count_display = {
+            x_start = 7,
+            x_end = 10,
+            y = 1,
+            pulse_duration = 0.25  -- 1/4 of a beat
+        }
+        
+        -- Set all count LEDs to very low brightness initially
+        for x_count = count_display.x_start, count_display.x_end do
+            layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW / 2
+        end
+        
+        -- Determine which position should be highlighted (moves every beat)
+        local highlight_x = count_display.x_start + current_quarter
+        
+        -- Calculate brightness based on sine wave but keep at 1 beat cycle
+        local pulse_brightness = math.floor(math.sin(clock.get_beats() * 4) * 2 + GridConstants.BRIGHTNESS.LOW + 2)
+        layers.ui[highlight_x][count_display.y] = pulse_brightness
+    end
+    
     -- Override draw to add keyboard outline during long press
     grid_ui.draw = function(self, layers)
         local x = self.layout.x
@@ -298,48 +327,19 @@ local function create_grid_ui()
             GridConstants.BRIGHTNESS.UI.FOCUSED or 
             GridConstants.BRIGHTNESS.UI.NORMAL
         
-        -- Handle different modes
-        if params:get("create_motif_type") == 1 then -- Tape mode
-            -- Draw keyboard outline during long press
-            if self:is_holding_long_press() then
-                -- Use the shared keyboard outline highlight method
-                self:draw_keyboard_outline_highlight(layers)
-            end
+        -- Draw keyboard outline during long press (same for both modes)
+        if self:is_holding_long_press() then
+            self:draw_keyboard_outline_highlight(layers)
+        end
+        
+        -- Draw count display when recording (same for both modes)
+        if _seeker.motif_recorder.is_recording then
+            draw_count_display(self, layers)
             
-            -- Draw count display when recording
-            if _seeker.motif_recorder.is_recording then
-                -- Use quarter-note subdivisions for metronome
-                local current_quarter = math.floor(clock.get_beats()) % 4
-                
-                -- Count display coordinates
-                local count_display = {
-                    x_start = 7,
-                    x_end = 10,
-                    y = 1,
-                    pulse_duration = 0.25  -- 1/4 of a beat
-                }
-                
-                -- Set all count LEDs to very low brightness initially
-                for x_count = count_display.x_start, count_display.x_end do
-                    layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW / 2
-                end
-                
-                -- Determine which position should be highlighted (moves every beat)
-                local highlight_x = count_display.x_start + current_quarter
-                
-                -- Calculate brightness based on sine wave but keep at 1 beat cycle
-                local pulse_brightness = math.floor(math.sin(clock.get_beats() * 4) * 2 + GridConstants.BRIGHTNESS.LOW + 2)
-                layers.ui[highlight_x][count_display.y] = pulse_brightness
-                
-                -- Make the Create Motif button pulsate while recording
-                -- One complete pulse cycle takes 2 beats
-                brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 2)
-            end
-        elseif params:get("create_motif_type") == 2 then -- Arpeggio mode
             -- Make the Create Motif button pulsate while recording
-            if _seeker.motif_recorder.is_recording then
-                brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, 1)
-            end
+            -- Different pulse rates for different modes
+            local pulse_rate = (params:get("create_motif_type") == 1) and 2 or 1
+            brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, pulse_rate)
         end
         
         layers.ui[x][y] = brightness
