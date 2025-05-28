@@ -23,6 +23,7 @@ local CreateMotif = include("lib/components/create_motif")
 local WTape = include("lib/components/w_tape")
 local StageConfig = include("lib/components/stage_config")
 local EurorackOutput = include("lib/components/eurorack_output")
+local OscConfig = include("lib/components/osc_config")
 
 -- Global state
 _seeker = {
@@ -45,7 +46,8 @@ _seeker = {
   create_motif = nil,
   w_tape = nil,
   stage_config = nil,
-  eurorack_output = nil
+  eurorack_output = nil,
+  osc_config = nil,
 }
 
 --------------------------------------------------
@@ -65,6 +67,7 @@ function init()
   _seeker.w_tape = WTape.init()
   _seeker.stage_config = StageConfig.init()
   _seeker.eurorack_output = EurorackOutput.init()
+  _seeker.osc_config = OscConfig.init()
   
   -- UI Setup and global access
   params_manager.init_params()

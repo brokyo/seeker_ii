@@ -30,7 +30,8 @@ local regions = {
   create_motif = nil,
   wtape = nil,
   stage_config = nil,
-  eurorack_output = nil
+  eurorack_output = nil,
+  osc_config = nil
 }
 
 GridUI.layers = nil
@@ -68,7 +69,8 @@ function GridUI.init()
   regions.wtape = _seeker.w_tape.grid
   regions.stage_config = _seeker.stage_config.grid
   regions.eurorack_output = _seeker.eurorack_output.grid
-  
+  regions.osc_config = _seeker.osc_config.grid
+
   return GridUI
 end
 
@@ -105,6 +107,8 @@ function draw_controls()
   regions.wtape:draw(GridUI.layers)
   regions.stage_config:draw(GridUI.layers)
   regions.eurorack_output:draw(GridUI.layers)
+  regions.osc_config:draw(GridUI.layers)
+
 end
 
 function draw_keyboard()
@@ -246,6 +250,8 @@ function GridUI.key(x, y, z)
       regions.stage_config:handle_key(x, y, z)
     elseif regions.eurorack_output:contains(x, y) then
       regions.eurorack_output:handle_key(x, y, z)
+    elseif regions.osc_config:contains(x, y) then
+      regions.osc_config:handle_key(x, y, z)
     end
   end
 end

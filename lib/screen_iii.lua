@@ -33,7 +33,8 @@ function ScreenUI.init()
     CREATE_MOTIF = _seeker.create_motif.screen,
     WTAPE = _seeker.w_tape.screen,
     STAGE_CONFIG = _seeker.stage_config.screen,
-    EURORACK_OUTPUT = _seeker.eurorack_output.screen
+    EURORACK_OUTPUT = _seeker.eurorack_output.screen,
+    OSC_CONFIG = _seeker.osc_config.screen
   }
   
   ScreenSaver.init()
