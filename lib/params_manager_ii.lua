@@ -457,6 +457,18 @@ function create_wsyn_params(i)
     end)
 end
 
+function create_osc_params(i)
+    -- OSC Active
+    params:add_binary("lane_" .. i .. "_osc_active", "OSC Active", "toggle", 0)
+    params:set_action("lane_" .. i .. "_osc_active", function(value)
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+            _seeker.ui_state.get_focused_lane() == i then
+            _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
+end
+
 function create_motif_playback_params(i)
     -- Playback octave offset
     params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
@@ -532,9 +544,9 @@ end
 function init_lane_params()
     local instruments = params_manager_ii.get_instrument_list()
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i, 49)
+        params:add_group("lane_" .. i, "LANE " .. i, 50)
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice:",
-            {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn"})
+            {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             -- Update lane section if it's currently showing this lane
             if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
@@ -556,6 +568,7 @@ function init_lane_params()
         create_crow_txo_params(i)
         create_just_friends_params(i)
         create_wsyn_params(i)
+        create_osc_params(i)
         create_stage_tracker_params(i)
         create_motif_playback_params(i)
     end

@@ -92,6 +92,9 @@ function LaneSection.new()
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_symmetry", name = "LPG Symmetry" })
 
       end
+    elseif visible_voice == 6 then -- OSC
+      table.insert(self.params, { separator = true, name = "OSC" })
+      table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_osc_active", name = "OSC Active" })
     end
     
     -- Update section name with lane number

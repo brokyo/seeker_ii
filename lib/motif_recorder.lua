@@ -1,88 +1,117 @@
 -- motif_recorder.lua
--- Core responsibility: Convert grid/MIDI input into a sequence of timed note events
-
-local theory = include('lib/theory_utils')
+-- Core responsibility: Convert grid/MIDI input into a table of note on/off events. Supports multiple recording modes:
+-- 1. Tape: Record a new motif from scratch (duration is determined by time between stop and start)
+-- 2. Overdub: Overdub onto an existing motif (duration is determined by the original motif)
+-- 3. Arpeggio: Record a sequence of notes with consistent intervals (duration is determined by the number of notes and rests)
 
 local MotifRecorder = {}
 MotifRecorder.__index = MotifRecorder
 
 function MotifRecorder.new()
   local m = setmetatable({}, MotifRecorder)
-  m.recording_mode = 1  -- 1 = New, 2 = Overdub, 3 = Arpeggio
+  m.recording_mode = 1
   m:reset_state()
   return m
 end
 
--- Reset all internal state
+-- Reset internal state to default values
 function MotifRecorder:reset_state()
   self.is_recording = false
   self.events = {}
   self.start_time = 0
   self.loop_length = nil
   self.waiting_for_first_note = false
-  self.original_motif = nil  -- Track original motif for overdub
-  self.current_generation = 1  -- Track which generation we're recording
+  self.original_motif = nil
+  self.current_generation = 1
   
-  -- Arpeggio mode state  
-  self.arpeggio_interval = 1  -- Interval between steps in beats
+  -- Additional state for arpeggio mode
+  self.arpeggio_interval = 1
+  self.arpeggio_rest_count = 0
+  
+  -- Track active notes for overdub mode to handle loop wraparound
+  self.active_notes = {}
 end
 
--- Helper function to quantize a beat value using global quantize division
-function MotifRecorder:_quantize_beat(beat)
-  -- Get selected division string (e.g. "1/16") and extract denominator
-  local division_str = params:lookup_param("quantize_division").options[params:get("quantize_division")]
-  local denom = tonumber(division_str:match("/(%d+)"))
-  return math.floor(beat * denom + 0.5) / denom
+-- Helper function to create a note key for tracking active notes
+function MotifRecorder:_note_key(event)
+  return string.format("%d,%d,%d", event.note, event.x, event.y)
 end
 
---- onNoteOn: called when a grid button is pressed (z=1)
+-- on_note_on: called when a grid button is pressed (z=1)
 function MotifRecorder:on_note_on(event)
   if not self.is_recording then return end
-   
-  -- If this is our first note in a new recording, set the start time with a small offset
-  if self.waiting_for_first_note then
-    self.start_time = clock.get_beats() - 0.02  -- Small offset for scheduling
-    self.waiting_for_first_note = false
-  end
 
   -- Calculate timing
   local now = clock.get_beats()
-  local position
+  local position = 0
   
-  if self.loop_length then
-    -- For overdub, properly sync with current playback position
-    local focused_lane = _seeker.ui_state.get_focused_lane()
-    local lane = _seeker.lanes[focused_lane]
+
+  -- Calculate note_on timing (position) based on the recording mode
+  -- Mode 1: Tape recording (new motif)
+  if self.recording_mode == 1 then
+    if self.waiting_for_first_note then
+      self.start_time = clock.get_beats() - 0.02  -- Small offset for better scheduling. Things can break otherwise.
+      self.waiting_for_first_note = false
+    end
     
-    if lane.playing then
-      -- Get timing from the currently playing stage
-      local current_stage = lane.stages[lane.current_stage_index]
-      if current_stage.last_start_time then
-        -- Calculate position based on lane's stage start time, same as visualization
-        local elapsed_time = now - current_stage.last_start_time
-        position = (elapsed_time * lane.speed) % self.loop_length
+    position = now - self.start_time
+  -- Mode 2: Overdub recording
+  elseif self.recording_mode == 2 then
+    if self.waiting_for_first_note then
+      self.start_time = clock.get_beats() - 0.02
+      self.waiting_for_first_note = false
+    end
+    
+    -- Calculate overdub position with current playback position
+    if self.loop_length then
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local lane = _seeker.lanes[focused_lane]
+      
+      if lane.playing then
+        -- Get timing from the currently playing stage
+        local current_stage = lane.stages[lane.current_stage_index]
+        if current_stage.last_start_time then
+          -- Calculate position based on lane's stage start time, sync with visualization
+          local elapsed_time = now - current_stage.last_start_time
+          position = (elapsed_time * lane.speed) % self.loop_length
+        else
+          -- Fallback if stage start time not available
+          position = now % self.loop_length
+        end
       else
-        -- Fallback if stage start time not available
+        -- N.B. I don't think we ever get here.
+        -- Not playing, use modulo loop length
         position = now % self.loop_length
       end
     else
-      -- Not playing, use modulo loop length
-      position = now % self.loop_length
+      -- For new recording, measure from start
+      position = now - self.start_time
     end
-  else
-    -- For new recording, measure from start
-    position = now - self.start_time
-  end
-  
-  local quantized_time = self:_quantize_beat(position)
-  if self.loop_length then
-    print(string.format("⊕ Recording note %d at position: %.3f (gen: %d)", event.note, quantized_time, self.current_generation))
-  end
     
+    -- Track this note as active for overdub mode
+    local note_key = self:_note_key(event)
+    self.active_notes[note_key] = position
+  -- Mode 3: Arpeggio recording
+  elseif self.recording_mode == 3 then
+    -- Get interval from params
+    local interval_str = params:string("arpeggio_interval")
+    local interval = self:_interval_to_beats(interval_str)
+    
+    -- Calculate position based on number of notes played plus rests
+    local note_count = 0
+    for _, evt in ipairs(self.events) do
+      if evt.type == "note_on" then
+        note_count = note_count + 1
+      end
+    end
+    position = (note_count + self.arpeggio_rest_count) * interval
+  end
+      
   -- Store note_on event
+  -- N.B. ADSR/Pan are on a per-note basis
   local focused_lane = _seeker.ui_state.get_focused_lane()
   table.insert(self.events, {
-    time = quantized_time,
+    time = position,
     type = "note_on",
     note = event.note,
     velocity = event.velocity,
@@ -96,35 +125,42 @@ function MotifRecorder:on_note_on(event)
     pan = params:get("lane_" .. focused_lane .. "_pan")
   })
   
-  -- For arpeggio mode, schedule automatic note_off
+  -- For arpeggio mode, immediately schedule the note_off based on duration parameter
   if self.recording_mode == 3 then
     local interval_str = params:string("arpeggio_interval")
     local interval = self:_interval_to_beats(interval_str)
-    local note_duration_ratio = params:get("arpeggio_note_duration")
-    local note_duration = interval * note_duration_ratio
+    local note_duration_percentage = params:get("arpeggio_note_duration") / 100
+    local note_duration = interval * note_duration_percentage
     
-    -- Schedule note_off event
-    clock.run(function()
-      clock.sleep(note_duration)
-      if self.is_recording then
-        self:on_note_off({
-          note = event.note,
-          x = event.x,
-          y = event.y
-        })
-      end
-    end)
+    -- Calculate note_off time
+    local note_off_time = position + note_duration
+    
+    -- Store note_off event immediately
+    table.insert(self.events, {
+      time = note_off_time,
+      type = "note_off",
+      note = event.note,
+      x = event.x,
+      y = event.y,
+      generation = self.current_generation
+    })
   end
 end
 
---- onNoteOff: called when a grid button is released (z=0)
+-- on_note_off: called when a grid button is released (z=0)
 function MotifRecorder:on_note_off(event)
   if not self.is_recording then return end
+
+  -- Skip note_off processing for arpeggio mode since we handle it in note_on
+  if self.recording_mode == 3 then
+    return
+  end
 
   -- Calculate timing
   local now = clock.get_beats()
   local position
   
+  -- Calculate note_off timing (position) based on the recording mode
   if self.loop_length then
     -- For overdub, properly sync with current playback position
     local focused_lane = _seeker.ui_state.get_focused_lane()
@@ -145,38 +181,53 @@ function MotifRecorder:on_note_off(event)
       -- Not playing, use modulo loop length
       position = now % self.loop_length
     end
+    
+    -- Handle loop wraparound for overdub mode
+    if self.recording_mode == 2 then
+      local note_key = self:_note_key(event)
+      local note_on_position = self.active_notes[note_key]
+      
+      if note_on_position then
+        -- If note_off position is less than note_on position, the note crossed the loop boundary
+        -- Add loop_length to note_off to maintain proper temporal ordering
+        if position < note_on_position then
+          position = position + self.loop_length
+        end
+        
+        -- Clear from active notes
+        self.active_notes[note_key] = nil
+      end
+    end
   else
     -- For new recording, measure from start
     position = now - self.start_time
   end
-  
-  local quantized_time = self:_quantize_beat(position)
-  
+      
   -- Store note_off event
   table.insert(self.events, {
-    time = quantized_time,
+    time = position,
     type = "note_off",
     note = event.note,
     x = event.x,
     y = event.y,
-    generation = self.current_generation  -- Add generation to event
+    generation = self.current_generation
   })
 end
 
---- Set the recording mode
--- @param mode: 1 for New, 2 for Overdub
+-- Set the recording mode
+-- @param mode: 1 for Tape, 2 for Overdub, 3 for Arpeggio
 function MotifRecorder:set_recording_mode(mode)
   self.recording_mode = mode
 end
 
---- Start a new recording
+-- Start a new recording
 -- Grid interaction: Called from GridUI.handle_record_toggle
 function MotifRecorder:start_recording(existing_motif)
-  -- Reset all state
+  -- Reset state
   self:reset_state()
   
   -- If overdubbing, store original duration and events
-  if self.recording_mode == 2 and existing_motif then -- 2 = Overdub
+  if self.recording_mode == 2 and existing_motif then
     print('we dubbing')
     self.loop_length = existing_motif.duration
     self.original_motif = existing_motif -- Store reference to original
@@ -209,10 +260,11 @@ function MotifRecorder:start_recording(existing_motif)
     -- Set new generation for upcoming events
     self.current_generation = max_gen + 1
     print(string.format("⊕ Starting overdub with generation %d", self.current_generation))
+  elseif self.recording_mode == 3 then
+    self.current_generation = 1
   else
-    -- New recording
-    print('we recording')
-    self.waiting_for_first_note = true  -- Only set this for new recordings
+    -- New tape recording. Only set this for tape recordings
+    self.waiting_for_first_note = true
     self.current_generation = 1
   end
 
@@ -232,10 +284,30 @@ function MotifRecorder:stop_recording()
     return a.time < b.time
   end)
   
+  -- Calculate duration differently for arpeggio mode
+  local duration
+  if self.recording_mode == 3 then -- Arpeggio mode
+    -- Count the number of notes played
+    local note_count = 0
+    for _, event in ipairs(self.events) do
+      if event.type == "note_on" then
+        note_count = note_count + 1
+      end
+    end
+    
+    -- Calculate duration to maintain consistent interval spacing on loop
+    local interval_str = params:string("arpeggio_interval")
+    local interval = self:_interval_to_beats(interval_str)
+    duration = (note_count + self.arpeggio_rest_count) * interval
+  else
+    -- Use existing logic for tape/overdub modes
+    duration = self.loop_length or (clock.get_beats() - self.start_time)
+  end
+  
   -- Create recorded data package
   local recorded_data = {
     events = self.events,
-    duration = self.loop_length or (clock.get_beats() - self.start_time)
+    duration = duration
   }
 
   -- Clear recorder state
@@ -257,21 +329,12 @@ function MotifRecorder:_interval_to_beats(interval_str)
   return 1/8
 end
 
-
-
---- Add a rest to the arpeggio sequence
+--- Skip a position in the arpeggio sequence, creating a timing gap
 function MotifRecorder:add_arpeggio_rest()
   if not self.is_recording or self.recording_mode ~= 3 then return end
   
-  -- Get interval directly from params
-  local interval_str = params:string("arpeggio_interval")
-  local interval = self:_interval_to_beats(interval_str)
-  
-  -- Simply wait for the interval duration - this creates a gap in the recording
-  clock.run(function()
-    clock.sleep(interval)
-    -- The gap in time will naturally create a rest in the recording
-  end)
+  -- Simply increment the rest counter - this will create a gap in the sequence
+  self.arpeggio_rest_count = self.arpeggio_rest_count + 1
 end
 
 --- Start arpeggio recording

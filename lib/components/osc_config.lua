@@ -12,7 +12,7 @@ OscConfig.__index = OscConfig
 local sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
 
 local function create_params()
-    params:add_group("osc_config", "OSC CONFIG", 15)
+    params:add_group("osc_config", "OSC CONFIG", 19)
     params:add_number("osc_dest_octet_1", "Dest IP Octet 1", 0, 255, 192)
     params:add_number("osc_dest_octet_2", "Dest IP Octet 2", 0, 255, 168)
     params:add_number("osc_dest_octet_3", "Dest IP Octet 3", 0, 255, 0)
@@ -25,6 +25,28 @@ local function create_params()
             test_osc_connection()
             _seeker.ui_state.trigger_activated("osc_test_trigger")
         end
+    end)
+    
+    -- Integer parameters (-100 to 100)
+    params:add_number("osc_int_1", "Integer 1", -100, 100, 0)
+    params:set_action("osc_int_1", function(value)
+        send_integer_value(1, value)
+    end)
+    
+    params:add_number("osc_int_2", "Integer 2", -100, 100, 0)
+    params:set_action("osc_int_2", function(value)
+        send_integer_value(2, value)
+    end)
+    
+    -- Decimal parameters (-5.0 to 5.0)
+    params:add_control("osc_float_1", "Float 1", controlspec.new(-5.0, 5.0, 'lin', 0.01, 0.0))
+    params:set_action("osc_float_1", function(value)
+        send_float_value(1, value)
+    end)
+    
+    params:add_control("osc_float_2", "Float 2", controlspec.new(-5.0, 5.0, 'lin', 0.01, 0.0))
+    params:set_action("osc_float_2", function(value)
+        send_float_value(2, value)
     end)
     
     -- LFO Frequency parameters (4 LFOs)
@@ -118,6 +140,26 @@ function send_lfo_frequency(lfo_index)
     end
 end
 
+-- Send integer value
+function send_integer_value(index, value)
+    local path = "/integer/" .. index
+    local success = send_osc_message(path, {value})
+    if success then
+        print("Integer " .. index .. " sent: " .. value)
+    end
+    return value
+end
+
+-- Send float value
+function send_float_value(index, value)
+    local path = "/float/" .. index
+    local success = send_osc_message(path, {value})
+    if success then
+        print("Float " .. index .. " sent: " .. string.format("%.2f", value))
+    end
+    return value
+end
+
 -- Send clock frequency
 function send_clock_frequency(clock_index)
     local sync_div = params:string("osc_clock_" .. clock_index .. "_sync")
@@ -159,6 +201,12 @@ local function create_screen_ui()
             { id = "osc_dest_octet_3" },
             { id = "osc_dest_octet_4" },
             { id = "osc_dest_port" },
+            { separator = true, title = "Integer Values" },
+            { id = "osc_int_1" },
+            { id = "osc_int_2" },
+            { separator = true, title = "Float Values" },
+            { id = "osc_float_1" },
+            { id = "osc_float_2" },
             { separator = true, title = "LFO Frequency" },
             { id = "osc_lfo_1_sync" },
             { id = "osc_lfo_2_sync" },
@@ -198,7 +246,9 @@ function OscConfig.init()
         send_message = send_osc_message,
         test_connection = test_osc_connection,
         send_lfo_frequency = send_lfo_frequency,
-        send_clock_frequency = send_clock_frequency
+        send_clock_frequency = send_clock_frequency,
+        send_integer_value = send_integer_value,
+        send_float_value = send_float_value
     }
     create_params()
     

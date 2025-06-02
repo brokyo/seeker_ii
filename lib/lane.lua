@@ -580,6 +580,20 @@ function Lane:on_note_on(event)
     local adjusted_note = note - 60
     crow.ii.wsyn.play_note(adjusted_note/12, wsyn_volume)
   end
+
+  --------------------------------
+  -- OSC Output
+  --------------------------------
+
+  local osc_active = params:get("lane_" .. self.id .. "_osc_active")
+  if osc_active == 1 then
+    local dest_ip = params:get("osc_dest_octet_1") .. "." .. 
+                    params:get("osc_dest_octet_2") .. "." .. 
+                    params:get("osc_dest_octet_3") .. "." .. 
+                    params:get("osc_dest_octet_4")
+    local dest_port = params:get("osc_dest_port")
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/note_on", {note, event.velocity})
+  end
 end
 
 ---------------------------------------------------------
@@ -618,6 +632,17 @@ function Lane:on_note_off(event)
   local channel = params:get("lane_" .. self.id .. "_midi_channel")
   if device_idx > 1 and channel > 0 then
     self.midi_out_device:note_off(note, 0, channel)
+  end
+  
+  -- Send OSC note_off if configured
+  local osc_active = params:get("lane_" .. self.id .. "_osc_active")
+  if osc_active == 1 then
+    local dest_ip = params:get("osc_dest_octet_1") .. "." .. 
+                    params:get("osc_dest_octet_2") .. "." .. 
+                    params:get("osc_dest_octet_3") .. "." .. 
+                    params:get("osc_dest_octet_4")
+    local dest_port = params:get("osc_dest_port")
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/note_off", {note})
   end
   
   -- Stop engine using instrument from params
