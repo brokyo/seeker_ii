@@ -11,6 +11,8 @@ local LaneRegion = include("lib/grid/regions/lane_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 
+local musicutil = require('musicutil')
+
 -- Old Component Approach
 local ClearMotif = include("lib/components/clear_motif")
 
@@ -112,7 +114,7 @@ function draw_controls()
 end
 
 function draw_keyboard()
-  local root = params:get("root_note") - 1  -- Convert to 0-based
+  local root = params:get("root_note")  -- Keep as 1-based for consistency with theory.grid_to_note
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
   
@@ -122,10 +124,14 @@ function draw_keyboard()
       local grid_y = Layout.keyboard.upper_left_y + y
       local note = theory.grid_to_note(grid_x, grid_y, octave)
       
-      -- Check if this note is a root note (same pitch class as root)
+      -- Check if this note is a root note by comparing with the actual root pitch class
       local brightness = GridConstants.BRIGHTNESS.LOW
-      if note and note % 12 == root then
-        brightness = GridConstants.BRIGHTNESS.MEDIUM
+      if note then
+        -- Check if this note has the same pitch class as the root note
+        local root_pitch_class = (root - 1) % 12  -- Convert to 0-based pitch class
+        if note % 12 == root_pitch_class then
+          brightness = GridConstants.BRIGHTNESS.MEDIUM
+        end
       end
       
       GridLayers.set(GridUI.layers.ui, grid_x, grid_y, brightness)
@@ -182,6 +188,15 @@ function note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
   local note = theory.grid_to_note(x, y, keyboard_octave)
+  
+  -- Print the note being played for debugging
+  if note then
+    local note_name = musicutil.note_num_to_name(note, true)
+    -- Extract octave from the note name itself (more reliable)
+    local actual_octave = tonumber(string.match(note_name, "%d+"))
+    print(string.format("Note played: %s (MIDI %d) at grid position (%d,%d), Octave param: %d, Actual octave: %d", 
+          note_name, note, x, y, keyboard_octave, actual_octave))
+  end
   
   -- Create standardized note event with all positions
   local event = create_note_event(

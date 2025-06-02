@@ -16,9 +16,10 @@ function theory.grid_to_note(x, y, octave)
   local root = params:get("root_note")  -- Use 1-based root directly
   local scale_type = params:get("scale_type")
   
-  -- Generate a table of MIDI notes for the entire MIDI range
-  -- Start at MIDI note 0 (C-1) and generate enough notes to cover the full range
-  local scale = musicutil.generate_scale(0, musicutil.SCALES[scale_type].name, 128)
+  -- Generate scale starting from the actual root note (like get_scale does)
+  -- This ensures proper alignment between highlighting and actual notes
+  local root_midi = (root - 1)  -- Convert to 0-based for musicutil
+  local scale = musicutil.generate_scale(root_midi, musicutil.SCALES[scale_type].name, 128)
   
   -- Get grid offset for current lane
   local focused_lane = _seeker.ui_state.get_focused_lane()
@@ -29,10 +30,11 @@ function theory.grid_to_note(x, y, octave)
   local y_steps = (7 - y)      -- One scale degree per vertical step
   local total_steps = x_steps + y_steps + grid_offset
   
-  -- Find the root note index in our scale table
+  -- Find the root note index in our scale table for the target octave
+  local target_root_note = (octave + 1) * 12 + (root - 1)  -- Add 1 to octave to match expected behavior
   local root_index = 1
   for i, note in ipairs(scale) do
-    if note >= (octave * 12 + (root - 1)) then
+    if note >= target_root_note then
       root_index = i
       break
     end
@@ -50,7 +52,7 @@ end
 function theory.print_keyboard_layout()
   local root = params:get("root_note")
   local scale_type = params:get("scale_type")
-  local focused_lane = _seeker.ui_state.state.focused_lane
+  local focused_lane = _seeker.ui_state.get_focused_lane()
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
   
   -- Get root name directly from params option list
@@ -68,14 +70,19 @@ function theory.print_keyboard_layout()
   -- print("Root at bottom left (6,7)")
   -- print("▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔")
   
-  -- Print note layout with actual MIDI note numbers in parentheses
+  -- Print note layout with actual MIDI note numbers and root highlighting
   -- for y = 2, 7 do  -- Print from top to bottom
   --   local row = string.format("y=%d: ", y)
   --   for x = 6, 11 do
   --     local note = theory.grid_to_note(x, y, octave)
   --     if note then
   --       local note_name = musicutil.note_num_to_name(note, true)
-  --       row = row .. string.format("%-5s", note_name)
+  --       local is_root = (note % 12) == ((root - 1) % 12)
+  --       if is_root then
+  --         row = row .. string.format("[%-4s]", note_name)  -- Brackets around root notes
+  --       else
+  --         row = row .. string.format("%-5s", note_name)
+  --       end
   --     else
   --       row = row .. "---  "
   --     end
@@ -83,6 +90,7 @@ function theory.print_keyboard_layout()
   --   print(row)
   -- end
   -- print("▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁")
+  -- print("Root notes shown in [brackets]")
 end
 
 -- Get an array of MIDI note numbers for the current scale

@@ -27,7 +27,7 @@ function init_musical_params()
     -- ** Tuning Presets **
     params:add_option("tuning_preset", "Tuning Preset",
         {"Custom", "Ethereal", "Mysterious", "Melancholic", "Hopeful", "Contemplative", "Triumphant", "Dreamy",
-         "Ancient", "Floating"}, 1)
+         "Ancient", "Floating", "Pastoral", "Nocturne", "Ritual", "Celestial", "Distant"}, 1)
     params:set_action("tuning_preset", function(value)
         if value > 1 then -- Skip action for "Custom"
             local presets = {{6, 7}, -- F Lydian
@@ -38,7 +38,12 @@ function init_musical_params()
             {1, 1}, -- C Major
             {2, 1}, -- Db Major
             {3, 6}, -- D Phrygian
-            {1, 12} -- C Whole Tone
+            {1, 10}, -- C Whole Tone
+            {8, 11}, -- G Major Pentatonic (Pastoral)
+            {7, 12}, -- F# Minor Pentatonic (Nocturne)
+            {5, 6}, -- E Phrygian (Ritual)
+            {7, 7}, -- F# Lydian (Celestial)
+            {11, 10} -- Bb Whole Tone (Distant)
             }
             local preset = presets[value - 1]
             params:set("root_note", preset[1], true)
