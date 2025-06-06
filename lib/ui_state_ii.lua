@@ -84,6 +84,9 @@ function UIState.set_focused_stage(stage_idx)
   UIState.state.focused_stage = stage_idx
   
   -- Update UI
+  if _seeker.screen_ui.sections.STAGE then
+    _seeker.screen_ui.sections.STAGE:update_focused_stage(stage_idx)
+  end
   _seeker.screen_ui.set_needs_redraw()
   
   -- Update grid

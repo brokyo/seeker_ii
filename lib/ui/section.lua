@@ -128,8 +128,9 @@ function Section:draw_footer()
   
   -- Add lane and stage info
   local lane_idx = _seeker.ui_state.get_focused_lane()
-  local stage_idx = _seeker.ui_state.get_focused_stage()
-  local info_text = string.format("L%d", lane_idx)
+  local lane = _seeker.lanes[lane_idx]
+  local stage_idx = lane.current_stage_index
+  local info_text = string.format("L%d:S%d", lane_idx, stage_idx)
   
   -- Calculate position to be right-aligned with some padding from blinkenlights
   local SCREEN_WIDTH = 128

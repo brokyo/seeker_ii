@@ -98,7 +98,7 @@ function LaneSection.new()
     end
     
     -- Update section name with lane number
-    self.name = string.format("Layer %d", new_lane_idx)
+    self.name = string.format("Lane %d", new_lane_idx)
   end
   
   -- Initialize with current lane

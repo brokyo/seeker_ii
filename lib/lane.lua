@@ -401,6 +401,7 @@ function Lane:on_motif_end(stage_index, end_time)
   self.current_stage_index = next_index
 
   self:schedule_stage(next_index, end_time)
+  _seeker.ui_state.set_focused_stage(next_index)
 end
 
 ---------------------------------------------------------
