@@ -14,7 +14,7 @@ local transform_types = transforms.ui_names
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_transform_stage", "Stage Transform Config " .. lane_idx, 53)
+        params:add_group("lane_" .. lane_idx .. "_transform_stage", "Stage Transform Config " .. lane_idx, 54)
         params:add_number("lane_" .. lane_idx .. "_config_stage", "Configure Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_config_stage", function(value)
             _seeker.ui_state.set_focused_stage(value)
@@ -63,6 +63,13 @@ local function create_params()
                     _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
                 end
             end)
+
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", "Mute", {"Yes", "No"}, 2)
+            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", function(value)
+                if _seeker.lanes[lane_idx] then
+                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
+                end
+            end)
         end
     end
 end
@@ -91,7 +98,8 @@ local function create_screen_ui()
             { separator = true, title = "Stage " .. stage_idx .. " Config" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"},
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"}
         }
         
         -- Update the UI with the new parameter table
@@ -112,7 +120,8 @@ local function create_screen_ui()
             { separator = true, title = "Stage " .. stage_idx .. " Config" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"},
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"}
         }
         
         -- Get the current transform type and add its specific parameters
