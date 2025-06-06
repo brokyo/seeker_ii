@@ -1,10 +1,14 @@
 ### Current Session
 
+### Active Concerns
+- [x] Additional motif playback speeds
+- [] Grid seems to lose octave in column 6
+- [] Lists of options should start at "1" value
+
 ### Near Term Priorities
 - [] Update motif playback to new architecture
--- [] More motif playback speed options
 - [] Update clear motif to new architecture
-- [] wsyn drone mode, play mode, and pluck
+- [] Update config to new architecture
 
 ### Bugs
 
