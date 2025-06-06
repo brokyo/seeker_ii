@@ -2,7 +2,7 @@
 
 ### Active Concerns
 - [x] Additional motif playback speeds
-- [] Grid seems to lose octave in column 6
+- [x] Grid seems to lose octave in column 6
 - [] Lists of options should start at "1" value
 
 ### Near Term Priorities
