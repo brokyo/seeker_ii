@@ -71,12 +71,12 @@ local function create_params()
                 end
             end)
 
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", "Mute", {"Yes", "No"}, 2)
-            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", function(value)
-                if _seeker.lanes[lane_idx] then
-                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
-                end
-            end)
+            -- params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", "Mute", {"Yes", "No"}, 2)
+            -- params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", function(value)
+            --     if _seeker.lanes[lane_idx] then
+            --         _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
+            --     end
+            -- end)
         end
     end
 end
@@ -106,7 +106,7 @@ local function create_screen_ui()
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"},
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"}
+            -- { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"}
         }
         
         -- Update the UI with the new parameter table
@@ -131,7 +131,7 @@ local function create_screen_ui()
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"},
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"}
+            -- { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"}
         }
         
         -- Get the current transform type and add its specific parameters
