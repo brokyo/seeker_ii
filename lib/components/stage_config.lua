@@ -57,7 +57,12 @@ local function create_params()
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing", "Timing Division", 2, 8, 4)
 
             -- Stage Config
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif", "Reset Motif", {"No", "Yes"}, 2)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif", "Reset Motif", {"Yes", "No"}, 1)
+            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif", function(value)
+                if _seeker.lanes[lane_idx] then
+                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
+                end
+            end)
         end
     end
 end
