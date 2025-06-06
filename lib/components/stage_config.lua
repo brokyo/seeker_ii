@@ -12,12 +12,19 @@ StageConfig.__index = StageConfig
 -- Use transform UI names directly from transforms.lua
 local transform_types = transforms.ui_names
 
+-- Local state for stage configuration
+-- Solves some UI problems with stage config params being overridden by global stage change
+local config_state = {
+    config_stage = 1
+}
+
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
         params:add_group("lane_" .. lane_idx .. "_transform_stage", "Stage Transform Config " .. lane_idx, 54)
         params:add_number("lane_" .. lane_idx .. "_config_stage", "Configure Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_config_stage", function(value)
-            _seeker.ui_state.set_focused_stage(value)
+            -- Update local config state instead of global focused stage
+            config_state.config_stage = value
             _seeker.stage_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
@@ -90,7 +97,7 @@ local function create_screen_ui()
     -- And then add custom logic
     norns_ui.enter = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = _seeker.ui_state.get_focused_stage()
+        local stage_idx = config_state.config_stage
         print("Configuring Lane " .. lane_idx .. ", Stage " .. stage_idx)
 
         -- Build a dynamic parameter table based on current lane and stage
@@ -105,6 +112,9 @@ local function create_screen_ui()
         -- Update the UI with the new parameter table
         self.params = param_table
         
+        -- Set the config stage param to match our local state
+        params:set("lane_" .. lane_idx .. "_config_stage", config_state.config_stage)
+        
         -- End by calling the original enter method
         original_enter(self)
         
@@ -114,7 +124,7 @@ local function create_screen_ui()
 
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = _seeker.ui_state.get_focused_stage()
+        local stage_idx = config_state.config_stage
         
         local param_table = {
             { separator = true, title = "Stage " .. stage_idx .. " Config" },
@@ -295,13 +305,15 @@ function StageConfig.enter(component)
     -- Add custom enter logic here
     print("StageConfig entered")
     
-    -- Example of custom logic you might want to add:
+    -- Initialize local config stage with current global focused stage
     local lane_idx = _seeker.ui_state.get_focused_lane()
-    local stage_idx = _seeker.ui_state.get_focused_stage()
-    print("Configuring Lane " .. lane_idx .. ", Stage " .. stage_idx)
+    local current_global_stage = _seeker.ui_state.get_focused_stage()
+    config_state.config_stage = current_global_stage
     
-    -- adjust stage parameters based on current selection:
-    params:set("lane_" .. lane_idx .. "_config_stage", stage_idx)
+    print("Configuring Lane " .. lane_idx .. ", Stage " .. config_state.config_stage)
+    
+    -- Sync the config stage param with our local state
+    params:set("lane_" .. lane_idx .. "_config_stage", config_state.config_stage)
 end
 
 function StageConfig.init()
