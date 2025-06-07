@@ -427,70 +427,128 @@ transforms.available = {
     fn = function(events, lane_id, stage_id)
       local repeat_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_chance") / 100
       local max_repeats = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_max_repeats")
-      local timing_division = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_timing")
+      local timing_division_string = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_timing")
+      
+      -- Helper function to convert division string to beats (same as eurorack_output.lua)
+      local function division_to_beats(div)
+        -- Handle integer values (1, 2, 3, etc)
+        if tonumber(div) then
+          return tonumber(div)
+        end
+        
+        -- Handle fraction values (1/4, 1/16, etc)
+        local num, den = div:match("(%d+)/(%d+)")
+        if num and den then
+          return tonumber(num)/tonumber(den)
+        end
+        
+        return 0.25 -- default to 1/4 note
+      end
+      
+      local timing_division_beats = division_to_beats(timing_division_string)
       
       local result = {}
       local note_pairs = {}
+      local note_counter = {}  -- Track multiple instances of same note
       
-      -- First pass: collect note_on/note_off pairs
+      -- First pass: collect note_on/note_off pairs with unique IDs
       for _, event in ipairs(events) do
         if event.type == "note_on" then
-          note_pairs[event.note] = {
+          -- Create unique ID for each note occurrence
+          note_counter[event.note] = (note_counter[event.note] or 0) + 1
+          local unique_id = event.note .. "_" .. note_counter[event.note]
+          
+          note_pairs[unique_id] = {
             note_on = event,
             note_off = nil,
-            duration = nil
+            duration = nil,
+            note = event.note,
+            instance = note_counter[event.note]
           }
-        elseif event.type == "note_off" and note_pairs[event.note] then
-          note_pairs[event.note].note_off = event
-          note_pairs[event.note].duration = event.time - note_pairs[event.note].note_on.time
-        end
-      end
-      
-      -- Second pass: create ratcheted events
-      for note, pair in pairs(note_pairs) do
-        if pair.note_off then
-          -- Decide if this note gets ratcheted
-          if math.random() < repeat_chance then
-            local num_repeats = math.random(1, max_repeats)
-            local repeat_interval = 1 / timing_division -- Beat subdivision
-            
-            for i = 0, num_repeats - 1 do
-              local repeat_time = pair.note_on.time + (i * repeat_interval)
-              local repeat_velocity = math.floor(pair.note_on.velocity * (1 - i * 0.1)) -- Decay velocity
-              
-              -- Add note_on
-              table.insert(result, {
-                type = "note_on",
-                time = repeat_time,
-                note = pair.note_on.note,
-                velocity = math.max(repeat_velocity, 20) -- Minimum velocity
-              })
-              
-              -- Add note_off (shorter duration for ratchets)
-              table.insert(result, {
-                type = "note_off", 
-                time = repeat_time + (pair.duration * 0.8), -- Slightly shorter
-                note = pair.note_on.note
-              })
+        elseif event.type == "note_off" then
+          -- Find the most recent unmatched note_on for this note
+          local matched_id = nil
+          local highest_instance = 0
+          
+          for id, pair in pairs(note_pairs) do
+            if pair.note == event.note and pair.note_off == nil and pair.instance > highest_instance then
+              matched_id = id
+              highest_instance = pair.instance
             end
-          else
-            -- Keep original note unchanged
-            table.insert(result, {
-              type = "note_on",
-              time = pair.note_on.time,
-              note = pair.note_on.note,
-              velocity = pair.note_on.velocity
-            })
-            table.insert(result, {
-              type = "note_off",
-              time = pair.note_off.time,
-              note = pair.note_off.note
-            })
+          end
+          
+          if matched_id then
+            note_pairs[matched_id].note_off = event
+            note_pairs[matched_id].duration = event.time - note_pairs[matched_id].note_on.time
           end
         end
       end
       
-      -- Add any non-note events
+      -- Second pass: create ratcheted events
+      for unique_id, pair in pairs(note_pairs) do
+        local original_note_on = pair.note_on
+        local original_note_off = pair.note_off
+        local duration = pair.duration or 0.1 -- Default duration if no note_off found
+        
+        -- Decide if this note gets ratcheted
+        if math.random() < repeat_chance then
+          local num_repeats = math.random(1, max_repeats)
+          
+          -- Use burst-style timing like eurorack_output.lua
+          -- timing_division_beats now represents the time window for the entire ratchet burst
+          local ratchet_window = timing_division_beats -- Time window for all ratchets
+          local ratchet_interval = ratchet_window / num_repeats -- Time between each ratchet
+          
+          for i = 0, num_repeats - 1 do
+            local repeat_time = original_note_on.time + (i * ratchet_interval)
+            local repeat_velocity = math.floor(original_note_on.velocity * (1 - i * 0.1)) -- Decay velocity
+            
+            -- Add note_on with all original fields preserved
+            local new_note_on = {}
+            for k, v in pairs(original_note_on) do
+              new_note_on[k] = v
+            end
+            new_note_on.time = repeat_time
+            new_note_on.velocity = math.max(repeat_velocity, 20) -- Minimum velocity
+            table.insert(result, new_note_on)
+            
+            -- Add note_off with all original fields preserved
+            local new_note_off = {}
+            if original_note_off then
+              for k, v in pairs(original_note_off) do
+                new_note_off[k] = v
+              end
+            else
+              -- Create note_off from note_on if none existed
+              for k, v in pairs(original_note_on) do
+                new_note_off[k] = v
+              end
+              new_note_off.type = "note_off"
+              new_note_off.velocity = nil -- note_off doesn't have velocity
+            end
+            -- Use a shorter, fixed duration for ratchets based on interval
+            new_note_off.time = repeat_time + (ratchet_interval * 0.8) -- 80% of interval
+            table.insert(result, new_note_off)
+          end
+        else
+          -- Keep original note unchanged with all fields preserved
+          local new_note_on = {}
+          for k, v in pairs(original_note_on) do
+            new_note_on[k] = v
+          end
+          table.insert(result, new_note_on)
+          
+          if original_note_off then
+            local new_note_off = {}
+            for k, v in pairs(original_note_off) do
+              new_note_off[k] = v
+            end
+            table.insert(result, new_note_off)
+          end
+        end
+      end
+      
+      -- Add any non-note events with all fields preserved
       for _, event in ipairs(events) do
         if event.type ~= "note_on" and event.type ~= "note_off" then
           local new_event = {}

@@ -511,12 +511,6 @@ end
 function create_stage_tracker_params(i)
     -- See forms.lua for stage configuration
     for j = 1, 4 do
-        params:add_binary("lane_" .. i .. "_stage_" .. j .. "_mute", "Mute", "toggle", 0)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_mute", function(value)
-            if _seeker.lanes[i] then
-                _seeker.lanes[i]:sync_stage_from_params(j)
-            end
-        end)
 
         params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 2)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_loops", function(value)

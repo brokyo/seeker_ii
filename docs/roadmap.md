@@ -1,17 +1,18 @@
 ### Current Session
-- [] Stage change is overriding stage config params
 
 ### Active Concerns
-- [] Ratchet doesn't seem to work
+- [] Create motif UI one loop ahead of playing transform when ratcheting
 
 ### Near Term Priorities
-- [] Update motif playback to new architecture
-- [] Update clear motif to new architecture
-- [] Update config to new architecture
+- [] 
 
 ### Bugs
 
 ### Long List
+- [] Update motif playback to new architecture
+- [] Update clear motif to new architecture
+- [] Update config to new architecture
+- [] Pull Grid Keyboard out as its own component
 - [] Static voltage out
 - [] Note Event Refactoring
 -- [] Create consistent note event structure in a single place
@@ -138,5 +139,7 @@
 - [x] Custom params with options wrap around. They should be bounded.
 - [x] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
 - [x] Rebuild window manager.
--- [x] Reduce dependency on params system 
--- [x] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
+- [x] Reduce dependency on params system 
+- [x] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
+- [x] Stage change is overriding stage config params
+- [x] Ratchet doesn't seem to work

@@ -17,7 +17,7 @@ function NornsUI.new(config)
   
   -- State properties for UI management
   norns_ui.state = {
-    selected_index = 2,
+    selected_index = 1,
     scroll_offset = 0,
     is_active = false,
     showing_description = false
@@ -272,6 +272,13 @@ function NornsUI:draw_params(start_y)
   -- Filter active_params table to only show params that pass the conditional check
   self:filter_active_params()
 
+  -- Ensure selected_index is valid after filtering
+  -- NB: This is defensive and I'm not sure we need it.
+  if self.state.selected_index > #self.active_params then
+    print("Out of bounds selected index: " .. self.state.selected_index)
+    self.state.selected_index = self:find_first_selectable()
+  end
+
   -- Ensure scroll offset stays in valid range
   local max_scroll = math.max(0, #self.active_params - max_visible_items)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
@@ -280,58 +287,57 @@ function NornsUI:draw_params(start_y)
   for i = 1, math.min(max_visible_items, #self.active_params) do
     local param_idx = i + self.state.scroll_offset
     local param = self.active_params[param_idx]
-    if param then
-      local y = start_y + (i * ITEM_HEIGHT)
-      local is_selected = self.state.selected_index == param_idx
+
+    local y = start_y + (i * ITEM_HEIGHT)
+    local is_selected = self.state.selected_index == param_idx
       
-      if param.separator then
-        -- Draw separator
-        screen.level(4)
-        screen.move(2, y)
-        screen.text(param.title)
-        screen.move(2, y + 1)
-        screen.line(126, y + 1)
-        screen.stroke()
-      else
-        -- Get param metadata using Norns paramset api
-        local param_base = params:lookup_param(param.id)
-        local param_name = param_base.name
-        local param_value = params:string(param.id)
+    if param.separator then
+      -- Draw separator
+      screen.level(4)
+      screen.move(2, y)
+      screen.text(param.title)
+      screen.move(2, y + 1)
+      screen.line(126, y + 1)
+      screen.stroke()
+    else
+      -- Get param metadata using Norns paramset api
+      local param_base = params:lookup_param(param.id)
+      local param_name = param_base.name
+      local param_value = params:string(param.id)
 
-        -- Overwrite displayed param value if it's a toggle or trigger
-        if param_base.behavior == "toggle" then
-          if param_value == 0 then
-            param_value = "○"
-          else 
-            param_value = "◆"
-          end
-        elseif param_base.behavior == "trigger" then
-          local recently_triggered = _seeker.ui_state.is_recently_triggered(param.id)
-          
-          if recently_triggered then
-            param_value = "✓"
-          else
-            param_value = "␣"
-          end
+      -- Overwrite displayed param value if it's a toggle or trigger
+      if param_base.behavior == "toggle" then
+        if param_value == 0 then
+          param_value = "○"
+        else 
+          param_value = "◆"
         end
-
-        -- Draw normal parameter
-        if is_selected then
-          screen.level(2)
-          screen.rect(0, y - 6, 128, 8)
-          screen.fill()
+      elseif param_base.behavior == "trigger" then
+        local recently_triggered = _seeker.ui_state.is_recently_triggered(param.id)
+        
+        if recently_triggered then
+          param_value = "✓"
+        else
+          param_value = "␣"
         end
-        
-        -- Parameter name
-        screen.level(is_selected and 15 or 4)
-        screen.move(2, y)
-        screen.text(param_name)
-        
-        -- Parameter value (right-aligned)
-        local value_x = 120 - screen.text_extents(param_value)
-        screen.move(value_x, y)
-        screen.text(param_value)
       end
+
+      -- Draw normal parameter
+      if is_selected then
+        screen.level(2)
+        screen.rect(0, y - 6, 128, 8)
+        screen.fill()
+      end
+      
+      -- Parameter name
+      screen.level(is_selected and 15 or 4)
+      screen.move(2, y)
+      screen.text(param_name)
+      
+      -- Parameter value (right-aligned)
+      local value_x = 120 - screen.text_extents(param_value)
+      screen.move(value_x, y)
+      screen.text(param_value)
     end
   end
   
@@ -364,14 +370,41 @@ end
 
 function NornsUI:handle_enc_default(n, d)
   if n == 2 then
-    -- NB: Starts from index 2 since index 1 is always a separator
-    local new_index = util.clamp(
-      self.state.selected_index + d,
-      2,
-      #self.params
-    )
+    -- Filter active params first
+    self:filter_active_params()
     
-    -- Update selected index
+    -- Manage index in active_params space
+    local new_index = self.state.selected_index + d
+    
+    -- Skip separators
+    while new_index >= 1 and new_index <= #self.active_params and self.active_params[new_index].separator do
+      new_index = new_index + d
+    end
+    
+    -- Clamp to valid range
+    new_index = util.clamp(new_index, 1, #self.active_params)
+    
+    -- If we hit a separator at the boundary, find nearest selectable
+    if new_index <= #self.active_params and self.active_params[new_index].separator then
+      if d > 0 then
+        -- Moving down, find next selectable
+        for i = new_index + 1, #self.active_params do
+          if not self.active_params[i].separator then
+            new_index = i
+            break
+          end
+        end
+      else
+        -- Moving up, find previous selectable
+        for i = new_index - 1, 1, -1 do
+          if not self.active_params[i].separator then
+            new_index = i
+            break
+          end
+        end
+      end
+    end
+    
     self.state.selected_index = new_index
     
     -- Adjust scroll offset to keep selection visible
@@ -391,9 +424,11 @@ function NornsUI:handle_enc_default(n, d)
     end
     
   elseif n == 3 and self.state.selected_index > 0 then
-    -- Modify selected parameter
-    local param = self.params[self.state.selected_index]
-    self:modify_param(param, d)
+    -- Modify selected parameter using helper method
+    local param = self:get_selected_param()
+    if param then
+      self:modify_param(param, d)
+    end
   end
 end
 
@@ -409,8 +444,8 @@ function NornsUI:handle_key(n, z)
 
     -- Handle K3 press for action items
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
-    local param = self.params[self.state.selected_index]
-    if param.is_action then
+    local param = self:get_selected_param()
+    if param and param.is_action then
       self:modify_param(param, 1)
     end
   end
@@ -425,6 +460,10 @@ function NornsUI:enter()
   -- Called when section becomes active
   self.state.is_active = true
 
+  -- Filter params and set initial selection
+  self:filter_active_params()
+  self.state.selected_index = self:find_first_selectable()
+
   -- Get the number of params (and their type) to send to Arc
   -- TODO: This is a bit of a hack. There should probably be a new_section method and update_params method on Arc.
   _seeker.arc.new_section(self.params)
@@ -436,13 +475,31 @@ function NornsUI:exit()
   -- Called when leaving this section
   self.state.is_active = false
   
-  -- Reset selected_index to prevent race conditions when transitioning to Section-based UIs
-  -- TODO: After we refactor the full UI out of sections and into components we should be able to remove this
-  self.state.selected_index = 2  -- Safe default for NornsUI (index 1 is always separator)
+  -- Reset to first selectable item
+  self.state.selected_index = 1
+  self.state.scroll_offset = 0
 end
 
 function NornsUI:update()
   -- Override in child classes to update section state/handle dynamic params
+end
+
+-- Helper method to find first selectable item in active_params
+function NornsUI:find_first_selectable()
+  for i, param in ipairs(self.active_params) do
+    if not param.separator then
+      return i
+    end
+  end
+  return 1  -- Fallback
+end
+
+-- Helper method to get currently selected parameter
+function NornsUI:get_selected_param()
+  if self.state.selected_index > 0 and self.state.selected_index <= #self.active_params then
+    return self.active_params[self.state.selected_index]
+  end
+  return nil
 end
 
 return NornsUI 
