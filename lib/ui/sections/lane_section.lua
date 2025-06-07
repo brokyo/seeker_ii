@@ -105,6 +105,15 @@ function LaneSection.new()
   local initial_lane = _seeker.ui_state.get_focused_lane()
   section:update_focused_lane(initial_lane)
   
+  -- Add enter method to ensure section is initialized with current lane
+  function section:enter()
+    -- Update params for current lane first
+    self:update_focused_lane(_seeker.ui_state.get_focused_lane())
+    
+    -- Then call parent enter method (which calls arc.new_section)
+    Section.enter(self)
+  end
+  
   return section
 end
 

@@ -15,7 +15,7 @@ function Section.new(config)
   section.params = config.params or {}
   section.description = config.description or "No description available"
   section.state = {
-    selected_index = 0,
+    selected_index = 1,
     scroll_offset = 0,
     is_active = false,     -- Track if section is currently active
     showing_description = false  -- Track if we're showing the description
@@ -325,8 +325,6 @@ function Section:enter()
   -- TODO: This is intended to support @arc.lua while refactoring out of sections
   if #self.params > 0 then
     self.state.selected_index = math.max(1, math.min(self.state.selected_index, #self.params))
-  else
-    self.state.selected_index = 0
   end
 
   -- Get the number of params (and their type) to send to Arc

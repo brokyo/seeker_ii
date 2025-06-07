@@ -96,9 +96,6 @@ function Arc.init()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
         
-        -- Check if selected parameter is an action
-        local is_action_param = selected_param.is_action
-        
         -- Map Arc encoder 1 to Norns encoder 2. Use custom param key illumination logic.
         if n == 1 then
           _seeker.ui_state.enc(2, direction)
@@ -109,7 +106,7 @@ function Arc.init()
 
         -- Map Arc encoder 2 to Norns encoder 3. Use custom param value illumination logic.
         -- Only send encoder events for non-action params. Action params handled by key press.
-        elseif n == 2 and not is_action_param then
+        elseif n == 2 and not selected_param.is_action then
           _seeker.ui_state.enc(3, direction)
           device.update_param_value_display()
         end        
