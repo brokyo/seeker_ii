@@ -461,10 +461,11 @@ function Lane:on_note_on(event)
   local midi_active = params:get("lane_" .. self.id .. "_midi_active")
   if midi_active == 1 then
     local midi_voice_volume = params:get("lane_" .. self.id .. "_midi_voice_volume")
+    local lane_volume = params:get("lane_" .. self.id .. "_volume")
     local device_idx = params:get("lane_" .. self.id .. "_midi_device")
     local channel = params:get("lane_" .. self.id .. "_midi_channel")
     if device_idx > 1 and channel > 0 then
-      self.midi_out_device:note_on(note, event.velocity * midi_voice_volume, channel)
+      self.midi_out_device:note_on(note, event.velocity * midi_voice_volume * lane_volume, channel)
     end
   end
 
@@ -475,8 +476,10 @@ function Lane:on_note_on(event)
   -- If MX Samples is active, play the event using that voice
   local mx_samples_active = params:get("lane_" .. self.id .. "_mx_samples_active")
   if mx_samples_active == 1 then
-    -- Normalize velocity for MX Samples
-    local mx_samples_volume = (event.velocity / 127) * params:get("lane_" .. self.id .. "_mx_voice_volume")
+    -- Normalize velocity for MX Samples and apply both voice and lane volume
+    local mx_voice_volume = params:get("lane_" .. self.id .. "_mx_voice_volume")
+    local lane_volume = params:get("lane_" .. self.id .. "_volume")
+    local mx_samples_volume = (event.velocity / 127) * mx_voice_volume * lane_volume
 
     -- Play engine using instrument from params
     local instrument = self:get_instrument()
@@ -543,8 +546,10 @@ function Lane:on_note_on(event)
     -- Handle gate output
     if gate_out > 1 then
       if gate_out <= 5 then
-        -- Calculate crow gate volume with 5v as max
-        local gate_volume = params:get("lane_" .. self.id .. "_euro_voice_volume")
+        -- Calculate crow gate volume with 5v as max, applying both voice and lane volume
+        local euro_voice_volume = params:get("lane_" .. self.id .. "_euro_voice_volume")
+        local lane_volume = params:get("lane_" .. self.id .. "_volume")
+        local gate_volume = euro_voice_volume * lane_volume
         crow.output[gate_out - 1].volts = gate_volume * 5
       else
         -- TXO gate (subtract 5 to get 1-4 as we're passing in an index from params that includes crow)
@@ -561,9 +566,10 @@ function Lane:on_note_on(event)
   local just_friends_active = params:get("lane_" .. self.id .. "_just_friends_active")
 
   if just_friends_active == 1 then
-    -- Convert MIDI velocity (0-127) to JF velocity (0-10V)
+    -- Convert MIDI velocity (0-127) to JF velocity (0-10V), applying both voice and lane volume
     local just_friends_voice_volume = params:get("lane_" .. self.id .. "_just_friends_voice_volume")
-    local jf_velocity = (event.velocity / 127) * just_friends_voice_volume * 5
+    local lane_volume = params:get("lane_" .. self.id .. "_volume")
+    local jf_velocity = (event.velocity / 127) * just_friends_voice_volume * lane_volume * 5
 
     -- TODO: I'm not entirely sure why subtracting 60 bring this into a reasonable range. It's held over from previous code.
     local adjusted_note = note - 60
@@ -576,7 +582,10 @@ function Lane:on_note_on(event)
 
   local wsyn_active = params:get("lane_" .. self.id .. "_wsyn_active")
   if wsyn_active == 1 then
-    local wsyn_volume = (event.velocity / 127) * params:get("lane_" .. self.id .. "_wsyn_voice_volume")
+    -- Apply both voice and lane volume
+    local wsyn_voice_volume = params:get("lane_" .. self.id .. "_wsyn_voice_volume")
+    local lane_volume = params:get("lane_" .. self.id .. "_volume")
+    local wsyn_volume = (event.velocity / 127) * wsyn_voice_volume * lane_volume
     -- TODO: I'm not entirely sure why subtracting 60 bring this into a reasonable range. It's held over from previous code.
     local adjusted_note = note - 60
     crow.ii.wsyn.play_note(adjusted_note/12, wsyn_volume)

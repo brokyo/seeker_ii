@@ -556,7 +556,7 @@ function init_lane_params()
         end)
 
         -- Volume
-        params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.05, 1, ""))
+        params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.02, 1, ""))
         params:set_action("lane_" .. i .. "_volume", function(value)
             _seeker.lanes[i].volume = value
         end)
