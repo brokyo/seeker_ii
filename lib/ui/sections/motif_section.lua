@@ -6,7 +6,7 @@ MotifSection.__index = MotifSection
 function MotifSection.new()
   local section = Section.new({
     id = "MOTIF",
-    name = "Motif Playback",
+    name = "Motif Playback [WIP]",
     description = "Configure motifs created in generate or record. Hold grid to start and stop playback.",
   })
 

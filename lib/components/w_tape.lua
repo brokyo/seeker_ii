@@ -91,11 +91,10 @@ end
 local function create_screen_ui()
     return NornsUI.new({
         id = "WTAPE",
-        name = "WTape [WIP]",
+        name = "WTape",
         description = "WTape test component.",
         params = {
             { separator = true, title = "WTape" },
-            { separator = true, title = "Play"},
             { id = "wtape_toggle_playing", is_action = true},
             { id = "wtape_speed"},
             { separator = true, title = "Record"},

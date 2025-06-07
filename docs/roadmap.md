@@ -12,7 +12,7 @@
 - [] Update motif playback to new architecture
 - [] Update clear motif to new architecture
 - [] Update config to new architecture
-- [] Pull Grid Keyboard out as its own component
+- [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
 - [] Static voltage out
 - [] Note Event Refactoring
 -- [] Create consistent note event structure in a single place
@@ -20,7 +20,6 @@
 -- [] Move event param handling out of `Lane:on_note_on`
 - [] Param preset saving and "default" button in config
 - [] app_on_screen is vestigial. Remove it.
-- [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
 - [] Add MIDI CC to control ableton recording
 
 ### Open Questions

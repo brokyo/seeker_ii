@@ -292,7 +292,7 @@ end
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_CONFIG",
-        name = "OSC Config",
+        name = "OSC Config [WIP]",
         description = "Configure OSC send parameters",
         params = {
             { separator = true, title = "OSC Send Config" },

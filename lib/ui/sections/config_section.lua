@@ -8,7 +8,7 @@ ConfigSection.__index = ConfigSection
 function ConfigSection.new()
   local section = Section.new({
     id = "CONFIG",
-    name = "CONFIG",
+    name = "Seeker II Config",
     description = "Global level configuration. Press k3 to trigger actions.",
     params = {
       { separator = true, name = "Global Tuning" },
