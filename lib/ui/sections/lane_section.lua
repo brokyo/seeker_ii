@@ -21,6 +21,7 @@ function LaneSection.new()
     
     -- Start with common params
     self.params = {
+      { separator = true, name = string.format("Lane %d Config", new_lane_idx) },
       { id = "lane_" .. new_lane_idx .. "_volume", name = "Volume" },
       { id = "lane_" .. new_lane_idx .. "_visible_voice", name = "Config Voice" }
     }
@@ -34,11 +35,13 @@ function LaneSection.new()
       if params:get("lane_" .. new_lane_idx .. "_mx_samples_active") == 1 then
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_mx_voice_volume", name = "Voice Volume" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_instrument", name = "Instrument" })
+        table.insert(self.params, { separator = true, name = "Individual Event" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_pan", name = "Pan" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_attack", name = "Attack" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_decay", name = "Decay" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_sustain", name = "Sustain" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_release", name = "Release" })
+        table.insert(self.params, { separator = true, name = "Lane Effects" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_lpf", name = "LPF Cutoff" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_resonance", name = "LPF Resonance" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_hpf", name = "HPF Cutoff" })
