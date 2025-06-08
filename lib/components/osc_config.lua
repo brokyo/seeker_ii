@@ -11,6 +11,9 @@ OscConfig.__index = OscConfig
 -- Track active trigger clocks
 local active_trigger_clocks = {}
 
+-- Track active LFO sync clocks for pulse mode
+local active_lfo_sync_clocks = {}
+
 -- Track binary trigger states (true = high, false = low)
 local binary_trigger_states = {false, false, false, false}
 
@@ -18,7 +21,7 @@ local binary_trigger_states = {false, false, false, false}
 local sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
 
 local function create_params()
-    params:add_group("osc_config", "OSC CONFIG", 43)
+    params:add_group("osc_config", "OSC CONFIG", 45)
     params:add_number("osc_dest_octet_1", "Dest IP Octet 1", 0, 255, 192)
     params:add_number("osc_dest_octet_2", "Dest IP Octet 2", 0, 255, 168)
     params:add_number("osc_dest_octet_3", "Dest IP Octet 3", 0, 255, 0)
@@ -33,26 +36,25 @@ local function create_params()
         end
     end)
     
-    -- Integer parameters (-100 to 100)
-    params:add_number("osc_int_1", "Integer 1", -100, 100, 0)
-    params:set_action("osc_int_1", function(value)
-        send_integer_value(1, value)
-    end)
-    
-    params:add_number("osc_int_2", "Integer 2", -100, 100, 0)
-    params:set_action("osc_int_2", function(value)
-        send_integer_value(2, value)
-    end)
-    
-    -- Decimal parameters (-5.0 to 5.0)
-    params:add_control("osc_float_1", "Float 1", controlspec.new(-5.0, 5.0, 'lin', 0.01, 0.0))
+    -- Four float parameters (-10.0 to 10.0)
+    params:add_control("osc_float_1", "Float 1", controlspec.new(-10.0, 10.0, 'lin', 0.01, 0.0))
     params:set_action("osc_float_1", function(value)
         send_float_value(1, value)
     end)
     
-    params:add_control("osc_float_2", "Float 2", controlspec.new(-5.0, 5.0, 'lin', 0.01, 0.0))
+    params:add_control("osc_float_2", "Float 2", controlspec.new(-10.0, 10.0, 'lin', 0.01, 0.0))
     params:set_action("osc_float_2", function(value)
         send_float_value(2, value)
+    end)
+    
+    params:add_control("osc_float_3", "Float 3", controlspec.new(-10.0, 10.0, 'lin', 0.01, 0.0))
+    params:set_action("osc_float_3", function(value)
+        send_float_value(3, value)
+    end)
+    
+    params:add_control("osc_float_4", "Float 4", controlspec.new(-10.0, 10.0, 'lin', 0.01, 0.0))
+    params:set_action("osc_float_4", function(value)
+        send_float_value(4, value)
     end)
     
     -- LFO Frequency parameters (4 LFOs)
@@ -152,31 +154,50 @@ function send_lfo_frequency(lfo_index)
     local sync_div = params:string("osc_lfo_" .. lfo_index .. "_sync")
     local frequency = sync_to_frequency(sync_div)
     
+    -- Stop existing LFO sync clock if any
+    if active_lfo_sync_clocks["lfo_" .. lfo_index] then
+        clock.cancel(active_lfo_sync_clocks["lfo_" .. lfo_index])
+        active_lfo_sync_clocks["lfo_" .. lfo_index] = nil
+    end
+    
     if frequency > 0 then
-        local path = "/lfo/" .. lfo_index
+        -- Send frequency for TouchDesigner LFO rate
+        local path = "/lfo/" .. lfo_index .. "/freq"
         local success = send_osc_message(path, {frequency})
         if success then
             print("LFO Frequency sent: " .. frequency .. " Hz (sync: " .. sync_div .. ")")
         end
+        
+        -- Send sync pulse on next beat boundary
+        local beats = division_to_beats(sync_div)
+        local function send_single_sync_pulse()
+            clock.sync(beats)  -- Wait for next sync point
+            local sync_path = "/lfo/" .. lfo_index .. "/sync"
+            
+            -- Send pulse high
+            send_osc_message(sync_path, {1})
+            print("LFO " .. lfo_index .. " sync pulse sent on beat")
+            
+            -- Wait 250ms then send pulse low
+            clock.sleep(0.25)
+            send_osc_message(sync_path, {0})
+            print("LFO " .. lfo_index .. " sync pulse reset to 0")
+        end
+        
+        -- Start single-shot sync pulse
+        active_lfo_sync_clocks["lfo_" .. lfo_index] = clock.run(send_single_sync_pulse)
+        
         return frequency
     else
         print("LFO disabled (sync: " .. sync_div .. ")")
         -- Send 0 to stop TouchDesigner LFO when "Off"
-        local path = "/lfo/" .. lfo_index
+        local path = "/lfo/" .. lfo_index .. "/freq"
         send_osc_message(path, {0})
         return 0
     end
 end
 
--- Send integer value
-function send_integer_value(index, value)
-    local path = "/integer/" .. index
-    local success = send_osc_message(path, {value})
-    if success then
-        print("Integer " .. index .. " sent: " .. value)
-    end
-    return value
-end
+
 
 -- Send float value
 function send_float_value(index, value)
@@ -300,12 +321,11 @@ local function create_screen_ui()
             { id = "osc_dest_octet_3" },
             { id = "osc_dest_octet_4" },
             { id = "osc_dest_port" },
-            { separator = true, title = "Integer Values" },
-            { id = "osc_int_1" },
-            { id = "osc_int_2" },
             { separator = true, title = "Float Values" },
-            { id = "osc_float_1" },
-            { id = "osc_float_2" },
+            { id = "osc_float_1", arc_multi_float = true },
+            { id = "osc_float_2", arc_multi_float = true },
+            { id = "osc_float_3", arc_multi_float = true },
+            { id = "osc_float_4", arc_multi_float = true },
             { separator = true, title = "LFO Frequency" },
             { id = "osc_lfo_1_sync" },
             { id = "osc_lfo_2_sync" },

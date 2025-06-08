@@ -64,6 +64,27 @@ function Arc.init()
       device:refresh()
     end
 
+    -- Helper function to modify float parameter by component (integer, tenth, hundredth)
+    device.modify_float_component = function(param, component, direction)
+      local current_value = params:get(param.id)
+      local param_info = params:lookup_param(param.id)
+      local min_val = param_info.controlspec.minval
+      local max_val = param_info.controlspec.maxval
+      
+      local delta = 0
+      if component == "integer" then
+        delta = direction * 1.0
+      elseif component == "tenth" then
+        delta = direction * 0.1
+      elseif component == "hundredth" then
+        delta = direction * 0.01
+      end
+      
+      local new_value = current_value + delta
+      new_value = math.max(min_val, math.min(max_val, new_value))
+      params:set(param.id, new_value)
+    end
+
     -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
     device.delta = function(n, delta)
       -- HOTFIX: Skip Arc handling for special sections
@@ -96,6 +117,9 @@ function Arc.init()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
         
+        -- Check if this parameter uses multi-encoder float editing
+        local is_multi_float = selected_param and selected_param.arc_multi_float
+        
         -- Map Arc encoder 1 to Norns encoder 2. Use custom param key illumination logic.
         if n == 1 then
           _seeker.ui_state.enc(2, direction)
@@ -104,8 +128,24 @@ function Arc.init()
           -- Update the param ring to keep in sync
           device.update_param_value_display()
 
-        -- Map Arc encoder 2 to Norns encoder 3. Use custom param value illumination logic.
-        -- Only send encoder events for non-action params. Action params handled by key press.
+        -- Handle multi-encoder float editing
+        elseif is_multi_float and selected_param.id then
+          if n == 2 then
+            -- Encoder 2: Integer component
+            device.modify_float_component(selected_param, "integer", direction)
+          elseif n == 3 then
+            -- Encoder 3: Tenth component
+            device.modify_float_component(selected_param, "tenth", direction)
+          elseif n == 4 then
+            -- Encoder 4: Hundredth component
+            device.modify_float_component(selected_param, "hundredth", direction)
+          end
+          
+          -- Update display and UI once for any multi-encoder change
+          device.update_param_value_display()
+          _seeker.screen_ui.set_needs_redraw()
+
+        -- Standard single encoder behavior for non-multi-float params
         elseif n == 2 and not selected_param.is_action then
           _seeker.ui_state.enc(3, direction)
           device.update_param_value_display()
@@ -355,6 +395,50 @@ function Arc.init()
       device:refresh()
     end
     
+    -- Helper function for displaying multi-encoder float values
+    local function update_multi_float_rings(param_id)
+      local current_value = params:get(param_id)
+      
+      -- Extract integer, tenth, and hundredth components
+      local integer_part = math.floor(math.abs(current_value))
+      local decimal_part = math.abs(current_value) - integer_part
+      local tenth_part = math.floor(decimal_part * 10)
+      local hundredth_part = math.floor((decimal_part * 100) % 10)
+      
+      -- Clear all rings first
+      for ring = 2, 4 do
+        for i = 1, 64 do
+          device:led(ring, i, 1) -- Dim base illumination
+        end
+      end
+      
+      -- Ring 2: Integer component (0-9, wrapping)
+      local integer_leds = math.floor(64 / 10)
+      local integer_start = (integer_part % 10) * integer_leds + 1
+      for i = 0, integer_leds - 1 do
+        device:led(2, integer_start + i, 10)
+      end
+      
+      -- Ring 3: Tenth component (0-9)
+      local tenth_leds = math.floor(64 / 10)
+      local tenth_start = tenth_part * tenth_leds + 1
+      for i = 0, tenth_leds - 1 do
+        device:led(3, tenth_start + i, 10)
+      end
+      
+      -- Ring 4: Hundredth component (0-9)
+      local hundredth_leds = math.floor(64 / 10)
+      local hundredth_start = hundredth_part * hundredth_leds + 1
+      for i = 0, hundredth_leds - 1 do
+        device:led(4, hundredth_start + i, 10)
+      end
+      
+      -- Add sign indicator on ring 2 if negative
+      if current_value < 0 then
+        device:led(2, 32, 15) -- Bright LED at bottom to indicate negative
+      end
+    end
+
     device.update_param_value_display = function()
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
@@ -377,9 +461,23 @@ function Arc.init()
         end
       end
 
-      -- Set base illumination
+      -- Check if this parameter uses multi-encoder float editing
+      if param and param.arc_multi_float and param.id then
+        update_multi_float_rings(param.id)
+        device:refresh()
+        return
+      end
+
+      -- Set base illumination for standard single-ring display
       for i = 1, 64 do
         device:led(2, i, 3)
+      end
+      
+      -- Clear rings 3 and 4 for non-multi-float params
+      for ring = 3, 4 do
+        for i = 1, 64 do
+          device:led(ring, i, 0)
+        end
       end
       
       if param then
