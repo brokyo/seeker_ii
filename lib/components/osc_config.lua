@@ -88,13 +88,9 @@ local function create_params()
             end
         end)
         
-        -- Random trigger parameters
+        -- Min/Max parameters (used by both Random and Binary types)
         params:add_number("osc_trigger_" .. i .. "_min", "Trigger " .. i .. " Min", 0, 100, 0)
         params:add_number("osc_trigger_" .. i .. "_max", "Trigger " .. i .. " Max", 0, 100, 100)
-        
-        -- Binary trigger parameters
-        params:add_number("osc_trigger_" .. i .. "_low", "Trigger " .. i .. " Low", 0, 100, 0)
-        params:add_number("osc_trigger_" .. i .. "_high", "Trigger " .. i .. " High", 0, 100, 100)
     end
 end
 
@@ -220,8 +216,8 @@ function send_trigger_pulse(trigger_index)
     
     if trigger_type == "Binary" then
         -- Binary mode: alternate between low and high
-        local low_val = params:get("osc_trigger_" .. trigger_index .. "_low")
-        local high_val = params:get("osc_trigger_" .. trigger_index .. "_high")
+        local low_val = params:get("osc_trigger_" .. trigger_index .. "_min")
+        local high_val = params:get("osc_trigger_" .. trigger_index .. "_max")
         
         -- Toggle state
         binary_trigger_states[trigger_index] = not binary_trigger_states[trigger_index]
@@ -267,6 +263,9 @@ function update_trigger_clock(trigger_index)
     
     -- Create clock function for trigger pulses
     local function trigger_clock_function()
+        -- Wait for proper phase alignment before starting
+        clock.sync(beats)
+        
         while true do
             -- Send trigger pulse
             send_trigger_pulse(trigger_index)
@@ -322,26 +321,18 @@ local function create_screen_ui()
             { id = "osc_trigger_1_type" },
             { id = "osc_trigger_1_min" },
             { id = "osc_trigger_1_max" },
-            { id = "osc_trigger_1_low" },
-            { id = "osc_trigger_1_high" },
             { id = "osc_trigger_2_sync" },
             { id = "osc_trigger_2_type" },
             { id = "osc_trigger_2_min" },
             { id = "osc_trigger_2_max" },
-            { id = "osc_trigger_2_low" },
-            { id = "osc_trigger_2_high" },
             { id = "osc_trigger_3_sync" },
             { id = "osc_trigger_3_type" },
             { id = "osc_trigger_3_min" },
             { id = "osc_trigger_3_max" },
-            { id = "osc_trigger_3_low" },
-            { id = "osc_trigger_3_high" },
             { id = "osc_trigger_4_sync" },
             { id = "osc_trigger_4_type" },
             { id = "osc_trigger_4_min" },
             { id = "osc_trigger_4_max" },
-            { id = "osc_trigger_4_low" },
-            { id = "osc_trigger_4_high" },
             { separator = true, title = "OSC Test" },
             { id = "osc_test_trigger", is_action = true }
         }
