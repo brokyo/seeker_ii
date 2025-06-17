@@ -26,7 +26,7 @@ local function create_params()
     params:add_number("osc_dest_octet_2", "Dest IP Octet 2", 0, 255, 168)
     params:add_number("osc_dest_octet_3", "Dest IP Octet 3", 0, 255, 0)
     params:add_number("osc_dest_octet_4", "Dest IP Octet 4", 0, 255, 230)
-    params:add_number("osc_dest_port", "Dest Port", 1000, 65535, 10101)
+    params:add_number("osc_dest_port", "Dest Port", 1000, 65535, 10000)
     
     params:add_binary("osc_test_trigger", "Send Test Message", "trigger", 0)
     params:set_action("osc_test_trigger", function(value)
@@ -59,28 +59,20 @@ local function create_params()
     
     -- LFO Frequency parameters (4 LFOs)
     for i = 1, 4 do
-        params:add_option("osc_lfo_" .. i .. "_sync", "LFO " .. i .. " Sync", sync_options, 1) -- Default to "Off"
+        params:add_option("osc_lfo_" .. i .. "_sync", "LFO " .. i .. " Sync", sync_options, 1)
         params:set_action("osc_lfo_" .. i .. "_sync", function(value)
             send_lfo_frequency(i)
         end)
     end
     
-    -- Clock parameters (4 clocks)
-    for i = 1, 4 do
-        params:add_option("osc_clock_" .. i .. "_sync", "Clock " .. i .. " Sync", sync_options, 1) -- Default to "Off"
-        params:set_action("osc_clock_" .. i .. "_sync", function(value)
-            send_clock_frequency(i)
-        end)
-    end
-    
     -- Trigger parameters (4 triggers)
     for i = 1, 4 do
-        params:add_option("osc_trigger_" .. i .. "_sync", "Trigger " .. i .. " Sync", sync_options, 1) -- Default to "Off"
+        params:add_option("osc_trigger_" .. i .. "_sync", "Trigger " .. i .. " Sync", sync_options, 1)
         params:set_action("osc_trigger_" .. i .. "_sync", function(value)
             update_trigger_clock(i)
         end)
         
-        params:add_option("osc_trigger_" .. i .. "_type", "Trigger " .. i .. " Type", {"Random", "Binary"}, 1) -- Default to "Random"
+        params:add_option("osc_trigger_" .. i .. "_type", "Trigger " .. i .. " Type", {"Min/Max", "Random"}, 1)
         params:set_action("osc_trigger_" .. i .. "_type", function(value)
             -- Reset binary state when switching types
             binary_trigger_states[i] = false
@@ -98,7 +90,6 @@ end
 
 -- Helper function to convert division string to beats (same as eurorack_output.lua)
 local function division_to_beats(div)
-    -- Handle "Off" as off
     if div == "Off" then
         return 0
     end
@@ -114,7 +105,7 @@ local function division_to_beats(div)
         return tonumber(num)/tonumber(den)
     end
     
-    return 1 -- default to quarter note
+    return 1
 end
 
 -- Convert sync division to frequency in Hz
@@ -197,8 +188,6 @@ function send_lfo_frequency(lfo_index)
     end
 end
 
-
-
 -- Send float value
 function send_float_value(index, value)
     local path = "/float/" .. index
@@ -209,34 +198,12 @@ function send_float_value(index, value)
     return value
 end
 
--- Send clock frequency
-function send_clock_frequency(clock_index)
-    local sync_div = params:string("osc_clock_" .. clock_index .. "_sync")
-    local beats = division_to_beats(sync_div)
-    
-    if beats > 0 then
-        local path = "/clock/" .. clock_index
-        local success = send_osc_message(path, {beats})
-        if success then
-            print("Clock Period sent: " .. beats .. " beats (sync: " .. sync_div .. ")")
-        end
-        return beats
-    else
-        print("Clock disabled (sync: " .. sync_div .. ")")
-        -- Send 1 to set a default period when "Off"
-        local path = "/clock/" .. clock_index
-        send_osc_message(path, {1})
-        return 0
-    end
-end
-
 -- Send trigger pulse
 function send_trigger_pulse(trigger_index)
     local trigger_type = params:string("osc_trigger_" .. trigger_index .. "_type")
     local trigger_value
     
-    if trigger_type == "Binary" then
-        -- Binary mode: alternate between low and high
+    if trigger_type == "Min/Max" then
         local low_val = params:get("osc_trigger_" .. trigger_index .. "_min")
         local high_val = params:get("osc_trigger_" .. trigger_index .. "_max")
         
@@ -249,7 +216,7 @@ function send_trigger_pulse(trigger_index)
         else
             trigger_value = low_val
         end
-    else
+    elseif trigger_type == "Random" then
         -- Random mode: generate random value between min and max
         local min_val = params:get("osc_trigger_" .. trigger_index .. "_min")
         local max_val = params:get("osc_trigger_" .. trigger_index .. "_max")
@@ -259,7 +226,7 @@ function send_trigger_pulse(trigger_index)
     local path = "/trigger/" .. trigger_index
     local success = send_osc_message(path, {trigger_value})
     if success then
-        local mode_str = trigger_type == "Binary" and (binary_trigger_states[trigger_index] and "HIGH" or "LOW") or "RANDOM"
+        local mode_str = trigger_type == "Min/Max" and (binary_trigger_states[trigger_index] and "MAX" or "MIN") or "Random"
         print("Trigger " .. trigger_index .. " (" .. mode_str .. ") pulse sent: " .. string.format("%.2f", trigger_value))
     end
     return success
@@ -312,15 +279,9 @@ end
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_CONFIG",
-        name = "OSC Config [WIP]",
+        name = "OSC Config",
         description = "Configure OSC send parameters",
         params = {
-            { separator = true, title = "OSC Send Config" },
-            { id = "osc_dest_octet_1" },
-            { id = "osc_dest_octet_2" },
-            { id = "osc_dest_octet_3" },
-            { id = "osc_dest_octet_4" },
-            { id = "osc_dest_port" },
             { separator = true, title = "Float Values" },
             { id = "osc_float_1", arc_multi_float = true },
             { id = "osc_float_2", arc_multi_float = true },
@@ -331,12 +292,7 @@ local function create_screen_ui()
             { id = "osc_lfo_2_sync" },
             { id = "osc_lfo_3_sync" },
             { id = "osc_lfo_4_sync" },
-            { separator = true, title = "Clock" },
-            { id = "osc_clock_1_sync" },
-            { id = "osc_clock_2_sync" },
-            { id = "osc_clock_3_sync" },
-            { id = "osc_clock_4_sync" },
-            { separator = true, title = "Triggers" },
+            { separator = true, title = "Clocks" },
             { id = "osc_trigger_1_sync" },
             { id = "osc_trigger_1_type" },
             { id = "osc_trigger_1_min" },
@@ -353,6 +309,12 @@ local function create_screen_ui()
             { id = "osc_trigger_4_type" },
             { id = "osc_trigger_4_min" },
             { id = "osc_trigger_4_max" },
+            { separator = true, title = "OSC Send Config" },
+            { id = "osc_dest_octet_1" },
+            { id = "osc_dest_octet_2" },
+            { id = "osc_dest_octet_3" },
+            { id = "osc_dest_octet_4" },
+            { id = "osc_dest_port" },
             { separator = true, title = "OSC Test" },
             { id = "osc_test_trigger", is_action = true }
         }
@@ -382,8 +344,6 @@ function OscConfig.init()
         send_message = send_osc_message,
         test_connection = test_osc_connection,
         send_lfo_frequency = send_lfo_frequency,
-        send_clock_frequency = send_clock_frequency,
-        send_integer_value = send_integer_value,
         send_float_value = send_float_value,
         send_trigger_pulse = send_trigger_pulse,
         update_trigger_clock = update_trigger_clock
