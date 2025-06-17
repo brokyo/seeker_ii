@@ -602,7 +602,13 @@ function Lane:on_note_on(event)
                     params:get("osc_dest_octet_3") .. "." .. 
                     params:get("osc_dest_octet_4")
     local dest_port = params:get("osc_dest_port")
-    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/note_on", {note, event.velocity})
+    
+    -- Send trigger high
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/trigger_active", {1})
+    -- Send note value
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/note", {note})
+    -- Send velocity
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/velocity", {event.velocity})
   end
 end
 
@@ -652,7 +658,13 @@ function Lane:on_note_off(event)
                     params:get("osc_dest_octet_3") .. "." .. 
                     params:get("osc_dest_octet_4")
     local dest_port = params:get("osc_dest_port")
-    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/note_off", {note})
+    
+    -- Send trigger low
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/trigger_active", {0})
+    -- Send note value
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/note", {note})
+    -- Send velocity 0
+    osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/velocity", {0})
   end
   
   -- Stop engine using instrument from params
