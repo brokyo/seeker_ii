@@ -21,6 +21,37 @@ local envelope_states = {}
 -- Store knob recording state for each output locally to this component
 local recording_states = {}
 
+-- Clock utility functions
+local function setup_clock(output_id, clock_fn)
+    -- Cancel existing clock if any
+    if active_clocks[output_id] then
+        clock.cancel(active_clocks[output_id])
+        active_clocks[output_id] = nil
+    end
+    
+    -- Start new clock if we have a function
+    if clock_fn then
+        active_clocks[output_id] = clock.run(clock_fn)
+    end
+end
+
+local function get_clock_timing(div)
+    -- Handle "Off" case
+    if div == "Off" then return nil end
+    
+    -- Convert division to beats
+    local beats = EurorackOutput.division_to_beats(div)
+    if beats <= 0 then return nil end
+    
+    -- Calculate timing values
+    local beat_sec = clock.get_beat_sec()
+    return {
+        beats = beats,
+        beat_sec = beat_sec,
+        total_sec = beats * beat_sec
+    }
+end
+
 -- Initialize recording states for all 4 crow outputs
 for i = 1, 4 do
     recording_states[i] = {
@@ -87,7 +118,7 @@ local function create_params()
         end)
         
         -- Burst parameters
-        params:add_control("crow_" .. i .. "_burst_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.1, 0))
+        params:add_control("crow_" .. i .. "_burst_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 0))
         params:set_action("crow_" .. i .. "_burst_voltage", function(value)
             EurorackOutput.update_crow(i)
         end)
@@ -103,7 +134,7 @@ local function create_params()
         end)
         
         -- Gate parameters
-        params:add_control("crow_" .. i .. "_gate_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.1, 0))
+        params:add_control("crow_" .. i .. "_gate_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 0))
         params:set_action("crow_" .. i .. "_gate_voltage", function(value)
             EurorackOutput.update_crow(i)
         end)
@@ -119,12 +150,12 @@ local function create_params()
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_control("crow_" .. i .. "_lfo_min", "CV Min", controlspec.new(-10, 10, 'lin', 0.1, -5))
+        params:add_control("crow_" .. i .. "_lfo_min", "CV Min", controlspec.new(-10, 10, 'lin', 0.01, -5))
         params:set_action("crow_" .. i .. "_lfo_min", function(value)
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_control("crow_" .. i .. "_lfo_max", "CV Max", controlspec.new(-10, 10, 'lin', 0.1, 5))
+        params:add_control("crow_" .. i .. "_lfo_max", "CV Max", controlspec.new(-10, 10, 'lin', 0.01, 5))
         params:set_action("crow_" .. i .. "_lfo_max", function(value)
             EurorackOutput.update_crow(i)
         end)
@@ -150,12 +181,12 @@ local function create_params()
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_control("crow_" .. i .. "_looped_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.1, -5))
+        params:add_control("crow_" .. i .. "_looped_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.01, -5))
         params:set_action("crow_" .. i .. "_looped_random_min", function(value)
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_control("crow_" .. i .. "_looped_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.1, 5))
+        params:add_control("crow_" .. i .. "_looped_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.01, 5))
         params:set_action("crow_" .. i .. "_looped_random_max", function(value)
             EurorackOutput.update_crow(i)
         end)
@@ -176,12 +207,12 @@ local function create_params()
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_control("crow_" .. i .. "_clocked_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.1, -5))
+        params:add_control("crow_" .. i .. "_clocked_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.01, -5))
         params:set_action("crow_" .. i .. "_clocked_random_min", function(value)
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_control("crow_" .. i .. "_clocked_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.1, 5))
+        params:add_control("crow_" .. i .. "_clocked_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.01, 5))
         params:set_action("crow_" .. i .. "_clocked_random_max", function(value)
             EurorackOutput.update_crow(i)
         end)
@@ -311,12 +342,12 @@ local function create_params()
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_control("txo_cv_" .. i .. "_depth", "Dep th", controlspec.new(0, 10, 'lin', 0.1, 2.5))
+        params:add_control("txo_cv_" .. i .. "_depth", "Depth", controlspec.new(0, 10, 'lin', 0.01, 2.5))
         params:set_action("txo_cv_" .. i .. "_depth", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_control("txo_cv_" .. i .. "_offset", "Offset", controlspec.new(-5, 5, 'lin', 0.1, 0))
+        params:add_control("txo_cv_" .. i .. "_offset", "Offset", controlspec.new(-5, 5, 'lin', 0.01, 0))
         params:set_action("txo_cv_" .. i .. "_offset", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
@@ -332,12 +363,12 @@ local function create_params()
         end)
         
         -- Stepped Random parameters
-        params:add_control("txo_cv_" .. i .. "_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.1, -5))
+        params:add_control("txo_cv_" .. i .. "_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.01, -5))
         params:set_action("txo_cv_" .. i .. "_random_min", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_control("txo_cv_" .. i .. "_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.1, 5))
+        params:add_control("txo_cv_" .. i .. "_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.01, 5))
         params:set_action("txo_cv_" .. i .. "_random_max", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
@@ -395,29 +426,29 @@ local function create_screen_ui()
             
             -- Add type-specific parameters
             if type == "Burst" then
-                table.insert(param_table, { id = "crow_" .. output_num .. "_burst_voltage" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_burst_voltage",  arc_multi_float = true })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_burst_count" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_burst_time" })
             elseif type == "Gate" then
-                table.insert(param_table, { id = "crow_" .. output_num .. "_gate_voltage" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_gate_voltage", arc_multi_float = true })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_gate_length" })
             elseif type == "LFO" then
                 table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_shape" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_min" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_max" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_min", arc_multi_float = true })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_max", arc_multi_float = true })
             elseif type == "Looped Random" then
                 table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_shape" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_quantize" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_steps" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_loops" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_min" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_max" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_min", arc_multi_float = true })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_max", arc_multi_float = true })
             elseif type == "Clocked Random" then
                 table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_trigger" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_shape" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_quantize" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_min" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_max" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_min", arc_multi_float = true })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_max", arc_multi_float = true })
             elseif type == "Knob Recorder" then
                 table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_knob_recording",  is_action = true})
@@ -476,10 +507,10 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_morph" })
                 
                 -- Add depth
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_depth" })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_depth", arc_multi_float = true })
                 
                 -- Add remaining LFO parameters
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_offset" })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_offset", arc_multi_float = true })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_phase" })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_rect" })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
@@ -492,8 +523,8 @@ local function create_screen_ui()
                     params:set("txo_cv_" .. output_num .. "_sync", 9) -- Set to "1/8"
                 end
                 
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_min" })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_max" })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_min", arc_multi_float = true })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_max", arc_multi_float = true })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
             end
         end
@@ -696,27 +727,21 @@ function EurorackOutput.update_crow(output_num)
     -- Handle LFO mode
     if type == "LFO" then
         local clock_mod = params:string("crow_" .. output_num .. "_clock_div")
+        local timing = get_clock_timing(clock_mod)
+        
+        if not timing then
+            crow.output[output_num].volts = 0
+            return
+        end
+
         local shape = params:string("crow_" .. output_num .. "_lfo_shape")
         local min = params:get("crow_" .. output_num .. "_lfo_min")
         local max = params:get("crow_" .. output_num .. "_lfo_max")
         
-        -- Convert clock division to beats
-        local beats = EurorackOutput.division_to_beats(clock_mod)
-        
-        -- If division is 0 or invalid, turn off the LFO
-        if beats <= 0 or clock_mod == "Off" then
-            crow.output[output_num].volts = 0
-            return
-        end
-        
-        -- Convert beats to seconds based on current tempo
-        local beat_sec = clock.get_beat_sec()
-        local time = beat_sec * beats
-        
         -- Construct ASL string with dynamic values
         local asl_string = string.format("loop( { to(%f,%f,'%s'), to(%f,%f,'%s') } )", 
-            min, time, shape, 
-            max, time, shape)
+            min, timing.total_sec, shape, 
+            max, timing.total_sec, shape)
         
         -- Set up LFO using Crow's ASL system
         crow.output[output_num].action = asl_string
@@ -844,9 +869,9 @@ function EurorackOutput.update_crow(output_num)
 
     if type == "Burst" then
         local div = params:string("crow_" .. output_num .. "_clock_div")
-        local beats = EurorackOutput.division_to_beats(div)
+        local timing = get_clock_timing(div)
         
-        if beats == 0 then
+        if not timing then
             crow.output[output_num].volts = 0
             return
         end
@@ -867,20 +892,20 @@ function EurorackOutput.update_crow(output_num)
                 end
                 
                 -- Wait for next interval
-                clock.sync(beats)
+                clock.sync(timing.beats)
             end
         end
         
         -- Start the clock
-        active_clocks["crow_" .. output_num] = clock.run(clock_fn)
+        setup_clock("crow_" .. output_num, clock_fn)
         return
     end
 
     if type == "Gate" then
         local div = params:string("crow_" .. output_num .. "_clock_div")
-        local beats = EurorackOutput.division_to_beats(div)
+        local timing = get_clock_timing(div)
         
-        if beats == 0 then
+        if not timing then
             crow.output[output_num].volts = 0
             return
         end
@@ -890,8 +915,7 @@ function EurorackOutput.update_crow(output_num)
             while true do
                 local gate_voltage = params:get("crow_" .. output_num .. "_gate_voltage")
                 local gate_length = params:get("crow_" .. output_num .. "_gate_length") / 100
-                local beat_sec = clock.get_beat_sec()
-                local gate_time = beat_sec * beats * gate_length
+                local gate_time = timing.total_sec * gate_length
                 
                 -- Send gate pulse
                 crow.output[output_num].volts = gate_voltage
@@ -899,12 +923,12 @@ function EurorackOutput.update_crow(output_num)
                 crow.output[output_num].volts = 0
                 
                 -- Wait for next interval
-                clock.sync(beats)
+                clock.sync(timing.beats)
             end
         end
         
         -- Start the clock
-        active_clocks["crow_" .. output_num] = clock.run(clock_fn)
+        setup_clock("crow_" .. output_num, clock_fn)
         return
     end
 
