@@ -573,7 +573,14 @@ function Lane:on_note_on(event)
 
     -- TODO: I'm not entirely sure why subtracting 60 bring this into a reasonable range. It's held over from previous code.
     local adjusted_note = note - 60
-    crow.ii.jf.play_note(adjusted_note / 12, jf_velocity)
+    local jf_voice_select = params:get("lane_" .. self.id .. "_just_friends_voice_select")
+    if jf_voice_select == 1 then
+      -- All voices (original behavior)
+      crow.ii.jf.play_note(adjusted_note / 12, jf_velocity)
+    else
+      -- Individual voice (1-6)
+      crow.ii.jf.play_voice(jf_voice_select - 1, adjusted_note / 12, jf_velocity)
+    end
   end
 
   --------------------------------

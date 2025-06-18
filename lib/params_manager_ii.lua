@@ -382,6 +382,13 @@ function create_just_friends_params(i)
             _seeker.lanes[i].just_friends_voice_volume = value
         end
     end)
+    -- Voice selection (All or 1-6)
+    params:add_option("lane_" .. i .. "_just_friends_voice_select", "JF Voice", {"All", "1", "2", "3", "4", "5", "6"}, 1)
+    params:set_action("lane_" .. i .. "_just_friends_voice_select", function(value)
+        if _seeker.lanes[i] then
+            _seeker.lanes[i].just_friends_voice_select = value
+        end
+    end)
 end
 
 function create_wsyn_params(i)

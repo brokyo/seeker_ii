@@ -76,6 +76,7 @@ function LaneSection.new()
       -- Only show additional Just Friends params if active
       if params:get("lane_" .. new_lane_idx .. "_just_friends_active") == 1 then
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_just_friends_voice_volume", name = "Voice Volume" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_just_friends_voice_select", name = "JF Voice" })
       end
     elseif visible_voice == 5 then -- w/syn
       table.insert(self.params, { separator = true, name = "w/syn" })
