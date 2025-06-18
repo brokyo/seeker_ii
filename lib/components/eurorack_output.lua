@@ -15,6 +15,9 @@ local shape_options = {"sine", "linear", "now", "wait", "over", "under", "reboun
 -- Store active clock IDs globally
 local active_clocks = {}
 
+-- Store envelope states globally
+local envelope_states = {}
+
 -- Store knob recording state for each output locally to this component
 local recording_states = {}
 
@@ -28,6 +31,14 @@ for i = 1, 4 do
         interpolation_steps = 5,
         clock_interval = 0.05,
         capture_clock = nil
+    }
+end
+
+-- Initialize envelope states for all 4 crow outputs
+for i = 1, 4 do
+    envelope_states[i] = {
+        active = false,
+        clock = nil
     }
 end
 
@@ -45,6 +56,7 @@ local function reset_recording_state(output_num)
 end
 
 local function create_params()
+    -- TODO: Count the params.
     params:add_group("eurorack_output", "EURORACK OUTPUT", 161)
     
     -- Output Selection
@@ -62,7 +74,7 @@ local function create_params()
 
     -- Crow outputs (1-4)
     for i = 1, 4 do
-        params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Looped Random", "Clocked Random", "Knob Recorder"}, 1)
+        params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Envelope", "Knob Recorder", "Looped Random", "Clocked Random"}, 1)
         params:set_action("crow_" .. i .. "_type", function(value)
             EurorackOutput.update_crow(i)
             _seeker.eurorack_output.screen:rebuild_params()
@@ -195,6 +207,49 @@ local function create_params()
             EurorackOutput.clear_knob(i)
             _seeker.screen_ui.set_needs_redraw()
         end)
+
+        -- Envelope parameters
+        params:add_option("crow_" .. i .. "_envelope_mode", "Envelope Mode", {"ADSR", "AR"}, 1)
+        params:set_action("crow_" .. i .. "_envelope_mode", function(value)
+            EurorackOutput.update_crow(i)
+            _seeker.eurorack_output.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+        
+        params:add_control("crow_" .. i .. "_envelope_voltage", "Max Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5))
+        params:set_action("crow_" .. i .. "_envelope_voltage", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_number("crow_" .. i .. "_envelope_duration", "Duration", 1, 100, 50, function(param) return param.value .. "%" end)
+        params:set_action("crow_" .. i .. "_envelope_duration", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_number("crow_" .. i .. "_envelope_attack", "Attack", 1, 100, 20, function(param) return param.value .. "%" end)
+        params:set_action("crow_" .. i .. "_envelope_attack", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_number("crow_" .. i .. "_envelope_decay", "Decay", 1, 100, 20, function(param) return param.value .. "%" end)
+        params:set_action("crow_" .. i .. "_envelope_decay", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_control("crow_" .. i .. "_envelope_sustain", "Sustain Level", controlspec.new(0, 100, 'lin', 1, 50, '%'))
+        params:set_action("crow_" .. i .. "_envelope_sustain", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_number("crow_" .. i .. "_envelope_release", "Release", 1, 100, 20, function(param) return param.value .. "%" end)
+        params:set_action("crow_" .. i .. "_envelope_release", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_option("crow_" .. i .. "_envelope_shape", "Envelope Shape", shape_options, 2)
+        params:set_action("crow_" .. i .. "_envelope_shape", function(value)
+            EurorackOutput.update_crow(i)
+        end)
     end
 
     -- TXO TR outputs (1-4)
@@ -256,7 +311,7 @@ local function create_params()
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_control("txo_cv_" .. i .. "_depth", "Depth", controlspec.new(0, 10, 'lin', 0.1, 2.5))
+        params:add_control("txo_cv_" .. i .. "_depth", "Dep th", controlspec.new(0, 10, 'lin', 0.1, 2.5))
         params:set_action("txo_cv_" .. i .. "_depth", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
@@ -367,6 +422,21 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_knob_recording",  is_action = true})
                 table.insert(param_table, { id = "crow_" .. output_num .. "_knob_clear", is_action = true})
+            elseif type == "Envelope" then
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_mode" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_voltage", arc_multi_float = true })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_duration" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_attack" })
+                
+                -- Only show decay and sustain for ADSR mode
+                local mode = params:string("crow_" .. output_num .. "_envelope_mode")
+                if mode == "ADSR" then
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_decay" })
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_sustain" })
+                end
+                
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_release" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
             end
             
         elseif selected_output:match("^TXO TR") then
@@ -835,6 +905,111 @@ function EurorackOutput.update_crow(output_num)
         
         -- Start the clock
         active_clocks["crow_" .. output_num] = clock.run(clock_fn)
+        return
+    end
+
+    if type == "Envelope" then
+        -- Get envelope parameters
+        local div = params:string("crow_" .. output_num .. "_clock_div")
+        local beats = EurorackOutput.division_to_beats(div)
+        
+        if beats == 0 then
+            crow.output[output_num].volts = 0
+            return
+        end
+
+        local mode = params:string("crow_" .. output_num .. "_envelope_mode")
+        local max_voltage = params:get("crow_" .. output_num .. "_envelope_voltage")
+        local duration_percent = params:get("crow_" .. output_num .. "_envelope_duration")
+        local attack_percent = params:get("crow_" .. output_num .. "_envelope_attack")
+        local decay_percent = params:get("crow_" .. output_num .. "_envelope_decay")
+        local sustain_level = params:get("crow_" .. output_num .. "_envelope_sustain") / 100
+        local release_percent = params:get("crow_" .. output_num .. "_envelope_release")
+        local shape = params:string("crow_" .. output_num .. "_envelope_shape")
+        
+        -- Reset envelope state
+        envelope_states[output_num] = {
+            active = false,
+            clock = nil
+        }
+        
+        -- Function to generate ASL string based on mode
+        local function generate_envelope_asl()
+            local sustain_voltage = max_voltage * sustain_level
+            local beat_sec = clock.get_beat_sec()
+            local cycle_time = beat_sec * beats
+            
+            -- Calculate the actual duration of the envelope within the cycle
+            local envelope_time = cycle_time * (duration_percent / 100)
+            
+            if mode == "ADSR" then
+                -- Calculate stage times as percentages of the envelope duration
+                local total_percent = attack_percent + decay_percent + release_percent
+                local sustain_percent = math.max(0, 100 - total_percent)
+                
+                -- Convert percentages to actual times
+                local attack_time = envelope_time * (attack_percent / 100)
+                local decay_time = envelope_time * (decay_percent / 100)
+                local sustain_time = envelope_time * (sustain_percent / 100)
+                local release_time = envelope_time * (release_percent / 100)
+                
+                -- Create ADSR envelope that fits within duration_percent of cycle
+                local envelope = string.format(
+                    "to(%f,%f,'%s'), to(%f,%f,'%s'), to(%f,%f,'%s'), to(0,%f,'%s')",
+                    max_voltage, attack_time, shape,
+                    sustain_voltage, decay_time, shape,
+                    sustain_voltage, sustain_time, shape,
+                    release_time, shape
+                )
+                
+                -- Add wait time to complete the cycle
+                local wait_time = cycle_time - envelope_time
+                if wait_time > 0 then
+                    envelope = envelope .. string.format(", to(0,%f,'now')", wait_time)
+                end
+                
+                return "loop({ " .. envelope .. " })"
+                
+            else -- AR mode
+                -- In AR mode, split the envelope time between attack and release
+                local total_percent = attack_percent + release_percent
+                local scale_factor = 100 / total_percent
+                
+                -- Calculate scaled times
+                local attack_time = envelope_time * ((attack_percent * scale_factor) / 100)
+                local release_time = envelope_time * ((release_percent * scale_factor) / 100)
+                
+                -- Create AR envelope
+                local envelope = string.format(
+                    "to(%f,%f,'%s'), to(0,%f,'%s')",
+                    max_voltage, attack_time, shape,
+                    release_time, shape
+                )
+                
+                -- Add wait time to complete the cycle
+                local wait_time = cycle_time - envelope_time
+                if wait_time > 0 then
+                    envelope = envelope .. string.format(", to(0,%f,'now')", wait_time)
+                end
+                
+                return "loop({ " .. envelope .. " })"
+            end
+        end
+        
+        -- Stop any existing clock
+        if active_clocks["crow_" .. output_num] then
+            clock.cancel(active_clocks["crow_" .. output_num])
+            active_clocks["crow_" .. output_num] = nil
+        end
+        
+        -- Set up the envelope with ASL
+        local asl_string = generate_envelope_asl()
+        crow.output[output_num].action = asl_string
+        crow.output[output_num]()
+        
+        -- Update envelope state
+        envelope_states[output_num].active = true
+        
         return
     end
 end
