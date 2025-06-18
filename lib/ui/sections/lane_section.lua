@@ -86,6 +86,7 @@ function LaneSection.new()
       if params:get("lane_" .. new_lane_idx .. "_wsyn_active") == 1 then
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_ar_mode", name = "Pluck Mode" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_voice_volume", name = "Voice Volume" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_voice_select", name = "w/syn Voice" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_curve", name = "Curve" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_ramp", name = "Ramp" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_index", name = "FM Index" })
@@ -94,7 +95,6 @@ function LaneSection.new()
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_ratio_denom", name = "FM Ratio Denominator" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_time", name = "LPG Time" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_symmetry", name = "LPG Symmetry" })
-
       end
     elseif visible_voice == 6 then -- OSC
       table.insert(self.params, { separator = true, name = "OSC" })

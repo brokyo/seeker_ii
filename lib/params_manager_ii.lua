@@ -410,6 +410,14 @@ function create_wsyn_params(i)
         end
     end)
 
+    -- Voice selection (All or 1-6)
+    params:add_option("lane_" .. i .. "_wsyn_voice_select", "w/syn Voice", {"All", "1", "2", "3", "4"}, 1)
+    params:set_action("lane_" .. i .. "_wsyn_voice_select", function(value)
+        if _seeker.lanes[i] then
+            _seeker.lanes[i].wsyn_voice_select = value
+        end
+    end)
+
     -- w/syn parameters
     params:add_option("lane_" .. i .. "_wsyn_ar_mode", "AR Mode", {"Off", "On"}, 1)
     params:set_action("lane_" .. i .. "_wsyn_ar_mode", function(value)

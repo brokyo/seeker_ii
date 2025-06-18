@@ -595,7 +595,14 @@ function Lane:on_note_on(event)
     local wsyn_volume = (event.velocity / 127) * wsyn_voice_volume * lane_volume
     -- TODO: I'm not entirely sure why subtracting 60 bring this into a reasonable range. It's held over from previous code.
     local adjusted_note = note - 60
-    crow.ii.wsyn.play_note(adjusted_note/12, wsyn_volume)
+    local wsyn_voice_select = params:get("lane_" .. self.id .. "_wsyn_voice_select")
+    if wsyn_voice_select == 1 then
+      -- All voices (Default/Dynamic)
+      crow.ii.wsyn.play_note(adjusted_note/12, wsyn_volume)
+    else
+      -- Individual voice (1-6)
+      crow.ii.wsyn.play_voice(wsyn_voice_select - 1, adjusted_note/12, wsyn_volume)
+    end
   end
 
   --------------------------------
