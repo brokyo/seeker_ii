@@ -88,9 +88,46 @@ end
 
 local function create_params()
     -- TODO: Count the params.
-    params:add_group("eurorack_output", "EURORACK OUTPUT", 161)
+    params:add_group("eurorack_output", "EURORACK OUTPUT", 162)
+    
+    -- Add sync action before the separator
+    params:add_binary("sync_all_clocks", "Synchronize All", "trigger", 0)
+    params:set_action("sync_all_clocks", function()
+        clock.run(function()
+            -- Cancel all existing clocks
+            for output_id, clock_id in pairs(active_clocks) do
+                if clock_id then
+                    clock.cancel(clock_id)
+                    active_clocks[output_id] = nil
+                end
+            end
+            
+            -- Reset all outputs
+            for i = 1, 4 do
+                crow.output[i].volts = 0
+                crow.ii.txo.tr(i, 0)  -- Reset TXO triggers
+                crow.ii.txo.cv(i, 0)  -- Reset TXO CV
+            end
+            
+            -- Sync to next whole beat
+            local current_beat = math.floor(clock.get_beats())
+            local next_beat = current_beat + 1
+            local beats_to_wait = next_beat - clock.get_beats()
+            clock.sync(beats_to_wait)
+            
+            -- Start all clocks fresh
+            for i = 1, 4 do
+                EurorackOutput.update_crow(i)
+                EurorackOutput.update_txo_tr(i)
+                EurorackOutput.update_txo_cv(i)
+            end
+            
+            print("⚡ All clocks reset and synced to beat " .. next_beat)
+        end)
+    end)
     
     -- Output Selection
+    params:add_separator("output_selection", "Output Selection")
     params:add_option("selected_output", "Output", {
         "Crow 1", "Crow 2", "Crow 3", "Crow 4",
         "TXO TR 1", "TXO TR 2", "TXO TR 3", "TXO TR 4",
@@ -390,6 +427,8 @@ local function create_screen_ui()
         name = "Eurorack Output",
         description = "Configure Crow outputs for clock pulses and LFOs",
         params = {
+            { separator = true, title = "Actions" },
+            { id = "sync_all_clocks", is_action = true },
             { separator = true, title = "Output Selection" },
             { id = "selected_output" }
         }
@@ -407,6 +446,8 @@ local function create_screen_ui()
         local selected_output = params:string("selected_output")
         
         local param_table = {
+            { separator = true, title = "Actions" },
+            { id = "sync_all_clocks", is_action = true },
             { separator = true, title = "Output Selection" },
             { id = "selected_output" }
         }
@@ -738,10 +779,10 @@ function EurorackOutput.update_crow(output_num)
         local min = params:get("crow_" .. output_num .. "_lfo_min")
         local max = params:get("crow_" .. output_num .. "_lfo_max")
         
-        -- Construct ASL string with dynamic values
+        -- Construct ASL string with dynamic values, using half the total time for each segment
         local asl_string = string.format("loop( { to(%f,%f,'%s'), to(%f,%f,'%s') } )", 
-            min, timing.total_sec, shape, 
-            max, timing.total_sec, shape)
+            min, timing.total_sec/2, shape, 
+            max, timing.total_sec/2, shape)
         
         -- Set up LFO using Crow's ASL system
         crow.output[output_num].action = asl_string
@@ -1206,21 +1247,57 @@ function EurorackOutput.update_txo_cv(output_num)
     -- Set up the oscillator parameters
     crow.ii.txo.osc_wave(output_num, wave_type)
     
-    -- TODO: Sync mode doesn't actually sync with clock. Investigate this later
-    -- TODO: Consider using AR rather than LFO
-    -- Set sync mode
+    -- Set up sync clock
     local beats = EurorackOutput.division_to_beats(sync)
     local beat_sec = clock.get_beat_sec()
     local cycle_time = beat_sec * beats * 1000  -- Convert to milliseconds
-    crow.ii.txo.osc_cyc(output_num, cycle_time)
     
-    crow.ii.txo.cv(output_num, depth)       -- Set amplitude
-    crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))  -- Set offset (convert to raw value)
-    crow.ii.txo.osc_rect(output_num, rect_value)  -- Set rectification
+    -- Create a clock function that maintains phase alignment while avoiding discontinuities
+    local function sync_lfo()
+        -- Initialize the LFO parameters once
+        crow.ii.txo.osc_wave(output_num, wave_type)
+        crow.ii.txo.cv(output_num, depth)  -- Set amplitude
+        crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))  -- Set offset
+        crow.ii.txo.osc_rect(output_num, rect_value)  -- Set rectification
+        
+        -- Calculate initial cycle time
+        local current_beat_sec = clock.get_beat_sec()
+        local current_cycle_time = current_beat_sec * beats * 1000
+        crow.ii.txo.osc_cyc(output_num, current_cycle_time)
+        
+        -- Start at phase 0
+        crow.ii.txo.osc_phase(output_num, 0)
+        
+        while true do
+            -- Wait for a complete cycle
+            clock.sync(beats)
+            
+            -- Update cycle time only if tempo has changed
+            local new_beat_sec = clock.get_beat_sec()
+            if new_beat_sec ~= current_beat_sec then
+                current_beat_sec = new_beat_sec
+                current_cycle_time = current_beat_sec * beats * 1000
+                crow.ii.txo.osc_cyc(output_num, current_cycle_time)
+            end
+            
+            -- Only update other parameters if they've changed
+            local new_depth = params:get("txo_cv_" .. output_num .. "_depth")
+            local new_offset = params:get("txo_cv_" .. output_num .. "_offset")
+            
+            if new_depth ~= depth then
+                depth = new_depth
+                crow.ii.txo.cv(output_num, depth)
+            end
+            
+            if new_offset ~= offset then
+                offset = new_offset
+                crow.ii.txo.osc_ctr(output_num, math.floor((offset/10) * 16384))
+            end
+        end
+    end
     
-    -- Set phase offset (convert degrees to raw value, 0-16384)
-    local phase_raw = math.floor((phase / 360) * 16384)
-    crow.ii.txo.osc_phase(output_num, phase_raw)
+    -- Start the sync clock
+    active_clocks["txo_cv_" .. output_num] = clock.run(sync_lfo)
 end
 
 function EurorackOutput.init()
