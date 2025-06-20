@@ -71,6 +71,19 @@ local function create_params()
                 end
             end)
 
+            -- Set default enabled state: stage 1 enabled, stages 2-4 disabled
+            local default_enabled = 2  -- Default to "No" (disabled)
+            if stage_idx == 1 then
+                default_enabled = 1    -- Stage 1 defaults to "Yes" (enabled)
+            end
+            
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_enabled", "Enabled", {"Yes", "No"}, default_enabled)
+            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_enabled", function(value)
+                if _seeker.lanes[lane_idx] then
+                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
+                end
+            end)
+
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", "Mute", {"Yes", "No"}, 2)
             params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", function(value)
                 if _seeker.lanes[lane_idx] then
@@ -221,6 +234,9 @@ local function create_screen_ui()
         
         -- Add mute option at the end, after all dynamic transform params
         table.insert(param_table, { separator = true, title = "Stage Config" })
+        table.insert(param_table, {
+            id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_enabled"
+        })
         table.insert(param_table, {
             id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"
         })
