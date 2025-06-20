@@ -20,6 +20,9 @@ local active_clocks = {}
 -- Store envelope states globally
 local envelope_states = {}
 
+-- Store pattern states globally for rhythmic patterns
+local pattern_states = {}
+
 -- Store knob recording state for each output locally to this component
 local recording_states = {}
 
@@ -95,9 +98,122 @@ local function reset_recording_state(output_num)
     }
 end
 
+-- Helper function to convert division string to beats (for backward compatibility)
+function EurorackOutput.division_to_beats(div)
+    -- Handle "Off" as off
+    if div == "Off" then
+        return 0
+    end
+    
+    -- Handle integer values (1, 2, 3, etc)
+    if tonumber(div) then
+        return tonumber(div)
+    end
+    
+    -- Handle fraction values (1/4, 1/16, etc)
+    local num, den = div:match("(%d+)/(%d+)")
+    if num and den then
+        return tonumber(num)/tonumber(den)
+    end
+    
+    return 1 -- default to quarter note
+end
+
+-- Pattern generation and management functions
+function EurorackOutput.generate_pattern(output_num)
+    local pattern_length = params:get("crow_" .. output_num .. "_gate_pattern_length")
+    local pattern_hits = params:get("crow_" .. output_num .. "_gate_pattern_hits")
+    
+    -- Initialize pattern state if it doesn't exist
+    if not pattern_states[output_num] then
+        pattern_states[output_num] = {
+            pattern = {},
+            current_step = 1
+        }
+    end
+    
+    -- Generate a new pattern
+    local pattern = {}
+    local hits_placed = 0
+    
+    -- Place hits randomly within the pattern length
+    while hits_placed < pattern_hits do
+        local position = math.random(1, pattern_length)
+        if not pattern[position] then
+            pattern[position] = true
+            hits_placed = hits_placed + 1
+        end
+    end
+    
+    -- Fill in the rest with false (no hit)
+    for i = 1, pattern_length do
+        if not pattern[i] then
+            pattern[i] = false
+        end
+    end
+    
+    -- Store the pattern
+    pattern_states[output_num].pattern = pattern
+    pattern_states[output_num].current_step = 1
+    
+    return pattern
+end
+
+function EurorackOutput.reroll_pattern(output_num)
+    EurorackOutput.generate_pattern(output_num)
+    EurorackOutput.update_crow(output_num)
+    _seeker.screen_ui.set_needs_redraw()
+end
+
+-- TXO Pattern generation and management functions
+function EurorackOutput.generate_txo_pattern(output_num)
+    local pattern_length = params:get("txo_tr_" .. output_num .. "_gate_pattern_length")
+    local pattern_hits = params:get("txo_tr_" .. output_num .. "_gate_pattern_hits")
+    
+    -- Initialize pattern state if it doesn't exist
+    if not pattern_states["txo_" .. output_num] then
+        pattern_states["txo_" .. output_num] = {
+            pattern = {},
+            current_step = 1
+        }
+    end
+    
+    -- Generate a new pattern
+    local pattern = {}
+    local hits_placed = 0
+    
+    -- Place hits randomly within the pattern length
+    while hits_placed < pattern_hits do
+        local position = math.random(1, pattern_length)
+        if not pattern[position] then
+            pattern[position] = true
+            hits_placed = hits_placed + 1
+        end
+    end
+    
+    -- Fill in the rest with false (no hit)
+    for i = 1, pattern_length do
+        if not pattern[i] then
+            pattern[i] = false
+        end
+    end
+    
+    -- Store the pattern
+    pattern_states["txo_" .. output_num].pattern = pattern
+    pattern_states["txo_" .. output_num].current_step = 1
+    
+    return pattern
+end
+
+function EurorackOutput.reroll_txo_pattern(output_num)
+    EurorackOutput.generate_txo_pattern(output_num)
+    EurorackOutput.update_txo_tr(output_num)
+    _seeker.screen_ui.set_needs_redraw()
+end
+
 local function create_params()
     -- TODO: Count the params.
-    params:add_group("eurorack_output", "EURORACK OUTPUT", 174)
+    params:add_group("eurorack_output", "EURORACK OUTPUT", 192)
     
     -- Sync all Eurorack Output clocks
     -- TODO: This only affects Euro clocks. Should eventually extend to global stuff (Lanes in particular)
@@ -182,7 +298,32 @@ local function create_params()
             EurorackOutput.update_crow(i)
         end)
         
-
+        -- Gate mode selection (Clock vs Pattern)
+        params:add_option("crow_" .. i .. "_gate_mode", "Gate Mode", {"Clock", "Pattern"}, 1)
+        params:set_action("crow_" .. i .. "_gate_mode", function(value)
+            EurorackOutput.update_crow(i)
+            _seeker.eurorack_output.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+        
+        -- Pattern parameters
+        params:add_number("crow_" .. i .. "_gate_pattern_length", "Pattern Length", 1, 32, 8)
+        params:set_action("crow_" .. i .. "_gate_pattern_length", function(value)
+            EurorackOutput.generate_pattern(i)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_number("crow_" .. i .. "_gate_pattern_hits", "Pattern Hits", 1, 32, 4)
+        params:set_action("crow_" .. i .. "_gate_pattern_hits", function(value)
+            EurorackOutput.generate_pattern(i)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_binary("crow_" .. i .. "_gate_pattern_reroll", "Reroll Pattern", "trigger", 0)
+        params:set_action("crow_" .. i .. "_gate_pattern_reroll", function(value)
+            EurorackOutput.reroll_pattern(i)
+        end)
+        
         -- Burst parameters
         params:add_control("crow_" .. i .. "_burst_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
         params:set_action("crow_" .. i .. "_burst_voltage", function(value)
@@ -378,6 +519,32 @@ local function create_params()
         params:set_action("txo_tr_" .. i .. "_gate_length", function(value)
             EurorackOutput.update_txo_tr(i)
         end)
+        
+        -- TXO TR Gate mode selection (Clock vs Pattern)
+        params:add_option("txo_tr_" .. i .. "_gate_mode", "Gate Mode", {"Clock", "Pattern"}, 1)
+        params:set_action("txo_tr_" .. i .. "_gate_mode", function(value)
+            EurorackOutput.update_txo_tr(i)
+            _seeker.eurorack_output.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+        
+        -- TXO TR Pattern parameters
+        params:add_number("txo_tr_" .. i .. "_gate_pattern_length", "Pattern Length", 1, 32, 8)
+        params:set_action("txo_tr_" .. i .. "_gate_pattern_length", function(value)
+            EurorackOutput.generate_txo_pattern(i)
+            EurorackOutput.update_txo_tr(i)
+        end)
+        
+        params:add_number("txo_tr_" .. i .. "_gate_pattern_hits", "Pattern Hits", 1, 32, 4)
+        params:set_action("txo_tr_" .. i .. "_gate_pattern_hits", function(value)
+            EurorackOutput.generate_txo_pattern(i)
+            EurorackOutput.update_txo_tr(i)
+        end)
+        
+        params:add_binary("txo_tr_" .. i .. "_gate_pattern_reroll", "Reroll Pattern", "trigger", 0)
+        params:set_action("txo_tr_" .. i .. "_gate_pattern_reroll", function(value)
+            EurorackOutput.reroll_txo_pattern(i)
+        end)
     end
 
     -- TXO CV configuration
@@ -517,6 +684,16 @@ local function create_screen_ui()
                 table.insert(param_table, { separator = true, title = "Gate" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_gate_voltage", arc_multi_float = true })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_gate_length" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_gate_mode" })
+                
+                -- Show pattern parameters only if pattern mode is selected
+                local gate_mode = params:string("crow_" .. output_num .. "_gate_mode")
+                if gate_mode == "Pattern" then
+                    table.insert(param_table, { separator = true, title = "Pattern" })
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_gate_pattern_length" })
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_gate_pattern_hits" })
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_gate_pattern_reroll", is_action = true })
+                end
             elseif type == "LFO" then
                 table.insert(param_table, { separator = true, title = "LFO" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_shape" })
@@ -583,6 +760,16 @@ local function create_screen_ui()
             elseif type == "Gate" then
                 table.insert(param_table, { separator = true, title = "Gate" })
                 table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length" })
+                table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_mode" })
+                
+                -- Show pattern parameters only if pattern mode is selected
+                local gate_mode = params:string("txo_tr_" .. output_num .. "_gate_mode")
+                if gate_mode == "Pattern" then
+                    table.insert(param_table, { separator = true, title = "Pattern" })
+                    table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_length" })
+                    table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_hits" })
+                    table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_reroll", is_action = true })
+                end
             end
             
         -- If the output is TXO CVs, build the appropriate table
@@ -802,27 +989,6 @@ function EurorackOutput.interval_to_beats(interval)
     return tonumber(interval) or 1
 end
 
--- Helper function to convert division string to beats (for backward compatibility)
-function EurorackOutput.division_to_beats(div)
-    -- Handle "Off" as off
-    if div == "Off" then
-        return 0
-    end
-    
-    -- Handle integer values (1, 2, 3, etc)
-    if tonumber(div) then
-        return tonumber(div)
-    end
-    
-    -- Handle fraction values (1/4, 1/16, etc)
-    local num, den = div:match("(%d+)/(%d+)")
-    if num and den then
-        return tonumber(num)/tonumber(den)
-    end
-    
-    return 1 -- default to quarter note
-end
-
 -- Update crow output when a parameter changes
 function EurorackOutput.update_crow(output_num)
     -- Stop existing clock if any
@@ -1035,25 +1201,68 @@ function EurorackOutput.update_crow(output_num)
             return
         end
 
-        -- Create clock function for gate mode
-        local clock_fn = function()
-            while true do
-                local gate_voltage = params:get("crow_" .. output_num .. "_gate_voltage")
-                local gate_length = params:get("crow_" .. output_num .. "_gate_length") / 100
-                local gate_time = timing.total_sec * gate_length
-                
-                -- Send gate pulse
-                crow.output[output_num].volts = gate_voltage
-                clock.sleep(gate_time)
-                crow.output[output_num].volts = 0
-                
-                -- Wait for next interval with offset
-                clock.sync(timing.beats, timing.offset)
+        local gate_mode = params:string("crow_" .. output_num .. "_gate_mode")
+        
+        if gate_mode == "Clock" then
+            -- Create clock function for traditional gate mode
+            local clock_fn = function()
+                while true do
+                    local gate_voltage = params:get("crow_" .. output_num .. "_gate_voltage")
+                    local gate_length = params:get("crow_" .. output_num .. "_gate_length") / 100
+                    local gate_time = timing.total_sec * gate_length
+                    
+                    -- Send gate pulse
+                    crow.output[output_num].volts = gate_voltage
+                    clock.sleep(gate_time)
+                    crow.output[output_num].volts = 0
+                    
+                    -- Wait for next interval with offset
+                    clock.sync(timing.beats, timing.offset)
+                end
             end
+            
+            -- Start the clock
+            setup_clock("crow_" .. output_num, clock_fn)
+        else
+            -- Pattern mode
+            -- Generate initial pattern if none exists
+            if not pattern_states[output_num] or not pattern_states[output_num].pattern then
+                EurorackOutput.generate_pattern(output_num)
+            end
+            
+            -- Create clock function for pattern mode
+            local clock_fn = function()
+                while true do
+                    local gate_voltage = params:get("crow_" .. output_num .. "_gate_voltage")
+                    local gate_length = params:get("crow_" .. output_num .. "_gate_length") / 100
+                    local gate_time = timing.total_sec * gate_length
+                    local pattern = pattern_states[output_num].pattern
+                    local current_step = pattern_states[output_num].current_step
+                    
+                    -- Check if current step should trigger a gate
+                    if pattern[current_step] then
+                        -- Send gate pulse
+                        crow.output[output_num].volts = gate_voltage
+                        clock.sleep(gate_time)
+                        crow.output[output_num].volts = 0
+                    end
+                    
+                    -- Advance to next step in pattern
+                    current_step = current_step + 1
+                    if current_step > #pattern then
+                        current_step = 1
+                    end
+                    pattern_states[output_num].current_step = current_step
+                    
+                    -- Wait for next interval with offset
+                    clock.sync(timing.beats, timing.offset)
+                end
+            end
+            
+            -- Start the clock
+            setup_clock("crow_" .. output_num, clock_fn)
         end
         
-        -- Start the clock
-        setup_clock("crow_" .. output_num, clock_fn)
         return
     end
 
@@ -1208,13 +1417,44 @@ function EurorackOutput.update_txo_tr(output_num)
                 end
             else
                 -- Gate mode
-                local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
-                local beat_sec = clock.get_beat_sec()
-                local gate_time = beat_sec * beats * gate_length
+                local gate_mode = params:string("txo_tr_" .. output_num .. "_gate_mode")
                 
-                crow.ii.txo.tr(output_num, 1) -- Set high
-                clock.sleep(gate_time)
-                crow.ii.txo.tr(output_num, 0) -- Set low
+                if gate_mode == "Clock" then
+                    -- Traditional gate mode
+                    local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
+                    local beat_sec = clock.get_beat_sec()
+                    local gate_time = beat_sec * beats * gate_length
+                    
+                    crow.ii.txo.tr(output_num, 1) -- Set high
+                    clock.sleep(gate_time)
+                    crow.ii.txo.tr(output_num, 0) -- Set low
+                else
+                    -- Pattern mode
+                    -- Generate initial pattern if none exists
+                    if not pattern_states["txo_" .. output_num] or not pattern_states["txo_" .. output_num].pattern then
+                        EurorackOutput.generate_txo_pattern(output_num)
+                    end
+                    
+                    local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
+                    local beat_sec = clock.get_beat_sec()
+                    local gate_time = beat_sec * beats * gate_length
+                    local pattern = pattern_states["txo_" .. output_num].pattern
+                    local current_step = pattern_states["txo_" .. output_num].current_step
+                    
+                    -- Check if current step should trigger a gate
+                    if pattern[current_step] then
+                        crow.ii.txo.tr(output_num, 1) -- Set high
+                        clock.sleep(gate_time)
+                        crow.ii.txo.tr(output_num, 0) -- Set low
+                    end
+                    
+                    -- Advance to next step in pattern
+                    current_step = current_step + 1
+                    if current_step > #pattern then
+                        current_step = 1
+                    end
+                    pattern_states["txo_" .. output_num].current_step = current_step
+                end
             end
             
             -- Wait for next interval with offset
@@ -1405,6 +1645,19 @@ function EurorackOutput.init()
         handle_encoder_input = EurorackOutput.handle_encoder_input
     }
     create_params()
+    
+    -- Initialize patterns for all outputs
+    for i = 1, 4 do
+        -- Initialize Crow patterns
+        if params:string("crow_" .. i .. "_type") == "Gate" and params:string("crow_" .. i .. "_gate_mode") == "Pattern" then
+            EurorackOutput.generate_pattern(i)
+        end
+        
+        -- Initialize TXO TR patterns
+        if params:string("txo_tr_" .. i .. "_type") == "Gate" and params:string("txo_tr_" .. i .. "_gate_mode") == "Pattern" then
+            EurorackOutput.generate_txo_pattern(i)
+        end
+    end
     
     -- Start outputs with default settings (all outputs off by default since clock_div defaults to "Off")
     for i = 1, 4 do
