@@ -9,7 +9,9 @@ local EurorackOutput = {}
 EurorackOutput.__index = EurorackOutput
 
 -- Configuration constants
-local sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
+local interval_options = {"Off", "1", "2", "3", "4", "5", "6", "7", "8", "12", "16", "24", "32", "48", "64"}
+local modifier_options = {"1/64", "1/32", "1/24", "1/23", "1/22", "1/21", "1/20", "1/19", "1/18", "1/17", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "48", "64"}
+local offset_options = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
 local shape_options = {"sine", "linear", "now", "wait", "over", "under", "rebound"}
 
 -- Store active clock IDs globally
@@ -35,12 +37,17 @@ local function setup_clock(output_id, clock_fn)
     end
 end
 
-local function get_clock_timing(div)
+local function get_clock_timing(interval, modifier, offset)
     -- Handle "Off" case
-    if div == "Off" then return nil end
+    if interval == "Off" then return nil end
     
-    -- Convert division to beats
-    local beats = EurorackOutput.division_to_beats(div)
+    -- Convert interval and modifier to beats
+    local interval_beats = tonumber(interval)
+    local modifier_value = EurorackOutput.modifier_to_value(modifier)
+    local offset_value = tonumber(offset)
+    
+    -- Calculate final beats: interval * modifier
+    local beats = interval_beats * modifier_value
     if beats <= 0 then return nil end
     
     -- Calculate timing values
@@ -48,11 +55,12 @@ local function get_clock_timing(div)
     return {
         beats = beats,
         beat_sec = beat_sec,
-        total_sec = beats * beat_sec
+        total_sec = beats * beat_sec,
+        offset = offset_value
     }
 end
 
--- Initialize recording states for all 4 crow outputs
+-- Initialize Knob Recorder states for all 4 crow outputs
 for i = 1, 4 do
     recording_states[i] = {
         active = false,
@@ -65,7 +73,7 @@ for i = 1, 4 do
     }
 end
 
--- Initialize envelope states for all 4 crow outputs
+-- Initialize Envelope states for all 4 crow outputs
 for i = 1, 4 do
     envelope_states[i] = {
         active = false,
@@ -88,7 +96,7 @@ end
 
 local function create_params()
     -- TODO: Count the params.
-    params:add_group("eurorack_output", "EURORACK OUTPUT", 162)
+    params:add_group("eurorack_output", "EURORACK OUTPUT", 174)
     
     -- Add sync action before the separator
     params:add_binary("sync_all_clocks", "Synchronize All", "trigger", 0)
@@ -142,16 +150,25 @@ local function create_params()
 
     -- Crow outputs (1-4)
     for i = 1, 4 do
+        -- Clock parameters for this output (apply to all modes)
+        params:add_option("crow_" .. i .. "_clock_interval", "Interval", interval_options, 1)
+        params:add_option("crow_" .. i .. "_clock_modifier", "Modifier", modifier_options, 26)
+        params:add_option("crow_" .. i .. "_clock_offset", "Offset", offset_options, 1)
+        params:set_action("crow_" .. i .. "_clock_interval", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        params:set_action("crow_" .. i .. "_clock_modifier", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        params:set_action("crow_" .. i .. "_clock_offset", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
         params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Envelope", "Knob Recorder", "Looped Random", "Clocked Random"}, 1)
         params:set_action("crow_" .. i .. "_type", function(value)
             EurorackOutput.update_crow(i)
             _seeker.eurorack_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-        end)
-        
-        params:add_option("crow_" .. i .. "_clock_div", "Clock Mod", sync_options, 1)
-        params:set_action("crow_" .. i .. "_clock_div", function(value)
-            EurorackOutput.update_crow(i)
         end)
         
         -- Burst parameters
@@ -322,16 +339,25 @@ local function create_params()
 
     -- TXO TR outputs (1-4)
     for i = 1, 4 do
+        -- Clock parameters for each output (across all modes)
+        params:add_option("txo_tr_" .. i .. "_clock_interval", "Interval", interval_options, 1)
+        params:add_option("txo_tr_" .. i .. "_clock_modifier", "Modifier", modifier_options, 26)
+        params:add_option("txo_tr_" .. i .. "_clock_offset", "Offset", offset_options, 1)
+        params:set_action("txo_tr_" .. i .. "_clock_interval", function(value)
+            EurorackOutput.update_txo_tr(i)
+        end)
+        params:set_action("txo_tr_" .. i .. "_clock_modifier", function(value)
+            EurorackOutput.update_txo_tr(i)
+        end)
+        params:set_action("txo_tr_" .. i .. "_clock_offset", function(value)
+            EurorackOutput.update_txo_tr(i)
+        end)
+        
         params:add_option("txo_tr_" .. i .. "_type", "Type", {"Gate", "Burst", "Stepped Random"}, 1)
         params:set_action("txo_tr_" .. i .. "_type", function(value)
             EurorackOutput.update_txo_tr(i)
             _seeker.eurorack_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-        end)
-        
-        params:add_option("txo_tr_" .. i .. "_clock_div", "Beat Div/Mult", sync_options, 1)
-        params:set_action("txo_tr_" .. i .. "_clock_div", function(value)
-            EurorackOutput.update_txo_tr(i)
         end)
         
         -- Burst parameters
@@ -354,16 +380,24 @@ local function create_params()
 
     -- TXO CV outputs (1-4)
     for i = 1, 4 do
-        params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Stepped Random"}, 1)
-        params:set_action("txo_cv_" .. i .. "_type", function(value)
+        -- Clock parameters for this output (apply to all modes)
+        params:add_option("txo_cv_" .. i .. "_clock_interval", "Interval", interval_options, 1)
+        params:add_option("txo_cv_" .. i .. "_clock_modifier", "Modifier", modifier_options, 26)
+        params:add_option("txo_cv_" .. i .. "_clock_offset", "Offset", offset_options, 1)
+        params:set_action("txo_cv_" .. i .. "_clock_interval", function(value)
             EurorackOutput.update_txo_cv(i)
             _seeker.eurorack_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
+        params:set_action("txo_cv_" .. i .. "_clock_modifier", function(value)
+            EurorackOutput.update_txo_cv(i)
+        end)
+        params:set_action("txo_cv_" .. i .. "_clock_offset", function(value)
+            EurorackOutput.update_txo_cv(i)
+        end)
         
-        -- LFO parameters
-        params:add_option("txo_cv_" .. i .. "_sync", "Clock Mod", sync_options, 1)
-        params:set_action("txo_cv_" .. i .. "_sync", function(value)
+        params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Stepped Random"}, 1)
+        params:set_action("txo_cv_" .. i .. "_type", function(value)
             EurorackOutput.update_txo_cv(i)
             _seeker.eurorack_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
@@ -442,6 +476,8 @@ local function create_screen_ui()
     end
     
     -- Dynamic parameter rebuilding based on selected output and type
+    -- Checks for the output, then inserts a hard-coded list of relevant parameters
+    -- NB: This is where extended arc control ("multi-float") is set
     norns_ui.rebuild_params = function(self)
         local selected_output = params:string("selected_output")
         
@@ -452,6 +488,7 @@ local function create_screen_ui()
             { id = "selected_output" }
         }
         
+        -- If the output is Crow, build the relevant table
         if selected_output:match("^Crow") then
             -- Get the output number (1-4)
             local output_num = tonumber(selected_output:match("%d+"))
@@ -460,9 +497,11 @@ local function create_screen_ui()
             -- Add type parameter
             table.insert(param_table, { id = "crow_" .. output_num .. "_type" })
             
-            -- Add clock mod parameter for all types except Clocked Random and Knob Recorder
+            -- Add clock parameters for all types except Clocked Random and Knob Recorder
             if type ~= "Clocked Random" and type ~= "Knob Recorder" then
-                table.insert(param_table, { id = "crow_" .. output_num .. "_clock_div" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_clock_interval" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_clock_modifier" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_clock_offset" })
             end
             
             -- Add type-specific parameters
@@ -511,6 +550,7 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
             end
             
+        -- If the output is TXO Triggers, build the appropriate table
         elseif selected_output:match("^TXO TR") then
             -- Extract the output number (1-4)
             local output_num = tonumber(selected_output:match("%d+"))
@@ -519,16 +559,20 @@ local function create_screen_ui()
             -- Add type parameter
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_type" })
             
+            -- Add clock parameters for all types
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_interval" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_modifier" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_offset" })
+            
             -- Add type-specific parameters
             if type == "Burst" then
-                table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_div" })
                 table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_count" })
                 table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_time" })
             elseif type == "Gate" then
-                table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_div" })
                 table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length" })
             end
             
+        -- If the output is TXO CVs, build the appropriate table
         elseif selected_output:match("^TXO CV") then
             -- Extract the output number (1-4)
             local output_num = tonumber(selected_output:match("%d+"))
@@ -537,12 +581,12 @@ local function create_screen_ui()
             -- Add type parameter
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_type" })
             
+            -- Add clock parameters for all types
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_clock_interval" })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_clock_modifier" })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_clock_offset" })
+            
             if type == "LFO" then
-                local sync = params:string("txo_cv_" .. output_num .. "_sync")
-                
-                -- Add sync parameter
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_sync" })
-                
                 -- Add shape and morph
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_shape" })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_morph" })
@@ -557,11 +601,10 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
             elseif type == "Stepped Random" then
                 -- Stepped Random mode parameters
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_sync" })
                 
                 -- Enforce that Stepped Random mode must be synced to clock
-                if params:string("txo_cv_" .. output_num .. "_sync") == "Off" then
-                    params:set("txo_cv_" .. output_num .. "_sync", 9) -- Set to "1/8"
+                if params:string("txo_cv_" .. output_num .. "_clock_interval") == "Off" then
+                    params:set("txo_cv_" .. output_num .. "_clock_interval", 2) -- Set to "8"
                 end
                 
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_min", arc_multi_float = true })
@@ -727,7 +770,34 @@ function EurorackOutput.clear_knob(output_num)
     _seeker.screen_ui.set_needs_redraw()
 end
 
--- Helper function to convert division string to beats
+-- Helper function to convert modifier string to numeric value
+function EurorackOutput.modifier_to_value(modifier)
+    -- Handle integer values (1, 2, 3, etc)
+    if tonumber(modifier) then
+        return tonumber(modifier)
+    end
+    
+    -- Handle fraction values (1/2, 1/4, 1/8, etc)
+    local num, den = modifier:match("(%d+)/(%d+)")
+    if num and den then
+        return tonumber(num)/tonumber(den)
+    end
+    
+    return 1 -- default to 1
+end
+
+-- Helper function to convert interval string to beats
+function EurorackOutput.interval_to_beats(interval)
+    -- Handle "Off" as off
+    if interval == "Off" then
+        return 0
+    end
+    
+    -- Convert to number
+    return tonumber(interval) or 1
+end
+
+-- Helper function to convert division string to beats (for backward compatibility)
 function EurorackOutput.division_to_beats(div)
     -- Handle "Off" as off
     if div == "Off" then
@@ -767,8 +837,10 @@ function EurorackOutput.update_crow(output_num)
     
     -- Handle LFO mode
     if type == "LFO" then
-        local clock_mod = params:string("crow_" .. output_num .. "_clock_div")
-        local timing = get_clock_timing(clock_mod)
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
+        local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
+        local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
         
         if not timing then
             crow.output[output_num].volts = 0
@@ -794,7 +866,8 @@ function EurorackOutput.update_crow(output_num)
 
     -- Handle Looped Random mode
     if type == "Looped Random" then
-        local trigger = params:string("crow_" .. output_num .. "_clock_div")
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local shape = params:string("crow_" .. output_num .. "_looped_random_shape")
         local quantize = params:string("crow_" .. output_num .. "_looped_random_quantize")
         local steps = params:get("crow_" .. output_num .. "_looped_random_steps")
@@ -803,15 +876,17 @@ function EurorackOutput.update_crow(output_num)
         local max = params:get("crow_" .. output_num .. "_looped_random_max")
         
         -- If division is "off", turn off the output
-        if trigger == "Off" then
+        if clock_interval == "Off" then
             crow.output[output_num].volts = 0
             return
         end
 
         -- Convert trigger division to beats
-        local trigger_beats = EurorackOutput.division_to_beats(trigger)
+        local trigger_beats = EurorackOutput.interval_to_beats(clock_interval)
+        local modifier_value = EurorackOutput.modifier_to_value(clock_modifier)
+        local final_beats = trigger_beats * modifier_value
         local beat_sec = clock.get_beat_sec()
-        local time = beat_sec * trigger_beats
+        local time = beat_sec * final_beats
 
         -- Set up scale quantization if enabled
         if quantize == "On" then
@@ -909,8 +984,10 @@ function EurorackOutput.update_crow(output_num)
     end
 
     if type == "Burst" then
-        local div = params:string("crow_" .. output_num .. "_clock_div")
-        local timing = get_clock_timing(div)
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
+        local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
+        local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
         
         if not timing then
             crow.output[output_num].volts = 0
@@ -932,8 +1009,8 @@ function EurorackOutput.update_crow(output_num)
                     clock.sleep(burst_time / burst_count)
                 end
                 
-                -- Wait for next interval
-                clock.sync(timing.beats)
+                -- Wait for next interval with offset
+                clock.sync(timing.beats, timing.offset)
             end
         end
         
@@ -943,8 +1020,10 @@ function EurorackOutput.update_crow(output_num)
     end
 
     if type == "Gate" then
-        local div = params:string("crow_" .. output_num .. "_clock_div")
-        local timing = get_clock_timing(div)
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
+        local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
+        local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
         
         if not timing then
             crow.output[output_num].volts = 0
@@ -963,8 +1042,8 @@ function EurorackOutput.update_crow(output_num)
                 clock.sleep(gate_time)
                 crow.output[output_num].volts = 0
                 
-                -- Wait for next interval
-                clock.sync(timing.beats)
+                -- Wait for next interval with offset
+                clock.sync(timing.beats, timing.offset)
             end
         end
         
@@ -975,10 +1054,12 @@ function EurorackOutput.update_crow(output_num)
 
     if type == "Envelope" then
         -- Get envelope parameters
-        local div = params:string("crow_" .. output_num .. "_clock_div")
-        local beats = EurorackOutput.division_to_beats(div)
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
+        local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
+        local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
         
-        if beats == 0 then
+        if not timing then
             crow.output[output_num].volts = 0
             return
         end
@@ -1002,7 +1083,7 @@ function EurorackOutput.update_crow(output_num)
         local function generate_envelope_asl()
             local sustain_voltage = max_voltage * sustain_level
             local beat_sec = clock.get_beat_sec()
-            local cycle_time = beat_sec * beats
+            local cycle_time = beat_sec * timing.beats
             
             -- Calculate the actual duration of the envelope within the cycle
             local envelope_time = cycle_time * (duration_percent / 100)
@@ -1091,8 +1172,12 @@ function EurorackOutput.update_txo_tr(output_num)
     local type = params:string("txo_tr_" .. output_num .. "_type")
     if type ~= "Burst" and type ~= "Gate" then return end
 
-    local div = params:string("txo_tr_" .. output_num .. "_clock_div")
-    local beats = EurorackOutput.division_to_beats(div)
+    local clock_interval = params:string("txo_tr_" .. output_num .. "_clock_interval")
+    local clock_modifier = params:string("txo_tr_" .. output_num .. "_clock_modifier")
+    local clock_offset = params:string("txo_tr_" .. output_num .. "_clock_offset")
+    local interval_beats = EurorackOutput.interval_to_beats(clock_interval)
+    local modifier_value = EurorackOutput.modifier_to_value(clock_modifier)
+    local beats = interval_beats * modifier_value
     
     -- If division is 0, just stop the clock
     if beats == 0 then
@@ -1126,8 +1211,8 @@ function EurorackOutput.update_txo_tr(output_num)
                 crow.ii.txo.tr(output_num, 0) -- Set low
             end
             
-            -- Wait for next interval
-            clock.sync(beats)
+            -- Wait for next interval with offset
+            clock.sync(beats, tonumber(clock_offset) or 0)
         end
     end
     
@@ -1145,10 +1230,12 @@ function EurorackOutput.update_txo_cv(output_num)
 
     -- Get the output type
     local type = params:string("txo_cv_" .. output_num .. "_type")
-    local sync = params:string("txo_cv_" .. output_num .. "_sync")
+    local clock_interval = params:string("txo_cv_" .. output_num .. "_clock_interval")
+    local clock_modifier = params:string("txo_cv_" .. output_num .. "_clock_modifier")
+    local clock_offset = params:string("txo_cv_" .. output_num .. "_clock_offset")
     
     -- If sync is Off, disable the output and return early
-    if sync == "Off" then
+    if clock_interval == "Off" then
         -- Stop the oscillator by setting amplitude to 0
         crow.ii.txo.cv(output_num, 0)
         return
@@ -1173,9 +1260,12 @@ function EurorackOutput.update_txo_cv(output_num)
                 local random_value = min_value + math.random() * (max_value - min_value)
                 crow.ii.txo.cv(output_num, random_value)
                 
-                -- Wait for next step
-                local beats = EurorackOutput.division_to_beats(sync)
-                clock.sync(beats)
+                -- Wait for next step with offset
+                local interval_beats = EurorackOutput.interval_to_beats(clock_interval)
+                local modifier_value = EurorackOutput.modifier_to_value(clock_modifier)
+                local beats = interval_beats * modifier_value
+                local offset_value = tonumber(clock_offset) or 0
+                clock.sync(beats, offset_value)
             end
         end
         
@@ -1248,7 +1338,9 @@ function EurorackOutput.update_txo_cv(output_num)
     crow.ii.txo.osc_wave(output_num, wave_type)
     
     -- Set up sync clock
-    local beats = EurorackOutput.division_to_beats(sync)
+    local interval_beats = EurorackOutput.interval_to_beats(clock_interval)
+    local modifier_value = EurorackOutput.modifier_to_value(clock_modifier)
+    local beats = interval_beats * modifier_value
     local beat_sec = clock.get_beat_sec()
     local cycle_time = beat_sec * beats * 1000  -- Convert to milliseconds
     
@@ -1269,8 +1361,8 @@ function EurorackOutput.update_txo_cv(output_num)
         crow.ii.txo.osc_phase(output_num, 0)
         
         while true do
-            -- Wait for a complete cycle
-            clock.sync(beats)
+            -- Wait for a complete cycle with offset
+            clock.sync(beats, tonumber(clock_offset) or 0)
             
             -- Update cycle time only if tempo has changed
             local new_beat_sec = clock.get_beat_sec()
