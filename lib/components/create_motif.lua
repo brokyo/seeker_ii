@@ -10,12 +10,29 @@ local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
 local function create_params()
-    params:add_group("create_motif", "CREATE MOTIF", 5)
+    params:add_group("create_motif", "CREATE MOTIF", 6)
     params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
     params:set_action("create_motif_type", function(value)
         if _seeker and _seeker.create_motif then
             _seeker.create_motif.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
+    
+    -- Duration parameter for tape mode
+    params:add_control("create_motif_duration", "Duration (k3)", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
+    params:set_action("create_motif_duration", function(value)
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        if _seeker.lanes[focused_lane] and _seeker.lanes[focused_lane].motif then
+            if value == 0 then
+                _seeker.lanes[focused_lane].motif.custom_duration = nil
+            else
+                _seeker.lanes[focused_lane].motif.custom_duration = value
+            end
+            -- Trigger screen redraw to update visualization
+            if _seeker.screen_ui then
+                _seeker.screen_ui.set_needs_redraw()
+            end
         end
     end)
     
@@ -40,6 +57,7 @@ local function create_screen_ui()
         params = {
             { separator = true, title = "Create Motif" },
             { id = "create_motif_type" },
+            { id = "create_motif_duration" },
             { id = "arpeggio_interval" },
             { id = "arpeggio_note_duration" },
             { id = "arpeggio_add_rest" }
@@ -52,6 +70,15 @@ local function create_screen_ui()
             { separator = true, title = "Create Motif" },
             { id = "create_motif_type" }
         }
+        
+        -- Only show duration param when in tape mode AND there's an active motif
+        if params:get("create_motif_type") == 1 then
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            local lane = _seeker.lanes[focused_lane]
+            if lane and lane.motif and #lane.motif.events > 0 then
+                table.insert(param_table, { id = "create_motif_duration" })
+            end
+        end
         
         -- Only show arpeggio params when in arpeggio mode
         if params:get("create_motif_type") == 2 then
@@ -69,6 +96,82 @@ local function create_screen_ui()
     norns_ui.enter = function(self)
         original_enter(self)
         self:rebuild_params()
+    end
+    
+    -- Override get_param_value to handle duration parameter
+    local original_get_param_value = norns_ui.get_param_value
+    norns_ui.get_param_value = function(self, param)
+        if param.id == "create_motif_duration" then
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            local lane = _seeker.lanes[focused_lane]
+            if lane and lane.motif then
+                -- Show custom duration if set, otherwise show genesis duration
+                local duration = lane.motif.custom_duration or lane.motif.genesis.duration
+                return string.format("%.2f", duration)
+            end
+            return "4.00" -- Default value
+        end
+        return original_get_param_value(self, param)
+    end
+    
+    -- Override modify_param to handle duration parameter
+    local original_modify_param = norns_ui.modify_param
+    norns_ui.modify_param = function(self, param, delta)
+        if param.id == "create_motif_duration" then
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            local lane = _seeker.lanes[focused_lane]
+            if lane and lane.motif then
+                -- Get current value (either custom or genesis)
+                local current = lane.motif.custom_duration or lane.motif.genesis.duration
+                
+                -- If this is the first adjustment (no custom duration set), snap to nearest 0.25
+                if not lane.motif.custom_duration then
+                    current = math.floor(current * 4 + 0.5) / 4
+                end
+                
+                local new_value = util.clamp(current + (delta * 0.25), 0.25, 128)
+                
+                -- Store in custom_duration to preserve genesis
+                lane.motif.custom_duration = new_value
+                
+                -- Update the parameter value
+                params:set("create_motif_duration", new_value)
+                
+                -- Trigger screen redraw to update visualization
+                if _seeker.screen_ui then
+                    _seeker.screen_ui.set_needs_redraw()
+                end
+            end
+        else
+            original_modify_param(self, param, delta)
+        end
+    end
+    
+    -- Override handle_key to add K3 reset functionality for duration
+    local original_handle_key = norns_ui.handle_key
+    norns_ui.handle_key = function(self, n, z)
+        if n == 3 and z == 1 and self.state.selected_index > 0 then
+            local param = self.params[self.state.selected_index]
+            if param.id == "create_motif_duration" then
+                local focused_lane = _seeker.ui_state.get_focused_lane()
+                local lane = _seeker.lanes[focused_lane]
+                if lane and lane.motif then
+                    -- Clear custom duration to revert to genesis
+                    lane.motif.custom_duration = nil
+                    -- Update the parameter value to show genesis duration
+                    local genesis_duration = lane.motif.genesis.duration
+                    params:set("create_motif_duration", genesis_duration)
+                    -- Trigger screen redraw to update visualization
+                    if _seeker.screen_ui then
+                        _seeker.screen_ui.set_needs_redraw()
+                    end
+                end
+            else
+                original_handle_key(self, n, z)
+            end
+        else
+            original_handle_key(self, n, z)
+        end
     end
     
     -- Override screen draw method
@@ -242,6 +345,11 @@ local function create_grid_ui()
             current_lane:play()
         end
         
+        -- Rebuild parameters to show/hide duration based on new motif state
+        if _seeker.create_motif and _seeker.create_motif.screen then
+            _seeker.create_motif.screen:rebuild_params()
+        end
+        
         _seeker.screen_ui.set_needs_redraw()
     end
     
@@ -259,6 +367,11 @@ local function create_grid_ui()
         else
             -- Clear the current motif and start new recording
             current_lane:clear()  -- Clear current motif
+            
+            -- Rebuild parameters to hide duration since motif was cleared
+            if _seeker.create_motif and _seeker.create_motif.screen then
+                _seeker.create_motif.screen:rebuild_params()
+            end
             
             -- Start new recording
             _seeker.motif_recorder:set_recording_mode(1) -- Set to regular recording mode
@@ -278,6 +391,11 @@ local function create_grid_ui()
         current_lane:set_motif(arpeggio_motif)
         current_lane:play() -- Start playing immediately after recording
         
+        -- Rebuild parameters to show/hide duration based on new motif state
+        if _seeker.create_motif and _seeker.create_motif.screen then
+            _seeker.create_motif.screen:rebuild_params()
+        end
+        
         _seeker.screen_ui.set_needs_redraw()
     end
     
@@ -288,6 +406,12 @@ local function create_grid_ui()
         
         -- Clear the current motif and start new arpeggio recording
         current_lane:clear()
+        
+        -- Rebuild parameters to hide duration since motif was cleared
+        if _seeker.create_motif and _seeker.create_motif.screen then
+            _seeker.create_motif.screen:rebuild_params()
+        end
+        
         _seeker.motif_recorder:start_arpeggio_recording()
         
         _seeker.screen_ui.set_needs_redraw()

@@ -53,88 +53,26 @@ function MotifSection.new()
   end
 
   function section:get_param_value(param)
-    if param.id == "recorded_duration" then
-      local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-      if lane and lane.motif then
-        -- Show custom duration if set, otherwise show genesis duration
-        if lane.motif.custom_duration then
-          return string.format("%.2f", lane.motif.custom_duration)
-        else
-          return string.format("%.2f", lane.motif.genesis.duration)
-        end
-      end
-      return "0.00"
-    end
     return Section.get_param_value(self, param)
   end
 
   function section:modify_param(param, delta)
-    if param.id == "recorded_duration" then
-      local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-      if lane and lane.motif then
-        -- Get current value (either custom or genesis)
-        local current = lane.motif.custom_duration or lane.motif.genesis.duration
-        
-        -- If this is the first adjustment (no custom duration set), snap to nearest 0.25
-        if not lane.motif.custom_duration then
-          current = math.floor(current * 4 + 0.5) / 4
-        end
-        
-        local new_value = util.clamp(current + (delta * param.spec.step), param.spec.min, param.spec.max)
-        
-        -- Store in custom_duration to preserve genesis
-        lane.motif.custom_duration = new_value
-        
-        -- Update displayed value
-        param.value = string.format("%.2f", new_value)
-      end
-    else
-      Section.modify_param(self, param, delta)
-    end
+    Section.modify_param(self, param, delta)
   end
 
   function section:handle_key(n, z)
-    -- Handle K3 press for resetting duration
-    if n == 3 and z == 1 and self.state.selected_index > 0 then
-      local param = self.params[self.state.selected_index]
-      if param.id == "recorded_duration" then
-        local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-        if lane and lane.motif then
-          -- Clear custom duration to revert to genesis
-          lane.motif.custom_duration = nil
-          -- Update displayed value
-          param.value = string.format("%.2f", lane.motif.genesis.duration)
-        end
-      else
-        -- For other params, use default behavior
-        Section.handle_key(self, n, z)
-      end
-    else
-      Section.handle_key(self, n, z)
-    end
+    Section.handle_key(self, n, z)
   end
 
   function section:update_focused_motif(lane_idx)
     -- Get the current lane's motif
     local lane = _seeker.lanes[lane_idx]
-    local current_duration = lane and lane.motif and (lane.motif.custom_duration or lane.motif.genesis.duration) or 0
     
     self.params = {
       {
         id = "motif_info",
         name = "Playback Config",
         separator = true
-      },
-      { 
-        id = "recorded_duration", 
-        name = "Duration (k3 reset)", 
-        value = string.format("%.2f", current_duration),
-        spec = {
-          type = "number",
-          min = 0.25,
-          max = 128,
-          step = 0.25  -- Step in beat increment
-        }
       },
       { id = "lane_" .. lane_idx .. "_playback_offset", name = "Octave Shift" },
       { id = "lane_" .. lane_idx .. "_scale_degree_offset", name = "Scale Degree Shift" },

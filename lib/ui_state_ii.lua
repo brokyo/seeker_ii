@@ -72,6 +72,12 @@ function UIState.set_focused_lane(lane_idx)
   -- Update UI
   _seeker.screen_ui.sections.LANE:update_focused_lane(lane_idx)
   _seeker.screen_ui.sections.MOTIF:update_focused_motif(lane_idx)
+  
+  -- Rebuild create_motif parameters to show/hide duration based on new lane's motif state
+  if _seeker.create_motif and _seeker.create_motif.screen then
+    _seeker.create_motif.screen:rebuild_params()
+  end
+  
   _seeker.screen_ui.set_needs_redraw()
   
   -- Update grid

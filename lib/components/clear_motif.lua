@@ -140,6 +140,11 @@ function ClearMotif.init()
                 
                 if lane and lane.motif and #lane.motif.events > 0 then
                     lane:clear()
+                    
+                    -- Rebuild create_motif parameters to hide duration since motif was cleared
+                    if _seeker.create_motif and _seeker.create_motif.screen then
+                        _seeker.create_motif.screen:rebuild_params()
+                    end
                 end
                 
                 _seeker.screen_ui.set_needs_redraw()

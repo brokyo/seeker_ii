@@ -389,23 +389,6 @@ function create_motif_playback_params(i)
         end
     end)
 
-    -- Add custom duration parameter
-    params:add_control("lane_" .. i .. "_custom_duration", "Duration (beats)", controlspec.new(0.25, -- min
-    128, -- max
-    'lin', -- warp
-    0.25, -- step size
-    0, -- default
-    "beats", -- units
-    0.25 / 128 -- quantum (ensure steps align properly)
-    ))
-    params:set_action("lane_" .. i .. "_custom_duration", function(value)
-        if value == 0 then
-            _seeker.lanes[i].motif.custom_duration = nil
-        else
-            _seeker.lanes[i].motif.custom_duration = value
-        end
-    end)
-
 end
 
 function create_stage_tracker_params(i)
