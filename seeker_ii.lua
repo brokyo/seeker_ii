@@ -19,6 +19,7 @@ local MidiInput = include("lib/midi_input")
 local Arc = include("lib/arc")
 
 -- Components
+local Config = include("lib/components/config")
 local CreateMotif = include("lib/components/create_motif")
 local WTape = include("lib/components/w_tape")
 local StageConfig = include("lib/components/stage_config")
@@ -43,6 +44,7 @@ _seeker = {
   velocity = 3,
 
   -- Component Approach
+  config = nil,
   create_motif = nil,
   w_tape = nil,
   stage_config = nil,
@@ -63,6 +65,7 @@ function init()
   _seeker.ui_state = ui_state.init()
 
   -- Initialize components
+  _seeker.config = Config.init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.w_tape = WTape.init()
   _seeker.stage_config = StageConfig.init()

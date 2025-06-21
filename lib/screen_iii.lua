@@ -1,5 +1,4 @@
 -- screen_iii.lua
-local ConfigSection = include('lib/ui/sections/config_section')
 local LaneSection = include('lib/ui/sections/lane_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local TuningSection = include('lib/ui/sections/tuning_section')
@@ -22,13 +21,13 @@ ScreenUI.sections = {}
 function ScreenUI.init()  
   -- Initialize sections
   ScreenUI.sections = {
-    CONFIG = ConfigSection.new(),
     LANE = LaneSection.new(),
     MOTIF = MotifSection.new(),
     TUNING = TuningSection.new(),
     VELOCITY = VelocitySection.new(),
-
+    
     -- Components
+    CONFIG = _seeker.config.screen,
     CLEAR_MOTIF = ClearMotif.init().screen.build(),
     CREATE_MOTIF = _seeker.create_motif.screen,
     WTAPE = _seeker.w_tape.screen,

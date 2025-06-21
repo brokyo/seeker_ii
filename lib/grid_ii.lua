@@ -6,7 +6,6 @@ local GridAnimations = include("lib/grid_animations")
 local GridLayers = include("lib/grid_layers")
 local GridConstants = include("lib/grid_constants")
 local VelocityRegion = include("lib/grid/regions/velocity_region")
-local ConfigRegion = include("lib/grid/regions/config_region")
 local LaneRegion = include("lib/grid/regions/lane_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
@@ -20,7 +19,6 @@ local ClearMotif = include("lib/components/clear_motif")
 -- Keep regions in their own namespace
 local regions = {
   velocity = VelocityRegion,
-  config = ConfigRegion,
   lane = LaneRegion,
   motif = MotifRegion,
   tuning = TuningRegion,
@@ -29,6 +27,7 @@ local regions = {
   clear_motif = ClearMotif.init().grid,
 
   -- New Component Approach
+  config = nil,
   create_motif = nil,
   wtape = nil,
   stage_config = nil,
@@ -67,6 +66,7 @@ function GridUI.init()
   GridAnimations.init(g)
 
   -- Initialize components
+  regions.config = _seeker.config.grid
   regions.create_motif = _seeker.create_motif.grid
   regions.wtape = _seeker.w_tape.grid
   regions.stage_config = _seeker.stage_config.grid
@@ -95,7 +95,6 @@ end
 
 function draw_controls()
   -- Draw all regions using local regions table
-  regions.config.draw(GridUI.layers)
   regions.lane.draw(GridUI.layers)
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
@@ -105,6 +104,7 @@ function draw_controls()
   regions.clear_motif:draw(GridUI.layers)
   
   -- New Component Approach
+  regions.config:draw(GridUI.layers)
   regions.create_motif:draw(GridUI.layers)
   regions.wtape:draw(GridUI.layers)
   regions.stage_config:draw(GridUI.layers)
@@ -244,8 +244,6 @@ function GridUI.key(x, y, z)
       regions.lane.handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
       regions.motif.handle_key(x, y, z)
-    elseif regions.config.contains(x, y) then
-      regions.config.handle_key(x, y, z)
     elseif regions.velocity.contains(x, y) then
       regions.velocity.handle_key(x, y, z)
     elseif regions.tuning.contains(x, y) then
@@ -253,10 +251,8 @@ function GridUI.key(x, y, z)
     -- Components
   elseif regions.clear_motif:contains(x, y) then
     regions.clear_motif:handle_key(x, y, z)
-  elseif regions.stage_config:contains(x, y) then
-    regions.stage_config:handle_key(x, y, z)
-    
-    -- New New Component Approach
+  elseif regions.config:contains(x, y) then
+    regions.config:handle_key(x, y, z)
   elseif regions.create_motif:contains(x, y) then
     regions.create_motif:handle_key(x, y, z)
     elseif regions.wtape:contains(x, y) then  
