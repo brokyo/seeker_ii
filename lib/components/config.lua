@@ -10,8 +10,67 @@ local musicutil = require('musicutil')
 local Config = {}
 Config.__index = Config
 
+-- Tap tempo state
+local tap_times = {}
+local tap_timer = nil
+local INACTIVITY_TIMEOUT = 2.0
+local MAX_TAPS = 6
+
+local function calculate_tap_tempo()
+    if #tap_times < 2 then
+        return nil
+    end
+    
+    local intervals = {}
+    for i = 2, #tap_times do
+        local interval = tap_times[i] - tap_times[i-1]
+        table.insert(intervals, interval)
+    end
+    
+    local total_interval = 0
+    for _, interval in ipairs(intervals) do
+        total_interval = total_interval + interval
+    end
+    
+    local avg_interval = total_interval / #intervals
+    local bpm = 60 / avg_interval
+    
+    bpm = math.max(20, math.min(300, bpm))
+    
+    return math.floor(bpm)
+end
+
+local function tap_tempo()
+    local current_time = util.time()
+    
+    -- Add current tap time
+    table.insert(tap_times, current_time)
+    
+    -- Keep only the last MAX_TAPS
+    if #tap_times > MAX_TAPS then
+        table.remove(tap_times, 1)
+    end
+    
+    -- Cancel existing timer
+    if tap_timer then
+        tap_timer:stop()
+    end
+    
+    -- Set new timer for inactivity
+    tap_timer = metro.init(function()
+        local bpm = calculate_tap_tempo()
+        if bpm then
+            params:set("clock_tempo", bpm)
+            _seeker.screen_ui.set_needs_redraw()
+        end
+        tap_times = {}
+        tap_timer:stop()
+    end, INACTIVITY_TIMEOUT, 1)
+    tap_timer:start()
+end
+
 local function create_params()
-    params:add_group("config", "CONFIG", 9)
+    params:add_group("config", "CONFIG", 10)
     
     -- Global Tuning
     params:add_option("tuning_preset", "Preset", 
@@ -62,6 +121,13 @@ local function create_params()
     -- Clock
     params:add_control("clock_tempo", "BPM", controlspec.new(40, 200, 'lin', 1, 120), function(param) return params:get(param.id) .. " BPM" end)
     
+    params:add_binary("tap_tempo", "Tap Tempo", "trigger", 0)
+    params:set_action("tap_tempo", function(value)
+        if value == 1 then
+            tap_tempo()
+        end
+    end)
+    
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
     
@@ -101,6 +167,7 @@ local function create_screen_ui()
             { id = "scale_type" },
             { separator = true, title = "Clock" },
             { id = "clock_tempo" },
+            { id = "tap_tempo", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },
             { separator = true, title = "MIDI" },
