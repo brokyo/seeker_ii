@@ -10,7 +10,7 @@ local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
 local function create_params()
-    params:add_group("create_motif", "CREATE MOTIF", 6)
+    params:add_group("create_motif_group", "CREATE MOTIF", 5)
     params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
     params:set_action("create_motif_type", function(value)
         if _seeker and _seeker.create_motif then

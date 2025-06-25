@@ -61,6 +61,7 @@ local function tap_tempo()
         local bpm = calculate_tap_tempo()
         if bpm then
             params:set("clock_tempo", bpm)
+            params:set("seeker_clock_tempo", bpm) -- Also update our wrapper parameter
             _seeker.screen_ui.set_needs_redraw()
         end
         tap_times = {}
@@ -118,8 +119,12 @@ local function create_params()
         theory.print_keyboard_layout()
     end)
     
-    -- Clock
-    params:add_control("clock_tempo", "BPM", controlspec.new(40, 200, 'lin', 1, 120), function(param) return params:get(param.id) .. " BPM" end)
+    -- Clock - create wrapper parameter that controls system clock_tempo
+    params:add_control("seeker_clock_tempo", "BPM", controlspec.new(40, 300, 'lin', 1, 120), function(param) return params:get(param.id) .. " BPM" end)
+    params:set_action("seeker_clock_tempo", function(value)
+        -- Update the system clock_tempo parameter
+        params:set("clock_tempo", value)
+    end)
     
     params:add_binary("tap_tempo", "Tap Tempo", "trigger", 0)
     params:set_action("tap_tempo", function(value)
@@ -166,7 +171,7 @@ local function create_screen_ui()
             { id = "root_note" },
             { id = "scale_type" },
             { separator = true, title = "Clock" },
-            { id = "clock_tempo" },
+            { id = "seeker_clock_tempo" },
             { id = "tap_tempo", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },

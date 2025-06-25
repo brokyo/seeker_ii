@@ -65,6 +65,7 @@ function init()
   _seeker.ui_state = ui_state.init()
 
   -- Initialize components
+  params:add_separator("seeker_ii_header", "seeker_ii")
   _seeker.config = Config.init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.w_tape = WTape.init()

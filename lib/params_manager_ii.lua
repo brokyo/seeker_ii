@@ -19,35 +19,6 @@ function params_manager_ii.get_instrument_list()
 end
 
 --------------------------------
--- RECORDING SECTION 
---------------------------------
-function init_recording_params()
-    params:add_group("recording", "RECORDING", 4)
-
-    -- Quantization settings
-    params:add_option("quantize_division", "Quantize Division",
-        {"1/32", "1/24", "1/16", "1/12", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2"}, 2)
-
-    -- Add sync lanes control
-    params:add_binary("sync_lanes", "Sync Lanes", "toggle", 0)
-    params:set_action("sync_lanes", function(value)
-        if value == 1 then
-            _seeker.conductor.sync_lanes()
-            -- Auto-reset the toggle
-            clock.run(function()
-                clock.sleep(0.2)
-                params:set("sync_lanes", 0)
-                _seeker.update_ui_state()
-            end)
-        end
-    end)
-
-    -- Add MIDI notes for recording and overdub toggle (-1 = disabled)
-    params:add_number("record_midi_note", "Record Toggle Key", -1, 127, -1)
-    params:add_number("overdub_midi_note", "Overdub Toggle Key", -1, 127, -1)
-end
-
---------------------------------
 -- LANE SECTION
 ---------------------------------
 function create_keyboard_config_params(i)
@@ -445,7 +416,7 @@ end
 function init_lane_params()
     local instruments = params_manager_ii.get_instrument_list()
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i, 59)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 59)
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice:",
             {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
@@ -508,8 +479,6 @@ local function add_midi_input_params()
 end
 
 function params_manager_ii.init_params()
-    params:add_separator("seeker_ii_header", "seeker_ii")
-    init_recording_params()
     init_lane_params()
 
     -- Initialize components

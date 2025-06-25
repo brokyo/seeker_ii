@@ -20,7 +20,7 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_transform_stage", "Stage Transform Config " .. lane_idx, 54)
+        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 77)
         params:add_number("lane_" .. lane_idx .. "_config_stage", "Configure Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_config_stage", function(value)
             -- Update local config state instead of global focused stage

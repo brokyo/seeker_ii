@@ -16,7 +16,7 @@ function ConfigSection.new()
       { id = "root_note", name = "Root Note" },
       { id = "scale_type", name = "Scale" },
       { separator = true, name = "Clock" },
-      { id = "clock_tempo", name = "BPM" },
+      { id = "seeker_clock_tempo", name = "BPM" },
       { id = "clock_pulse_out", name = "Clock Gate Out" },
       { id = "clock_division", name = "Clock Division" },
       { separator = true, name = "Visuals" },
