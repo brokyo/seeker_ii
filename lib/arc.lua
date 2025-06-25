@@ -7,6 +7,12 @@ function Arc.init()
   
   if device then 
     print("☯ Arc Connected")
+    
+    -- Add remove handler for proper disconnection management
+    device.remove = function()
+      print("◈ Arc Disconnected")
+    end
+    
     --  Append some useful UI stuff to the device so we can use it from the rest of the app
 
     -- Parameters for state tracking
