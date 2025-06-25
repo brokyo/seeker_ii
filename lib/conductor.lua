@@ -61,6 +61,11 @@ function Conductor.clear_events_for_lane(lane_id)
   end
 end
 
+-- Clear all events from the conductor's event queue
+function Conductor.clear_events()
+  Conductor.events = {}
+end
+
 -- Synchronize all lanes by stopping and restarting them
 function Conductor.sync_lanes()
   -- Stop all lanes

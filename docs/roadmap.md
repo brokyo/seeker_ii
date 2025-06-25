@@ -1,17 +1,14 @@
 ### Current Session
 
 ### Active Concerns
-- [] Create motif UI one loop ahead of playing transform when ratcheting
 
 ### Near Term Priorities
-- [] 
+- [] Centralize "sync all" system. Current one is very hacky
 
 ### Bugs
 
 ### Long List
-- [] Update motif playback to new architecture
-- [] Update clear motif to new architecture
-- [] Update config to new architecture
+- [] Create motif UI one loop ahead of playing transform when ratcheting
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
 - [] Static voltage out
 - [] Note Event Refactoring
@@ -142,3 +139,6 @@
 - [x] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
 - [x] Stage change is overriding stage config params
 - [x] Ratchet doesn't seem to work
+- [x] Update motif playback to new architecture
+- [x] Update clear motif to new architecture
+- [x] Update config to new architecture

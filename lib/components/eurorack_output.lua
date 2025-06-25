@@ -247,6 +247,11 @@ local function create_params()
                 EurorackOutput.update_txo_tr(i)
                 EurorackOutput.update_txo_cv(i)
             end
+            
+            -- Sync all lanes to ensure they're aligned with the global sync
+            if _seeker and _seeker.conductor then
+                _seeker.conductor.sync_lanes()
+            end
         end)
     end)
     

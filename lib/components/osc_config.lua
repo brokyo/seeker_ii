@@ -21,7 +21,51 @@ local binary_trigger_states = {false, false, false, false}
 local sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
 
 local function create_params()
-    params:add_group("osc_config", "OSC CONFIG", 45)
+    params:add_group("osc_config", "OSC CONFIG", 46)
+    
+    -- Sync all OSC clocks and lanes
+    params:add_binary("osc_sync_all_clocks", "Synchronize All", "trigger", 0)
+    params:set_action("osc_sync_all_clocks", function()
+        clock.run(function()
+            -- Cancel all existing OSC clocks
+            for clock_id, _ in pairs(active_trigger_clocks) do
+                if active_trigger_clocks[clock_id] then
+                    clock.cancel(active_trigger_clocks[clock_id])
+                    active_trigger_clocks[clock_id] = nil
+                end
+            end
+            
+            for clock_id, _ in pairs(active_lfo_sync_clocks) do
+                if active_lfo_sync_clocks[clock_id] then
+                    clock.cancel(active_lfo_sync_clocks[clock_id])
+                    active_lfo_sync_clocks[clock_id] = nil
+                end
+            end
+            
+            -- Reset binary trigger states
+            for i = 1, 4 do
+                binary_trigger_states[i] = false
+            end
+            
+            -- Sync to next whole beat
+            local current_beat = math.floor(clock.get_beats())
+            local next_beat = current_beat + 1
+            local beats_to_wait = next_beat - clock.get_beats()
+            clock.sync(beats_to_wait)
+            
+            -- Restart all OSC clocks fresh
+            for i = 1, 4 do
+                send_lfo_frequency(i)
+                update_trigger_clock(i)
+            end
+            
+            -- Sync all lanes to ensure they're aligned with the global sync
+            if _seeker and _seeker.conductor then
+                _seeker.conductor.sync_lanes()
+            end
+        end)
+    end)
+    
     params:add_number("osc_dest_octet_1", "Dest IP Octet 1", 0, 255, 192)
     params:add_number("osc_dest_octet_2", "Dest IP Octet 2", 0, 255, 168)
     params:add_number("osc_dest_octet_3", "Dest IP Octet 3", 0, 255, 0)
@@ -282,6 +326,8 @@ local function create_screen_ui()
         name = "OSC Config",
         description = "Configure OSC send parameters",
         params = {
+            { separator = true, title = "Actions" },
+            { id = "osc_sync_all_clocks", is_action = true },
             { separator = true, title = "Float Values" },
             { id = "osc_float_1", arc_multi_float = true },
             { id = "osc_float_2", arc_multi_float = true },
