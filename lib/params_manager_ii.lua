@@ -22,7 +22,7 @@ end
 -- RECORDING SECTION 
 --------------------------------
 function init_recording_params()
-    params:add_group("recording", "RECORDING", 5)
+    params:add_group("recording", "RECORDING", 4)
 
     -- Quantization settings
     params:add_option("quantize_division", "Quantize Division",
@@ -360,6 +360,25 @@ function create_wsyn_params(i)
     params:set_action("lane_" .. i .. "_wsyn_lpg_symmetry", function(value)
         crow.ii.wsyn.lpg_symmetry(value)
     end)
+
+    -- w/syn patch parameters for THIS and THAT jacks
+    -- Patch THIS jack (jack 1) to parameter destination
+    params:add_option("lane_" .. i .. "_wsyn_patch_this", "THIS",
+        {"ramp", "curve", "fm_env", "fm_index", "lpg_time", "lpg_symmetry", "gate", "pitch", "fm_ratio_num", "fm_ratio_denom"}, 1)
+    params:set_action("lane_" .. i .. "_wsyn_patch_this", function(value)
+        local param_map = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+        local param_num = param_map[value]
+        crow.ii.wsyn.patch(1, param_num)
+    end)
+
+    params:add_option("lane_" .. i .. "_wsyn_patch_that", "THAT",
+        {"ramp", "curve", "fm_env", "fm_index", "lpg_time", "lpg_symmetry", "gate", "pitch", "fm_ratio_num", "fm_ratio_denom"}, 1)
+    params:set_action("lane_" .. i .. "_wsyn_patch_that", function(value)
+        -- Map the option index to the parameter number (1-10)
+        local param_map = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+        local param_num = param_map[value]
+        crow.ii.wsyn.patch(2, param_num)
+    end)
 end
 
 function create_osc_params(i)
@@ -426,7 +445,7 @@ end
 function init_lane_params()
     local instruments = params_manager_ii.get_instrument_list()
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i, 50)
+        params:add_group("lane_" .. i, "LANE " .. i, 59)
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice:",
             {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)

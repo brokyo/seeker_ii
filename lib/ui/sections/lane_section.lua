@@ -95,6 +95,9 @@ function LaneSection.new()
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_fm_ratio_denom", name = "FM Ratio Denominator" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_time", name = "LPG Time" })
         table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_lpg_symmetry", name = "LPG Symmetry" })
+        table.insert(self.params, { separator = true, name = "CV Patching" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_patch_this", name = "THIS" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_wsyn_patch_that", name = "THAT" })
       end
     elseif visible_voice == 6 then -- OSC
       table.insert(self.params, { separator = true, name = "OSC" })
