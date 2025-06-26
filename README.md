@@ -1,59 +1,82 @@
 # Seeker II
 
-Seeker II is a looper for Monome Norns that stores and procedurally transforms musical patterns.
+Seeker II is a compositional interface for Monome Norns. 
 
-## Core Concepts
+It allows you to:
+- Record, overdub, and transform musical motifs on an emulated tape
+- Configure and control time-synchronized modulation in Eurorack (via i2c) and TouchDesigner (via OSC)
 
-Seeker II is built around three interconnected musical ideas:
+Using these voices:
+- MX Samples (https://norns.community/mxsamples)
+- Whimsical Raps i2c devices (W/Syn, Just Friends)
+- I2C connectors (Crow, TXO)
+- MIDI
 
-### Layers
+## Installation
+In Maiden: ;install https://github.com/brokyo/seeker_ii
 
-Layers are independent musical channels that allow you to compose looping patterns:
+## Layout
+![Seeker II Layout](layout.png)
 
-- **Multiple Independent Tracks**: Each layer operates as a separate voice with its own instrument, settings, and playback status.
-- **Stage-Based Progression**: Layers play through four sequential stages, each of which can optionally modify the content of the loop.
-- **Output Flexibility**: By default layers us the Mx Samples engine but can also output to MIDI, Crow, or TXO.
+## Quickstart
+### To Begin
+1. **Configure Lane** (4A): Select your output voice (MX Samples, W/Syn, etc.)
+2. **Record motif** (5B): Hold grid key to start recording on the keyboard (2A)
+3. **Stop recording** (5B): Press grid key again when recording is complete
+4. **Change playback parameters** (5A): Adjust octave, degree, and speed
 
+### Next Steps
+1. **Overdub motif** (5B): Hold grid key again in tape mode to layer new material
+2. **Transform motif** (5D): Configure time-synchronized changes to motif
+3. **New Lane** (4A): Create additional voices for phasing compositions
+4. **Synchronize modulation** (3A/3C): Configure OSC and Eurorack patterns to accompany loops
 
-### Motifs
+## Layout Details
+### 1 | Keyboard Config
+- A: Octave Tuning 
+-- Left key drops the keyboard octave by one; right key increases it by one
+- B: Offset Tuning 
+-- Left key drops the keyboard note by one; right key increases it by one
+- C: Velocity Tuning 
+-- Left-to-right increases key velocity
 
-Motifs are the musical patterns at the core of Seeker II:
+### 2 | Keyboard
+- A: Tonnetz-Style Keyboard 
+-- Tuned to global set in (3D) 
+-- Covers two octaves
+-- Illuminated keys are root
+-- Vertical keys move by one degree. Horizontal keys move by two degree
 
-- **Performable Memory**: Record patterns in real-time using the grid or MIDI input.
-- **Overdub Generations**: Motifs can be overdubbed with groups of notes that can be individually adressed in transformations 
-- **Generate Patterns [Alpha]**: A series of generators enables one-click motif generation across common musical concepts.
+### 3  | Integrations
+- A: OSC Configuration
+-- Configure time-synchronized LFOs and clocks
+-- Set to TouchDesigner default but configurable at bottom of menu
+- B: W/Tape Configuration
+-- Record, overdub, and navigate tape
+-- NB: Requires manual button combination on W/ Module to enter tape mode
+- C: Eurorack Configuration
+-- Configure time-synchronized voltage patterns
+-- Crow: Choose from Gate, Burst, LFO, Envelope, Knob Recorder, and Structured Random
+-- TXO: Choose from Gate, Burst, LFO, and Stepped Random
+- D: Global Configuration
+-- Tuning, clock, and MIDI control affecting entire app.
 
-### Transformations
+### 4 | Lane Management
+- A: Lane Selection
+-- Select lane outputs among supported voices
+-- 1 -> 8 lanes available. Each stores its own tuning information
 
-Once created, motifs can be transformed in sequenced stages:
-
-- **Non-Destructive Changes**: Transform patterns while preserving the original motif.
-- **Stage-Based Evolution**: Apply different transformations at each stage of a lane.
-- **Musical Operations**: Transpose, reverse, rotate, stretch, or add resonance to patterns.
-
-
-## Getting Started
-
-### Setting Up
-
-1. Select a layer using the layer selection buttons (Rows 6 > 7, Columns 13 > 16)
-2. Configure the lane's instrument and output settings (Norns screen)
-
-### Recording A Motif
-
-### Generating A Motif
-
-### Overdubbing A Motif
-
-
-
-## Requirements
-
-- Monome Norns
-- Grid
-- Optional: MIDI In/Out, Crow, or Eurorack integration
-
-## Addition Notes
-- [Some thoughts on additional eurorack stuff like loop triggers]
-- [Some thoughts on output]
-- [Config and debug menus]
+### 5 | Motif Management
+- A: Playback Configuration
+-- Control playback of recorded motif
+-- Shift playback octave, degree, and speed
+- B: Create Motif
+-- Select between emulated tape and arpeggio
+-- Hold grid key (5B) to start recording (Keyboard will blink)
+-- Press grid key (5B) again to stop
+-- Holding grid key (5B) in tape mode will overdub
+- C: Clear Motif
+-- Hold grid key (5C) to clear recording. Grid will blink on confirmation
+- D: Stage Configuration
+-- Stages allow for structured changes to motifs
+-- Pick from Harmonize, Ratchet, Transpose, Overdub Filter, and Reverse
