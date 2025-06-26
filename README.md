@@ -16,7 +16,7 @@ Using these voices:
 In Maiden: ;install https://github.com/brokyo/seeker_ii
 
 ## Layout
-![Seeker II Layout](layout.png)
+![Seeker II Layout](https://github.com/brokyo/seeker_ii/raw/main/layout.png)
 
 ## Quickstart
 ### To Begin
