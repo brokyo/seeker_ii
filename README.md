@@ -34,49 +34,49 @@ In Maiden: ;install https://github.com/brokyo/seeker_ii
 ## Layout Details
 ### 1 | Keyboard Config
 - A: Octave Tuning 
--- Left key drops the keyboard octave by one; right key increases it by one
+  - Left key drops the keyboard octave by one; right key increases it by one
 - B: Offset Tuning 
--- Left key drops the keyboard note by one; right key increases it by one
+  - Left key drops the keyboard note by one; right key increases it by one
 - C: Velocity Tuning 
--- Left-to-right increases key velocity
+  - Left-to-right increases key velocity
 
 ### 2 | Keyboard
 - A: Tonnetz-Style Keyboard 
--- Tuned to global set in (3D) 
--- Covers two octaves
--- Illuminated keys are root
--- Vertical keys move by one degree. Horizontal keys move by two degree
+  - Tuned to global set in (3D) 
+  - Covers two octaves
+  - Illuminated keys are root
+  - Vertical keys move by one degree. Horizontal keys move by two degree
 
 ### 3  | Integrations
 - A: OSC Configuration
--- Configure time-synchronized LFOs and clocks
--- Set to TouchDesigner default but configurable at bottom of menu
+  - Configure time-synchronized LFOs and clocks
+  - Set to TouchDesigner default but configurable at bottom of menu
 - B: W/Tape Configuration
--- Record, overdub, and navigate tape
--- NB: Requires manual button combination on W/ Module to enter tape mode
+  - Record, overdub, and navigate tape
+  - NB: Requires manual button combination on W/ Module to enter tape mode
 - C: Eurorack Configuration
--- Configure time-synchronized voltage patterns
--- Crow: Choose from Gate, Burst, LFO, Envelope, Knob Recorder, and Structured Random
--- TXO: Choose from Gate, Burst, LFO, and Stepped Random
+  - Configure time-synchronized voltage patterns
+  - Crow: Choose from Gate, Burst, LFO, Envelope, Knob Recorder, and Structured Random
+  - TXO: Choose from Gate, Burst, LFO, and Stepped Random
 - D: Global Configuration
--- Tuning, clock, and MIDI control affecting entire app.
+  - Tuning, clock, and MIDI control affecting entire app.
 
 ### 4 | Lane Management
 - A: Lane Selection
--- Select lane outputs among supported voices
--- 1 -> 8 lanes available. Each stores its own tuning information
+  - Select lane outputs among supported voices
+  - 1 -> 8 lanes available. Each stores its own tuning information
 
 ### 5 | Motif Management
 - A: Playback Configuration
--- Control playback of recorded motif
--- Shift playback octave, degree, and speed
+  - Control playback of recorded motif
+  - Shift playback octave, degree, and speed
 - B: Create Motif
--- Select between emulated tape and arpeggio
--- Hold grid key (5B) to start recording (Keyboard will blink)
--- Press grid key (5B) again to stop
--- Holding grid key (5B) in tape mode will overdub
+  - Select between emulated tape and arpeggio
+  - Hold grid key (5B) to start recording (Keyboard will blink)
+  - Press grid key (5B) again to stop
+  - Holding grid key (5B) in tape mode will overdub
 - C: Clear Motif
--- Hold grid key (5C) to clear recording. Grid will blink on confirmation
+  - Hold grid key (5C) to clear recording. Grid will blink on confirmation
 - D: Stage Configuration
--- Stages allow for structured changes to motifs
--- Pick from Harmonize, Ratchet, Transpose, Overdub Filter, and Reverse
+  - Stages allow for structured changes to motifs
+  - Pick from Harmonize, Ratchet, Transpose, Overdub Filter, and Reverse
