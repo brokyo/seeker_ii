@@ -668,14 +668,24 @@ function Lane:on_note_on(event)
     local v8_note = adjusted_note / 12
     
     local algorithm = params:get("lane_" .. self.id .. "_disting_ex_algorithm")
+    -- Multisample
     if algorithm == 1 then
+      crow.ii.disting.note_pitch(0, v8_note)
+      crow.ii.disting.note_velocity(0, disting_ex_volume)
+    -- Rings
+    elseif algorithm == 2 then
+      crow.ii.disting.voice_pitch(0, v8_note)
+      crow.ii.disting.voice_on(0, disting_ex_volume)
+    -- Plaits
+    elseif algorithm == 3 then
       -- N.B. Subtract one to handle lua 1 index and disting 0 index
       local selected_voice = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select") - 1
       crow.ii.disting.voice_pitch(selected_voice, v8_note)
       crow.ii.disting.voice_on(selected_voice, disting_ex_volume)
-    elseif algorithm == 2 then
-      crow.ii.disting.note_pitch(4, v8_note)
-      crow.ii.disting.note_velocity(4, disting_ex_volume)
+    -- DX7
+    elseif algorithm == 4 then
+      crow.ii.disting.note_pitch(0, v8_note)
+      crow.ii.disting.note_velocity(0, disting_ex_volume)
     end
   end
 end
@@ -750,12 +760,22 @@ function Lane:on_note_off(event)
   local disting_ex_active = params:get("lane_" .. self.id .. "_disting_ex_active")
   if disting_ex_active == 1 then
     local algorithm = params:get("lane_" .. self.id .. "_disting_ex_algorithm")
+    -- Convert note to v8 format for Disting EX
+    local adjusted_note = note - 60
+    local v8_note = adjusted_note / 12
+    
     if algorithm == 1 then
+      crow.ii.disting.note_off(v8_note)
+    elseif algorithm == 2 then
+      -- N.B. Subtract one to handle lua 1 index and disting 0 index
+      local voice_select = params:get("lane_" .. self.id .. "_disting_ex_rings_mode") - 1
+      crow.ii.disting.voice_off(voice_select)
+    elseif algorithm == 3 then
       -- N.B. Subtract one to handle lua 1 index and disting 0 index
       local voice_select = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select") - 1
       crow.ii.disting.voice_off(voice_select)
-    elseif algorithm == 2 then
-      crow.ii.disting.note_off(0)
+    elseif algorithm == 4 then
+      crow.ii.disting.note_off(v8_note)
     end
   end
 

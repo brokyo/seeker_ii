@@ -381,7 +381,7 @@ function create_disting_ex_params(i)
         end
     end)
 
-    params:add_option("lane_" .. i .. "_disting_ex_algorithm", "Algorithm", {"Macro Osc 2", "Poly FM"}, 1)
+    params:add_option("lane_" .. i .. "_disting_ex_algorithm", "Algorithm", {"Multisample", "Rings", "Plaits", "DX7"}, 1)
     params:set_action("lane_" .. i .. "_disting_ex_algorithm", function(value)
         if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
             _seeker.ui_state.get_focused_lane() == i then
@@ -389,8 +389,14 @@ function create_disting_ex_params(i)
             _seeker.screen_ui.set_needs_redraw()
         end
         if value == 1 then
+            crow.ii.disting.algorithm(3)
+        elseif value == 2 then
+            crow.ii.disting.algorithm(20)
+            crow.ii.disting.parameter(26, 0)
+            crow.ii.disting.parameter(33, 3)
+        elseif value == 3 then
             crow.ii.disting.algorithm(21)
-        else
+        elseif value == 4 then
             crow.ii.disting.algorithm(23)
         end
     end)
@@ -514,8 +520,117 @@ function create_disting_poly_fm_params(i)
         crow.ii.disting.parameter(param_offset + 6, value)
     end) 
 end
+
+function create_disting_rings_params(i)
+    params:add_option("lane_" .. i .. "_disting_ex_rings_mode", "Mode", {"Modal Resonator", "Sympathetic Strings", "String", "FM Voice", "Sympathetic Quantized", "Strings & Reverb", "Syth"}, 1)
+     params:set_action("lane_" .. i .. "_disting_ex_rings_mode", function(value)
+        local shifted_index = value - 1
+        crow.ii.disting.parameter(7, shifted_index)
+    end)
+
+    params:add_option("lane_" .. i .. "_disting_ex_rings_effect", "Effect", {"Formant", "Chorus", "Reverb", "Formant 2", "Ensemble", "Reverb 2"}, 1)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_effect", function(value)
+        local shifted_index = value - 1
+        crow.ii.disting.parameter(8, shifted_index)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_polyphony", "Polyphony", 1, 4)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_polyphony", function(value)
+        crow.ii.disting.parameter(9, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_structure", "Structure", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_structure", function(value)
+        crow.ii.disting.parameter(12, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_brightness", "Brightness", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_brightness", function(value)
+        crow.ii.disting.parameter(13, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_damping", "Damping", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_damping", function(value)
+        crow.ii.disting.parameter(14, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_position", "Position", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_position", function(value)
+        crow.ii.disting.parameter(15, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_output_gain", "Output Gain", -40, 12, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_output_gain", function(value)
+        crow.ii.disting.parameter(19, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_rings_dry_gain", "Dry Gain", -40, 12, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_rings_dry_gain", function(value)
+        crow.ii.disting.parameter(20, value)
+    end)
+end
+
+function create_disting_multisample_params(i)
+    params:add_number("lane_" .. i .. "_disting_ex_multisample_sample_folder", "Sample Folder", 1, 100)
+    params:set_action("lane_" .. i .. "_disting_ex_multisample_sample_folder", function(value)
+        crow.ii.disting.parameter(7, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_attack", "Attack", 0, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_attack", function(value)
+        local converted_value = math.floor((value / 100) * 127)
+        crow.ii.disting.parameter(8, converted_value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_decay", "Decay", 0, 100, 50)
+    params:set_action("lane_" .. i .. "_disting_ex_decay", function(value)
+        local converted_value = math.floor((value / 100) * 127)
+        crow.ii.disting.parameter(9, converted_value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_sustain", "Sustain Level", 0, 100, 100)
+    params:set_action("lane_" .. i .. "_disting_ex_sustain", function(value)
+        local converted_value = math.floor((value / 100) * 127)
+        crow.ii.disting.parameter(10, converted_value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_release", "Release", 0, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_release", function(value)
+        local converted_value = math.floor((value / 100) * 127)
+        crow.ii.disting.parameter(11, converted_value)
+    end)
     
-    
+    params:add_number("lane_" .. i .. "_disting_ex_gain", "Gain", -40, 24, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_gain", function(value)
+        crow.ii.disting.parameter(12, value)
+    end)
+
+    params:add_option("lane_" .. i .. "_disting_ex_delay_mode", "Delay Mode", {"Off", "Stereo", "Ping-Pong"}, 1)
+    params:set_action("lane_" .. i .. "_disting_ex_delay_mode", function(value)
+        local shifted_index = value - 1
+        crow.ii.disting.parameter(51, shifted_index)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_delay_level", "Delay Level", -40, 0, -3)
+    params:set_action("lane_" .. i .. "_disting_ex_delay_level", function(value)
+        crow.ii.disting.parameter(52, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_delay_time", "Delay Time (ms)", 1, 1365, 500)
+    params:set_action("lane_" .. i .. "_disting_ex_delay_time", function(value)
+        crow.ii.disting.parameter(53, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_tone_bass", "Tone Bass", -240, 240, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_tone_bass", function(value)
+        crow.ii.disting.parameter(55, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_tone_treble", "Tone Treble", -240, 240, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_tone_treble", function(value)
+        crow.ii.disting.parameter(56, value)
+    end)
+end
 
 function create_motif_playback_params(i)
     -- Playback octave offset
@@ -569,7 +684,7 @@ end
 function init_lane_params()
     local instruments = params_manager_ii.get_instrument_list()
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 59)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 100)
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice:",
             {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC", "Disting EX"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
@@ -587,6 +702,7 @@ function init_lane_params()
             _seeker.lanes[i].volume = value
         end)
 
+        -- Lane Params
         create_keyboard_config_params(i)
         create_mx_samples_params(i)
         create_midi_params(i)
@@ -594,8 +710,12 @@ function init_lane_params()
         create_just_friends_params(i)
         create_wsyn_params(i)
         create_osc_params(i)
+        -- Disting EX Params
         create_disting_ex_params(i)
         create_disting_poly_fm_params(i)
+        create_disting_rings_params(i)
+        create_disting_multisample_params(i)
+        -- To Deprecate Params
         create_stage_tracker_params(i)
         create_motif_playback_params(i)
     end
