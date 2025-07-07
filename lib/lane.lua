@@ -652,6 +652,32 @@ function Lane:on_note_on(event)
     -- Send velocity
     osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/velocity", {event.velocity})
   end
+
+  --------------------------------
+  -- Disting EX Note On
+  --------------------------------
+
+  local disting_ex_active = params:get("lane_" .. self.id .. "_disting_ex_active")
+  if disting_ex_active == 1 then
+    -- Set up event params
+    local disting_ex_voice_volume = params:get("lane_" .. self.id .. "_disting_ex_voice_volume")
+    local lane_volume = params:get("lane_" .. self.id .. "_volume")
+    -- TODO: This calculation seems to be ignored
+    local disting_ex_volume = (event.velocity / 127) * disting_ex_voice_volume * lane_volume    
+    local adjusted_note = note - 60
+    local v8_note = adjusted_note / 12
+    
+    local algorithm = params:get("lane_" .. self.id .. "_disting_ex_algorithm")
+    if algorithm == 1 then
+      -- N.B. Subtract one to handle lua 1 index and disting 0 index
+      local selected_voice = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select") - 1
+      crow.ii.disting.voice_pitch(selected_voice, v8_note)
+      crow.ii.disting.voice_on(selected_voice, disting_ex_volume)
+    elseif algorithm == 2 then
+      crow.ii.disting.note_pitch(4, v8_note)
+      crow.ii.disting.note_velocity(4, disting_ex_volume)
+    end
+  end
 end
 
 ---------------------------------------------------------
@@ -716,6 +742,21 @@ function Lane:on_note_off(event)
       name = instrument,
       midi = note
     })
+  end
+
+  --------------------------------
+  -- Disting EX note off
+  --------------------------------
+  local disting_ex_active = params:get("lane_" .. self.id .. "_disting_ex_active")
+  if disting_ex_active == 1 then
+    local algorithm = params:get("lane_" .. self.id .. "_disting_ex_algorithm")
+    if algorithm == 1 then
+      -- N.B. Subtract one to handle lua 1 index and disting 0 index
+      local voice_select = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select") - 1
+      crow.ii.disting.voice_off(voice_select)
+    elseif algorithm == 2 then
+      crow.ii.disting.note_off(0)
+    end
   end
 
   -- Stop hardware output if enabled

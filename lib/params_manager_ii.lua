@@ -364,6 +364,159 @@ function create_osc_params(i)
     end)
 end
 
+function disting_macro_osc_2_offset()
+    local active_lane = _seeker.ui_state.get_focused_lane()
+    local selected_voice = params:get("lane_" .. active_lane .. "_disting_ex_macro_osc_2_voice_select")
+    return 11 * (selected_voice - 1)
+end
+
+function create_disting_ex_params(i)
+    -- Global Disting Params
+    params:add_binary("lane_" .. i .. "_disting_ex_active", "Disting EX Active", "toggle", 0)
+    params:set_action("lane_" .. i .. "_disting_ex_active", function(value)
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+            _seeker.ui_state.get_focused_lane() == i then
+            _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
+
+    params:add_option("lane_" .. i .. "_disting_ex_algorithm", "Algorithm", {"Macro Osc 2", "Poly FM"}, 1)
+    params:set_action("lane_" .. i .. "_disting_ex_algorithm", function(value)
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+            _seeker.ui_state.get_focused_lane() == i then
+            _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+            _seeker.screen_ui.set_needs_redraw()
+        end
+        if value == 1 then
+            crow.ii.disting.algorithm(21)
+        else
+            crow.ii.disting.algorithm(23)
+        end
+    end)
+    -- Voice volume
+    params:add_control("lane_" .. i .. "_disting_ex_voice_volume", "Voice Volume", controlspec.new(0, 1, 'lin', 0.02, 1, ""))
+    params:set_action("lane_" .. i .. "_disting_ex_voice_volume", function(value)
+        if _seeker.lanes[i] then
+            _seeker.lanes[i].disting_ex_voice_volume = value
+        end
+    end)
+
+    -- Macro Osc 2 Params
+    -- N.B. Subtract one to handle lua 1 index and disting 0 index
+    params:add_option("lane_" .. i .. "_disting_ex_macro_osc_2_voice_select", "Disting EX Voice", {"1", "2", "3", "4"}, 1)
+    params:set_action("lane_" .. i .. "_disting_ex_macro_osc_2_voice_select", function(value)
+        if _seeker.lanes[i] then
+            _seeker.lanes[i].disting_ex_macro_osc_2_voice_select = value
+        end
+    end)
+    
+    params:add_option("lane_" .. i .. "_disting_ex_macro_osc_2_model", "Model", {"Virtual Analog", "Waveshaping", "FM", "Granular", "Harmonic", "Wavetable", "Chord", "Speech", "Swarm", "Noise", "Particle", "String", "Modal", "Bass Drum", "Snare Drum", "Hi-Hat", "VA VCF", "PD", "6-Op FM", "6-Op FM 2", "6-Op FM 3", "Wave Terrain", "String", "Chiptune"}, 1)
+    params:set_action("lane_" .. i .. "_disting_ex_macro_osc_2_model", function(value)
+        local param_offset = disting_macro_osc_2_offset()
+        local shifted_index = value - 1
+        crow.ii.disting.parameter(param_offset + 7, shifted_index)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_harmonics", "Harmonics", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_harmonics", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 10, n)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_timbre", "Timbre", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_timbre", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 11, n)
+    end)   
+
+   params:add_number("lane_" .. i .. "_disting_ex_morph", "Morph", 0, 127, 64)
+   params:set_action("lane_" .. i .. "_disting_ex_morph", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 12, n)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_fm", "FM Depth", -100, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_fm", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 13, n)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_timbre_mod", "Timbre Mod", -100, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_timbre_mod", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 14, n)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_morph_mod", "Morph Mod", -100, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_morph_mod", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 15, n)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_low_pass_gate", "LPG", 0, 127, 127)
+    params:set_action("lane_" .. i .. "_disting_ex_low_pass_gate", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 16, n)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_time", "Time/decay", 0, 127, 64)
+    params:set_action("lane_" .. i .. "_disting_ex_time", function(n)
+        local param_offset = disting_macro_osc_2_offset()
+        crow.ii.disting.parameter(param_offset + 17, n)
+    end)
+
+    -- Poly FM Params
+
+end
+
+function disting_poly_fm_offset()
+    -- local active_lane = _seeker.ui_state.get_focused_lane()
+    -- local selected_voice = params:get("lane_" .. active_lane .. "_disting_ex_poly_fm_voice")
+    -- return (selected_voice - 1) + 7
+    return 7
+end
+
+function create_disting_poly_fm_params(i)
+    params:add_number("lane_" .. i .. "_disting_ex_poly_fm_voice_bank", "Voice Bank", 1, 27)
+    params:set_action("lane_" .. i .. "_disting_ex_poly_fm_voice_bank", function(value)
+        local param_offset = disting_poly_fm_offset()
+        crow.ii.disting.parameter(param_offset, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_poly_fm_voice", "Voice", 1, 32)
+    params:set_action("lane_" .. i .. "_disting_ex_poly_fm_voice", function(value)
+        local param_offset = disting_poly_fm_offset()
+        crow.ii.disting.parameter(param_offset + 1, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_poly_fm_voice_gain", "Voice Gain", -40, 24, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_poly_fm_voice_gain", function(value)
+        local param_offset = disting_poly_fm_offset()
+        crow.ii.disting.parameter(param_offset + 3, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_poly_fm_voice_pan", "Voice Pan", -100, 100, 0)   
+    params:set_action("lane_" .. i .. "_disting_ex_poly_fm_voice_pan", function(value)
+        local param_offset = disting_poly_fm_offset()
+        crow.ii.disting.parameter(param_offset + 4, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_poly_fm_voice_brightness", "Voice Brightness", -100, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_poly_fm_voice_brightness", function(value)
+        local param_offset = disting_poly_fm_offset()
+        crow.ii.disting.parameter(param_offset + 5, value)
+    end)
+
+    params:add_number("lane_" .. i .. "_disting_ex_poly_fm_voice_morph", "Voice Morph", -100, 100, 0)
+    params:set_action("lane_" .. i .. "_disting_ex_poly_fm_voice_morph", function(value)
+        local param_offset = disting_poly_fm_offset()
+        crow.ii.disting.parameter(param_offset + 6, value)
+    end) 
+end
+    
+    
+
 function create_motif_playback_params(i)
     -- Playback octave offset
     params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
@@ -418,7 +571,7 @@ function init_lane_params()
     for i = 1, 8 do
         params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 59)
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice:",
-            {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC"})
+            {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC", "Disting EX"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             -- Update lane section if it's currently showing this lane
             if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
@@ -441,6 +594,8 @@ function init_lane_params()
         create_just_friends_params(i)
         create_wsyn_params(i)
         create_osc_params(i)
+        create_disting_ex_params(i)
+        create_disting_poly_fm_params(i)
         create_stage_tracker_params(i)
         create_motif_playback_params(i)
     end

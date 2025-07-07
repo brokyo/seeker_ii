@@ -102,6 +102,41 @@ function LaneSection.new()
     elseif visible_voice == 6 then -- OSC
       table.insert(self.params, { separator = true, name = "OSC" })
       table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_osc_active", name = "OSC Active" })
+    elseif visible_voice == 7 then -- Disting EX
+      table.insert(self.params, { separator = true, name = "Disting EX" })
+      table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_active", name = "Disting EX Active" })
+      
+      -- Only show additional Disting EX params if active
+      if params:get("lane_" .. new_lane_idx .. "_disting_ex_active") == 1 then
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_voice_volume", name = "Voice Volume" })
+        table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_algorithm", name = "Algorithm" })
+        -- Macro Osc 2 Params
+        -- Only show Macro Osc 2 params if algorithm 1 is selected
+        if params:get("lane_" .. new_lane_idx .. "_disting_ex_algorithm") == 1 then
+          table.insert(self.params, { separator = true, name = "Macro Osc 2 Params" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_macro_osc_2_model", name = "Model" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_macro_osc_2_voice_select", name = "Disting EX Voice" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_harmonics", name = "Harmonics" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_timbre", name = "Timbre" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_morph", name = "Morph" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_fm", name = "FM" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_timbre_mod", name = "Timbre Mod" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_morph_mod", name = "Morph Mod" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_low_pass_gate", name = "LPG" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_time", name = "Time/decay" })
+        end
+        -- Poly FM Params
+        -- Only show Poly FM params if algorithm 2 is selected
+        if params:get("lane_" .. new_lane_idx .. "_disting_ex_algorithm") == 2 then
+          table.insert(self.params, { separator = true, name = "Poly FM Params" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_poly_fm_voice_bank", name = "Voice Bank" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_poly_fm_voice", name = "Voice" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_poly_fm_voice_gain", name = "Voice Gain" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_poly_fm_voice_pan", name = "Voice Pan" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_poly_fm_voice_brightness", name = "Voice Brightness" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_poly_fm_voice_morph", name = "Voice Morph" })
+        end
+      end
     end
     
     -- Update section name with lane number
