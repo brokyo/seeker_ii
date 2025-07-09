@@ -141,10 +141,13 @@ function LaneSection.new()
         end
 
         -- Plaits Params
+        -- Ensure Macro Osc 2 Settings -> I2C Trigger is set to 1 for all four instances
+        -- 
         if params:get("lane_" .. new_lane_idx .. "_disting_ex_algorithm") == 3 then
           table.insert(self.params, { separator = true, name = "Plaits Params" })
-          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_macro_osc_2_model", name = "Model" })
           table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_macro_osc_2_voice_select", name = "Disting EX Voice" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_macro_osc_2_output", name = "Output" })
+          table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_macro_osc_2_model", name = "Model" })
           table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_harmonics", name = "Harmonics" })
           table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_timbre", name = "Timbre" })
           table.insert(self.params, { id = "lane_" .. new_lane_idx .. "_disting_ex_morph", name = "Morph" })

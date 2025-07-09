@@ -80,3 +80,20 @@ In Maiden: ;install https://github.com/brokyo/seeker_ii
 - D: Stage Configuration
   - Stages allow for structured changes to motifs
   - Pick from Harmonize, Ratchet, Transpose, Overdub Filter, and Reverse
+
+## Etc
+### Known Bugs
+- When the app has the Screensaver or Create Motif active K1 doesn't work.
+- After powering on the Norns sometimes the Arc isn't recognized. Unplug/replug and it should work.
+
+### TODO
+- See roadmap.md
+
+### Disting Poly Plaits
+- Distings Plaits mode in Poly requires a bit of configuration on the module itself. There are a huge number of permutations but I regularly use:
+#### Triggerable Polyphonic Voice
+- Select Disting Voice > All on Norns
+- Navigate to Macro Osc 2 Settings using P encoder
+- Set all voices to trigger on I2C [Instance n > I2C trigger 1]
+- Set all voices to share params from Norns [Instances n > Share Params 1]
+#### Drone Voice

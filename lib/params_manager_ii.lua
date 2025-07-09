@@ -410,13 +410,33 @@ function create_disting_ex_params(i)
 
     -- Macro Osc 2 Params
     -- N.B. Subtract one to handle lua 1 index and disting 0 index
-    params:add_option("lane_" .. i .. "_disting_ex_macro_osc_2_voice_select", "Disting EX Voice", {"1", "2", "3", "4"}, 1)
+    params:add_option("lane_" .. i .. "_disting_ex_macro_osc_2_voice_select", "Disting Voice", {"All","1", "2", "3", "4"}, 1)
     params:set_action("lane_" .. i .. "_disting_ex_macro_osc_2_voice_select", function(value)
-        if _seeker.lanes[i] then
-            _seeker.lanes[i].disting_ex_macro_osc_2_voice_select = value
+        -- Support Polyphonic mode and configure associated params 
+        if value == 1 then
+        
+        -- Support Quad Monophonic mode and configure associated params
+        else
+
+        end
+        
+        -- Update UI to refresh parameter display for the new voice
+        if _seeker.screen_ui and _seeker.ui_state.get_current_section() == "LANE" and
+            _seeker.ui_state.get_focused_lane() == i then
+            _seeker.screen_ui.sections.LANE:update_focused_lane(i)
+            _seeker.screen_ui.set_needs_redraw()
         end
     end)
-    
+
+    params:add_option("lane_" .. i .. "_disting_ex_macro_osc_2_output", "Output", {"Individual", "Mixed"}, 1)
+    params:set_action("lane_" .. i .. "_disting_ex_macro_osc_2_output", function(value)
+        if value == 1 then
+            crow.ii.disting.parameter(65, 0)
+        else
+            crow.ii.disting.parameter(65, 1)
+        end
+    end)
+
     params:add_option("lane_" .. i .. "_disting_ex_macro_osc_2_model", "Model", {"Virtual Analog", "Waveshaping", "FM", "Granular", "Harmonic", "Wavetable", "Chord", "Speech", "Swarm", "Noise", "Particle", "String", "Modal", "Bass Drum", "Snare Drum", "Hi-Hat", "VA VCF", "PD", "6-Op FM", "6-Op FM 2", "6-Op FM 3", "Wave Terrain", "String", "Chiptune"}, 1)
     params:set_action("lane_" .. i .. "_disting_ex_macro_osc_2_model", function(value)
         local param_offset = disting_macro_osc_2_offset()
