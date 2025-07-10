@@ -13,7 +13,7 @@ local function create_stage_params(i)
     -- Create four stages per lane with their defaults
     -- NB: Many of these params are not (yet?) available on the front end. Most notably: loop count and trigger
     for j = 1, 4 do
-        params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "STAGE " .. j .. " LOOPS", 1, 10, 2)
+        params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 2)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_loops", function(value)
             _seeker.lanes[i]:sync_stage_from_params(j)
         end)
@@ -24,23 +24,23 @@ local function create_stage_params(i)
             default_enabled = 1
         end
         
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_enabled", "STAGE " .. j .. " ENABLED", {"Yes", "No"}, default_enabled)
+        params:add_option("lane_" .. i .. "_stage_" .. j .. "_enabled", "Enabled", {"Yes", "No"}, default_enabled)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_enabled", function(value)
             _seeker.lanes[i]:sync_stage_from_params(j)
         end)
 
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_mute", "STAGE " .. j .. " MUTE", {"Yes", "No"}, 2)
+        params:add_option("lane_" .. i .. "_stage_" .. j .. "_mute", "Mute", {"Yes", "No"}, 2)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_mute", function(value)
             _seeker.lanes[i]:sync_stage_from_params(j)
         end)
         
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "STAGE " .. j .. " RESET MOTIF", {"Yes", "No"}, 1)
+        params:add_option("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "Reset Motif", {"Yes", "No"}, 1)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_reset_motif", function(value)
             _seeker.lanes[i]:sync_stage_from_params(j)
         end)
 
         -- Loop trigger parameters
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_loop_trigger", "STAGE " .. j .. " LOOP TRIGGER", 
+        params:add_option("lane_" .. i .. "_stage_" .. j .. "_loop_trigger", "Loop Trigger", 
             {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"}, 1)
 
         -- Transform selection for lane.lua
@@ -50,7 +50,7 @@ local function create_stage_params(i)
         end
         table.sort(transform_names)
 
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_transform", "STAGE " .. j .. " TRANSFORM", transform_names, #transform_names)
+        params:add_option("lane_" .. i .. "_stage_" .. j .. "_transform", "Transform", transform_names, #transform_names)
         params:set_action("lane_" .. i .. "_stage_" .. j .. "_transform", function(value)
             _seeker.lanes[i]:change_stage_transform(i, j, transform_names[value])
         end)

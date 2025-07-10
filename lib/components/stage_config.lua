@@ -71,7 +71,7 @@ end
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "STAGE_CONFIG",
-        name = "Stage Config [WIP]",
+        name = "Stage Config",
         description = "Change playback behavior",
         params = {
             { separator = true, title = "Stage Config" },
