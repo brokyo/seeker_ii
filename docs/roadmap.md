@@ -1,13 +1,20 @@
 ### Current Session
+- [] Support second Crow
 
 ### Active Concerns
 
 ### Near Term Priorities
-- [] Centralize "sync all" system. Current one is very hacky
+- [] W/Tape pitched sample mode
+- [] Disting SD 6 Triggers support
+- [] Alternate keyboard mode supporting easier two handed playing
 
 ### Bugs
 
 ### Long List
+- [] Refactor Tuning to component 
+- [] Refactor Motif Config to component
+- [] Refactor Velocity to component
+- [] Centralize "sync all" system. Current one is very hacky
 - [] Create motif UI one loop ahead of playing transform when ratcheting
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
 - [] Static voltage out
