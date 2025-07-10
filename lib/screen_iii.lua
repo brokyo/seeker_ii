@@ -1,5 +1,4 @@
 -- screen_iii.lua
-local LaneSection = include('lib/ui/sections/lane_section')
 local MotifSection = include('lib/ui/sections/motif_section')
 local TuningSection = include('lib/ui/sections/tuning_section')
 local VelocitySection = include('lib/ui/sections/velocity_section')
@@ -21,7 +20,6 @@ ScreenUI.sections = {}
 function ScreenUI.init()  
   -- Initialize sections
   ScreenUI.sections = {
-    LANE = LaneSection.new(),
     MOTIF = MotifSection.new(),
     TUNING = TuningSection.new(),
     VELOCITY = VelocitySection.new(),
@@ -33,7 +31,8 @@ function ScreenUI.init()
     WTAPE = _seeker.w_tape.screen,
     STAGE_CONFIG = _seeker.stage_config.screen,
     EURORACK_OUTPUT = _seeker.eurorack_output.screen,
-    OSC_CONFIG = _seeker.osc_config.screen
+    OSC_CONFIG = _seeker.osc_config.screen,
+    LANE_CONFIG = _seeker.lane_config.screen
   }
   
   ScreenSaver.init()

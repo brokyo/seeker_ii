@@ -6,7 +6,6 @@ local GridAnimations = include("lib/grid_animations")
 local GridLayers = include("lib/grid_layers")
 local GridConstants = include("lib/grid_constants")
 local VelocityRegion = include("lib/grid/regions/velocity_region")
-local LaneRegion = include("lib/grid/regions/lane_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 
@@ -19,7 +18,6 @@ local ClearMotif = include("lib/components/clear_motif")
 -- Keep regions in their own namespace
 local regions = {
   velocity = VelocityRegion,
-  lane = LaneRegion,
   motif = MotifRegion,
   tuning = TuningRegion,
 
@@ -32,7 +30,8 @@ local regions = {
   wtape = nil,
   stage_config = nil,
   eurorack_output = nil,
-  osc_config = nil
+  osc_config = nil,
+  lane_config = nil
 }
 
 GridUI.layers = nil
@@ -72,6 +71,7 @@ function GridUI.init()
   regions.stage_config = _seeker.stage_config.grid
   regions.eurorack_output = _seeker.eurorack_output.grid
   regions.osc_config = _seeker.osc_config.grid
+  regions.lane_config = _seeker.lane_config.grid
 
   return GridUI
 end
@@ -95,7 +95,6 @@ end
 
 function draw_controls()
   -- Draw all regions using local regions table
-  regions.lane.draw(GridUI.layers)
   regions.velocity.draw(GridUI.layers)
   regions.motif.draw(GridUI.layers)
   regions.tuning.draw(GridUI.layers)
@@ -110,6 +109,7 @@ function draw_controls()
   regions.stage_config:draw(GridUI.layers)
   regions.eurorack_output:draw(GridUI.layers)
   regions.osc_config:draw(GridUI.layers)
+  regions.lane_config:draw(GridUI.layers)
 
 end
 
@@ -240,8 +240,8 @@ function GridUI.key(x, y, z)
     _seeker.ui_state.register_activity()
     
     -- Handle region interactions
-    if regions.lane.contains(x, y) then
-      regions.lane.handle_key(x, y, z)
+    if regions.lane_config:contains(x, y) then
+      regions.lane_config:handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
       regions.motif.handle_key(x, y, z)
     elseif regions.velocity.contains(x, y) then
@@ -263,6 +263,8 @@ function GridUI.key(x, y, z)
       regions.eurorack_output:handle_key(x, y, z)
     elseif regions.osc_config:contains(x, y) then
       regions.osc_config:handle_key(x, y, z)
+    elseif regions.lane_config:contains(x, y) then
+      regions.lane_config:handle_key(x, y, z)
     end
   end
 end

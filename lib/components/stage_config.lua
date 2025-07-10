@@ -20,7 +20,7 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 77)
+        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 65)
         params:add_number("lane_" .. lane_idx .. "_config_stage", "Configure Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_config_stage", function(value)
             -- Update local config state instead of global focused stage
@@ -63,33 +63,7 @@ local function create_params()
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats", "Max Repeats", 1, 8, 3)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing", "Timing Window", {"1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8"}, 15)
 
-            -- Stage Config
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif", "Reset Motif", {"Yes", "No"}, 1)
-            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif", function(value)
-                if _seeker.lanes[lane_idx] then
-                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
-                end
-            end)
-
-            -- Set default enabled state: stage 1 enabled, stages 2-4 disabled
-            local default_enabled = 2  -- Default to "No" (disabled)
-            if stage_idx == 1 then
-                default_enabled = 1    -- Stage 1 defaults to "Yes" (enabled)
-            end
-            
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_enabled", "Enabled", {"Yes", "No"}, default_enabled)
-            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_enabled", function(value)
-                if _seeker.lanes[lane_idx] then
-                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
-                end
-            end)
-
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", "Mute", {"Yes", "No"}, 2)
-            params:set_action("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute", function(value)
-                if _seeker.lanes[lane_idx] then
-                    _seeker.lanes[lane_idx]:sync_stage_from_params(stage_idx)
-                end
-            end)
+            -- Transform-specific parameters only - infrastructure params handled elsewhere
         end
     end
 end

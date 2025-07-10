@@ -213,7 +213,7 @@ end
 
 local function create_params()
     -- TODO: Count the params.
-    params:add_group("eurorack_output", "EURORACK OUTPUT", 281)
+    params:add_group("eurorack_output", "EURORACK OUTPUT", 282)
     
     -- Sync all Eurorack Output clocks
     -- TODO: This only affects Euro clocks. Should eventually extend to global stuff (Lanes in particular)

@@ -25,6 +25,8 @@ local WTape = include("lib/components/w_tape")
 local StageConfig = include("lib/components/stage_config")
 local EurorackOutput = include("lib/components/eurorack_output")
 local OscConfig = include("lib/components/osc_config")
+local LaneConfig = include("lib/components/lane_config")
+local lane_infrastructure = include("lib/lane_infrastructure")
 
 -- Global state
 _seeker = {
@@ -50,6 +52,7 @@ _seeker = {
   stage_config = nil,
   eurorack_output = nil,
   osc_config = nil,
+  lane_config = nil,
 }
 
 --------------------------------------------------
@@ -64,11 +67,17 @@ function init()
     
   _seeker.ui_state = ui_state.init()
 
+  -- Initialize lane infrastructure first to provide parameters for lane.lua
+  lane_infrastructure.init()
+  
   -- Initialize components
   params:add_separator("seeker_ii_header", "seeker_ii")
   _seeker.config = Config.init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.w_tape = WTape.init()
+  -- NOTE: LaneConfig must be initialized before StageConfig to avoid race conditions
+  -- LaneConfig creates stage parameters that StageConfig references
+  _seeker.lane_config = LaneConfig.init()
   _seeker.stage_config = StageConfig.init()
   _seeker.eurorack_output = EurorackOutput.init()
   _seeker.osc_config = OscConfig.init()
