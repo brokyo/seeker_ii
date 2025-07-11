@@ -247,6 +247,10 @@ function Lane:schedule_stage(stage_index, start_time)
         local absolute_time = start_time + speed_adjusted_time
         
         if not stage.mute then
+          -- Apply stage volume to velocity
+          local stage_volume = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_volume")
+          local velocity_with_stage_volume = event.velocity * stage_volume
+          
           _seeker.conductor.insert_event({
             time = absolute_time,
             lane_id = self.id,
@@ -254,7 +258,7 @@ function Lane:schedule_stage(stage_index, start_time)
             callback = function() 
               self:on_note_on({
                 note = event.note,
-                velocity = event.velocity,
+                velocity = velocity_with_stage_volume,
                 x = event.x,
                 y = event.y,
                 is_playback = true,

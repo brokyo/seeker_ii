@@ -36,6 +36,9 @@ local function create_params()
                 _seeker.screen_ui.set_needs_redraw()
             end)
 
+            -- Stage Volume Param
+            params:add_control("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", "Stage Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
+
             -- Overdub Filter Params
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_mode", "Filter Mode", {"Up to", "Only", "Except"}, 1)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", "Filter Round", 1, 10, 1)
@@ -213,6 +216,9 @@ local function create_screen_ui()
         })
         table.insert(param_table, {
             id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"
+        })
+        table.insert(param_table, {
+            id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume"
         })
         
         -- Update the UI with the new parameter table
