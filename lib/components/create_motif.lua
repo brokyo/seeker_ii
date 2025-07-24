@@ -249,6 +249,7 @@ local function create_screen_ui()
                     local brightness = 2 + math.floor((gen / max_gen) * 10)
                     screen.level(brightness)
                     
+                    -- TODO: Visualization shows original note timing rather than quantized timing used during playback
                     -- Calculate x position based on event time relative to loop duration
                     local x_event = VIS_X + (event.time / loop_duration * VIS_WIDTH)
                   

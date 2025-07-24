@@ -76,7 +76,8 @@ function MotifSection.new()
       },
       { id = "lane_" .. lane_idx .. "_playback_offset", name = "Octave Shift" },
       { id = "lane_" .. lane_idx .. "_scale_degree_offset", name = "Scale Degree Shift" },
-      { id = "lane_" .. lane_idx .. "_speed", name = "Speed" }
+      { id = "lane_" .. lane_idx .. "_speed", name = "Speed" },
+      { id = "lane_" .. lane_idx .. "_quantize", name = "Quantize" }
     }
   end
 

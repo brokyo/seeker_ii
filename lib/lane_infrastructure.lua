@@ -60,7 +60,7 @@ end
 -- Create motif playback parameters that lane.lua uses
 -- TODO: These should be moved to @play_motif.lua when that component is refactored
 local function create_motif_playback_params(i)
-    params:add_group("lane_" .. i .. "_motif_playback", "MOTIF PLAYBACK", 2)
+    params:add_group("lane_" .. i .. "_motif_playback", "MOTIF PLAYBACK", 3)
     -- Playback octave offset
     params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
 
@@ -71,6 +71,10 @@ local function create_motif_playback_params(i)
         local speed_ratios = {0.0833, 0.0909, 0.1, 0.1111, 0.125, 0.1429, 0.1667, 0.1818, 0.25, 0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0}
         _seeker.lanes[i].speed = speed_ratios[value]
     end)
+
+    -- Quantize control
+    params:add_option("lane_" .. i .. "_quantize", "Quantize",
+        {"off", "1/32", "1/16", "1/8", "1/4", "1/2", "1"}, 3)
 end
 
 -- Create basic lane parameters that lane.lua needs

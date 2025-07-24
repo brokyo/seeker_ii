@@ -9,6 +9,14 @@ local musicutil = require('musicutil')
 local Lane = {}
 Lane.__index = Lane
 
+-- Quantization helper function
+local function quantize_to_interval(time, interval_beats)
+  if interval_beats <= 0 then
+    return time -- No quantization
+  end
+  return math.floor(time / interval_beats + 0.5) * interval_beats
+end
+
   -- Helper for trail keys
   local function trail_key(x, y)
     return string.format("%d,%d", x, y)
@@ -236,6 +244,11 @@ function Lane:schedule_stage(stage_index, start_time)
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
   
+  -- Get quantization settings
+  local quantize_option = params:get("lane_" .. self.id .. "_quantize")
+  local quantize_values = {0, 1/32, 1/16, 1/8, 1/4, 1/2, 1} -- off, 1/32, 1/16, 1/8, 1/4, 1/2, 1
+  local quantize_interval = quantize_values[quantize_option]
+  
   -- Process all events in the motif
   for i, event in ipairs(self.motif.events) do
     local event_time = event.time
@@ -244,6 +257,12 @@ function Lane:schedule_stage(stage_index, start_time)
       -- Only start notes that fall within the duration window
       if event_time <= base_duration then
         local speed_adjusted_time = event_time / self.speed
+        
+        -- Apply quantization to note_on events only (before transforms are applied)
+        if quantize_interval > 0 then
+          speed_adjusted_time = quantize_to_interval(speed_adjusted_time, quantize_interval)
+        end
+        
         local absolute_time = start_time + speed_adjusted_time
         
         if not stage.mute then
