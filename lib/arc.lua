@@ -70,25 +70,39 @@ function Arc.init()
       device:refresh()
     end
 
-    -- Helper function to modify float parameter by component (integer, tenth, hundredth)
-    device.modify_float_component = function(param, component, direction)
-      local current_value = params:get(param.id)
-      local param_info = params:lookup_param(param.id)
-      local min_val = param_info.controlspec.minval
-      local max_val = param_info.controlspec.maxval
-      
-      local delta = 0
-      if component == "integer" then
-        delta = direction * 1.0
-      elseif component == "tenth" then
-        delta = direction * 0.1
-      elseif component == "hundredth" then
-        delta = direction * 0.01
-      end
-      
-      local new_value = current_value + delta
-      new_value = math.max(min_val, math.min(max_val, new_value))
-      params:set(param.id, new_value)
+    -- Helper function to get step sizes for a parameter
+    local function get_param_step_sizes(param)
+        if param.step_sizes then
+            return param.step_sizes
+        end
+        -- Default step sizes if not specified
+        return {
+            integer = 1.0,
+            tenth = 0.1,
+            hundredth = 0.01
+        }
+    end
+
+    -- Helper function to modify parameter value based on encoder step sizes
+    device.modify_float_component = function(param, component_idx, direction)
+        if not param.arc_multi_float then
+            error("arc_multi_float must be defined with step sizes per encoder")
+        end
+        
+        local current_value = params:get(param.id)
+        local param_obj = params:lookup_param(param.id)
+        -- Array indices 1,2,3 correspond to encoders 2,3,4
+        local delta = direction * param.arc_multi_float[component_idx - 1]
+        local new_value = current_value + delta
+        
+        -- Handle parameter range limits
+        if param_obj.controlspec then
+            new_value = math.max(param_obj.controlspec.minval, math.min(param_obj.controlspec.maxval, new_value))
+        elseif param_obj.min and param_obj.max then
+            new_value = math.max(param_obj.min, math.min(param_obj.max, new_value))
+        end
+        
+        params:set(param.id, new_value)
     end
 
     -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
@@ -138,13 +152,13 @@ function Arc.init()
         elseif is_multi_float and selected_param.id then
           if n == 2 then
             -- Encoder 2: Integer component
-            device.modify_float_component(selected_param, "integer", direction)
+            device.modify_float_component(selected_param, 2, direction)
           elseif n == 3 then
             -- Encoder 3: Tenth component
-            device.modify_float_component(selected_param, "tenth", direction)
+            device.modify_float_component(selected_param, 3, direction)
           elseif n == 4 then
             -- Encoder 4: Hundredth component
-            device.modify_float_component(selected_param, "hundredth", direction)
+            device.modify_float_component(selected_param, 4, direction)
           end
           
           -- Update display and UI once for any multi-encoder change
@@ -259,7 +273,7 @@ function Arc.init()
       device:refresh()
     end
 
-    -- Helper function for displaying a value's position within a range on the LED ring
+    -- Helper function to display a value's position within a range on the LED ring
     local function update_option_ring(current_pos, total_positions)
       -- Translate position to LED index
       local led_starting_point = math.floor((current_pos * 64) / total_positions)
@@ -403,46 +417,50 @@ function Arc.init()
     
     -- Helper function for displaying multi-encoder float values
     local function update_multi_float_rings(param_id)
-      local current_value = params:get(param_id)
-      
-      -- Extract integer, tenth, and hundredth components
-      local integer_part = math.floor(math.abs(current_value))
-      local decimal_part = math.abs(current_value) - integer_part
-      local tenth_part = math.floor(decimal_part * 10)
-      local hundredth_part = math.floor((decimal_part * 100) % 10)
-      
-      -- Clear all rings first
-      for ring = 2, 4 do
-        for i = 1, 64 do
-          device:led(ring, i, 1) -- Dim base illumination
+        local current_value = params:get(param_id)
+        local current_section_id = _seeker.ui_state.get_current_section()
+        local current_section = _seeker.screen_ui.sections[current_section_id]
+        local param = current_section.params[current_section.state.selected_index]
+        local step_sizes = get_param_step_sizes(param)
+        
+        -- Clear all rings first
+        for ring = 2, 4 do
+            for i = 1, 64 do
+                device:led(ring, i, 1) -- Dim base illumination
+            end
         end
-      end
-      
-      -- Ring 2: Integer component (0-9, wrapping)
-      local integer_leds = math.floor(64 / 10)
-      local integer_start = (integer_part % 10) * integer_leds + 1
-      for i = 0, integer_leds - 1 do
-        device:led(2, integer_start + i, 10)
-      end
-      
-      -- Ring 3: Tenth component (0-9)
-      local tenth_leds = math.floor(64 / 10)
-      local tenth_start = tenth_part * tenth_leds + 1
-      for i = 0, tenth_leds - 1 do
-        device:led(3, tenth_start + i, 10)
-      end
-      
-      -- Ring 4: Hundredth component (0-9)
-      local hundredth_leds = math.floor(64 / 10)
-      local hundredth_start = hundredth_part * hundredth_leds + 1
-      for i = 0, hundredth_leds - 1 do
-        device:led(4, hundredth_start + i, 10)
-      end
-      
-      -- Add sign indicator on ring 2 if negative
-      if current_value < 0 then
-        device:led(2, 32, 15) -- Bright LED at bottom to indicate negative
-      end
+        
+        -- Calculate display values based on step sizes
+        local value = math.abs(current_value)
+        local thousands = math.floor(value / 1000)
+        local hundreds = math.floor((value % 1000) / 100)
+        local tens = math.floor((value % 100) / 10)
+        
+        -- Ring 2: Thousands (0-20 for frequency)
+        local thousand_leds = math.floor(64 / 20)
+        local thousand_start = (thousands % 20) * thousand_leds + 1
+        for i = 0, thousand_leds - 1 do
+            device:led(2, thousand_start + i, 10)
+        end
+        
+        -- Ring 3: Hundreds (0-9)
+        local hundred_leds = math.floor(64 / 10)
+        local hundred_start = hundreds * hundred_leds + 1
+        for i = 0, hundred_leds - 1 do
+            device:led(3, hundred_start + i, 10)
+        end
+        
+        -- Ring 4: Tens (0-9)
+        local ten_leds = math.floor(64 / 10)
+        local ten_start = tens * ten_leds + 1
+        for i = 0, ten_leds - 1 do
+            device:led(4, ten_start + i, 10)
+        end
+        
+        -- Add sign indicator on ring 2 if negative
+        if current_value < 0 then
+            device:led(2, 32, 15) -- Bright LED at bottom to indicate negative
+        end
     end
 
     device.update_param_value_display = function()

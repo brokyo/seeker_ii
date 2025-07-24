@@ -37,22 +37,26 @@ local function create_mx_samples_params(i)
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- ADSR envelope controls
-    params:add_control("lane_" .. i .. "_attack", "Attack", controlspec.new(0, 10, 'lin', 0.1, 0, "s"))
+    params:add_control("lane_" .. i .. "_attack", "Attack", controlspec.new(0, 10, 'lin', 0.01, 0, "s"), 
+        function(param) return string.format("%.2f s", param:get()) end)
     params:set_action("lane_" .. i .. "_attack", function(value)
         _seeker.lanes[i].attack = value
     end)
 
-    params:add_control("lane_" .. i .. "_decay", "Decay", controlspec.new(0, 10, 'lin', 0.1, 1, "s"))
+    params:add_control("lane_" .. i .. "_decay", "Decay", controlspec.new(0, 10, 'lin', 0.01, 1, "s"),
+        function(param) return string.format("%.2f s", param:get()) end)
     params:set_action("lane_" .. i .. "_decay", function(value)
         _seeker.lanes[i].decay = value
     end)
 
-    params:add_control("lane_" .. i .. "_sustain", "Sustain", controlspec.new(0, 2, 'lin', 0.1, 0.9, "amp"))
+    params:add_control("lane_" .. i .. "_sustain", "Sustain", controlspec.new(0, 2, 'lin', 0.01, 0.9, "amp"),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_sustain", function(value)
         _seeker.lanes[i].sustain = value
     end)
 
-    params:add_control("lane_" .. i .. "_release", "Release", controlspec.new(0, 10, 'lin', 0.1, 2, "s"))
+    params:add_control("lane_" .. i .. "_release", "Release", controlspec.new(0, 10, 'lin', 0.01, 2, "s"),
+        function(param) return string.format("%.2f s", param:get()) end)
     params:set_action("lane_" .. i .. "_release", function(value)
         _seeker.lanes[i].release = value
     end)
@@ -204,27 +208,32 @@ local function create_wsyn_params(i)
         end
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_curve", "Curve", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
+    params:add_control("lane_" .. i .. "_wsyn_curve", "Curve", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_curve", function(value)
         crow.ii.wsyn.curve(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_ramp", "Ramp", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
+    params:add_control("lane_" .. i .. "_wsyn_ramp", "Ramp", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_ramp", function(value)
         crow.ii.wsyn.ramp(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_index", "FM Index", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
+    params:add_control("lane_" .. i .. "_wsyn_fm_index", "FM Index", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_fm_index", function(value)
         crow.ii.wsyn.fm_index(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_env", "FM Env", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
+    params:add_control("lane_" .. i .. "_wsyn_fm_env", "FM Env", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_fm_env", function(value)
         crow.ii.wsyn.fm_env(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_ratio_num", "FM Ratio Numerator", controlspec.new(0.01, 1, 'lin', 0.01, 0.5))
+    params:add_control("lane_" .. i .. "_wsyn_fm_ratio_num", "FM Ratio Numerator", controlspec.new(0.01, 1, 'lin', 0.001, 0.5),
+        function(param) return string.format("%.3f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_fm_ratio_num", function(numerator)
         if _seeker.lanes[i] then
             local denominator = params:get("lane_" .. i .. "_wsyn_fm_ratio_denom")
@@ -232,7 +241,8 @@ local function create_wsyn_params(i)
         end
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_fm_ratio_denom", "FM Ratio Denominator", controlspec.new(0.01, 1, 'lin', 0.01, 0.5))
+    params:add_control("lane_" .. i .. "_wsyn_fm_ratio_denom", "FM Ratio Denominator", controlspec.new(0.01, 1, 'lin', 0.001, 0.5),
+        function(param) return string.format("%.3f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_fm_ratio_denom", function(denominator)
         if _seeker.lanes[i] then
             local numerator = params:get("lane_" .. i .. "_wsyn_fm_ratio_num") 
@@ -240,12 +250,14 @@ local function create_wsyn_params(i)
         end
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_lpg_time", "LPG Time", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
+    params:add_control("lane_" .. i .. "_wsyn_lpg_time", "LPG Time", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_lpg_time", function(value)
         crow.ii.wsyn.lpg_time(value)
     end)
 
-    params:add_control("lane_" .. i .. "_wsyn_lpg_symmetry", "LPG Symmetry", controlspec.new(-5, 5, 'lin', 0.1, 0, ""))
+    params:add_control("lane_" .. i .. "_wsyn_lpg_symmetry", "LPG Symmetry", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),
+        function(param) return string.format("%.2f", param:get()) end)
     params:set_action("lane_" .. i .. "_wsyn_lpg_symmetry", function(value)
         crow.ii.wsyn.lpg_symmetry(value)
     end)
@@ -633,14 +645,20 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
                 table.insert(param_table, { separator = true, title = "Individual Event" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.5, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { separator = true, title = "Lane Effects" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_lpf" })
+                table.insert(param_table, { 
+                    id = "lane_" .. lane_idx .. "_lpf", 
+                    arc_multi_float = {1000, 100, 10}
+                })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_resonance" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_hpf" })
+                table.insert(param_table, { 
+                    id = "lane_" .. lane_idx .. "_hpf", 
+                    arc_multi_float = {1000, 100, 10}
+                })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_delay_send" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send" })
             end
@@ -680,17 +698,17 @@ local function create_screen_ui()
             
             -- Only show additional w/syn params if active
             if params:get("lane_" .. lane_idx .. "_wsyn_active") == 1 then
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_select" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_curve" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ramp" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_index" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_env" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_num" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_denom" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_time" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_symmetry" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_curve", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ramp", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_index", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_env", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_num", arc_multi_float = {0.1, 0.01, 0.001} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_denom", arc_multi_float = {0.1, 0.01, 0.001} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_time", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_symmetry", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { separator = true, title = "CV Patching" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_this" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_that" })
