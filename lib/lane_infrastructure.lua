@@ -9,38 +9,33 @@ local function create_stage_params(i)
     -- Separate repository for transforms. Makes maintenance easier and keeps boundaries clear.
     local transforms = include('lib/transforms')
     
-    params:add_group("lane_" .. i .. "_stage", "STAGE CONFIG", 24)
+    params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 20)
     -- Create four stages per lane with their defaults
     -- NB: Many of these params are not (yet?) available on the front end. Most notably: loop count and trigger
-    for j = 1, 4 do
-        params:add_number("lane_" .. i .. "_stage_" .. j .. "_loops", "Loops", 1, 10, 2)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_loops", function(value)
-            _seeker.lanes[i]:sync_stage_from_params(j)
+    for stage_idx = 1, 4 do
+        params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", "Loops", 1, 10, 2)
+        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", function(value)
+            _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        -- By default stage 1 enabled and stages 2-4 are disabled
-        local default_enabled = 2
-        if j == 1 then
-            default_enabled = 1
+        -- By default stage 1 is active and stages 2-4 are not
+        local default_active = 1
+        if stage_idx == 1 then
+            default_active = 2
         end
         
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_enabled", "Enabled", {"Yes", "No"}, default_enabled)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_enabled", function(value)
-            _seeker.lanes[i]:sync_stage_from_params(j)
+        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, default_active)
+        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_active", function(value)
+            _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_mute", "Mute", {"Yes", "No"}, 2)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_mute", function(value)
-            _seeker.lanes[i]:sync_stage_from_params(j)
-        end)
-        
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_reset_motif", "Reset Motif", {"Yes", "No"}, 1)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_reset_motif", function(value)
-            _seeker.lanes[i]:sync_stage_from_params(j)
+        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_reset_motif", "Reset Motif", {"No", "Yes"}, 2)
+        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_reset_motif", function(value)
+            _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
         -- Loop trigger parameters
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_loop_trigger", "Loop Trigger", 
+        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_loop_trigger", "Loop Trigger", 
             {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"}, 1)
 
         -- Transform selection for lane.lua
@@ -50,9 +45,9 @@ local function create_stage_params(i)
         end
         table.sort(transform_names)
 
-        params:add_option("lane_" .. i .. "_stage_" .. j .. "_transform", "Transform", transform_names, #transform_names)
-        params:set_action("lane_" .. i .. "_stage_" .. j .. "_transform", function(value)
-            _seeker.lanes[i]:change_stage_transform(i, j, transform_names[value])
+        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_transform", "Transform", transform_names, #transform_names)
+        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_transform", function(value)
+            _seeker.lanes[i]:change_stage_transform(i, stage_idx, transform_names[value])
         end)
     end
 end
@@ -80,7 +75,7 @@ end
 -- Create basic lane parameters that lane.lua needs
 local function create_basic_lane_params(i)
     -- Core lane parameters
-    params:add_group("lane_" .. i, "INFRASTRUCTURE", 5)
+    params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 4)
     
     -- Per-Lane keyboard tuning
     params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
@@ -95,9 +90,6 @@ local function create_basic_lane_params(i)
     -- Scale degree offset for in-scale transposition (used by lane.lua)
     params:add_number("lane_" .. i .. "_scale_degree_offset", "Scale Degree Offset", -7, 7, 0)
     
-    -- Loop start trigger for lane sequencing
-    params:add_option("lane_" .. i .. "_loop_start_trigger", "Loop Start Trigger", 
-        {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"}, 1)
 end
 
 -- Initialize all lane infrastructure parameters
@@ -108,8 +100,8 @@ function lane_infrastructure.init()
     -- NB: Ideally we would also want to create the params in @stage_config and @lane_config here so they stay grouped in the PARAMS UI. Long list thing.
     for i = 1, 8 do
         params:add_separator("lane_" .. i .. "_separator", "LANE " .. i)
-        create_basic_lane_params(i)
         create_stage_params(i)
+        create_basic_lane_params(i)
         create_motif_playback_params(i)
     end
     

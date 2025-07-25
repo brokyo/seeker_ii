@@ -950,8 +950,7 @@ end
 ---------------------------------------------------------
 function Lane:sync_stage_from_params(stage_index)
     local stage = self.stages[stage_index]
-    stage.enabled = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_enabled") == 1
-    stage.mute = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_mute") == 1
+    stage.active = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_active") == 1
     stage.reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_reset_motif") == 1
     stage.loops = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loops")
 end

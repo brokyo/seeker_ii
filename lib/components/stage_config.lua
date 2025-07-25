@@ -20,8 +20,8 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 65)
-        params:add_number("lane_" .. lane_idx .. "_config_stage", "Configure Stage", 1, 4, 1)
+        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 69)
+        params:add_number("lane_" .. lane_idx .. "_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_config_stage", function(value)
             -- Update local config state instead of global focused stage
             config_state.config_stage = value
@@ -30,7 +30,7 @@ local function create_params()
         end)
 
         for stage_idx = 1, 4 do
-            params:add_option("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, "Transform Type", transform_types, 1)
+            params:add_option("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, "Transform", transform_types, 1)
             params:set_action("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, function(value)
                 _seeker.stage_config.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
@@ -66,7 +66,7 @@ local function create_params()
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats", "Max Repeats", 1, 8, 3)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing", "Timing Window", {"1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8"}, 15)
 
-            -- Transform-specific parameters only - infrastructure params handled elsewhere
+            -- Transform-specific parameters only - infrastructure params handled in @lane_infrastructure
         end
     end
 end
@@ -118,6 +118,8 @@ local function create_screen_ui()
         local param_table = {
             { separator = true, title = "Stage " .. stage_idx .. " Config" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
         }
@@ -208,18 +210,6 @@ local function create_screen_ui()
         elseif transform_type == "Reverse" then
 
         end
-        
-        -- Add mute option at the end, after all dynamic transform params
-        table.insert(param_table, { separator = true, title = "Stage Config" })
-        table.insert(param_table, {
-            id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_enabled"
-        })
-        table.insert(param_table, {
-            id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_mute"
-        })
-        table.insert(param_table, {
-            id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume"
-        })
         
         -- Update the UI with the new parameter table
         self.params = param_table
