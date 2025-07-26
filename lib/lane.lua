@@ -41,7 +41,7 @@ function Lane.new(config)
   lane.stages = config.stages or {
     {
       id = 1,
-      enabled = true,
+      active = true,
       mute = false,
       reset_motif = true,
       loops = 2,
@@ -62,7 +62,7 @@ function Lane.new(config)
     },
     {
       id = 2,
-      enabled = false,
+      active = false,
       mute = false,
       reset_motif = false,
       loops = 2,
@@ -83,7 +83,7 @@ function Lane.new(config)
     },
     {
       id = 3,
-      enabled = false,
+      active = false,
       mute = false,
       reset_motif = false,
       loops = 2,
@@ -104,7 +104,7 @@ function Lane.new(config)
     },
     {
       id = 4,
-      enabled = false,
+      active = false,
       mute = false,
       reset_motif = false,
       loops = 2,
@@ -422,30 +422,30 @@ function Lane:on_motif_end(stage_index, end_time)
     return
   end
 
-  -- Find the next enabled stage
+  -- Find the next active stage
   local next_index = stage_index + 1
   local stages_checked = 0
   
-  -- Keep looking for the next enabled stage, wrapping around if needed
+  -- Keep looking for the next active stage, wrapping around if needed
   while stages_checked < #self.stages do
     -- Wrap around to first stage if we've gone past the last stage
     if next_index > #self.stages then
       next_index = 1
     end
     
-    -- Check if this stage is enabled
-    if self.stages[next_index].enabled then
+    -- Check if this stage is active
+    if self.stages[next_index].active then
       break
     end
     
-    -- This stage is disabled, try the next one
+    -- This stage is inactive, try the next one
     next_index = next_index + 1
     stages_checked = stages_checked + 1
   end
   
-  -- If no enabled stages found, stop playback
+  -- If no active stages found, stop playback
   if stages_checked >= #self.stages then
-    print(string.format('⚠ No enabled stages found for L_%d, stopping playback', self.id))
+    print(string.format('⚠ No active stages found for L_%d, stopping playback', self.id))
     self:stop()
     return
   end
@@ -950,7 +950,7 @@ end
 ---------------------------------------------------------
 function Lane:sync_stage_from_params(stage_index)
     local stage = self.stages[stage_index]
-    stage.active = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_active") == 1
+    stage.active = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_active") == 2
     stage.reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_reset_motif") == 1
     stage.loops = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loops")
 end
