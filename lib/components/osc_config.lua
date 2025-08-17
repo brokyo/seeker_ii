@@ -14,14 +14,13 @@ local active_trigger_clocks = {}
 -- Track active LFO sync clocks for pulse mode
 local active_lfo_sync_clocks = {}
 
--- Track binary trigger states (true = high, false = low)
-local binary_trigger_states = {false, false, false, false}
+
 
 -- Configuration constants (same as eurorack_output.lua)
 local sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
 
 local function create_params()
-    params:add_group("osc_config", "OSC CONFIG", 46)
+    params:add_group("osc_config", "OSC CONFIG", 50)
     
     -- Sync all OSC clocks and lanes
     params:add_binary("osc_sync_all_clocks", "Synchronize All", "trigger", 0)
@@ -42,10 +41,7 @@ local function create_params()
                 end
             end
             
-            -- Reset binary trigger states
-            for i = 1, 4 do
-                binary_trigger_states[i] = false
-            end
+
             
             -- Sync to next whole beat
             local current_beat = math.floor(clock.get_beats())
@@ -118,8 +114,6 @@ local function create_params()
         
         params:add_option("osc_trigger_" .. i .. "_type", "Trigger " .. i .. " Type", {"Min/Max", "Random"}, 1)
         params:set_action("osc_trigger_" .. i .. "_type", function(value)
-            -- Reset binary state when switching types
-            binary_trigger_states[i] = false
             -- Restart trigger if it's running
             if active_trigger_clocks["trigger_" .. i] then
                 update_trigger_clock(i)
@@ -129,6 +123,15 @@ local function create_params()
         -- Min/Max parameters (used by both Random and Binary types)
         params:add_number("osc_trigger_" .. i .. "_min", "Trigger " .. i .. " Min", 0, 100, 0)
         params:add_number("osc_trigger_" .. i .. "_max", "Trigger " .. i .. " Max", 0, 100, 100)
+        
+        -- Add duty cycle parameter (percentage of interval that trigger stays high)
+        params:add_number("osc_trigger_" .. i .. "_duty", "Gate Length %", 1, 99, 50)
+        params:set_action("osc_trigger_" .. i .. "_duty", function(value)
+            -- Restart trigger if it's running to apply new duty cycle
+            if active_trigger_clocks["trigger_" .. i] then
+                update_trigger_clock(i)
+            end
+        end)
     end
 end
 
@@ -242,36 +245,16 @@ function send_float_value(index, value)
     return value
 end
 
--- Send trigger pulse
-function send_trigger_pulse(trigger_index)
-    local trigger_type = params:string("osc_trigger_" .. trigger_index .. "_type")
-    local trigger_value
-    
-    if trigger_type == "Min/Max" then
-        local low_val = params:get("osc_trigger_" .. trigger_index .. "_min")
-        local high_val = params:get("osc_trigger_" .. trigger_index .. "_max")
-        
-        -- Toggle state
-        binary_trigger_states[trigger_index] = not binary_trigger_states[trigger_index]
-        
-        -- Send appropriate value
-        if binary_trigger_states[trigger_index] then
-            trigger_value = high_val
-        else
-            trigger_value = low_val
-        end
-    elseif trigger_type == "Random" then
-        -- Random mode: generate random value between min and max
-        local min_val = params:get("osc_trigger_" .. trigger_index .. "_min")
-        local max_val = params:get("osc_trigger_" .. trigger_index .. "_max")
-        trigger_value = min_val + math.random() * (max_val - min_val)
-    end
-    
+-- Send trigger pulse with explicit value
+function send_trigger_pulse(trigger_index, value)
     local path = "/trigger/" .. trigger_index
-    local success = send_osc_message(path, {trigger_value})
+    local success = send_osc_message(path, {value})
     if success then
-        local mode_str = trigger_type == "Min/Max" and (binary_trigger_states[trigger_index] and "MAX" or "MIN") or "Random"
-        print("Trigger " .. trigger_index .. " (" .. mode_str .. ") pulse sent: " .. string.format("%.2f", trigger_value))
+        -- Determine if this is MAX or MIN for logging
+        local max_val = params:get("osc_trigger_" .. trigger_index .. "_max")
+        local min_val = params:get("osc_trigger_" .. trigger_index .. "_min")
+        local mode_str = (value == max_val) and "MAX" or (value == min_val) and "MIN" or "Value"
+        print("Trigger " .. trigger_index .. " (" .. mode_str .. ") sent: " .. string.format("%.2f", value))
     end
     return success
 end
@@ -299,10 +282,38 @@ function update_trigger_clock(trigger_index)
         clock.sync(beats)
         
         while true do
-            -- Send trigger pulse
-            send_trigger_pulse(trigger_index)
+            local trigger_type = params:string("osc_trigger_" .. trigger_index .. "_type")
+            local min_val = params:get("osc_trigger_" .. trigger_index .. "_min")
+            local max_val = params:get("osc_trigger_" .. trigger_index .. "_max")
             
-            -- Wait for next interval
+            if trigger_type == "Min/Max" then
+                -- Calculate high time based on duty cycle
+                local duty_cycle = params:get("osc_trigger_" .. trigger_index .. "_duty") / 100
+                local high_beats = beats * duty_cycle
+                
+                -- Send high trigger pulse (MAX value)
+                send_trigger_pulse(trigger_index, max_val)
+                
+                -- Wait for duty cycle portion
+                clock.sleep(high_beats * clock.get_beat_sec())
+                
+                -- Send low trigger pulse (MIN value)
+                send_trigger_pulse(trigger_index, min_val)
+                
+                -- Wait for remaining time in interval
+                local remaining_beats = beats - high_beats
+                clock.sleep(remaining_beats * clock.get_beat_sec())
+                
+            elseif trigger_type == "Random" then
+                -- Send random value between min and max
+                local random_value = min_val + math.random() * (max_val - min_val)
+                send_trigger_pulse(trigger_index, random_value)
+                
+                -- Wait for full interval
+                clock.sleep(beats * clock.get_beat_sec())
+            end
+            
+            -- Sync to next interval
             clock.sync(beats)
         end
     end
@@ -341,20 +352,24 @@ local function create_screen_ui()
             { separator = true, title = "Clocks" },
             { id = "osc_trigger_1_sync" },
             { id = "osc_trigger_1_type" },
-            { id = "osc_trigger_1_min" },
-            { id = "osc_trigger_1_max" },
+            { id = "osc_trigger_1_min", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_1_max", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_1_duty" },
             { id = "osc_trigger_2_sync" },
             { id = "osc_trigger_2_type" },
-            { id = "osc_trigger_2_min" },
-            { id = "osc_trigger_2_max" },
+            { id = "osc_trigger_2_min", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_2_max", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_2_duty" },
             { id = "osc_trigger_3_sync" },
             { id = "osc_trigger_3_type" },
-            { id = "osc_trigger_3_min" },
-            { id = "osc_trigger_3_max" },
+            { id = "osc_trigger_3_min", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_3_max", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_3_duty" },
             { id = "osc_trigger_4_sync" },
             { id = "osc_trigger_4_type" },
-            { id = "osc_trigger_4_min" },
-            { id = "osc_trigger_4_max" },
+            { id = "osc_trigger_4_min", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_4_max", arc_multi_float = {1.0, 0.1, 0.01} },
+            { id = "osc_trigger_4_duty" },
             { separator = true, title = "OSC Send Config" },
             { id = "osc_dest_octet_1" },
             { id = "osc_dest_octet_2" },

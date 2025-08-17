@@ -71,7 +71,7 @@ local function tap_tempo()
 end
 
 local function create_params()
-    params:add_group("config", "CONFIG", 10)
+    params:add_group("config", "CONFIG", 12)
     
     -- Global Tuning
     params:add_option("tuning_preset", "Preset", 
@@ -116,6 +116,17 @@ local function create_params()
     params:set_action("scale_type", function(value)
         -- Set tuning preset to custom when manually changing scale
         params:set("tuning_preset", 1, true)
+        theory.print_keyboard_layout()
+    end)
+    
+    -- Keyboard Layout
+    params:add_number("keyboard_column_steps", "Column Spacing", 1, 8, 1)
+    params:set_action("keyboard_column_steps", function(value)
+        theory.print_keyboard_layout()
+    end)
+    
+    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 2)
+    params:set_action("keyboard_row_steps", function(value)
         theory.print_keyboard_layout()
     end)
     
@@ -170,6 +181,8 @@ local function create_screen_ui()
             { id = "tuning_preset" },
             { id = "root_note" },
             { id = "scale_type" },
+            { id = "keyboard_column_steps" },
+            { id = "keyboard_row_steps" },
             { separator = true, title = "Clock" },
             { id = "seeker_clock_tempo" },
             { id = "tap_tempo", is_action = true },
