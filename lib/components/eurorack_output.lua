@@ -23,6 +23,9 @@ local envelope_states = {}
 -- Store pattern states globally for rhythmic patterns
 local pattern_states = {}
 
+-- Store random walk states globally
+local random_walk_states = {}
+
 -- Store knob recording state for each output locally to this component
 local recording_states = {}
 
@@ -82,6 +85,22 @@ for i = 1, 4 do
     envelope_states[i] = {
         active = false,
         clock = nil
+    }
+end
+
+-- Initialize Random Walk states for all 4 crow outputs
+for i = 1, 4 do
+    random_walk_states[i] = {
+        current_value = 0,
+        initialized = false
+    }
+end
+
+-- Initialize Random Walk states for all 4 TXO CV outputs
+for i = 1, 4 do
+    random_walk_states["txo_cv_" .. i] = {
+        current_value = 0,
+        initialized = false
     }
 end
 
@@ -213,7 +232,7 @@ end
 
 local function create_params()
     -- TODO: Count the params.
-    params:add_group("eurorack_output", "EURORACK OUTPUT", 282)
+    params:add_group("eurorack_output", "EURORACK OUTPUT", 322)
     
     -- Sync all Eurorack Output clocks
     -- TODO: This only affects Euro clocks. Should eventually extend to global stuff (Lanes in particular)
@@ -286,7 +305,7 @@ local function create_params()
             EurorackOutput.update_crow(i)
         end)
         
-        params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Envelope", "Knob Recorder", "Looped Random", "Clocked Random"}, 1)
+        params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Envelope", "Knob Recorder", "Looped Random", "Clocked Random", "Random Walk"}, 1)
         params:set_action("crow_" .. i .. "_type", function(value)
             EurorackOutput.update_crow(i)
             _seeker.eurorack_output.screen:rebuild_params()
@@ -483,6 +502,44 @@ local function create_params()
         params:set_action("crow_" .. i .. "_envelope_shape", function(value)
             EurorackOutput.update_crow(i)
         end)
+        
+        -- Random Walk parameters
+        params:add_option("crow_" .. i .. "_random_walk_mode", "Mode", {"Jump", "Accumulate"}, 2)
+        params:set_action("crow_" .. i .. "_random_walk_mode", function(value)
+            EurorackOutput.update_crow(i)
+            _seeker.eurorack_output.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+        
+        params:add_control("crow_" .. i .. "_random_walk_slew", "Slew", controlspec.new(0, 100, 'lin', 1, 50), function(param) return params:get(param.id) .. "%" end)
+        params:set_action("crow_" .. i .. "_random_walk_slew", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_option("crow_" .. i .. "_random_walk_shape", "Shape", shape_options, 2)
+        params:set_action("crow_" .. i .. "_random_walk_shape", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_control("crow_" .. i .. "_random_walk_min", "Min", controlspec.new(-10, 10, 'lin', 0.01, -5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_random_walk_min", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_control("crow_" .. i .. "_random_walk_max", "Max", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_random_walk_max", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_control("crow_" .. i .. "_random_walk_step_size", "Step Size", controlspec.new(0.01, 5, 'lin', 0.01, 0.5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_random_walk_step_size", function(value)
+            EurorackOutput.update_crow(i)
+        end)
+        
+        params:add_control("crow_" .. i .. "_random_walk_offset", "Offset", controlspec.new(-10, 10, 'lin', 0.01, 0), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_random_walk_offset", function(value)
+            EurorackOutput.update_crow(i)
+        end)
     end
 
     -- TXO TR configuration
@@ -570,7 +627,7 @@ local function create_params()
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Stepped Random"}, 1)
+        params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Random Walk"}, 1)
         params:set_action("txo_cv_" .. i .. "_type", function(value)
             EurorackOutput.update_txo_cv(i)
             _seeker.eurorack_output.screen:rebuild_params()
@@ -607,14 +664,36 @@ local function create_params()
             EurorackOutput.update_txo_cv(i)
         end)
         
-        -- Stepped Random parameters
-        params:add_control("txo_cv_" .. i .. "_random_min", "Min Value", controlspec.new(-10, 10, 'lin', 0.01, -5))
-        params:set_action("txo_cv_" .. i .. "_random_min", function(value)
+        -- Random Walk parameters
+        params:add_option("txo_cv_" .. i .. "_random_walk_mode", "Mode", {"Jump", "Accumulate"}, 2)
+        params:set_action("txo_cv_" .. i .. "_random_walk_mode", function(value)
+            EurorackOutput.update_txo_cv(i)
+            _seeker.eurorack_output.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+        
+        params:add_control("txo_cv_" .. i .. "_random_walk_slew", "Slew", controlspec.new(0, 100, 'lin', 1, 50), function(param) return params:get(param.id) .. "%" end)
+        params:set_action("txo_cv_" .. i .. "_random_walk_slew", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
         
-        params:add_control("txo_cv_" .. i .. "_random_max", "Max Value", controlspec.new(-10, 10, 'lin', 0.01, 5))
-        params:set_action("txo_cv_" .. i .. "_random_max", function(value)
+        params:add_control("txo_cv_" .. i .. "_random_walk_min", "Min", controlspec.new(-10, 10, 'lin', 0.01, -5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("txo_cv_" .. i .. "_random_walk_min", function(value)
+            EurorackOutput.update_txo_cv(i)
+        end)
+        
+        params:add_control("txo_cv_" .. i .. "_random_walk_max", "Max", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("txo_cv_" .. i .. "_random_walk_max", function(value)
+            EurorackOutput.update_txo_cv(i)
+        end)
+        
+        params:add_control("txo_cv_" .. i .. "_random_walk_step_size", "Step Size", controlspec.new(0.01, 5, 'lin', 0.01, 0.5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("txo_cv_" .. i .. "_random_walk_step_size", function(value)
+            EurorackOutput.update_txo_cv(i)
+        end)
+        
+        params:add_control("txo_cv_" .. i .. "_random_walk_offset", "Offset", controlspec.new(-10, 10, 'lin', 0.01, 0), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("txo_cv_" .. i .. "_random_walk_offset", function(value)
             EurorackOutput.update_txo_cv(i)
         end)
         
@@ -740,6 +819,19 @@ local function create_screen_ui()
                 
                 table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_release" })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
+            elseif type == "Random Walk" then
+                table.insert(param_table, { separator = true, title = "Random Walk" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_mode" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_slew" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_shape" })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_min", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_max", arc_multi_float = {1.0, 0.1, 0.01} })
+                
+                local mode = params:string("crow_" .. output_num .. "_random_walk_mode")
+                if mode == "Accumulate" then
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_step_size", arc_multi_float = {0.5, 0.1, 0.01} })
+                    table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_offset", arc_multi_float = {1.0, 0.1, 0.01} })
+                end
             end
             
         -- If the output is TXO Triggers, build the appropriate table
@@ -801,11 +893,19 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_phase" })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_rect" })
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
-            elseif type == "Stepped Random" then
-                table.insert(param_table, { separator = true, title = "Stepped Random" })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_rect" })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_min", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_max", arc_multi_float = {1.0, 0.1, 0.01} })
+            elseif type == "Random Walk" then
+                table.insert(param_table, { separator = true, title = "Random Walk" })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_mode" })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_slew" })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_min", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_max", arc_multi_float = {1.0, 0.1, 0.01} })
+                
+                local mode = params:string("txo_cv_" .. output_num .. "_random_walk_mode")
+                if mode == "Accumulate" then
+                    table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_step_size", arc_multi_float = {0.5, 0.1, 0.01} })
+                    table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_offset", arc_multi_float = {1.0, 0.1, 0.01} })
+                end
+                
                 table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
             end
         end
@@ -1007,6 +1107,9 @@ function EurorackOutput.update_crow(output_num)
         clock.cancel(active_clocks["knob_playback_" .. output_num])
         active_clocks["knob_playback_" .. output_num] = nil
     end
+    
+    -- Reset random walk state when changing types
+    random_walk_states[output_num].initialized = false
 
     -- Get clock parameters
     local type = params:string("crow_" .. output_num .. "_type")
@@ -1377,6 +1480,88 @@ function EurorackOutput.update_crow(output_num)
         
         return
     end
+
+    -- Handle Random Walk mode
+    if type == "Random Walk" then
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
+        local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
+        local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
+        
+        if not timing then
+            crow.output[output_num].volts = 0
+            return
+        end
+
+        local mode = params:string("crow_" .. output_num .. "_random_walk_mode")
+        local slew = params:get("crow_" .. output_num .. "_random_walk_slew") / 100
+        local shape = params:string("crow_" .. output_num .. "_random_walk_shape")
+        local min_value = params:get("crow_" .. output_num .. "_random_walk_min")
+        local max_value = params:get("crow_" .. output_num .. "_random_walk_max")
+        
+        -- Initialize state if needed
+        if not random_walk_states[output_num].initialized then
+            if mode == "Accumulate" then
+                local offset = params:get("crow_" .. output_num .. "_random_walk_offset")
+                random_walk_states[output_num].current_value = offset
+            else
+                -- Start at a random position for Jump mode
+                random_walk_states[output_num].current_value = min_value + math.random() * (max_value - min_value)
+            end
+            random_walk_states[output_num].initialized = true
+            crow.output[output_num].volts = random_walk_states[output_num].current_value
+        end
+        
+        -- Create clock function for random walk
+        local clock_fn = function()
+            while true do
+                local new_value
+                
+                if mode == "Jump" then
+                    -- Jump to random value within range
+                    new_value = min_value + math.random() * (max_value - min_value)
+                else
+                    -- Accumulate mode
+                    local step_size = params:get("crow_" .. output_num .. "_random_walk_step_size")
+                    local step = (math.random() - 0.5) * 2 * step_size
+                    new_value = random_walk_states[output_num].current_value + step
+                    
+                    -- Reflect at boundaries
+                    if new_value > max_value then
+                        new_value = 2 * max_value - new_value
+                    elseif new_value < min_value then
+                        new_value = 2 * min_value - new_value
+                    end
+                    
+                    -- Extra safety clamp
+                    new_value = util.clamp(new_value, min_value, max_value)
+                end
+                
+                -- Update state
+                random_walk_states[output_num].current_value = new_value
+                
+                -- Calculate slew time
+                local slew_time = timing.total_sec * slew
+                
+                -- Set up ASL transition
+                if slew_time > 0 then
+                    local asl_string = string.format("to(%f, %f, '%s')", new_value, slew_time, shape)
+                    crow.output[output_num].action = asl_string
+                    crow.output[output_num]()
+                else
+                    -- Instant change if slew is 0
+                    crow.output[output_num].volts = new_value
+                end
+                
+                -- Wait for next interval with offset
+                clock.sync(timing.beats, timing.offset)
+            end
+        end
+        
+        -- Start the clock
+        setup_clock("crow_" .. output_num, clock_fn)
+        return
+    end
 end
 
 -- Function to start/stop clock for a specific TXO TR output
@@ -1478,6 +1663,9 @@ function EurorackOutput.update_txo_cv(output_num)
         clock.cancel(active_clocks["txo_cv_" .. output_num])
         active_clocks["txo_cv_" .. output_num] = nil
     end
+    
+    -- Reset random walk state when changing types
+    random_walk_states["txo_cv_" .. output_num].initialized = false
 
     -- Get the output type
     local type = params:string("txo_cv_" .. output_num .. "_type")
@@ -1492,36 +1680,82 @@ function EurorackOutput.update_txo_cv(output_num)
         return
     end
     
-    -- Handle Stepped Random type
-    if type == "Stepped Random" then
-        local min_value = params:get("txo_cv_" .. output_num .. "_random_min")
-        local max_value = params:get("txo_cv_" .. output_num .. "_random_max")
+    -- Handle Random Walk type
+    if type == "Random Walk" then
+        local mode = params:string("txo_cv_" .. output_num .. "_random_walk_mode")
+        local slew = params:get("txo_cv_" .. output_num .. "_random_walk_slew") / 100
+        local min_value = params:get("txo_cv_" .. output_num .. "_random_walk_min")
+        local max_value = params:get("txo_cv_" .. output_num .. "_random_walk_max")
         
         -- Initialize the CV output
         crow.ii.txo.cv_init(output_num)
         
-        -- Set initial random value
-        local random_value = min_value + math.random() * (max_value - min_value)
-        crow.ii.txo.cv(output_num, random_value)
+        -- Initialize state if needed
+        local state_key = "txo_cv_" .. output_num
+        if not random_walk_states[state_key].initialized then
+            if mode == "Accumulate" then
+                local offset = params:get("txo_cv_" .. output_num .. "_random_walk_offset")
+                random_walk_states[state_key].current_value = offset
+            else
+                -- Start at a random position for Jump mode
+                random_walk_states[state_key].current_value = min_value + math.random() * (max_value - min_value)
+            end
+            random_walk_states[state_key].initialized = true
+            crow.ii.txo.cv_set(output_num, random_walk_states[state_key].current_value) -- Set initial value without slew
+        end
         
-        -- Setup clock for stepped random changes
-        local function random_step_function()
+        -- Setup clock for random walk
+        local function random_walk_function()
             while true do
-                -- Generate new random value
-                local random_value = min_value + math.random() * (max_value - min_value)
-                crow.ii.txo.cv(output_num, random_value)
+                local new_value
                 
-                -- Wait for next step with offset
+                if mode == "Jump" then
+                    -- Jump to random value within range
+                    new_value = min_value + math.random() * (max_value - min_value)
+                else
+                    -- Accumulate mode
+                    local step_size = params:get("txo_cv_" .. output_num .. "_random_walk_step_size")
+                    local step = (math.random() - 0.5) * 2 * step_size
+                    new_value = random_walk_states[state_key].current_value + step
+                    
+                    -- Reflect at boundaries
+                    if new_value > max_value then
+                        new_value = 2 * max_value - new_value
+                    elseif new_value < min_value then
+                        new_value = 2 * min_value - new_value
+                    end
+                    
+                    -- Extra safety clamp
+                    new_value = util.clamp(new_value, min_value, max_value)
+                end
+                
+                -- Update state
+                random_walk_states[state_key].current_value = new_value
+                
+                -- Calculate slew time in milliseconds
                 local interval_beats = EurorackOutput.interval_to_beats(clock_interval)
                 local modifier_value = EurorackOutput.modifier_to_value(clock_modifier)
                 local beats = interval_beats * modifier_value
+                local beat_sec = clock.get_beat_sec()
+                local total_sec = beats * beat_sec
+                local slew_ms = total_sec * slew * 1000
+                
+                -- Set slew time and target voltage
+                if slew_ms > 0 then
+                    crow.ii.txo.cv_slew(output_num, slew_ms)
+                    crow.ii.txo.cv(output_num, new_value) -- Will slew to target
+                else
+                    crow.ii.txo.cv_set(output_num, new_value) -- Instant change
+                end
+                
+                -- Wait for next step with offset
                 local offset_value = tonumber(clock_offset) or 0
                 clock.sync(beats, offset_value)
             end
         end
         
         -- Start the clock
-        active_clocks["txo_cv_" .. output_num] = clock.run(random_step_function)
+        active_clocks["txo_cv_" .. output_num] = clock.run(random_walk_function)
         return
     end
 

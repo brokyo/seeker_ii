@@ -215,7 +215,7 @@ function MotifRecorder:on_note_off(event)
 end
 
 -- Set the recording mode
--- @param mode: 1 for Tape, 2 for Overdub, 3 for Arpeggio
+-- @param mode: 1 for Tape, 2 for Overdub, 3 for Arpeggio, 4 for Trigger
 function MotifRecorder:set_recording_mode(mode)
   self.recording_mode = mode
 end
@@ -276,45 +276,126 @@ end
 -- Grid interaction: Called from GridUI.handle_record_toggle
 function MotifRecorder:stop_recording()
   if not self.is_recording then return end
-  
+
   self.is_recording = false
-  
-  -- Sort all events by time
-  table.sort(self.events, function(a, b)
-    return a.time < b.time
-  end)
-  
-  -- Calculate duration differently for arpeggio mode
-  local duration
-  if self.recording_mode == 3 then -- Arpeggio mode
-    -- Count the number of notes played
-    local note_count = 0
-    for _, event in ipairs(self.events) do
-      if event.type == "note_on" then
-        note_count = note_count + 1
-      end
-    end
-    
-    -- Calculate duration to maintain consistent interval spacing on loop
-    local interval_str = params:string("arpeggio_interval")
-    local interval = self:_interval_to_beats(interval_str)
-    duration = (note_count + self.arpeggio_rest_count) * interval
+
+  local recorded_data
+  if self.recording_mode == 1 then -- Tape mode
+    recorded_data = self:_stop_tape_recording()
+  elseif self.recording_mode == 2 then -- Overdub mode
+    recorded_data = self:_stop_overdub_recording()
+  elseif self.recording_mode == 3 then -- Arpeggio mode
+    recorded_data = self:_stop_arpeggio_recording()
+  elseif self.recording_mode == 4 then -- Trigger mode
+    recorded_data = self:_stop_trigger_recording()
   else
-    -- Use existing logic for tape/overdub modes
-    duration = self.loop_length or (clock.get_beats() - self.start_time)
+    error("Invalid recording mode: " .. self.recording_mode)
   end
-  
-  -- Create recorded data package
-  local recorded_data = {
-    events = self.events,
-    duration = duration
-  }
 
   -- Clear recorder state
   self.events = {}
   self.loop_length = nil
   print("⊞ Recording stopped")
   return recorded_data
+end
+
+-- Private method for tape recording
+function MotifRecorder:_stop_tape_recording()
+  table.sort(self.events, function(a, b) return a.time < b.time end)
+  local duration = clock.get_beats() - self.start_time
+  return {events = self.events, duration = duration}
+end
+
+-- Private method for overdub recording
+function MotifRecorder:_stop_overdub_recording()
+  table.sort(self.events, function(a, b) return a.time < b.time end)
+  local duration = self.loop_length
+  return {events = self.events, duration = duration}
+end
+
+-- Private method for arpeggio recording
+function MotifRecorder:_stop_arpeggio_recording()
+  table.sort(self.events, function(a, b) return a.time < b.time end)
+
+  -- Count the number of notes played
+  local note_count = 0
+  for _, event in ipairs(self.events) do
+    if event.type == "note_on" then
+      note_count = note_count + 1
+    end
+  end
+
+  -- Calculate duration to maintain consistent interval spacing on loop
+  local interval_str = params:string("arpeggio_interval")
+  local interval = self:_interval_to_beats(interval_str)
+  local duration = (note_count + self.arpeggio_rest_count) * interval
+
+  return {events = self.events, duration = duration}
+end
+
+-- Private method for trigger recording
+function MotifRecorder:_stop_trigger_recording()
+  -- Get parameters
+  local step_length_str = params:string("trigger_step_length")
+  local step_length = self:_interval_to_beats(step_length_str)
+  local num_steps = params:get("trigger_num_steps")
+  local root_note = params:get("trigger_root_note")
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
+
+  -- Calculate MIDI note
+  local midi_note = (octave + 1) * 12 + (root_note - 1)
+
+  -- Get active trigger keyboard using global reference to avoid module reloading
+  local TriggerKeyboard = _seeker.keyboard_region.get_active_keyboard()
+
+  -- Clear existing events and generate from step pattern
+  self.events = {}
+
+  for step = 1, num_steps do
+    if TriggerKeyboard.is_step_active(focused_lane, step) then
+      local step_time = (step - 1) * step_length
+
+      -- Get velocity for this step based on its state (normal or accent)
+      local step_velocity = TriggerKeyboard.get_step_velocity(focused_lane, step)
+
+      -- Get grid coordinates for this step
+      local step_pos = TriggerKeyboard.step_to_grid(step)
+      local step_x = step_pos and step_pos.x or 0
+      local step_y = step_pos and step_pos.y or 0
+
+      -- Add note_on event
+      table.insert(self.events, {
+        time = step_time,
+        type = "note_on",
+        note = midi_note,
+        velocity = step_velocity,
+        x = step_x,
+        y = step_y,
+        generation = self.current_generation,
+        attack = params:get("lane_" .. focused_lane .. "_attack"),
+        decay = params:get("lane_" .. focused_lane .. "_decay"),
+        sustain = params:get("lane_" .. focused_lane .. "_sustain"),
+        release = params:get("lane_" .. focused_lane .. "_release"),
+        pan = params:get("lane_" .. focused_lane .. "_pan")
+      })
+
+      -- Add note_off event (short duration)
+      local note_off_time = step_time + (step_length * 0.1) -- 10% of step length
+      table.insert(self.events, {
+        time = note_off_time,
+        type = "note_off",
+        note = midi_note,
+        x = step_x,
+        y = step_y,
+        generation = self.current_generation
+      })
+    end
+  end
+
+  -- Duration is the full sequence length
+  local duration = num_steps * step_length
+  return {events = self.events, duration = duration}
 end
 
 --- Helper function to convert interval string to beats

@@ -39,6 +39,8 @@ _seeker = {
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
+  keyboard_region = nil,
+  keyboards = {}, -- Cache for keyboard instances
   motif_recorder = nil,
   midi_input = nil,
   arc = nil,
@@ -87,6 +89,7 @@ function init()
 
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
+  _seeker.keyboard_region = include("lib/grid/regions/keyboard_region")
   
   -- Initialize MIDI input
   _seeker.midi_input = MidiInput.init()

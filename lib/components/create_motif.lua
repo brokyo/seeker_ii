@@ -10,8 +10,8 @@ local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
 local function create_params()
-    params:add_group("create_motif_group", "CREATE MOTIF", 5)
-    params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
+    params:add_group("create_motif_group", "CREATE MOTIF", 8)
+    params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio", "Trigger"}, 1)
     params:set_action("create_motif_type", function(value)
         if _seeker and _seeker.create_motif then
             _seeker.create_motif.screen:rebuild_params()
@@ -47,6 +47,15 @@ local function create_params()
             _seeker.ui_state.trigger_activated("arpeggio_add_rest")
         end
     end)
+    
+    -- Trigger sequencer mode parameters
+    params:add_number("trigger_num_steps", "Number of Steps", 4, 24, 16)
+    params:add_option("trigger_root_note", "Trigger Note",
+        {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 1)
+    params:add_option("trigger_step_length", "Step Length",
+        {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 15)
+    params:add_number("trigger_normal_velocity", "Normal Velocity", 1, 127, 80)
+    params:add_number("trigger_accent_velocity", "Accent Velocity", 1, 127, 127)
 end
 
 local function create_screen_ui()
@@ -85,6 +94,15 @@ local function create_screen_ui()
             table.insert(param_table, { id = "arpeggio_interval" })
             table.insert(param_table, { id = "arpeggio_note_duration" })
             table.insert(param_table, { id = "arpeggio_add_rest", is_action = true })
+        end
+        
+        -- Only show trigger params when in trigger mode
+        if params:get("create_motif_type") == 3 then
+            table.insert(param_table, { id = "trigger_num_steps" })
+            table.insert(param_table, { id = "trigger_root_note" })
+            table.insert(param_table, { id = "trigger_step_length" })
+            table.insert(param_table, { id = "trigger_normal_velocity" })
+            table.insert(param_table, { id = "trigger_accent_velocity" })
         end
         
         -- Update the UI with the new parameter table
@@ -418,6 +436,38 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
     
+    -- Helper function for trigger mode recording logic
+    -- Note: Trigger mode never supports overdubbing - always starts fresh
+    local function handle_trigger_recording_start(self)
+        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
+        local current_lane = _seeker.lanes[focused_lane_idx]
+
+        -- Always clear the current motif (no overdubbing in trigger mode)
+        current_lane:clear()
+
+        -- Convert step pattern immediately - no waiting for button release
+        _seeker.motif_recorder:set_recording_mode(4) -- Set to trigger recording mode
+        _seeker.motif_recorder:start_recording(nil)
+
+        -- Immediately convert step pattern to motif and stop
+        local trigger_motif = _seeker.motif_recorder:stop_recording()
+
+        -- Set the motif and start playback
+        current_lane:set_motif(trigger_motif)
+        current_lane:play()
+
+        -- Rebuild parameters to show duration based on new motif state
+        if _seeker.create_motif and _seeker.create_motif.screen then
+            _seeker.create_motif.screen:rebuild_params()
+        end
+
+        _seeker.screen_ui.set_needs_redraw()
+    end
+
+    local function handle_trigger_recording_stop(self)
+        -- Trigger mode completes immediately in start function - nothing to do here
+    end
+    
     -- Helper function to draw count display when recording
     local function draw_count_display(self, layers)
         -- Use quarter-note subdivisions for metronome
@@ -485,6 +535,8 @@ local function create_grid_ui()
                     handle_tape_recording_stop(self)
                 elseif motif_type == 2 and _seeker.motif_recorder.recording_mode == 3 then -- Arpeggio mode
                     handle_arpeggio_recording_stop(self)
+                elseif motif_type == 3 then -- Trigger mode
+                    handle_trigger_recording_stop(self)
                 end
             -- Handle recording start logic for long press
             elseif self:is_long_press(key_id) then
@@ -492,6 +544,8 @@ local function create_grid_ui()
                     handle_tape_recording_start(self)
                 elseif motif_type == 2 then -- Arpeggio mode
                     handle_arpeggio_recording_start(self)
+                elseif motif_type == 3 then -- Trigger mode
+                    handle_trigger_recording_start(self)
                 end
             end
             
