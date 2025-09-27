@@ -9,11 +9,49 @@ local GridConstants = include("lib/grid_constants")
 local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
+-- Track playback state per mode for each lane (persists until restart)
+local lane_playback_state = {}
+-- Track the current mode to detect changes
+local current_mode = 1
+
 local function create_params()
     params:add_group("create_motif_group", "CREATE MOTIF", 4)
     params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio", "Trigger"}, 1)
     params:set_action("create_motif_type", function(value)
         if _seeker and _seeker.create_motif then
+            -- Stop any active recording when switching modes
+            if _seeker.motif_recorder.is_recording then
+                _seeker.motif_recorder:stop_recording()
+            end
+
+            -- Handle focused lane playback state
+            local focused_lane_id = _seeker.ui_state.get_focused_lane()
+            local focused_lane = _seeker.lanes[focused_lane_id]
+            local previous_mode = current_mode
+
+            -- Initialize playback state tracking for this lane if needed
+            if not lane_playback_state[focused_lane_id] then
+                lane_playback_state[focused_lane_id] = {}
+            end
+
+            -- Store current playback state for the previous mode
+            if previous_mode ~= value then
+                lane_playback_state[focused_lane_id][previous_mode] = focused_lane.playing
+
+                -- Pause focused lane when switching away from its mode
+                if focused_lane.playing then
+                    focused_lane:stop()
+                end
+            end
+
+            -- Update current mode
+            current_mode = value
+
+            -- Restore playback state for the new mode (if we've been in this mode before)
+            if lane_playback_state[focused_lane_id][value] and focused_lane.motif and #focused_lane.motif.events > 0 then
+                focused_lane:play()
+            end
+
             _seeker.create_motif.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end
