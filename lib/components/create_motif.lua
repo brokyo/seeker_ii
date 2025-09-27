@@ -10,7 +10,7 @@ local CreateMotif = {}
 CreateMotif.__index = CreateMotif
 
 local function create_params()
-    params:add_group("create_motif_group", "CREATE MOTIF", 8)
+    params:add_group("create_motif_group", "CREATE MOTIF", 4)
     params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio", "Trigger"}, 1)
     params:set_action("create_motif_type", function(value)
         if _seeker and _seeker.create_motif then
@@ -18,7 +18,7 @@ local function create_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
-    
+
     -- Duration parameter for tape mode
     params:add_control("create_motif_duration", "Duration (k3)", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
     params:set_action("create_motif_duration", function(value)
@@ -35,7 +35,7 @@ local function create_params()
             end
         end
     end)
-    
+
     -- Arpeggio mode parameters
     params:add_option("arpeggio_interval", "Arpeggio Interval",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 15)
@@ -47,23 +47,6 @@ local function create_params()
             _seeker.ui_state.trigger_activated("arpeggio_add_rest")
         end
     end)
-    
-    -- Trigger sequencer mode parameters
-    params:add_number("trigger_num_steps", "Number of Steps", 4, 24, 16)
-    params:add_option("trigger_chord_root", "Chord Root",
-        {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 1)
-    params:add_option("trigger_chord_type", "Chord Type",
-        {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dominant 7", "diminished", "augmented", "add9", "minor 9", "major 9"}, 1)
-    params:add_number("trigger_chord_length", "Chord Length", 1, 12, 3)
-    params:add_option("trigger_chord_inversion", "Chord Inversion",
-        {"Root", "1st", "2nd", "3rd"}, 1)
-    params:add_option("trigger_chord_direction", "Chord Direction",
-        {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)
-    params:add_number("trigger_note_duration", "Note Duration", 1, 99, 50, function(param) return param.value .. "%" end)
-    params:add_option("trigger_step_length", "Step Length",
-        {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
-    params:add_number("trigger_normal_velocity", "Normal Velocity", 1, 127, 80)
-    params:add_number("trigger_accent_velocity", "Accent Velocity", 1, 127, 127)
 end
 
 local function create_screen_ui()
@@ -106,16 +89,17 @@ local function create_screen_ui()
         
         -- Only show trigger params when in trigger mode
         if params:get("create_motif_type") == 3 then
-            table.insert(param_table, { id = "trigger_num_steps" })
-            table.insert(param_table, { id = "trigger_chord_root" })
-            table.insert(param_table, { id = "trigger_chord_type" })
-            table.insert(param_table, { id = "trigger_chord_length" })
-            table.insert(param_table, { id = "trigger_chord_inversion" })
-            table.insert(param_table, { id = "trigger_chord_direction" })
-            table.insert(param_table, { id = "trigger_note_duration" })
-            table.insert(param_table, { id = "trigger_step_length" })
-            table.insert(param_table, { id = "trigger_normal_velocity" })
-            table.insert(param_table, { id = "trigger_accent_velocity" })
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_num_steps" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_root" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_type" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_length" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_inversion" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_direction" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_note_duration" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_step_length" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_normal_velocity" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_accent_velocity" })
         end
         
         -- Update the UI with the new parameter table

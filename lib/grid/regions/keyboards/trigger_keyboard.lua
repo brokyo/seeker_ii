@@ -44,9 +44,9 @@ end
 function TriggerKeyboard.get_step_velocity(lane_id, step)
   local state = TriggerKeyboard.get_step_state(lane_id, step)
   if state == 1 then -- Normal
-    return params:get("trigger_normal_velocity")
+    return params:get("lane_" .. lane_id .. "_trigger_normal_velocity")
   elseif state == 2 then -- Accent
-    return params:get("trigger_accent_velocity")
+    return params:get("lane_" .. lane_id .. "_trigger_accent_velocity")
   else -- Off
     return 0
   end
@@ -59,7 +59,8 @@ end
 
 -- Dynamic layout based on step count parameter
 function TriggerKeyboard.get_layout()
-  local num_steps = params:get("trigger_num_steps")
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local num_steps = params:get("lane_" .. focused_lane .. "_trigger_num_steps")
 
   -- Fixed width of 6 columns, variable height based on steps
   local width = 6
@@ -124,8 +125,8 @@ end
 function TriggerKeyboard.step_to_note(step)
   -- This function is maintained for compatibility, but actual chord generation
   -- happens during motif regeneration. For preview purposes, return root note.
-  local chord_root = params:get("trigger_chord_root")
   local focused_lane = _seeker.ui_state.get_focused_lane()
+  local chord_root = params:get("lane_" .. focused_lane .. "_trigger_chord_root")
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
 
   -- Return root note for preview (actual chord arpeggiation happens in motif regeneration)

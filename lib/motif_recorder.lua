@@ -445,15 +445,15 @@ end
 --- Regenerate trigger motif from current grid state and chord parameters
 function MotifRecorder:regenerate_trigger_motif_from_current_state(lane_id, original_envelope_settings)
   -- Get current trigger parameters
-  local step_length_str = params:string("trigger_step_length")
+  local step_length_str = params:string("lane_" .. lane_id .. "_trigger_step_length")
   local step_length = self:_interval_to_beats(step_length_str)
-  local num_steps = params:get("trigger_num_steps")
-  local chord_root = params:get("trigger_chord_root")
-  local chord_type = params:string("trigger_chord_type")
-  local chord_length = params:get("trigger_chord_length")
-  local chord_inversion = params:get("trigger_chord_inversion") - 1  -- Convert to 0-based
-  local chord_direction = params:get("trigger_chord_direction")
-  local note_duration_percent = params:get("trigger_note_duration")
+  local num_steps = params:get("lane_" .. lane_id .. "_trigger_num_steps")
+  local chord_root = params:get("lane_" .. lane_id .. "_trigger_chord_root")
+  local chord_type = params:string("lane_" .. lane_id .. "_trigger_chord_type")
+  local chord_length = params:get("lane_" .. lane_id .. "_trigger_chord_length")
+  local chord_inversion = params:get("lane_" .. lane_id .. "_trigger_chord_inversion") - 1  -- Convert to 0-based
+  local chord_direction = params:get("lane_" .. lane_id .. "_trigger_chord_direction")
+  local note_duration_percent = params:get("lane_" .. lane_id .. "_trigger_note_duration")
   local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
 
   -- Generate chord notes with specified length and inversion
