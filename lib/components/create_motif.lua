@@ -202,9 +202,13 @@ local function create_screen_ui()
         if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
             tooltip = "⏹: tap"
         else
+            local motif_type = params:get("create_motif_type")
             local focused_lane_tooltip = _seeker.ui_state.get_focused_lane()
             local lane_tooltip = _seeker.lanes[focused_lane_tooltip]
-            if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
+
+            if motif_type == 3 then -- Trigger mode
+                tooltip = "⏺: hold [generate]"
+            elseif lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                 tooltip = "⏺: hold [overdub]"
             else
                 tooltip = "⏺: hold [record]"
