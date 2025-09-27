@@ -128,6 +128,7 @@ local function create_screen_ui()
         -- Only show trigger params when in trigger mode
         if params:get("create_motif_type") == 3 then
             local focused_lane = _seeker.ui_state.get_focused_lane()
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_keyboard_octave" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_num_steps" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_root" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_type" })

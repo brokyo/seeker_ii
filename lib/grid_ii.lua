@@ -88,11 +88,32 @@ function is_in_keyboard(x, y)
   return regions.keyboard.contains(x, y)
 end
 
+-- Determine which regions should be visible based on current mode/state
+local function should_draw_region(region_name)
+  local motif_type = params:get("create_motif_type")
+
+  -- Handle mode-specific region visibility
+  if motif_type == 3 then -- Trigger mode
+    -- Hide velocity and tuning regions since trigger mode uses step states and chord parameters
+    return not (region_name == "velocity" or region_name == "tuning")
+  end
+
+  -- TODO: Future wholesale UI replacements could be handled here
+  -- For example: if current_section == "EURORACK_OUTPUT" then return region_name == "eurorack_grid"
+
+  -- Default: show all regions
+  return true
+end
+
 function draw_controls()
-  -- Draw all regions using local regions table
-  regions.velocity.draw(GridUI.layers)
+  -- Draw all regions using local regions table with visibility checks
+  if should_draw_region("velocity") then
+    regions.velocity.draw(GridUI.layers)
+  end
   regions.motif.draw(GridUI.layers)
-  regions.tuning.draw(GridUI.layers)
+  if should_draw_region("tuning") then
+    regions.tuning.draw(GridUI.layers)
+  end
 
   -- Old Components
   regions.clear_motif:draw(GridUI.layers)
@@ -129,9 +150,9 @@ function GridUI.key(x, y, z)
       regions.lane_config:handle_key(x, y, z)
     elseif regions.motif.contains(x, y) then
       regions.motif.handle_key(x, y, z)
-    elseif regions.velocity.contains(x, y) then
+    elseif regions.velocity.contains(x, y) and should_draw_region("velocity") then
       regions.velocity.handle_key(x, y, z)
-    elseif regions.tuning.contains(x, y) then
+    elseif regions.tuning.contains(x, y) and should_draw_region("tuning") then
       regions.tuning.handle_key(x, y, z)
     -- Components
   elseif regions.clear_motif:contains(x, y) then

@@ -23,7 +23,7 @@ end
 
 function VelocityRegion.draw(layers)
   local is_velocity_section = (_seeker.ui_state.get_current_section() == "VELOCITY")
-  
+
   for i = 0, VelocityRegion.layout.width - 1 do
     local x = VelocityRegion.layout.x + i
     local is_selected_value = (i == _seeker.velocity - 1)

@@ -20,14 +20,14 @@ end
 
 function TuningRegion.draw(layers)
   -- Determine brightness based on whether tuning section is selected
-  local brightness = (_seeker.ui_state.get_current_section() == "TUNING") and 
-    GridConstants.BRIGHTNESS.HIGH or 
+  local brightness = (_seeker.ui_state.get_current_section() == "TUNING") and
+    GridConstants.BRIGHTNESS.HIGH or
     GridConstants.BRIGHTNESS.LOW
-  
+
   -- Draw octave buttons
   layers.ui[TuningRegion.layout.octave.decrease.x][TuningRegion.layout.octave.decrease.y] = brightness - 2
   layers.ui[TuningRegion.layout.octave.increase.x][TuningRegion.layout.octave.increase.y] = brightness + 2
-  
+
   -- Draw offset buttons
   layers.ui[TuningRegion.layout.offset.decrease.x][TuningRegion.layout.offset.decrease.y] = brightness - 2
   layers.ui[TuningRegion.layout.offset.increase.x][TuningRegion.layout.offset.increase.y] = brightness + 2
@@ -36,7 +36,7 @@ end
 function TuningRegion.handle_key(x, y, z)
   if z == 1 then -- Only handle key down
     local focused_lane = _seeker.ui_state.get_focused_lane()
-    
+
     -- Switch to tuning section
     _seeker.ui_state.set_current_section("TUNING")
     
