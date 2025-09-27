@@ -193,17 +193,25 @@ end
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
   local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 1
-  
-  if reset_motif then
+
+  -- Check for trigger pattern regeneration FIRST (especially on stage 1 return)
+  local regenerated = false
+  if stage.id == 1 then
+    -- Try to regenerate trigger pattern from current grid state
+    regenerated = self.motif:regenerate_trigger_pattern_from_grid(self.id)
+  end
+
+  -- Only reset to genesis if we didn't just regenerate AND reset_motif is enabled
+  if reset_motif and not regenerated then
     self.motif:reset_to_genesis()
   end
-  
+
   local transform_ui_name = params:string("lane_" .. self.id .. "_transform_stage_" .. stage.id)
   local transform_id = transforms.get_transform_id_by_ui_name(transform_ui_name)
   if transform_id and transform_id ~= "none" then
     self.motif:apply_transform(transform_id, self.id, stage.id)
   end
-  
+
   return true
 end
 
@@ -222,7 +230,8 @@ function Lane:schedule_stage(stage_index, start_time)
   local stage = self.stages[stage_index]
   local base_duration = self.motif:get_duration()
   local speed_adjusted_duration = base_duration / self.speed
-  
+
+
   -- Store the start time in the stage for visualization synchronization
   stage.last_start_time = start_time
   
@@ -243,6 +252,7 @@ function Lane:schedule_stage(stage_index, start_time)
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
+  local first_event_time = nil
   
   -- Get quantization settings
   local quantize_option = params:get("lane_" .. self.id .. "_quantize")
@@ -270,11 +280,12 @@ function Lane:schedule_stage(stage_index, start_time)
           local stage_volume = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_volume")
           local velocity_with_stage_volume = event.velocity * stage_volume
           
+
           _seeker.conductor.insert_event({
             time = absolute_time,
             lane_id = self.id,
             type = event.type,  -- Pass through the motif event type
-            callback = function() 
+            callback = function()
               self:on_note_on({
                 note = event.note,
                 velocity = velocity_with_stage_volume,
@@ -288,7 +299,7 @@ function Lane:schedule_stage(stage_index, start_time)
                 sustain = event.sustain,
                 release = event.release,
                 pan = event.pan
-              }) 
+              })
             end
           })
           -- Track that we started this note so we know to stop it
@@ -460,6 +471,10 @@ end
 --   Send MIDI or engine note_on
 ---------------------------------------------------------
 function Lane:on_note_on(event)
+  -- Simple unconditional logging
+  -- print("NOTE_ON: note=" .. tostring(event.note) .. " vel=" .. tostring(event.velocity))
+
+
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
@@ -499,13 +514,25 @@ function Lane:on_note_on(event)
 
   -- Store note with all its positions
   if positions then
-    self.active_notes[note] = {
+    -- For trigger keyboard mode, use step-based key to allow multiple simultaneous steps
+    local motif_type = params:get("create_motif_type")
+    local note_key
+    if motif_type == 3 and event.step then
+      -- Trigger mode: use step number as key to allow multiple active steps
+      note_key = "step_" .. event.step
+    else
+      -- Tape/arpeggio modes: use note number as key (existing behavior)
+      note_key = note
+    end
+
+    self.active_notes[note_key] = {
       positions = positions,
       note = note,
       velocity = event.velocity,
       original_note = event.note,
       event_index = event.event_index
     }
+
   end 
 
   -- If MIDI is active, play the note
@@ -727,6 +754,9 @@ end
 -- on_note_off(note)
 ---------------------------------------------------------
 function Lane:on_note_off(event)
+  -- Simple unconditional logging
+  -- print("NOTE_OFF: note=" .. tostring(event.note))
+
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
@@ -821,8 +851,20 @@ function Lane:on_note_off(event)
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
   
   -- Remove this note from active notes and get its positions
-  local note_data = self.active_notes[note]
-  self.active_notes[note] = nil
+  -- Use same key logic as on_note_on for trigger mode
+  local motif_type = params:get("create_motif_type")
+  local note_key
+  if motif_type == 3 and event.step then
+    -- Trigger mode: use step number as key to match on_note_on
+    note_key = "step_" .. event.step
+  else
+    -- Tape/arpeggio modes: use note number as key (existing behavior)
+    note_key = note
+  end
+
+  local note_data = self.active_notes[note_key]
+  self.active_notes[note_key] = nil
+
   
   -- Count remaining active notes
   local remaining_notes = 0
@@ -968,16 +1010,26 @@ end
 function Lane:get_active_positions()
   local positions = {}
   local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
-  
-  for _, note in pairs(self.active_notes) do
-    -- Recalculate positions based on current octave
-    local current_positions = theory.note_to_grid(note.note, keyboard_octave)
+
+  for key, note in pairs(self.active_notes) do
+    -- For trigger mode, positions are already stored correctly
+    -- For tape/arpeggio, recalculate based on current octave
+    local current_positions
+    if string.sub(key, 1, 5) == "step_" then
+      -- Trigger mode: use stored positions directly
+      current_positions = note.positions
+    else
+      -- Tape/arpeggio mode: recalculate positions
+      current_positions = theory.note_to_grid(note.note, keyboard_octave)
+    end
+
     if current_positions then
       for _, pos in ipairs(current_positions) do
         table.insert(positions, {x = pos.x, y = pos.y})
       end
     end
   end
+
   return positions
 end
 

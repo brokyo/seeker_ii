@@ -60,15 +60,15 @@ end
 -- Dynamic layout based on step count parameter
 function TriggerKeyboard.get_layout()
   local num_steps = params:get("trigger_num_steps")
-  
-  -- Calculate grid dimensions to fit steps
-  local width = math.min(6, math.ceil(math.sqrt(num_steps)))
+
+  -- Fixed width of 6 columns, variable height based on steps
+  local width = 6
   local height = math.ceil(num_steps / width)
-  
-  -- Center the grid within the keyboard area
-  local start_x = 6 + math.floor((6 - width) / 2)
+
+  -- Fixed horizontal position, vertically centered
+  local start_x = 6
   local start_y = 2 + math.floor((6 - height) / 2)
-  
+
   return {
     upper_left_x = start_x,
     upper_left_y = start_y,
@@ -120,14 +120,16 @@ function TriggerKeyboard.step_to_grid(step)
   }
 end
 
--- Get the MIDI note for a step (uses trigger_root_note parameter)
+-- Get the MIDI note for a step (uses chord parameters)
 function TriggerKeyboard.step_to_note(step)
-  local root_note = params:get("trigger_root_note")
+  -- This function is maintained for compatibility, but actual chord generation
+  -- happens during motif regeneration. For preview purposes, return root note.
+  local chord_root = params:get("trigger_chord_root")
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-  
-  -- All steps play the same root note in the specified octave
-  return (octave + 1) * 12 + (root_note - 1)
+
+  -- Return root note for preview (actual chord arpeggiation happens in motif regeneration)
+  return (octave + 1) * 12 + (chord_root - 1)
 end
 
 -- Create a standardized note event
@@ -153,6 +155,7 @@ function TriggerKeyboard.note_on(x, y)
   if step then
     local focused_lane_id = _seeker.ui_state.get_focused_lane()
     local focused_lane = _seeker.lanes[focused_lane_id]
+
 
     -- When not recording, toggle step state for programming
     if not _seeker.motif_recorder.is_recording then
@@ -228,14 +231,14 @@ end
 function TriggerKeyboard.draw_motif_events(layers)
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local focused_lane = _seeker.lanes[focused_lane_id]
-  
+
   -- Get active positions from focused lane
   local active_positions = focused_lane:get_active_positions()
 
   -- Illuminate active positions at full brightness
   for _, pos in ipairs(active_positions) do
     if TriggerKeyboard.contains(pos.x, pos.y) then
-      GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.UI.ACTIVE)
+      GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.FULL)
     end
   end
   

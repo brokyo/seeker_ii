@@ -63,6 +63,33 @@ function Motif:store_events(recorded_data)
   print("∞ Motif stored")
 end
 
+-- Regenerate trigger pattern from current grid state
+function Motif:regenerate_trigger_pattern_from_grid(lane_id)
+  -- Check if this is a trigger pattern motif
+  if #self.genesis.events == 1 and self.genesis.events[1].type == "trigger_pattern" then
+    local original_event = self.genesis.events[1]
+
+    -- Use the motif recorder to generate fresh events from current state
+    local regenerated_events, new_duration = _seeker.motif_recorder:regenerate_trigger_motif_from_current_state(
+      lane_id,
+      {
+        attack = original_event.attack,
+        decay = original_event.decay,
+        sustain = original_event.sustain,
+        release = original_event.release,
+        pan = original_event.pan
+      }
+    )
+
+    -- Replace working events and duration with regenerated ones
+    self.events = regenerated_events
+    self.duration = new_duration
+
+    return true
+  end
+  return false
+end
+
 -- Reset working state to genesis
 function Motif:reset_to_genesis()
   self.events = {}

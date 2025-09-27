@@ -4,6 +4,8 @@
 -- 2. Overdub: Overdub onto an existing motif (duration is determined by the original motif)
 -- 3. Arpeggio: Record a sequence of notes with consistent intervals (duration is determined by the number of notes and rests)
 
+local musicutil = require('musicutil')
+
 local MotifRecorder = {}
 MotifRecorder.__index = MotifRecorder
 
@@ -335,67 +337,213 @@ end
 
 -- Private method for trigger recording
 function MotifRecorder:_stop_trigger_recording()
-  -- Get parameters
-  local step_length_str = params:string("trigger_step_length")
-  local step_length = self:_interval_to_beats(step_length_str)
-  local num_steps = params:get("trigger_num_steps")
-  local root_note = params:get("trigger_root_note")
+  -- Store metadata for regeneration instead of fixed MIDI events
   local focused_lane = _seeker.ui_state.get_focused_lane()
-  local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
 
-  -- Calculate MIDI note
-  local midi_note = (octave + 1) * 12 + (root_note - 1)
+  -- Create a single metadata event that will be used for regeneration
+  self.events = {
+    {
+      time = 0,
+      type = "trigger_pattern",
+      lane_id = focused_lane,
+      generation = self.current_generation,
+      -- Parameters will be read fresh during regeneration
+      attack = params:get("lane_" .. focused_lane .. "_attack"),
+      decay = params:get("lane_" .. focused_lane .. "_decay"),
+      sustain = params:get("lane_" .. focused_lane .. "_sustain"),
+      release = params:get("lane_" .. focused_lane .. "_release"),
+      pan = params:get("lane_" .. focused_lane .. "_pan")
+    }
+  }
 
-  -- Get active trigger keyboard using global reference to avoid module reloading
-  local TriggerKeyboard = _seeker.keyboard_region.get_active_keyboard()
+  -- Duration will be calculated during regeneration, not here
+  -- This ensures it updates when step parameters change
+  local duration = 1.0  -- Placeholder duration
 
-  -- Clear existing events and generate from step pattern
-  self.events = {}
+  return {events = self.events, duration = duration}
+end
 
-  for step = 1, num_steps do
-    if TriggerKeyboard.is_step_active(focused_lane, step) then
-      local step_time = (step - 1) * step_length
+--- Generate chord notes with octave cycling (based on seeker/core.lua)
+function MotifRecorder:_generate_chord(chord_root, chord_type, chord_length, chord_inversion)
+  -- Convert UI chord root (1-12) to MIDI note (0-11)
+  local chord_root_midi = (chord_root - 1) % 12
 
-      -- Get velocity for this step based on its state (normal or accent)
-      local step_velocity = TriggerKeyboard.get_step_velocity(focused_lane, step)
+  -- Get base chord intervals from musicutil with inversion
+  local base_chord = musicutil.generate_chord(chord_root_midi, chord_type, chord_inversion or 0, 3)
 
-      -- Get grid coordinates for this step
-      local step_pos = TriggerKeyboard.step_to_grid(step)
-      local step_x = step_pos and step_pos.x or 0
-      local step_y = step_pos and step_pos.y or 0
+  -- Convert to intervals relative to root
+  local chord_intervals = {}
+  for _, note in ipairs(base_chord) do
+    table.insert(chord_intervals, note - chord_root_midi)
+  end
 
-      -- Add note_on event
-      table.insert(self.events, {
-        time = step_time,
-        type = "note_on",
-        note = midi_note,
-        velocity = step_velocity,
-        x = step_x,
-        y = step_y,
-        generation = self.current_generation,
-        attack = params:get("lane_" .. focused_lane .. "_attack"),
-        decay = params:get("lane_" .. focused_lane .. "_decay"),
-        sustain = params:get("lane_" .. focused_lane .. "_sustain"),
-        release = params:get("lane_" .. focused_lane .. "_release"),
-        pan = params:get("lane_" .. focused_lane .. "_pan")
-      })
+  -- Generate extended chord using seeker-style cycling
+  local chord_notes = {}
+  local note_index = 1
+  local octave_offset = 0
 
-      -- Add note_off event (short duration)
-      local note_off_time = step_time + (step_length * 0.1) -- 10% of step length
-      table.insert(self.events, {
-        time = note_off_time,
-        type = "note_off",
-        note = midi_note,
-        x = step_x,
-        y = step_y,
-        generation = self.current_generation
-      })
+  for i = 1, chord_length do
+    local interval = chord_intervals[note_index]
+    local note = chord_root_midi + interval + (octave_offset * 12)
+    table.insert(chord_notes, note)
+
+    note_index = note_index + 1
+    if note_index > #chord_intervals then
+      note_index = 1
+      octave_offset = octave_offset + 1
     end
   end
 
-  -- Duration is the full sequence length
+  return chord_notes
+end
+
+--- Apply direction logic to chord sequence
+function MotifRecorder:_apply_direction(chord_notes, direction, num_active_steps)
+  local result = {}
+
+  if direction == 1 then -- Up (default)
+    return chord_notes
+  elseif direction == 2 then -- Down
+    -- Reverse the chord notes
+    for i = #chord_notes, 1, -1 do
+      table.insert(result, chord_notes[i])
+    end
+    return result
+  elseif direction == 3 then -- Up-Down
+    -- Go up then down
+    for i = 1, #chord_notes do
+      table.insert(result, chord_notes[i])
+    end
+    for i = #chord_notes - 1, 2, -1 do
+      table.insert(result, chord_notes[i])
+    end
+    return result
+  elseif direction == 4 then -- Down-Up
+    -- Go down then up
+    for i = #chord_notes, 1, -1 do
+      table.insert(result, chord_notes[i])
+    end
+    for i = 2, #chord_notes - 1 do
+      table.insert(result, chord_notes[i])
+    end
+    return result
+  elseif direction == 5 then -- Random
+    -- Shuffle the chord notes
+    for i = 1, #chord_notes do
+      table.insert(result, chord_notes[i])
+    end
+    for i = #result, 2, -1 do
+      local j = math.random(i)
+      result[i], result[j] = result[j], result[i]
+    end
+    return result
+  end
+
+  return chord_notes  -- Fallback to up
+end
+
+--- Regenerate trigger motif from current grid state and chord parameters
+function MotifRecorder:regenerate_trigger_motif_from_current_state(lane_id, original_envelope_settings)
+  -- Get current trigger parameters
+  local step_length_str = params:string("trigger_step_length")
+  local step_length = self:_interval_to_beats(step_length_str)
+  local num_steps = params:get("trigger_num_steps")
+  local chord_root = params:get("trigger_chord_root")
+  local chord_type = params:string("trigger_chord_type")
+  local chord_length = params:get("trigger_chord_length")
+  local chord_inversion = params:get("trigger_chord_inversion") - 1  -- Convert to 0-based
+  local chord_direction = params:get("trigger_chord_direction")
+  local note_duration_percent = params:get("trigger_note_duration")
+  local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
+
+  -- Generate chord notes with specified length and inversion
+  local effective_chord = self:_generate_chord(chord_root, chord_type, chord_length, chord_inversion)
+
+  -- Store original chord for logging before direction is applied
+  local original_chord = {}
+  for i, note in ipairs(effective_chord) do
+    table.insert(original_chord, note)
+  end
+
+  -- Ensure chord generation succeeded
+  if not effective_chord or #effective_chord == 0 then
+    print("ERROR: Failed to generate effective chord")
+    return {}
+  end
+
+  -- Get active trigger keyboard using global reference
+  local TriggerKeyboard = _seeker.keyboard_region.get_active_keyboard()
+
+  -- First pass: collect active steps
+  local active_steps = {}
+  for step = 1, num_steps do
+    if TriggerKeyboard.is_step_active(lane_id, step) then
+      table.insert(active_steps, step)
+    end
+  end
+
+  -- Apply direction logic to the chord based on number of active steps
+  effective_chord = self:_apply_direction(effective_chord, chord_direction, #active_steps)
+
+  -- Log the chord with direction info
+  local original_str = table.concat(original_chord, ", ")
+  local play_order_str = table.concat(effective_chord, ", ")
+  local direction_names = {"Up", "Down", "Up-Down", "Down-Up", "Random"}
+  print(string.format("🎼 Chord: [%s] → %s: [%s]", original_str, direction_names[chord_direction] or "Up", play_order_str))
+
+  -- Generate events from active step sequence
+  local events = {}
+  for active_index, step in ipairs(active_steps) do
+    local step_time = (step - 1) * step_length
+
+    -- Map active sequence position to chord note with actual chord size wrapping
+    local chord_position = ((active_index - 1) % #effective_chord) + 1
+    local chord_note = effective_chord[chord_position]
+
+    local final_note = chord_note + ((octave + 1) * 12)
+
+    -- Get velocity for this step based on its state
+    local step_velocity = TriggerKeyboard.get_step_velocity(lane_id, step)
+
+    -- Get grid coordinates for this step
+    local step_pos = TriggerKeyboard.step_to_grid(step)
+    local step_x = step_pos and step_pos.x or 0
+    local step_y = step_pos and step_pos.y or 0
+
+    -- Add note_on event
+    table.insert(events, {
+      time = step_time,
+      type = "note_on",
+      note = final_note,
+      velocity = step_velocity,
+      x = step_x,
+      y = step_y,
+      generation = self.current_generation,
+      attack = original_envelope_settings.attack,
+      decay = original_envelope_settings.decay,
+      sustain = original_envelope_settings.sustain,
+      release = original_envelope_settings.release,
+      pan = original_envelope_settings.pan
+    })
+
+    -- Add note_off event using duration parameter
+    local note_duration = step_length * (note_duration_percent / 100)
+    local note_off_time = step_time + note_duration
+    table.insert(events, {
+      time = note_off_time,
+      type = "note_off",
+      note = final_note,
+      x = step_x,
+      y = step_y,
+      generation = self.current_generation
+    })
+
+  end
+
+  -- Calculate duration based on current parameters
   local duration = num_steps * step_length
-  return {events = self.events, duration = duration}
+
+  return events, duration
 end
 
 --- Helper function to convert interval string to beats
