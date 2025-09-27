@@ -18,8 +18,8 @@ local GridConstants = {
   BRIGHTNESS = {
     -- Core levels
     FULL = 15,
-    HIGH = 10,
-    MEDIUM = 8,
+    HIGH = 11,
+    MEDIUM = 7,
     LOW = 4,
     DIM = 2,
     OFF = 0,
@@ -37,7 +37,7 @@ local GridConstants = {
       REC_ACTIVE = 15,    -- Bright red for recording
       REC_READY = 8,     -- Medium brightness when in recording section
       REC_INACTIVE = 4,   -- Very dim for inactive rec
-      PLAY_ACTIVE = 12,   -- Medium-bright for playing
+      PLAY_ACTIVE = 13,   -- Medium-bright for playing
       PLAY_INACTIVE = 4   -- Slightly brighter than rec inactive
     }
   }

@@ -221,7 +221,7 @@ function TriggerKeyboard.draw(layers)
       elseif state == 1 then -- On
         brightness = GridConstants.BRIGHTNESS.MEDIUM
       else -- Accent (state == 2)
-        brightness = GridConstants.BRIGHTNESS.FULL
+        brightness = GridConstants.BRIGHTNESS.HIGH
       end
       GridLayers.set(layers.ui, pos.x, pos.y, brightness)
     end
@@ -236,10 +236,10 @@ function TriggerKeyboard.draw_motif_events(layers)
   -- Get active positions from focused lane
   local active_positions = focused_lane:get_active_positions()
 
-  -- Illuminate active positions at full brightness
+  -- Illuminate active positions at playback brightness
   for _, pos in ipairs(active_positions) do
     if TriggerKeyboard.contains(pos.x, pos.y) then
-      GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.FULL)
+      GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE)
     end
   end
   
@@ -248,7 +248,7 @@ function TriggerKeyboard.draw_motif_events(layers)
     local midi_positions = _seeker.midi_input.get_active_positions()
     for _, pos in ipairs(midi_positions) do
       if TriggerKeyboard.contains(pos.x, pos.y) then
-        GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.FULL)
+        GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE)
       end
     end
   end
