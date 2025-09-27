@@ -504,12 +504,19 @@ function Lane:on_note_on(event)
 
   -- Get all grid positions for this note
   local positions
+  local motif_type = params:get("create_motif_type")
+
   if event.positions then
     positions = event.positions
   elseif event.x and event.y then
-    -- If we only got a single position, get all positions for this note
-    local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
-    positions = theory.note_to_grid(note, keyboard_octave) or {{x = event.x, y = event.y}}
+    -- For trigger mode, never use theory system - use direct coordinates
+    if motif_type == 3 then
+      positions = {{x = event.x, y = event.y}}
+    else
+      -- Tape/arpeggio modes: use theory system for multi-position notes
+      local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
+      positions = theory.note_to_grid(note, keyboard_octave) or {{x = event.x, y = event.y}}
+    end
   end
 
   -- Store note with all its positions
@@ -748,6 +755,41 @@ function Lane:on_note_on(event)
       crow.ii.disting.note_velocity(note, disting_volume)
     end
   end
+
+  -- Add trails for all positions with keyboard-specific behavior
+  local motif_type = params:get("create_motif_type")
+  local is_trigger_mode = (motif_type == 3)
+
+  -- Set trail properties based on keyboard mode
+  local trail_brightness, trail_decay
+  if is_trigger_mode then
+    -- Trigger mode: immediate on/off (no decay, full brightness)
+    trail_brightness = GridConstants.BRIGHTNESS.FULL
+    trail_decay = 1.0  -- No decay
+  else
+    -- Tape/arpeggio modes: gradual fade trails
+    trail_brightness = GridConstants.BRIGHTNESS.HIGH
+    trail_decay = 0.95
+  end
+
+  if positions then
+    for _, pos in ipairs(positions) do
+      local key = trail_key(pos.x, pos.y)
+      self.trails[key] = {
+        brightness = trail_brightness,
+        decay = trail_decay,
+        is_new = true  -- Mark as new activation
+      }
+    end
+  elseif event.x and event.y then
+    -- Fallback for direct position
+    local key = trail_key(event.x, event.y)
+    self.trails[key] = {
+      brightness = trail_brightness,
+      decay = trail_decay,
+      is_new = true
+    }
+  end
 end
 
 ---------------------------------------------------------
@@ -883,25 +925,40 @@ function Lane:on_note_off(event)
     end
   end
 
-  -- Add trails for all positions
-  if note_data and note_data.positions then
-    for _, pos in ipairs(note_data.positions) do
-      local key = trail_key(pos.x, pos.y)
-      -- Create new trail or update existing one to full brightness
+  -- Handle trails based on keyboard mode
+  local motif_type = params:get("create_motif_type")
+  local is_trigger_mode = (motif_type == 3)
+
+  if is_trigger_mode then
+    -- Trigger mode: remove trails immediately for on/off behavior
+    if note_data and note_data.positions then
+      for _, pos in ipairs(note_data.positions) do
+        local key = trail_key(pos.x, pos.y)
+        self.trails[key] = nil  -- Remove trail immediately
+      end
+    elseif event.x and event.y then
+      local key = trail_key(event.x, event.y)
+      self.trails[key] = nil  -- Remove trail immediately
+    end
+  else
+    -- Tape/arpeggio modes: create fading trails (existing behavior)
+    if note_data and note_data.positions then
+      for _, pos in ipairs(note_data.positions) do
+        local key = trail_key(pos.x, pos.y)
+        self.trails[key] = {
+          brightness = GridConstants.BRIGHTNESS.HIGH,
+          decay = 0.95,
+          is_new = true  -- Mark as new activation
+        }
+      end
+    elseif event.x and event.y then
+      local key = trail_key(event.x, event.y)
       self.trails[key] = {
         brightness = GridConstants.BRIGHTNESS.HIGH,
         decay = 0.95,
-        is_new = true  -- Mark as new activation
+        is_new = true
       }
     end
-  elseif event.x and event.y then
-    -- Fallback for direct position
-    local key = trail_key(event.x, event.y)
-    self.trails[key] = {
-      brightness = GridConstants.BRIGHTNESS.HIGH,
-      decay = 0.95,
-      is_new = true
-    }
   end
 end
 
