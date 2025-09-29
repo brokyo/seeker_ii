@@ -236,10 +236,23 @@ function ArpeggioKeyboard.draw_motif_events(layers)
   -- Get active positions from focused lane
   local active_positions = focused_lane:get_active_positions()
 
-  -- Illuminate active positions at playback brightness
+  -- Illuminate active positions with brightness based on step state
   for _, pos in ipairs(active_positions) do
     if ArpeggioKeyboard.contains(pos.x, pos.y) then
-      GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE)
+      -- Convert position back to step number to check state
+      local step = ArpeggioKeyboard.grid_to_step(pos.x, pos.y)
+      if step then
+        local step_state = ArpeggioKeyboard.get_step_state(focused_lane_id, step)
+        local brightness
+        if step_state > 0 then
+          -- On or accent step: full brightness
+          brightness = GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE
+        else
+          -- Off step: medium brightness (shows position but dimmer)
+          brightness = GridConstants.BRIGHTNESS.MEDIUM
+        end
+        GridLayers.set(layers.response, pos.x, pos.y, brightness)
+      end
     end
   end
   
