@@ -2,7 +2,7 @@
 -- Core responsibility: Convert grid/MIDI input into a table of note on/off events. Supports multiple recording modes:
 -- 1. Tape: Record a new motif from scratch (duration is determined by time between stop and start)
 -- 2. Overdub: Overdub onto an existing motif (duration is determined by the original motif)
--- 3. Arpeggio: Record a sequence of notes with consistent intervals (duration is determined by the number of notes and rests)
+-- 3. Arpeggio: Generate a motif from arpeggio sequencer pattern data (immediate, no real-time recording)
 
 local musicutil = require('musicutil')
 
@@ -217,7 +217,7 @@ function MotifRecorder:on_note_off(event)
 end
 
 -- Set the recording mode
--- @param mode: 1 for Tape, 2 for Overdub, 3 for Arpeggio, 4 for Trigger
+-- @param mode: 1 for Tape, 2 for Overdub, 3 for Arpeggio
 function MotifRecorder:set_recording_mode(mode)
   self.recording_mode = mode
 end
@@ -288,8 +288,6 @@ function MotifRecorder:stop_recording()
     recorded_data = self:_stop_overdub_recording()
   elseif self.recording_mode == 3 then -- Arpeggio mode
     recorded_data = self:_stop_arpeggio_recording()
-  elseif self.recording_mode == 4 then -- Trigger mode
-    recorded_data = self:_stop_trigger_recording()
   else
     error("Invalid recording mode: " .. self.recording_mode)
   end
@@ -335,8 +333,8 @@ function MotifRecorder:_stop_arpeggio_recording()
   return {events = self.events, duration = duration}
 end
 
--- Private method for trigger recording
-function MotifRecorder:_stop_trigger_recording()
+-- Private method for arpeggio recording
+function MotifRecorder:_stop_arpeggio_recording()
   -- Store metadata for regeneration instead of fixed MIDI events
   local focused_lane = _seeker.ui_state.get_focused_lane()
 
@@ -356,9 +354,11 @@ function MotifRecorder:_stop_trigger_recording()
     }
   }
 
-  -- Duration will be calculated during regeneration, not here
-  -- This ensures it updates when step parameters change
-  local duration = 1.0  -- Placeholder duration
+  -- Calculate actual duration based on current arpeggio parameters
+  local step_length_str = params:string("lane_" .. focused_lane .. "_arpeggio_step_length")
+  local step_length = self:_interval_to_beats(step_length_str)
+  local num_steps = params:get("lane_" .. focused_lane .. "_arpeggio_num_steps")
+  local duration = num_steps * step_length
 
   return {events = self.events, duration = duration}
 end
@@ -445,15 +445,15 @@ end
 --- Regenerate trigger motif from current grid state and chord parameters
 function MotifRecorder:regenerate_trigger_motif_from_current_state(lane_id, original_envelope_settings)
   -- Get current trigger parameters
-  local step_length_str = params:string("lane_" .. lane_id .. "_trigger_step_length")
+  local step_length_str = params:string("lane_" .. lane_id .. "_arpeggio_step_length")
   local step_length = self:_interval_to_beats(step_length_str)
-  local num_steps = params:get("lane_" .. lane_id .. "_trigger_num_steps")
-  local chord_root = params:get("lane_" .. lane_id .. "_trigger_chord_root")
-  local chord_type = params:string("lane_" .. lane_id .. "_trigger_chord_type")
-  local chord_length = params:get("lane_" .. lane_id .. "_trigger_chord_length")
-  local chord_inversion = params:get("lane_" .. lane_id .. "_trigger_chord_inversion") - 1  -- Convert to 0-based
-  local chord_direction = params:get("lane_" .. lane_id .. "_trigger_chord_direction")
-  local note_duration_percent = params:get("lane_" .. lane_id .. "_trigger_note_duration")
+  local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
+  local chord_root = params:get("lane_" .. lane_id .. "_arpeggio_chord_root")
+  local chord_type = params:string("lane_" .. lane_id .. "_arpeggio_chord_type")
+  local chord_length = params:get("lane_" .. lane_id .. "_arpeggio_chord_length")
+  local chord_inversion = params:get("lane_" .. lane_id .. "_arpeggio_chord_inversion") - 1  -- Convert to 0-based
+  local chord_direction = params:get("lane_" .. lane_id .. "_arpeggio_chord_direction")
+  local note_duration_percent = params:get("lane_" .. lane_id .. "_arpeggio_note_duration")
   local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
 
   -- Generate chord notes with specified length and inversion
@@ -471,13 +471,13 @@ function MotifRecorder:regenerate_trigger_motif_from_current_state(lane_id, orig
     return {}
   end
 
-  -- Get active trigger keyboard using global reference
-  local TriggerKeyboard = _seeker.keyboard_region.get_active_keyboard()
+  -- Get arpeggio keyboard directly from global cache (this function is arpeggio-specific)
+  local ArpeggioKeyboard = _seeker.keyboards[2] -- Arpeggio keyboard is mode 2
 
   -- First pass: collect active steps
   local active_steps = {}
   for step = 1, num_steps do
-    if TriggerKeyboard.is_step_active(lane_id, step) then
+    if ArpeggioKeyboard.is_step_active(lane_id, step) then
       table.insert(active_steps, step)
     end
   end
@@ -503,10 +503,10 @@ function MotifRecorder:regenerate_trigger_motif_from_current_state(lane_id, orig
     local final_note = chord_note + ((octave + 1) * 12)
 
     -- Get velocity for this step based on its state
-    local step_velocity = TriggerKeyboard.get_step_velocity(lane_id, step)
+    local step_velocity = ArpeggioKeyboard.get_step_velocity(lane_id, step)
 
     -- Get grid coordinates for this step
-    local step_pos = TriggerKeyboard.step_to_grid(step)
+    local step_pos = ArpeggioKeyboard.step_to_grid(step)
     local step_x = step_pos and step_pos.x or 0
     local step_y = step_pos and step_pos.y or 0
 

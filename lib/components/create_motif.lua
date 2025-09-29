@@ -15,48 +15,7 @@ local lane_playback_state = {}
 local current_mode = 1
 
 local function create_params()
-    params:add_group("create_motif_group", "CREATE MOTIF", 4)
-    params:add_option("create_motif_type", "Motif Type", {"Tape", "Arpeggio", "Trigger"}, 1)
-    params:set_action("create_motif_type", function(value)
-        if _seeker and _seeker.create_motif then
-            -- Stop any active recording when switching modes
-            if _seeker.motif_recorder.is_recording then
-                _seeker.motif_recorder:stop_recording()
-            end
-
-            -- Handle focused lane playback state
-            local focused_lane_id = _seeker.ui_state.get_focused_lane()
-            local focused_lane = _seeker.lanes[focused_lane_id]
-            local previous_mode = current_mode
-
-            -- Initialize playback state tracking for this lane if needed
-            if not lane_playback_state[focused_lane_id] then
-                lane_playback_state[focused_lane_id] = {}
-            end
-
-            -- Store current playback state for the previous mode
-            if previous_mode ~= value then
-                lane_playback_state[focused_lane_id][previous_mode] = focused_lane.playing
-
-                -- Pause focused lane when switching away from its mode
-                if focused_lane.playing then
-                    focused_lane:stop()
-                end
-            end
-
-            -- Update current mode
-            current_mode = value
-
-            -- Restore playback state for the new mode (if we've been in this mode before)
-            if lane_playback_state[focused_lane_id][value] and focused_lane.motif and #focused_lane.motif.events > 0 then
-                focused_lane:play()
-            end
-
-            _seeker.create_motif.screen:rebuild_params()
-            _seeker.screen_ui.set_needs_redraw()
-        end
-    end)
-
+    params:add_group("create_motif_group", "CREATE MOTIF", 1)
     -- Duration parameter for tape mode
     params:add_control("create_motif_duration", "Duration (k3)", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
     params:set_action("create_motif_duration", function(value)
@@ -74,17 +33,6 @@ local function create_params()
         end
     end)
 
-    -- Arpeggio mode parameters
-    params:add_option("arpeggio_interval", "Arpeggio Interval",
-        {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 15)
-    params:add_number("arpeggio_note_duration", "Note Duration", 0, 100, 50, function(param) return param.value .. "%" end)
-    params:add_binary("arpeggio_add_rest", "Add Rest", "trigger", 0)
-    params:set_action("arpeggio_add_rest", function(value)
-        if value == 1 then
-            _seeker.motif_recorder:add_arpeggio_rest()
-            _seeker.ui_state.trigger_activated("arpeggio_add_rest")
-        end
-    end)
 end
 
 local function create_screen_ui()
@@ -94,23 +42,22 @@ local function create_screen_ui()
         description = "Motif creation methods. Change type to play live, create arpeggios, or generate automatically",
         params = {
             { separator = true, title = "Create Motif" },
-            { id = "create_motif_type" },
-            { id = "create_motif_duration" },
-            { id = "arpeggio_interval" },
-            { id = "arpeggio_note_duration" },
-            { id = "arpeggio_add_rest" }
+            { id = "create_motif_duration" }
         }
     })
     
     -- Dynamic parameter rebuilding based on motif type
     norns_ui.rebuild_params = function(self)
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
+
         local param_table = {
             { separator = true, title = "Create Motif" },
-            { id = "create_motif_type" }
+            { id = "lane_" .. focused_lane .. "_motif_type" }
         }
-        
+
         -- Only show duration param when in tape mode AND there's an active motif
-        if params:get("create_motif_type") == 1 then
+        if motif_type == 1 then
             local focused_lane = _seeker.ui_state.get_focused_lane()
             local lane = _seeker.lanes[focused_lane]
             if lane and lane.motif and #lane.motif.events > 0 then
@@ -118,27 +65,32 @@ local function create_screen_ui()
             end
         end
         
-        -- Only show arpeggio params when in arpeggio mode
-        if params:get("create_motif_type") == 2 then
-            table.insert(param_table, { id = "arpeggio_interval" })
-            table.insert(param_table, { id = "arpeggio_note_duration" })
-            table.insert(param_table, { id = "arpeggio_add_rest", is_action = true })
-        end
         
-        -- Only show trigger params when in trigger mode
-        if params:get("create_motif_type") == 3 then
-            local focused_lane = _seeker.ui_state.get_focused_lane()
+        -- Only show arpeggio params when in arpeggio mode
+        if motif_type == 2 then
+
+            -- Sequence Structure
+            table.insert(param_table, { separator = true, title = "Sequence Structure" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_num_steps" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_step_length" })
+
+            -- Chord Generation
+            table.insert(param_table, { separator = true, title = "Chord Generation" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_root" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_type" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_length" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_keyboard_octave" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_num_steps" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_root" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_type" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_length" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_inversion" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_chord_direction" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_note_duration" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_step_length" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_normal_velocity" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_trigger_accent_velocity" })
+
+            -- Chord Voicing
+            table.insert(param_table, { separator = true, title = "Chord Voicing" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_inversion" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_direction" })
+
+            -- Performance Details
+            table.insert(param_table, { separator = true, title = "Performance Details" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_note_duration" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_normal_velocity" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_accent_velocity" })
         end
         
         -- Update the UI with the new parameter table
@@ -241,12 +193,12 @@ local function create_screen_ui()
         if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
             tooltip = "⏹: tap"
         else
-            local motif_type = params:get("create_motif_type")
             local focused_lane_tooltip = _seeker.ui_state.get_focused_lane()
+            local motif_type = params:get("lane_" .. focused_lane_tooltip .. "_motif_type")
             local lane_tooltip = _seeker.lanes[focused_lane_tooltip]
 
-            if motif_type == 3 then -- Trigger mode
-                tooltip = "⏺: hold [generate]"
+            if motif_type == 2 then -- Arpeggio mode
+
             elseif lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                 tooltip = "⏺: hold [overdub]"
             else
@@ -269,8 +221,9 @@ local function create_screen_ui()
         end
         
         -- Draw loop visualization whenever there's a motif (only in tape mode)
-        if params:get("create_motif_type") == 1 then
-            local focused_lane_vis = _seeker.ui_state.get_focused_lane()
+        local focused_lane_vis = _seeker.ui_state.get_focused_lane()
+        local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
+        if motif_type_vis == 1 then
             local lane_vis = _seeker.lanes[focused_lane_vis]
             local motif_vis = lane_vis.motif
 
@@ -476,26 +429,26 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
     
-    -- Helper function for trigger mode recording logic
-    -- Note: Trigger mode never supports overdubbing - always starts fresh
-    local function handle_trigger_recording_start(self)
+    -- Helper function for arpeggio mode recording logic
+    -- Note: Arpeggio mode never supports overdubbing - always starts fresh
+    local function handle_arpeggio_recording_start(self)
         local focused_lane_idx = _seeker.ui_state.get_focused_lane()
         local current_lane = _seeker.lanes[focused_lane_idx]
 
-        -- Always clear the current motif (no overdubbing in trigger mode)
+        -- Always clear the current motif (no overdubbing in arpeggio mode)
         current_lane:clear()
 
         -- Convert step pattern immediately - no waiting for button release
-        _seeker.motif_recorder:set_recording_mode(4) -- Set to trigger recording mode
+        _seeker.motif_recorder:set_recording_mode(3) -- Set to arpeggio recording mode
         _seeker.motif_recorder:start_recording(nil)
 
         -- Immediately convert step pattern to motif and stop
-        local trigger_motif = _seeker.motif_recorder:stop_recording()
+        local arpeggio_motif = _seeker.motif_recorder:stop_recording()
 
         -- Set the motif and start playback
-        current_lane:set_motif(trigger_motif)
+        current_lane:set_motif(arpeggio_motif)
 
-        -- Lane's reset_motif() will handle trigger regeneration automatically
+        -- Lane's reset_motif() will handle arpeggio regeneration automatically
         current_lane:play()
 
         -- Rebuild parameters to show duration based on new motif state
@@ -506,8 +459,8 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
 
-    local function handle_trigger_recording_stop(self)
-        -- Trigger mode completes immediately in start function - nothing to do here
+    local function handle_arpeggio_recording_stop(self)
+        -- Arpeggio mode completes immediately in start function - nothing to do here
     end
     
     -- Helper function to draw count display when recording
@@ -540,22 +493,24 @@ local function create_grid_ui()
     grid_ui.draw = function(self, layers)
         local x = self.layout.x
         local y = self.layout.y
-        local brightness = (_seeker.ui_state.get_current_section() == self.id) and 
-            GridConstants.BRIGHTNESS.UI.FOCUSED or 
+        local brightness = (_seeker.ui_state.get_current_section() == self.id) and
+            GridConstants.BRIGHTNESS.UI.FOCUSED or
             GridConstants.BRIGHTNESS.UI.NORMAL
-        
+
         -- Draw keyboard outline during long press (same for both modes)
         if self:is_holding_long_press() then
             self:draw_keyboard_outline_highlight(layers)
         end
-        
+
         -- Draw count display when recording (same for both modes)
         if _seeker.motif_recorder.is_recording then
             draw_count_display(self, layers)
-            
+
             -- Make the Create Motif button pulsate while recording
             -- Different pulse rates for different modes
-            local pulse_rate = (params:get("create_motif_type") == 1) and 2 or 1
+            local focused_lane_draw = _seeker.ui_state.get_focused_lane()
+            local motif_type = params:get("lane_" .. focused_lane_draw .. "_motif_type")
+            local pulse_rate = (motif_type == 1) and 2 or 1
             brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, pulse_rate)
         end
         
@@ -564,7 +519,8 @@ local function create_grid_ui()
 
     -- Override handle_key to implement recording functionality
     grid_ui.handle_key = function(self, x, y, z)
-        local motif_type = params:get("create_motif_type")
+        local focused_lane_key = _seeker.ui_state.get_focused_lane()
+        local motif_type = params:get("lane_" .. focused_lane_key .. "_motif_type")
         local key_id = string.format("%d,%d", x, y)
         
         if z == 1 then -- Key pressed
@@ -575,10 +531,8 @@ local function create_grid_ui()
             if _seeker.motif_recorder.is_recording then
                 if motif_type == 1 then -- Tape mode
                     handle_tape_recording_stop(self)
-                elseif motif_type == 2 and _seeker.motif_recorder.recording_mode == 3 then -- Arpeggio mode
+                elseif motif_type == 2 then -- Arpeggio mode
                     handle_arpeggio_recording_stop(self)
-                elseif motif_type == 3 then -- Trigger mode
-                    handle_trigger_recording_stop(self)
                 end
             -- Handle recording start logic for long press
             elseif self:is_long_press(key_id) then
@@ -586,8 +540,6 @@ local function create_grid_ui()
                     handle_tape_recording_start(self)
                 elseif motif_type == 2 then -- Arpeggio mode
                     handle_arpeggio_recording_start(self)
-                elseif motif_type == 3 then -- Trigger mode
-                    handle_trigger_recording_start(self)
                 end
             end
             

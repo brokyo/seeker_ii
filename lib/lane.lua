@@ -226,11 +226,18 @@ end
 --   - loop_offset: Time offset for current loop iteration
 ---------------------------------------------------------
 function Lane:schedule_stage(stage_index, start_time)
-  -- Calculate timing info for logging
   local stage = self.stages[stage_index]
+
+  -- Prepare the stage's motif FIRST (only on first loop or if reset_motif is true)
+  if stage.current_loop == 0 or stage.reset_motif then
+    if not self:prepare_stage(stage) then
+      return
+    end
+  end
+
+  -- Calculate timing info AFTER preparation
   local base_duration = self.motif:get_duration()
   local speed_adjusted_duration = base_duration / self.speed
-
 
   -- Store the start time in the stage for visualization synchronization
   stage.last_start_time = start_time
@@ -262,7 +269,7 @@ function Lane:schedule_stage(stage_index, start_time)
   -- Process all events in the motif
   for i, event in ipairs(self.motif.events) do
     local event_time = event.time
-    
+
     if event.type == "note_on" then
       -- Only start notes that fall within the duration window
       if event_time <= base_duration then
@@ -397,12 +404,6 @@ function Lane:schedule_stage(stage_index, start_time)
     })
   end
   
-  -- Prepare the stage's motif (only on first loop or if reset_motif is true)
-  if stage.current_loop == 0 or stage.reset_motif then
-    if not self:prepare_stage(stage) then
-      return
-    end
-  end
 
   -- Trigger stage_config button blink on stage start (first loop only)
   if stage.current_loop == 0 and _seeker.stage_config and _seeker.stage_config.grid then
@@ -504,13 +505,13 @@ function Lane:on_note_on(event)
 
   -- Get all grid positions for this note
   local positions
-  local motif_type = params:get("create_motif_type")
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
   if event.positions then
     positions = event.positions
   elseif event.x and event.y then
-    -- For trigger mode, never use theory system - use direct coordinates
-    if motif_type == 3 then
+    -- For arpeggio mode, never use theory system - use direct coordinates
+    if motif_type == 2 then
       positions = {{x = event.x, y = event.y}}
     else
       -- Tape/arpeggio modes: use theory system for multi-position notes
@@ -521,11 +522,11 @@ function Lane:on_note_on(event)
 
   -- Store note with all its positions
   if positions then
-    -- For trigger keyboard mode, use step-based key to allow multiple simultaneous steps
-    local motif_type = params:get("create_motif_type")
+    -- For arpeggio keyboard mode, use step-based key to allow multiple simultaneous steps
+    local motif_type = params:get("lane_" .. self.id .. "_motif_type")
     local note_key
-    if motif_type == 3 and event.step then
-      -- Trigger mode: use step number as key to allow multiple active steps
+    if motif_type == 2 and event.step then
+      -- Arpeggio mode: use step number as key to allow multiple active steps
       note_key = "step_" .. event.step
     else
       -- Tape/arpeggio modes: use note number as key (existing behavior)
@@ -757,13 +758,13 @@ function Lane:on_note_on(event)
   end
 
   -- Add trails for all positions with keyboard-specific behavior
-  local motif_type = params:get("create_motif_type")
-  local is_trigger_mode = (motif_type == 3)
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local is_arpeggio_mode = (motif_type == 2)
 
   -- Set trail properties based on keyboard mode
   local trail_brightness, trail_decay
-  if is_trigger_mode then
-    -- Trigger mode: immediate on/off (no decay, full brightness)
+  if is_arpeggio_mode then
+    -- Arpeggio mode: immediate on/off (no decay, full brightness)
     trail_brightness = GridConstants.BRIGHTNESS.FULL
     trail_decay = 1.0  -- No decay
   else
@@ -893,11 +894,11 @@ function Lane:on_note_off(event)
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
   
   -- Remove this note from active notes and get its positions
-  -- Use same key logic as on_note_on for trigger mode
-  local motif_type = params:get("create_motif_type")
+  -- Use same key logic as on_note_on for arpeggio mode
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   local note_key
-  if motif_type == 3 and event.step then
-    -- Trigger mode: use step number as key to match on_note_on
+  if motif_type == 2 and event.step then
+    -- Arpeggio mode: use step number as key to match on_note_on
     note_key = "step_" .. event.step
   else
     -- Tape/arpeggio modes: use note number as key (existing behavior)
@@ -926,11 +927,11 @@ function Lane:on_note_off(event)
   end
 
   -- Handle trails based on keyboard mode
-  local motif_type = params:get("create_motif_type")
-  local is_trigger_mode = (motif_type == 3)
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local is_arpeggio_mode = (motif_type == 2)
 
-  if is_trigger_mode then
-    -- Trigger mode: remove trails immediately for on/off behavior
+  if is_arpeggio_mode then
+    -- Arpeggio mode: remove trails immediately for on/off behavior
     if note_data and note_data.positions then
       for _, pos in ipairs(note_data.positions) do
         local key = trail_key(pos.x, pos.y)
@@ -1069,11 +1070,11 @@ function Lane:get_active_positions()
   local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
 
   for key, note in pairs(self.active_notes) do
-    -- For trigger mode, positions are already stored correctly
+    -- For arpeggio mode, positions are already stored correctly
     -- For tape/arpeggio, recalculate based on current octave
     local current_positions
     if string.sub(key, 1, 5) == "step_" then
-      -- Trigger mode: use stored positions directly
+      -- Arpeggio mode: use stored positions directly
       current_positions = note.positions
     else
       -- Tape/arpeggio mode: recalculate positions

@@ -81,7 +81,7 @@ function Motif:regenerate_trigger_pattern_from_grid(lane_id)
       }
     )
 
-    -- Replace working events and duration with regenerated ones
+    -- Replace working events and update duration
     self.events = regenerated_events
     self.duration = new_duration
 

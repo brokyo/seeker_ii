@@ -8,7 +8,8 @@ local KeyboardRegion = {}
 
 -- Get current active keyboard based on create_motif_type
 function KeyboardRegion.get_active_keyboard()
-  local motif_type = params:get("create_motif_type")
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
 
   -- Initialize global keyboard cache if needed
   if not _seeker.keyboards[1] then
@@ -18,8 +19,7 @@ function KeyboardRegion.get_active_keyboard()
   -- Lazy-load non-default keyboards using global cache
   if not _seeker.keyboards[motif_type] then
     local keyboard_files = {
-      [2] = "lib/grid/regions/keyboards/arpeggio_keyboard",
-      [3] = "lib/grid/regions/keyboards/trigger_keyboard"
+      [2] = "lib/grid/regions/keyboards/arpeggio_keyboard"
     }
     _seeker.keyboards[motif_type] = include(keyboard_files[motif_type])
   end

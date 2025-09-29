@@ -75,7 +75,17 @@ end
 -- Create basic lane parameters that lane.lua needs
 local function create_basic_lane_params(i)
     -- Core lane parameters
-    params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 4)
+    params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 5)
+
+    -- Per-lane motif creation type
+    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
+    params:set_action("lane_" .. i .. "_motif_type", function(value)
+        -- Only trigger rebuild if create_motif component is initialized
+        if _seeker and _seeker.create_motif and _seeker.create_motif.screen then
+            _seeker.create_motif.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
 
     -- Per-Lane keyboard tuning
     params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
@@ -92,25 +102,25 @@ local function create_basic_lane_params(i)
 
 end
 
--- Create trigger sequencer parameters for each lane
-local function create_trigger_lane_params(i)
-    params:add_group("lane_" .. i .. "_trigger", "TRIGGER SEQUENCER", 10)
+-- Create arpeggio sequencer parameters for each lane
+local function create_arpeggio_lane_params(i)
+    params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 10)
 
-    params:add_number("lane_" .. i .. "_trigger_num_steps", "Number of Steps", 4, 24, 16)
-    params:add_option("lane_" .. i .. "_trigger_chord_root", "Chord Root",
+    params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 16)
+    params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root",
         {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 1)
-    params:add_option("lane_" .. i .. "_trigger_chord_type", "Chord Type",
+    params:add_option("lane_" .. i .. "_arpeggio_chord_type", "Chord Type",
         {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dominant 7", "diminished", "augmented", "add9", "minor 9", "major 9"}, 1)
-    params:add_number("lane_" .. i .. "_trigger_chord_length", "Chord Length", 1, 12, 3)
-    params:add_option("lane_" .. i .. "_trigger_chord_inversion", "Chord Inversion",
+    params:add_number("lane_" .. i .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)
+    params:add_option("lane_" .. i .. "_arpeggio_chord_inversion", "Chord Inversion",
         {"Root", "1st", "2nd", "3rd"}, 1)
-    params:add_option("lane_" .. i .. "_trigger_chord_direction", "Chord Direction",
+    params:add_option("lane_" .. i .. "_arpeggio_chord_direction", "Chord Direction",
         {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)
-    params:add_number("lane_" .. i .. "_trigger_note_duration", "Note Duration", 1, 99, 50, function(param) return param.value .. "%" end)
-    params:add_option("lane_" .. i .. "_trigger_step_length", "Step Length",
+    params:add_number("lane_" .. i .. "_arpeggio_note_duration", "Note Duration", 1, 99, 50, function(param) return param.value .. "%" end)
+    params:add_option("lane_" .. i .. "_arpeggio_step_length", "Step Length",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
-    params:add_number("lane_" .. i .. "_trigger_normal_velocity", "Normal Velocity", 1, 127, 80)
-    params:add_number("lane_" .. i .. "_trigger_accent_velocity", "Accent Velocity", 1, 127, 127)
+    params:add_number("lane_" .. i .. "_arpeggio_normal_velocity", "Normal Velocity", 1, 127, 80)
+    params:add_number("lane_" .. i .. "_arpeggio_accent_velocity", "Accent Velocity", 1, 127, 127)
 end
 
 -- Initialize all lane infrastructure parameters
@@ -124,7 +134,7 @@ function lane_infrastructure.init()
         create_stage_params(i)
         create_basic_lane_params(i)
         create_motif_playback_params(i)
-        create_trigger_lane_params(i)
+        create_arpeggio_lane_params(i)
     end
     
     print("⚙ Lane infrastructure complete")

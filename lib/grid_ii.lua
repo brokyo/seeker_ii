@@ -90,11 +90,12 @@ end
 
 -- Determine which regions should be visible based on current mode/state
 local function should_draw_region(region_name)
-  local motif_type = params:get("create_motif_type")
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
 
   -- Handle mode-specific region visibility
-  if motif_type == 3 then -- Trigger mode
-    -- Hide velocity and tuning regions since trigger mode uses step states and chord parameters
+  if motif_type == 2 then -- Arpeggio mode
+    -- Hide velocity and tuning regions since arpeggio mode uses step states and chord parameters
     return not (region_name == "velocity" or region_name == "tuning")
   end
 
