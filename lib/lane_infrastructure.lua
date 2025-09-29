@@ -2,6 +2,7 @@
 -- Creates the foundational parameter structure that lane.lua depends on
 -- Intended to be centralized Lane setup so that components like @lane_config and @stage_config are focused on configuration, not infrastructure
 
+local theory = include('lib/theory_utils')
 local lane_infrastructure = {}
 
 -- Create stage-related parameters that lane.lua needs for sequencing
@@ -107,8 +108,7 @@ local function create_arpeggio_lane_params(i)
     params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 10)
 
     params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 16)
-    params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root",
-        {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 1)
+    params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root", theory.get_scale_chord_roots(), 1)
     params:add_option("lane_" .. i .. "_arpeggio_chord_type", "Chord Type",
         {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dominant 7", "diminished", "augmented", "add9", "minor 9", "major 9"}, 1)
     params:add_number("lane_" .. i .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)

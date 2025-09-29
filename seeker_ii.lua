@@ -69,12 +69,12 @@ function init()
     
   _seeker.ui_state = ui_state.init()
 
-  -- Initialize lane infrastructure first to provide parameters for lane.lua
-  lane_infrastructure.init()
-  
-  -- Initialize components
+  -- Initialize config first since lane infrastructure now depends on config parameters
   params:add_separator("seeker_ii_header", "seeker_ii")
   _seeker.config = Config.init()
+
+  -- Initialize lane infrastructure to provide parameters for lane.lua
+  lane_infrastructure.init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.w_tape = WTape.init()
   -- NOTE: LaneConfig must be initialized before StageConfig to avoid race conditions

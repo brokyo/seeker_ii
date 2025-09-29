@@ -98,6 +98,11 @@ local function create_params()
             params:set("root_note", preset[1], true)
             params:set("scale_type", preset[2], true)
             theory.print_keyboard_layout()
+            -- Update arpeggio chord root options to match new scale
+            if _seeker then
+                theory.update_chord_root_options()
+                _seeker.create_motif.screen:rebuild_params()
+            end
         end
     end)
     
@@ -106,6 +111,11 @@ local function create_params()
         -- Set tuning preset to custom when manually changing root
         params:set("tuning_preset", 1, true)
         theory.print_keyboard_layout()
+        -- Update arpeggio chord root options to match new scale
+        if _seeker then
+            theory.update_chord_root_options()
+            _seeker.create_motif.screen:rebuild_params()
+        end
     end)
     
     local scale_names = {}
@@ -117,6 +127,11 @@ local function create_params()
         -- Set tuning preset to custom when manually changing scale
         params:set("tuning_preset", 1, true)
         theory.print_keyboard_layout()
+        -- Update arpeggio chord root options to match new scale
+        if _seeker then
+            theory.update_chord_root_options()
+            _seeker.create_motif.screen:rebuild_params()
+        end
     end)
     
     -- Keyboard Layout
