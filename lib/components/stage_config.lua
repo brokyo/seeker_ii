@@ -92,12 +92,14 @@ local function create_screen_ui()
 
         -- Build a dynamic parameter table based on current lane and stage
         local param_table = {
-            { separator = true, title = "Stage " .. stage_idx .. " Config" },
+            { separator = true, title = "Stage " .. stage_idx .. " Settings" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
+            { separator = true, title = "Transform" },
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
+            { separator = true, title = "Advanced" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
         }
         
@@ -117,20 +119,19 @@ local function create_screen_ui()
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
         local stage_idx = config_state.config_stage
-        
+
         local param_table = {
-            { separator = true, title = "Stage " .. stage_idx .. " Config" },
+            { separator = true, title = "Stage " .. stage_idx .. " Settings" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-            { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
+            { separator = true, title = "Transform" },
+            { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx }
         }
-        
+
         -- Get the current transform type and add its specific parameters
         local transform_type = params:string("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
-        
+
         -- Add specific parameters based on transform type
         if transform_type == "None" then
         elseif transform_type == "Overdub Filter" then
@@ -214,7 +215,12 @@ local function create_screen_ui()
         elseif transform_type == "Reverse" then
 
         end
-        
+
+        -- Add Advanced section at the end
+        table.insert(param_table, { separator = true, title = "Advanced" })
+        table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" })
+        table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" })
+
         -- Update the UI with the new parameter table
         self.params = param_table
     end
