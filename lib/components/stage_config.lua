@@ -44,11 +44,11 @@ local function create_params()
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", "Filter Round", 1, 10, 1)
 
             -- Harmonize Params
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_chance", "Sub Octave Chance", 0, 100, 50, function(param) return param.value .. "%" end)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_chance", "Sub Octave Chance", {"Off", "Low", "Medium", "High", "Always"}, 3)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_volume", "Sub Octave Volume", 0, 100, 50, function(param) return param.value .. "%" end)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_chance", "Fifth Above Chance", 0, 100, 50, function(param) return param.value .. "%" end)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_chance", "Fifth Above Chance", {"Off", "Low", "Medium", "High", "Always"}, 3)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_volume", "Fifth Above Volume", 0, 100, 50, function(param) return param.value .. "%" end)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_chance", "Octave Above Chance", 0, 100, 50, function(param) return param.value .. "%" end)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_chance", "Octave Above Chance", {"Off", "Low", "Medium", "High", "Always"}, 3)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_volume", "Octave Above Volume", 0, 100, 50, function(param) return param.value .. "%" end)
 
             -- Transpose Params
@@ -94,6 +94,9 @@ local function create_screen_ui()
         local param_table = {
             { separator = true, title = "Stage " .. stage_idx .. " Config" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
         }
@@ -119,6 +122,7 @@ local function create_screen_ui()
             { separator = true, title = "Stage " .. stage_idx .. " Config" },
             { id = "lane_" .. lane_idx .. "_config_stage"},
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}

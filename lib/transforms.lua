@@ -87,134 +87,180 @@ transforms.available = {
     ui_order = 3,
     description = "Adds subtle harmonic overtones",
     fn = function(events, lane_id, stage_id)
+      -- Helper function to convert option to chance percentage
+      local function option_to_chance(option_value)
+        local chance_map = {0.0, 0.25, 0.50, 0.75, 1.0} -- Off, Low, Medium, High, Always
+        return chance_map[option_value]
+      end
+
       -- Read params directly inside the transform
-      local sub_octave_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_sub_octave_chance") / 100
+      local sub_octave_chance = option_to_chance(params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_sub_octave_chance"))
       local sub_octave_volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_sub_octave_volume") / 100
-      local fifth_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_fifth_above_chance") / 100
+      local fifth_chance = option_to_chance(params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_fifth_above_chance"))
       local fifth_volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_fifth_above_volume") / 100
-      local octave_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_octave_above_chance") / 100
+      local octave_chance = option_to_chance(params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_octave_above_chance"))
       local octave_volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_harmonize_octave_above_volume") / 100
-      
+
       -- Built-in humanization constants
       local TIMING_VARIATION = 0.015  -- 15ms maximum timing variation
       local FIFTH_VELOCITY_VARIATION = 0.1   -- ±10% velocity variation for fifth
       local OCTAVE_VELOCITY_VARIATION = 0.15 -- ±15% velocity variation for octave
       local SUB_OCTAVE_VELOCITY_VARIATION = 0.2 -- ±20% velocity variation for sub-octave
-      
+
       -- Helper function for subtle randomization
       local function humanize_value(base_value, range)
         return base_value + (math.random() * 2 - 1) * range
       end
-      
-      local result = {}
-      local active_harmonics = {}
-      
+
+      -- First pass: collect note_on/note_off pairs to determine harmonic structure
+      local note_pairs = {}
+      local note_counter = {}
+
       for _, event in ipairs(events) do
-        -- Copy original event
-        local new_event = {}
-        for k, v in pairs(event) do
-          new_event[k] = v
-        end
-        table.insert(result, new_event)
-        
         if event.type == "note_on" then
-          local note_id = event.note
-          -- Store timing variations to reuse in note_off
-          active_harmonics[note_id] = {
-            has_sub_octave = math.random() < sub_octave_chance,
-            has_fifth = math.random() < fifth_chance,
-            has_octave = math.random() < octave_chance,
-            sub_octave_delay = humanize_value(0, TIMING_VARIATION),
-            fifth_delay = humanize_value(0, TIMING_VARIATION),
-            octave_delay = humanize_value(0, TIMING_VARIATION)
+          -- Create unique ID for each note occurrence
+          note_counter[event.note] = (note_counter[event.note] or 0) + 1
+          local unique_id = event.note .. "_" .. note_counter[event.note]
+
+          note_pairs[unique_id] = {
+            note_on = event,
+            note_off = nil,
+            note = event.note,
+            instance = note_counter[event.note],
+            harmonics = {
+              has_sub_octave = math.random() < sub_octave_chance,
+              has_fifth = math.random() < fifth_chance,
+              has_octave = math.random() < octave_chance,
+              sub_octave_delay = humanize_value(0, TIMING_VARIATION),
+              fifth_delay = humanize_value(0, TIMING_VARIATION),
+              octave_delay = humanize_value(0, TIMING_VARIATION)
+            }
           }
-          
-          -- Add sub-octave harmonic (one octave below)
-          if active_harmonics[note_id].has_sub_octave then
-            local sub_octave_velocity = math.floor(
-              event.velocity * 
-              humanize_value(sub_octave_volume, SUB_OCTAVE_VELOCITY_VARIATION)
-            )
-            
-            table.insert(result, {
-              type = "note_on",
-              time = event.time + active_harmonics[note_id].sub_octave_delay,
-              note = event.note - 12, -- One octave below
-              velocity = sub_octave_velocity
-            })
-          end
-          
-          -- Add perfect fifth above
-          if active_harmonics[note_id].has_fifth then
-            local fifth_velocity = math.floor(
-              event.velocity * 
-              humanize_value(fifth_volume, FIFTH_VELOCITY_VARIATION)
-            )
-            
-            table.insert(result, {
-              type = "note_on",
-              time = event.time + active_harmonics[note_id].fifth_delay,
-              note = event.note + 7, -- Perfect fifth above
-              velocity = fifth_velocity
-            })
-          end
-          
-          -- Add octave above
-          if active_harmonics[note_id].has_octave then
-            local octave_velocity = math.floor(
-              event.velocity * 
-              humanize_value(octave_volume, OCTAVE_VELOCITY_VARIATION)
-            )
-            
-            table.insert(result, {
-              type = "note_on",
-              time = event.time + active_harmonics[note_id].octave_delay,
-              note = event.note + 12, -- One octave above
-              velocity = octave_velocity
-            })
-          end
-        end
-        
-        if event.type == "note_off" then
-          local note_id = event.note
-          
-          if active_harmonics[note_id] then
-            -- Add sub-octave note_off
-            if active_harmonics[note_id].has_sub_octave then
-              table.insert(result, {
-                type = "note_off",
-                time = event.time + active_harmonics[note_id].sub_octave_delay,
-                note = event.note - 12
-              })
+        elseif event.type == "note_off" then
+          -- Find the most recent unmatched note_on for this note
+          local matched_id = nil
+          local highest_instance = 0
+
+          for id, pair in pairs(note_pairs) do
+            if pair.note == event.note and pair.note_off == nil and pair.instance > highest_instance then
+              matched_id = id
+              highest_instance = pair.instance
             end
-            
-            -- Add fifth note_off
-            if active_harmonics[note_id].has_fifth then
-              table.insert(result, {
-                type = "note_off",
-                time = event.time + active_harmonics[note_id].fifth_delay + 0.05, -- Slight sustain
-                note = event.note + 7
-              })
-            end
-            
-            -- Add octave note_off
-            if active_harmonics[note_id].has_octave then
-              table.insert(result, {
-                type = "note_off",
-                time = event.time + active_harmonics[note_id].octave_delay,
-                note = event.note + 12
-              })
-            end
-            
-            -- Clean up tracking
-            active_harmonics[note_id] = nil
+          end
+
+          if matched_id then
+            note_pairs[matched_id].note_off = event
           end
         end
       end
-      
+
+      -- Second pass: generate harmonized events
+      local result = {}
+
+      for _, pair in pairs(note_pairs) do
+        local original_note_on = pair.note_on
+        local original_note_off = pair.note_off
+        local harmonics = pair.harmonics
+
+        -- Add original note_on
+        local new_event = {}
+        for k, v in pairs(original_note_on) do
+          new_event[k] = v
+        end
+        table.insert(result, new_event)
+
+        -- Add harmonic note_ons
+        if harmonics.has_sub_octave then
+          local sub_octave_velocity = math.floor(
+            original_note_on.velocity *
+            humanize_value(sub_octave_volume, SUB_OCTAVE_VELOCITY_VARIATION)
+          )
+
+          table.insert(result, {
+            type = "note_on",
+            time = original_note_on.time + harmonics.sub_octave_delay,
+            note = original_note_on.note - 12,
+            velocity = sub_octave_velocity
+          })
+        end
+
+        if harmonics.has_fifth then
+          local fifth_velocity = math.floor(
+            original_note_on.velocity *
+            humanize_value(fifth_volume, FIFTH_VELOCITY_VARIATION)
+          )
+
+          table.insert(result, {
+            type = "note_on",
+            time = original_note_on.time + harmonics.fifth_delay,
+            note = original_note_on.note + 7,
+            velocity = fifth_velocity
+          })
+        end
+
+        if harmonics.has_octave then
+          local octave_velocity = math.floor(
+            original_note_on.velocity *
+            humanize_value(octave_volume, OCTAVE_VELOCITY_VARIATION)
+          )
+
+          table.insert(result, {
+            type = "note_on",
+            time = original_note_on.time + harmonics.octave_delay,
+            note = original_note_on.note + 12,
+            velocity = octave_velocity
+          })
+        end
+
+        -- Add original note_off if it exists
+        if original_note_off then
+          local new_event = {}
+          for k, v in pairs(original_note_off) do
+            new_event[k] = v
+          end
+          table.insert(result, new_event)
+
+          -- Add harmonic note_offs
+          if harmonics.has_sub_octave then
+            table.insert(result, {
+              type = "note_off",
+              time = original_note_off.time + harmonics.sub_octave_delay,
+              note = original_note_on.note - 12
+            })
+          end
+
+          if harmonics.has_fifth then
+            table.insert(result, {
+              type = "note_off",
+              time = original_note_off.time + harmonics.fifth_delay + 0.05, -- Slight sustain
+              note = original_note_on.note + 7
+            })
+          end
+
+          if harmonics.has_octave then
+            table.insert(result, {
+              type = "note_off",
+              time = original_note_off.time + harmonics.octave_delay,
+              note = original_note_on.note + 12
+            })
+          end
+        end
+      end
+
+      -- Add any non-note events
+      for _, event in ipairs(events) do
+        if event.type ~= "note_on" and event.type ~= "note_off" then
+          local new_event = {}
+          for k, v in pairs(event) do
+            new_event[k] = v
+          end
+          table.insert(result, new_event)
+        end
+      end
+
       -- Sort by time to maintain proper event ordering
       table.sort(result, function(a, b) return a.time < b.time end)
-      
+
       return result
     end
   },
