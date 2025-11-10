@@ -326,7 +326,7 @@ local function create_grid_ui()
             height = 1
         }
     })
-    
+
     -- Helper function for common key press logic
     local function handle_key_press(self)
         _seeker.ui_state.set_current_section("CREATE_MOTIF")
@@ -513,7 +513,7 @@ local function create_grid_ui()
             local pulse_rate = (motif_type == 1) and 2 or 1
             brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, pulse_rate)
         end
-        
+
         layers.ui[x][y] = brightness
     end
 
@@ -522,7 +522,7 @@ local function create_grid_ui()
         local focused_lane_key = _seeker.ui_state.get_focused_lane()
         local motif_type = params:get("lane_" .. focused_lane_key .. "_motif_type")
         local key_id = string.format("%d,%d", x, y)
-        
+
         if z == 1 then -- Key pressed
             self:key_down(key_id)
             handle_key_press(self)

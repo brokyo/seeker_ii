@@ -126,7 +126,7 @@ end
 -- Initialize all lane infrastructure parameters
 function lane_infrastructure.init()
     print("⚙ Setting up lane infrastructure...")
-    
+
     -- Create infrastructure parameters for all 8 lanes
     -- NB: Ideally we would also want to create the params in @stage_config and @lane_config here so they stay grouped in the PARAMS UI. Long list thing.
     for i = 1, 8 do

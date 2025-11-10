@@ -118,7 +118,7 @@ function draw_controls()
 
   -- Old Components
   regions.clear_motif:draw(GridUI.layers)
-  
+
   -- New Component Approach
   regions.config:draw(GridUI.layers)
   regions.create_motif:draw(GridUI.layers)
