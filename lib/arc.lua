@@ -109,21 +109,21 @@ function Arc.init()
     device.delta = function(n, delta)
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
-      
+
       -- Check for knob recording mode and intercept encoder turns
       if _seeker.ui_state.state.knob_recording_active and n == 2 then
         _seeker.eurorack_output.handle_encoder_input(delta)
-        return 
+        return
       end
-      
+
       -- Register activity to wake screen/restart sleep timer
       _seeker.ui_state.register_activity()
-      
+
       -- offset counter on rotation (modulo 64 to stay aligned with the LED ring)
       device.index[n] = device.index[n] + delta % 64
 
       -- Only trigger every 8th consecutive movement (improves UX)
-      if device.index[n] % 8 == 0 then       
+      if device.index[n] % 8 == 0 then
         -- Determine movement direction based on last delta direction
         local direction
         if delta > 0 then
@@ -131,15 +131,44 @@ function Arc.init()
         else
           direction = -1
         end
-        
+
+        -- Check if dual keyboard is active and handle velocity encoders
+        local dual_keyboard_active = _seeker.keyboards and _seeker.keyboards.dual_tape and _seeker.keyboards.dual_tape.is_active
+        if dual_keyboard_active and (n == 3 or n == 4) then
+          -- Encoder 3: Left keyboard velocity
+          -- Encoder 4: Right keyboard velocity
+          local velocity_delta = direction * 3
+
+          if n == 3 then
+            _seeker.keyboards.dual_tape.left_velocity = util.clamp(_seeker.keyboards.dual_tape.left_velocity + velocity_delta, 0, 127)
+          elseif n == 4 then
+            _seeker.keyboards.dual_tape.right_velocity = util.clamp(_seeker.keyboards.dual_tape.right_velocity + velocity_delta, 0, 127)
+          end
+
+          device.update_dual_keyboard_velocity_display()
+          return
+        end
+
+        -- Check if single tape keyboard should handle velocity on encoder 4
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
+        if motif_type == 1 and n == 4 and _seeker.keyboards and _seeker.keyboards[1] then
+          -- Encoder 4: Single keyboard velocity
+          local velocity_delta = direction * 3
+          _seeker.keyboards[1].velocity = util.clamp(_seeker.keyboards[1].velocity + velocity_delta, 0, 127)
+
+          device.update_single_keyboard_velocity_display()
+          return
+        end
+
         -- Get current section and selected parameter
         local current_section_id = _seeker.ui_state.get_current_section()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
-        
+
         -- Check if this parameter uses multi-encoder float editing
         local is_multi_float = selected_param and selected_param.arc_multi_float
-        
+
         -- Map Arc encoder 1 to Norns encoder 2. Use custom param key illumination logic.
         if n == 1 then
           _seeker.ui_state.enc(2, direction)
@@ -160,7 +189,7 @@ function Arc.init()
             -- Encoder 4: Hundredth component
             device.modify_float_component(selected_param, 4, direction)
           end
-          
+
           -- Update display and UI once for any multi-encoder change
           device.update_param_value_display()
           _seeker.screen_ui.set_needs_redraw()
@@ -169,7 +198,7 @@ function Arc.init()
         elseif n == 2 and not selected_param.is_action then
           _seeker.ui_state.enc(3, direction)
           device.update_param_value_display()
-        end        
+        end
       end
     end
 
@@ -466,12 +495,27 @@ function Arc.init()
     device.update_param_value_display = function()
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
-      
+
+      -- Check if dual keyboard is active - if so, use dual keyboard velocity display
+      local dual_keyboard_active = _seeker.keyboards and _seeker.keyboards.dual_tape and _seeker.keyboards.dual_tape.is_active
+      if dual_keyboard_active then
+        device.update_dual_keyboard_velocity_display()
+        return
+      end
+
+      -- Check if single tape keyboard should show velocity display
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
+      if motif_type == 1 and _seeker.keyboards and _seeker.keyboards[1] then
+        device.update_single_keyboard_velocity_display()
+        return
+      end
+
       -- Get current param info
       local current_section_id = _seeker.ui_state.get_current_section()
       local current_section = _seeker.screen_ui.sections[current_section_id]
       local param = current_section.params[current_section.state.selected_index]
-      
+
       -- For action parameters, start or update the pulse animation
       if param and param.is_action then
         if not device.pulse_action_param or device.pulse_action_param ~= param.id then
@@ -496,7 +540,7 @@ function Arc.init()
       for i = 1, 64 do
         device:led(2, i, 3)
       end
-      
+
       -- Clear rings 3 and 4 for non-multi-float params
       for ring = 3, 4 do
         for i = 1, 64 do
@@ -578,6 +622,62 @@ function Arc.init()
         end
       end
       
+      device:refresh()
+    end
+
+    -- Update Arc display for dual keyboard velocity control
+    device.update_dual_keyboard_velocity_display = function()
+      if not _seeker.keyboards or not _seeker.keyboards.dual_tape or not _seeker.keyboards.dual_tape.is_active then
+        return
+      end
+
+      -- Clear rings 3 and 4
+      for ring = 3, 4 do
+        for i = 1, 64 do
+          device:led(ring, i, 1) -- Dim base
+        end
+      end
+
+      -- Ring 3: Left keyboard velocity (0-127)
+      local left_vel = _seeker.keyboards.dual_tape.left_velocity
+      local left_leds = math.floor((left_vel / 127) * 64)
+      for i = 1, left_leds do
+        device:led(3, i, 10)
+      end
+
+      -- Ring 4: Right keyboard velocity (0-127)
+      local right_vel = _seeker.keyboards.dual_tape.right_velocity
+      local right_leds = math.floor((right_vel / 127) * 64)
+      for i = 1, right_leds do
+        device:led(4, i, 10)
+      end
+
+      device:refresh()
+    end
+
+    -- Update Arc display for single keyboard velocity control
+    device.update_single_keyboard_velocity_display = function()
+      if not _seeker.keyboards or not _seeker.keyboards[1] then
+        return
+      end
+
+      -- Clear ring 3
+      for i = 1, 64 do
+        device:led(3, i, 0)
+      end
+
+      -- Clear ring 4
+      for i = 1, 64 do
+        device:led(4, i, 1) -- Dim base
+      end
+
+      -- Ring 4: Single keyboard velocity (0-127)
+      local vel = _seeker.keyboards[1].velocity
+      local leds = math.floor((vel / 127) * 64)
+      for i = 1, leds do
+        device:led(4, i, 10)
+      end
+
       device:refresh()
     end
 

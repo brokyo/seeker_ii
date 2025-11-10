@@ -14,6 +14,8 @@ local DualTapeKeyboard = {}
 DualTapeKeyboard.is_active = false
 DualTapeKeyboard.left_octave = 2  -- Bass octave
 DualTapeKeyboard.right_octave = 4 -- Treble octave
+DualTapeKeyboard.left_velocity = 100  -- Default to forte (0-127)
+DualTapeKeyboard.right_velocity = 100 -- Default to forte (0-127)
 
 -- Layout definitions
 DualTapeKeyboard.layout = {
@@ -33,7 +35,8 @@ DualTapeKeyboard.layout = {
   left_octave_down = { x = 7, y = 7 },
   right_octave_up = { x = 10, y = 6 },
   right_octave_down = { x = 10, y = 7 },
-  record_button = { x = 9, y = 8 },
+  record_button = { x = 8, y = 8 },
+  clear_button = { x = 9, y = 8 },
   toggle_button = { x = 16, y = 8 }
 }
 
@@ -55,10 +58,11 @@ function DualTapeKeyboard.contains(x, y)
                            (x == layout.right_octave_up.x and y == layout.right_octave_up.y) or
                            (x == layout.right_octave_down.x and y == layout.right_octave_down.y)
 
-  -- Check record button
+  -- Check control buttons
   local is_record_button = (x == layout.record_button.x and y == layout.record_button.y)
+  local is_clear_button = (x == layout.clear_button.x and y == layout.clear_button.y)
 
-  return in_keyboard or is_octave_button or is_record_button
+  return in_keyboard or is_octave_button or is_record_button or is_clear_button
 end
 
 -- Find all grid positions for a given MIDI note (searches both keyboards)
@@ -124,24 +128,23 @@ end
 function DualTapeKeyboard.note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
 
-  -- Determine which keyboard and get appropriate octave
+  -- Determine which keyboard and get appropriate octave and velocity
   local side = get_keyboard_side(x, y)
   if not side then return end
 
   local keyboard_octave = (side == "left") and DualTapeKeyboard.left_octave or DualTapeKeyboard.right_octave
+  local velocity = (side == "left") and DualTapeKeyboard.left_velocity or DualTapeKeyboard.right_velocity
   local note = theory.grid_to_note(x, y, keyboard_octave)
 
   -- Print the note being played for debugging
   if note then
     local note_name = musicutil.note_num_to_name(note, true)
     local actual_octave = tonumber(string.match(note_name, "%d+"))
-    print(string.format("Note played [%s]: %s (MIDI %d) at grid position (%d,%d), Octave param: %d, Actual octave: %d",
-          side, note_name, note, x, y, keyboard_octave, actual_octave))
+    print(string.format("Note played [%s]: %s (MIDI %d) at grid position (%d,%d), Octave param: %d, Actual octave: %d, Velocity: %d",
+          side, note_name, note, x, y, keyboard_octave, actual_octave, velocity))
   end
 
-  -- Get velocity from velocity region
-  local velocity_region = include("lib/grid/regions/velocity_region")
-  local event = DualTapeKeyboard.create_note_event(x, y, note, velocity_region.get_current_velocity())
+  local event = DualTapeKeyboard.create_note_event(x, y, note, velocity)
 
   if _seeker.motif_recorder.is_recording then
     _seeker.motif_recorder:on_note_on(event)
@@ -199,7 +202,15 @@ local record_key_state = {
   key_id = nil
 }
 
+-- Handle clear button (long press detection)
+local clear_key_state = {
+  is_pressed = false,
+  press_time = nil,
+  key_id = nil
+}
+
 local LONG_PRESS_TIME = 0.5
+local CLEAR_LONG_PRESS_TIME = 1.5  -- Longer for safety
 
 local function handle_record_button(x, y, z)
   local layout = DualTapeKeyboard.layout
@@ -272,6 +283,46 @@ local function handle_record_button(x, y, z)
   end
 end
 
+-- Handle clear button (long press to clear motif)
+local function handle_clear_button(x, y, z)
+  local layout = DualTapeKeyboard.layout
+  if x ~= layout.clear_button.x or y ~= layout.clear_button.y then
+    return
+  end
+
+  if z == 1 then -- Key pressed
+    clear_key_state.is_pressed = true
+    clear_key_state.press_time = util.time()
+  else -- Key released
+    local is_long_press = false
+    if clear_key_state.is_pressed and clear_key_state.press_time then
+      local press_duration = util.time() - clear_key_state.press_time
+      is_long_press = press_duration >= CLEAR_LONG_PRESS_TIME
+    end
+
+    -- Clear motif on long press
+    if is_long_press then
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local lane = _seeker.lanes[focused_lane]
+
+      if lane and lane.motif and #lane.motif.events > 0 then
+        lane:clear()
+
+        -- Rebuild create_motif parameters to hide duration since motif was cleared
+        if _seeker.create_motif and _seeker.create_motif.screen then
+          _seeker.create_motif.screen:rebuild_params()
+        end
+
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end
+
+    -- Cleanup
+    clear_key_state.is_pressed = false
+    clear_key_state.press_time = nil
+  end
+end
+
 -- Handle key presses
 function DualTapeKeyboard.handle_key(x, y, z)
   local layout = DualTapeKeyboard.layout
@@ -287,6 +338,12 @@ function DualTapeKeyboard.handle_key(x, y, z)
   -- Check for record button
   if x == layout.record_button.x and y == layout.record_button.y then
     handle_record_button(x, y, z)
+    return
+  end
+
+  -- Check for clear button
+  if x == layout.clear_button.x and y == layout.clear_button.y then
+    handle_clear_button(x, y, z)
     return
   end
 
@@ -365,6 +422,55 @@ function DualTapeKeyboard.draw(layers)
     record_brightness = GridConstants.BRIGHTNESS.UI.FOCUSED
   end
   GridLayers.set(layers.ui, layout.record_button.x, layout.record_button.y, record_brightness)
+
+  -- Draw clear button
+  local clear_brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+  if clear_key_state.is_pressed then
+    clear_brightness = GridConstants.BRIGHTNESS.UI.FOCUSED
+
+    -- Check if long press threshold reached
+    local press_duration = util.time() - clear_key_state.press_time
+    local threshold_reached = press_duration >= CLEAR_LONG_PRESS_TIME
+
+    -- Determine keyboard brightness
+    local keyboard_brightness
+    if threshold_reached then
+      -- Calculate time since threshold was reached
+      local time_since_threshold = press_duration - CLEAR_LONG_PRESS_TIME
+      local pulse_rate = 4
+      local pulse_duration = 1 / pulse_rate  -- Duration of one pulse in beats
+      local pulses_completed = time_since_threshold / pulse_duration
+
+      if pulses_completed < 3 then
+        -- Pulse 3 times to indicate ready to execute
+        local phase = (clock.get_beats() * pulse_rate) % 1
+        local pulse = math.sin(phase * math.pi * 2) * 0.5 + 0.5
+        keyboard_brightness = math.floor(GridConstants.BRIGHTNESS.MEDIUM + pulse * (GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.MEDIUM))
+      else
+        -- After 3 pulses, hold at full brightness
+        keyboard_brightness = GridConstants.BRIGHTNESS.FULL
+      end
+    else
+      -- Lower illumination while holding (before threshold)
+      keyboard_brightness = GridConstants.BRIGHTNESS.MEDIUM
+    end
+
+    -- Illuminate both entire tonnetz keyboards
+    local left = DualTapeKeyboard.layout.left_keyboard
+    for x = left.upper_left_x, left.upper_left_x + left.width - 1 do
+      for y = left.upper_left_y, left.upper_left_y + left.height - 1 do
+        GridLayers.set(layers.response, x, y, keyboard_brightness)
+      end
+    end
+
+    local right = DualTapeKeyboard.layout.right_keyboard
+    for x = right.upper_left_x, right.upper_left_x + right.width - 1 do
+      for y = right.upper_left_y, right.upper_left_y + right.height - 1 do
+        GridLayers.set(layers.response, x, y, keyboard_brightness)
+      end
+    end
+  end
+  GridLayers.set(layers.ui, layout.clear_button.x, layout.clear_button.y, clear_brightness)
 end
 
 -- Draw motif events for active positions
@@ -397,6 +503,11 @@ end
 function DualTapeKeyboard.toggle()
   DualTapeKeyboard.is_active = not DualTapeKeyboard.is_active
   print(string.format("Dual keyboard: %s", DualTapeKeyboard.is_active and "ACTIVE" or "INACTIVE"))
+
+  -- Update Arc display
+  if _seeker.arc and _seeker.arc.update_param_value_display then
+    _seeker.arc.update_param_value_display()
+  end
 end
 
 return DualTapeKeyboard

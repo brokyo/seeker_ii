@@ -93,32 +93,55 @@ function ClearMotif.init()
     -- Store original draw method
     local original_grid_draw = instance.grid.draw
     
-    -- Override draw to add visual feedback during long press
+    -- Track button state for animation
+    local button_pressed = false
+    local button_press_time = nil
+
+    -- Override draw to add visual feedback during press
     instance.grid.draw = function(self, layers)
         -- Call original draw method
         original_grid_draw(self, layers)
-        
-        -- Draw visual indicator during long press
-        if self:is_holding_long_press() then
-            -- Use the shared keyboard outline highlight method
-            self:draw_keyboard_outline_highlight(layers)
-            
-            -- Additionally draw an X pattern inside the keyboard area to indicate clearing
+
+        -- Draw visual indicator when button is pressed
+        if button_pressed and button_press_time then
+            local press_duration = util.time() - button_press_time
+            local threshold_reached = press_duration >= self.long_press_threshold
+
+            -- Determine keyboard brightness
+            local keyboard_brightness
+            if threshold_reached then
+                -- Calculate time since threshold was reached
+                local time_since_threshold = press_duration - self.long_press_threshold
+                local pulse_rate = 4
+                local pulse_duration = 1 / pulse_rate
+                local pulses_completed = time_since_threshold / pulse_duration
+
+                if pulses_completed < 3 then
+                    -- Pulse 3 times to indicate ready to execute
+                    local phase = (clock.get_beats() * pulse_rate) % 1
+                    local pulse = math.sin(phase * math.pi * 2) * 0.5 + 0.5
+                    keyboard_brightness = math.floor(GridConstants.BRIGHTNESS.MEDIUM + pulse * (GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.MEDIUM))
+                else
+                    -- After 3 pulses, hold at full brightness
+                    keyboard_brightness = GridConstants.BRIGHTNESS.FULL
+                end
+            else
+                -- Lower illumination while holding (before threshold)
+                keyboard_brightness = GridConstants.BRIGHTNESS.MEDIUM
+            end
+
+            -- Illuminate entire keyboard
             local keyboard = {
                 upper_left_x = 6,
                 upper_left_y = 2,
                 width = 6,
                 height = 6
             }
-            
-            -- Diagonal from top-left to bottom-right
-            for i = 0, keyboard.width - 1 do
-                layers.response[keyboard.upper_left_x + i][keyboard.upper_left_y + i] = GridConstants.BRIGHTNESS.HIGH
-            end
-            
-            -- Diagonal from top-right to bottom-left
-            for i = 0, keyboard.width - 1 do
-                layers.response[keyboard.upper_left_x + keyboard.width - 1 - i][keyboard.upper_left_y + i] = GridConstants.BRIGHTNESS.HIGH
+
+            for x = keyboard.upper_left_x, keyboard.upper_left_x + keyboard.width - 1 do
+                for y = keyboard.upper_left_y, keyboard.upper_left_y + keyboard.height - 1 do
+                    layers.response[x][y] = keyboard_brightness
+                end
             end
         end
     end
@@ -126,13 +149,17 @@ function ClearMotif.init()
     -- Override handle_key to implement clearing functionality
     instance.grid.handle_key = function(self, x, y, z)
         local key_id = string.format("%d,%d", x, y)
-        
+
         if z == 1 then -- Key pressed
             self:key_down(key_id)
+            button_pressed = true
+            button_press_time = util.time()
             _seeker.ui_state.set_current_section("CLEAR_MOTIF")
             _seeker.ui_state.set_long_press_state(true, "CLEAR_MOTIF")
             _seeker.screen_ui.set_needs_redraw()
         else -- Key released
+            button_pressed = false
+            button_press_time = nil
             -- If it was a long press, clear the motif
             if self:is_long_press(key_id) then
                 local focused_lane = _seeker.ui_state.get_focused_lane()
