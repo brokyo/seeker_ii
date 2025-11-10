@@ -5,6 +5,7 @@ local forms = include('lib/forms')
 local transforms = include('lib/transforms')
 local GridConstants = include('lib/grid_constants')
 local theory = include('lib/theory_utils')
+local KeyboardRegion = include('lib/grid/regions/keyboard_region')
 local musicutil = require('musicutil')
 local Lane = {}
 Lane.__index = Lane
@@ -514,9 +515,8 @@ function Lane:on_note_on(event)
     if motif_type == 2 then
       positions = {{x = event.x, y = event.y}}
     else
-      -- Tape/arpeggio modes: use theory system for multi-position notes
-      local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
-      positions = theory.note_to_grid(note, keyboard_octave) or {{x = event.x, y = event.y}}
+      -- Tape/arpeggio modes: use keyboard region for multi-position notes
+      positions = KeyboardRegion.note_to_positions(note) or {{x = event.x, y = event.y}}
     end
   end
 
@@ -1108,10 +1108,8 @@ function Lane:get_active_positions()
   end
 
   -- For tape mode, use existing note-based illumination
-  local keyboard_octave = params:get("lane_" .. self.id .. "_keyboard_octave")
-
   for key, note in pairs(self.active_notes) do
-    local current_positions = theory.note_to_grid(note.note, keyboard_octave)
+    local current_positions = KeyboardRegion.note_to_positions(note.note)
     if current_positions then
       for _, pos in ipairs(current_positions) do
         table.insert(positions, {x = pos.x, y = pos.y})

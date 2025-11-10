@@ -3,6 +3,7 @@
 
 local MidiInput = {}
 local theory = include("lib/theory_utils")
+local KeyboardRegion = include("lib/grid/regions/keyboard_region")
 local musicutil = require("musicutil")
 
 -- Main MIDI device
@@ -133,9 +134,7 @@ function MidiInput.handle_note_on(msg)
   end
   
   -- Map MIDI note to all grid positions
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-  local grid_positions = theory.note_to_grid(note, keyboard_octave)
+  local grid_positions = KeyboardRegion.note_to_positions(note)
     
   -- Create standardized note event
   local event = MidiInput.create_note_event(note, velocity, grid_positions)
@@ -170,9 +169,7 @@ function MidiInput.handle_note_off(msg)
   
   -- If we don't have a stored position, try to calculate it
   if not grid_positions then
-    local focused_lane = _seeker.ui_state.get_focused_lane()
-    local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-    grid_positions = theory.note_to_grid(note, keyboard_octave)
+    grid_positions = KeyboardRegion.note_to_positions(note)
   end
   
   -- Create standardized note event

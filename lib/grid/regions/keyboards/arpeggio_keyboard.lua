@@ -85,10 +85,16 @@ ArpeggioKeyboard.layout = ArpeggioKeyboard.get_layout()
 -- Check if coordinates are within trigger keyboard area
 function ArpeggioKeyboard.contains(x, y)
   local layout = ArpeggioKeyboard.get_layout()
-  return x >= layout.upper_left_x and 
+  return x >= layout.upper_left_x and
          x < layout.upper_left_x + layout.width and
-         y >= layout.upper_left_y and 
+         y >= layout.upper_left_y and
          y < layout.upper_left_y + layout.height
+end
+
+-- Find all grid positions for a given MIDI note
+-- Arpeggio keyboard doesn't illuminate by note, so return nil
+function ArpeggioKeyboard.note_to_positions(note)
+  return nil
 end
 
 -- Convert grid coordinates to step number

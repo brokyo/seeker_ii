@@ -61,6 +61,33 @@ function DualTapeKeyboard.contains(x, y)
   return in_keyboard or is_octave_button or is_record_button
 end
 
+-- Find all grid positions for a given MIDI note (searches both keyboards)
+function DualTapeKeyboard.note_to_positions(note)
+  local positions = {}
+
+  -- Search left keyboard with left octave
+  local left = DualTapeKeyboard.layout.left_keyboard
+  for y = left.upper_left_y, left.upper_left_y + left.height - 1 do
+    for x = left.upper_left_x, left.upper_left_x + left.width - 1 do
+      if theory.grid_to_note(x, y, DualTapeKeyboard.left_octave) == note then
+        table.insert(positions, {x = x, y = y})
+      end
+    end
+  end
+
+  -- Search right keyboard with right octave
+  local right = DualTapeKeyboard.layout.right_keyboard
+  for y = right.upper_left_y, right.upper_left_y + right.height - 1 do
+    for x = right.upper_left_x, right.upper_left_x + right.width - 1 do
+      if theory.grid_to_note(x, y, DualTapeKeyboard.right_octave) == note then
+        table.insert(positions, {x = x, y = y})
+      end
+    end
+  end
+
+  return #positions > 0 and positions or nil
+end
+
 -- Determine which keyboard a coordinate is in
 local function get_keyboard_side(x, y)
   local left = DualTapeKeyboard.layout.left_keyboard
@@ -80,9 +107,7 @@ end
 
 -- Create a standardized note event
 function DualTapeKeyboard.create_note_event(x, y, note, velocity)
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-  local all_positions = theory.note_to_grid(note, keyboard_octave)
+  local all_positions = DualTapeKeyboard.note_to_positions(note)
 
   return {
     note = note,

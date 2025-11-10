@@ -124,4 +124,10 @@ function KeyboardRegion.draw_motif_events(layers)
   active_keyboard.draw_motif_events(layers)
 end
 
+-- Find all grid positions for a given MIDI note (delegates to active keyboard)
+function KeyboardRegion.note_to_positions(note)
+  local active_keyboard = KeyboardRegion.get_active_keyboard()
+  return active_keyboard.note_to_positions(note)
+end
+
 return KeyboardRegion

@@ -19,18 +19,34 @@ TapeKeyboard.layout = {
 
 -- Check if coordinates are within tape keyboard area
 function TapeKeyboard.contains(x, y)
-  return x >= TapeKeyboard.layout.upper_left_x and 
+  return x >= TapeKeyboard.layout.upper_left_x and
          x < TapeKeyboard.layout.upper_left_x + TapeKeyboard.layout.width and
-         y >= TapeKeyboard.layout.upper_left_y and 
+         y >= TapeKeyboard.layout.upper_left_y and
          y < TapeKeyboard.layout.upper_left_y + TapeKeyboard.layout.height
+end
+
+-- Find all grid positions for a given MIDI note
+function TapeKeyboard.note_to_positions(note)
+  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
+  local positions = {}
+
+  -- Search keyboard area
+  for y = TapeKeyboard.layout.upper_left_y, TapeKeyboard.layout.upper_left_y + TapeKeyboard.layout.height - 1 do
+    for x = TapeKeyboard.layout.upper_left_x, TapeKeyboard.layout.upper_left_x + TapeKeyboard.layout.width - 1 do
+      if theory.grid_to_note(x, y, keyboard_octave) == note then
+        table.insert(positions, {x = x, y = y})
+      end
+    end
+  end
+
+  return #positions > 0 and positions or nil
 end
 
 -- Create a standardized note event (extracted from grid_ii.lua)
 function TapeKeyboard.create_note_event(x, y, note, velocity)
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local keyboard_octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-  local all_positions = theory.note_to_grid(note, keyboard_octave)
-  
+  local all_positions = TapeKeyboard.note_to_positions(note)
+
   return {
     note = note,
     velocity = velocity or 0,
