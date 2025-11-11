@@ -231,12 +231,12 @@ function MotifRecorder:start_recording(existing_motif)
   -- If overdubbing, store original duration and events
   if self.recording_mode == 2 and existing_motif then
     print('we dubbing')
-    self.loop_length = existing_motif.duration
+    self.loop_length = existing_motif.genesis.duration
     self.original_motif = existing_motif -- Store reference to original
-    
-    -- Copy existing events and preserve their generations
+
+    -- Copy genesis events and preserve their generations
     local max_gen = 1
-    for _, evt in ipairs(existing_motif.events) do
+    for _, evt in ipairs(existing_motif.genesis.events) do
       -- Add events to recorder
       table.insert(self.events, {
         time = evt.time,
