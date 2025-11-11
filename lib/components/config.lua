@@ -71,8 +71,8 @@ local function tap_tempo()
 end
 
 local function create_params()
-    params:add_group("config", "CONFIG", 12)
-    
+    params:add_group("config", "CONFIG", 13)
+
     -- Global Tuning
     params:add_option("tuning_preset", "Preset", 
         {"Custom", "Ethereal", "Mysterious", "Melancholic", "Hopeful", "Contemplative", "Triumphant", "Dreamy",
@@ -161,7 +161,8 @@ local function create_params()
     
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
-    
+    params:add_binary("screensaver_enabled", "Screensaver", "toggle", 1)
+
     -- MIDI
     params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 1)
     params:add_number("record_midi_note", "Record Toggle Note", 0, 127, 0)
@@ -203,6 +204,7 @@ local function create_screen_ui()
             { id = "tap_tempo", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },
+            { id = "screensaver_enabled" },
             { separator = true, title = "MIDI" },
             { id = "snap_midi_to_scale" },
             { id = "record_midi_note" },
