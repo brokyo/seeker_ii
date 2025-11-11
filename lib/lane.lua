@@ -193,7 +193,7 @@ end
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
-  local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 1
+  local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
 
   -- Check for trigger pattern regeneration FIRST (especially on stage 1 return)
   local regenerated = false
@@ -1051,7 +1051,7 @@ end
 function Lane:sync_stage_from_params(stage_index)
     local stage = self.stages[stage_index]
     stage.active = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_active") == 2
-    stage.reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_reset_motif") == 1
+    stage.reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_reset_motif") == 2
     stage.loops = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loops")
 end
 
