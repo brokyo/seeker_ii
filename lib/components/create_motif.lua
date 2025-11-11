@@ -467,26 +467,33 @@ local function create_grid_ui()
     local function draw_count_display(self, layers)
         -- Use quarter-note subdivisions for metronome
         local current_quarter = math.floor(clock.get_beats()) % 4
-        
+
         -- Count display coordinates
         local count_display = {
             x_start = 7,
             x_end = 10,
-            y = 1,
-            pulse_duration = 0.25  -- 1/4 of a beat
+            y = 1
         }
-        
-        -- Set all count LEDs to very low brightness initially
+
+        -- Set all count LEDs to low brightness
         for x_count = count_display.x_start, count_display.x_end do
-            layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW / 2
+            layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW
         end
-        
+
         -- Determine which position should be highlighted (moves every beat)
         local highlight_x = count_display.x_start + current_quarter
-        
-        -- Calculate brightness based on sine wave but keep at 1 beat cycle
-        local pulse_brightness = math.floor(math.sin(clock.get_beats() * 4) * 2 + GridConstants.BRIGHTNESS.LOW + 2)
-        layers.ui[highlight_x][count_display.y] = pulse_brightness
+
+        -- Sharp attack with quick exponential decay
+        local beat_phase = clock.get_beats() % 1
+        local brightness
+        if beat_phase < 0.25 then
+            local decay = math.exp(-beat_phase * 12)
+            local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
+            brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
+        else
+            brightness = GridConstants.BRIGHTNESS.LOW
+        end
+        layers.ui[highlight_x][count_display.y] = brightness
     end
     
     -- Override draw to add keyboard outline during long press
@@ -506,12 +513,18 @@ local function create_grid_ui()
         if _seeker.motif_recorder.is_recording then
             draw_count_display(self, layers)
 
-            -- Make the Create Motif button pulsate while recording
-            -- Different pulse rates for different modes
+            -- Make the Create Motif button flash while recording
+            -- Tape mode: 2 flashes per beat, Arpeggio mode: 1 flash per beat
             local focused_lane_draw = _seeker.ui_state.get_focused_lane()
             local motif_type = params:get("lane_" .. focused_lane_draw .. "_motif_type")
             local pulse_rate = (motif_type == 1) and 2 or 1
-            brightness = self:calculate_pulse_brightness(GridConstants.BRIGHTNESS.FULL, pulse_rate)
+            local beat_phase = (clock.get_beats() * pulse_rate) % 1
+
+            if beat_phase < 0.1 then
+                brightness = GridConstants.BRIGHTNESS.HIGH
+            else
+                brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+            end
         end
 
         layers.ui[x][y] = brightness

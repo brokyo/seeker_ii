@@ -410,14 +410,44 @@ function DualTapeKeyboard.draw(layers)
   GridLayers.set(layers.ui, layout.right_octave_up.x, layout.right_octave_up.y, GridConstants.BRIGHTNESS.LOW)
   GridLayers.set(layers.ui, layout.right_octave_down.x, layout.right_octave_down.y, GridConstants.BRIGHTNESS.LOW)
 
+  -- Draw count display when recording
+  if _seeker.motif_recorder.is_recording then
+    local current_quarter = math.floor(clock.get_beats()) % 4
+    local count_x_start = 7
+    local count_x_end = 10
+    local count_y = 1
+
+    -- Set all count LEDs to low brightness
+    for x_count = count_x_start, count_x_end do
+      GridLayers.set(layers.ui, x_count, count_y, GridConstants.BRIGHTNESS.LOW)
+    end
+
+    -- Highlight current beat with sharp attack and quick decay
+    local highlight_x = count_x_start + current_quarter
+    local beat_phase = clock.get_beats() % 1
+    local brightness
+    if beat_phase < 0.25 then
+      local decay = math.exp(-beat_phase * 12)
+      local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
+      brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
+    else
+      brightness = GridConstants.BRIGHTNESS.LOW
+    end
+    GridLayers.set(layers.ui, highlight_x, count_y, brightness)
+  end
+
   -- Draw record button
   local record_brightness = GridConstants.BRIGHTNESS.UI.NORMAL
   if _seeker.motif_recorder.is_recording then
-    -- Pulsate while recording
+    -- Flash while recording (2 flashes per beat for tape mode)
     local pulse_rate = 2
-    local phase = (clock.get_beats() * pulse_rate) % 1
-    local pulse = math.sin(phase * math.pi * 2) * 0.5 + 0.5
-    record_brightness = math.floor(GridConstants.BRIGHTNESS.LOW + pulse * (GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW))
+    local beat_phase = (clock.get_beats() * pulse_rate) % 1
+
+    if beat_phase < 0.1 then
+      record_brightness = GridConstants.BRIGHTNESS.HIGH
+    else
+      record_brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+    end
   elseif record_key_state.is_pressed then
     record_brightness = GridConstants.BRIGHTNESS.UI.FOCUSED
   end

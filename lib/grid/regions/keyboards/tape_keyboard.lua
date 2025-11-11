@@ -113,13 +113,13 @@ function TapeKeyboard.draw(layers)
   local root = params:get("root_note")
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-  
+
   for x = 0, TapeKeyboard.layout.width - 1 do
     for y = 0, TapeKeyboard.layout.height - 1 do
       local grid_x = TapeKeyboard.layout.upper_left_x + x
       local grid_y = TapeKeyboard.layout.upper_left_y + y
       local note = theory.grid_to_note(grid_x, grid_y, octave)
-      
+
       -- Check if this note is a root note by comparing with the actual root pitch class
       local brightness = GridConstants.BRIGHTNESS.LOW
       if note then
@@ -128,10 +128,36 @@ function TapeKeyboard.draw(layers)
           brightness = GridConstants.BRIGHTNESS.MEDIUM
         end
       end
-      
+
       GridLayers.set(layers.ui, grid_x, grid_y, brightness)
     end
-  end 
+  end
+
+  -- Draw count display when recording
+  if _seeker.motif_recorder.is_recording then
+    local current_quarter = math.floor(clock.get_beats()) % 4
+    local count_x_start = 7
+    local count_x_end = 10
+    local count_y = 1
+
+    -- Set all count LEDs to low brightness
+    for x_count = count_x_start, count_x_end do
+      GridLayers.set(layers.ui, x_count, count_y, GridConstants.BRIGHTNESS.LOW)
+    end
+
+    -- Highlight current beat with sharp attack and quick decay
+    local highlight_x = count_x_start + current_quarter
+    local beat_phase = clock.get_beats() % 1
+    local brightness
+    if beat_phase < 0.25 then
+      local decay = math.exp(-beat_phase * 12)
+      local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
+      brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
+    else
+      brightness = GridConstants.BRIGHTNESS.LOW
+    end
+    GridLayers.set(layers.ui, highlight_x, count_y, brightness)
+  end
 end
 
 -- Draw motif events for active positions (extracted from grid_ii.lua)
