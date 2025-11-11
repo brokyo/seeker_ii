@@ -146,7 +146,7 @@ local function create_params()
     end)
     
     -- Clock - create wrapper parameter that controls system clock_tempo
-    params:add_control("seeker_clock_tempo", "BPM", controlspec.new(40, 300, 'lin', 1, 120), function(param) return params:get(param.id) .. " BPM" end)
+    params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
     params:set_action("seeker_clock_tempo", function(value)
         -- Update the system clock_tempo parameter
         params:set("clock_tempo", value)
