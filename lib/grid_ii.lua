@@ -9,6 +9,7 @@ local VelocityRegion = include("lib/grid/regions/velocity_region")
 local MotifRegion = include("lib/grid/regions/motif_region")
 local TuningRegion = include("lib/grid/regions/tuning_region")
 local KeyboardRegion = include("lib/grid/regions/keyboard_region")
+local StageConfig = include("lib/components/stage_config")
 
 local musicutil = require('musicutil')
 
@@ -90,20 +91,12 @@ end
 
 -- Determine which regions should be visible based on current mode/state
 local function should_draw_region(region_name)
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-
-  -- Handle mode-specific region visibility
-  if motif_type == 2 then -- Arpeggio mode
-    -- Hide velocity and tuning regions since arpeggio mode uses step states and chord parameters
-    return not (region_name == "velocity" or region_name == "tuning")
-  end
-
-  -- TODO: Future wholesale UI replacements could be handled here
+  -- TODO: Future wholesale UI replacements (application modes) could be handled here
   -- For example: if current_section == "EURORACK_OUTPUT" then return region_name == "eurorack_grid"
 
-  -- Default: show all regions
-  return true
+  -- Delegate mode-specific region visibility to active mode config
+  local active_config = StageConfig.get_active_config()
+  return active_config.should_draw_region(region_name)
 end
 
 function draw_controls()

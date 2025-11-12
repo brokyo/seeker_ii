@@ -1,5 +1,6 @@
 -- stage_config.lua
 -- Configure stage-based motif transformations
+-- Dispatcher pattern: delegates to mode-specific stage configs
 
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
@@ -18,9 +19,40 @@ local config_state = {
     config_stage = 1
 }
 
+-- Cache for mode-specific config modules
+local stage_configs = {
+    tape = nil,
+    arpeggio = nil
+}
+
+-- Get the active stage config based on current lane's motif type
+local function get_active_stage_config()
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
+
+    -- Lazy-load stage config modules
+    if motif_type == 1 then -- Tape mode
+        if not stage_configs.tape then
+            stage_configs.tape = include("lib/components/stage_configs/tape_transform")
+        end
+        return stage_configs.tape
+    elseif motif_type == 2 then -- Arpeggio mode
+        if not stage_configs.arpeggio then
+            stage_configs.arpeggio = include("lib/components/stage_configs/arpeggio_variation")
+        end
+        return stage_configs.arpeggio
+    end
+
+    -- Default to tape if something goes wrong
+    if not stage_configs.tape then
+        stage_configs.tape = include("lib/components/stage_configs/tape_transform")
+    end
+    return stage_configs.tape
+end
+
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 69)
+        params:add_group("lane_" .. lane_idx .. "_transform_stage", "LANE " .. lane_idx .. " STAGE CONFIG", 85)
         params:add_number("lane_" .. lane_idx .. "_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_config_stage", function(value)
             -- Update local config state instead of global focused stage
@@ -61,10 +93,16 @@ local function create_params()
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_interval", "Skip Interval", 2, 8, 2)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_offset", "Skip Offset", 0, 7, 0)
 
-            -- Ratchet Params  
+            -- Ratchet Params
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_chance", "Ratchet Chance", 0, 100, 90, function(param) return param.value .. "%" end)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats", "Max Repeats", 1, 8, 3)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing", "Timing Window", {"1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8"}, 15)
+
+            -- Arpeggio Params
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_scale_degree", "Scale Degree", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern", "Pattern", {"All", "Odds", "Evens", "Downbeats", "Upbeats", "Sparse"}, 1)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_direction", "Direction", {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)
+            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_inversion", "Inversion", -12, 12, 0)
 
             -- Transform-specific parameters only - infrastructure params handled in @lane_infrastructure
         end
@@ -90,29 +128,17 @@ local function create_screen_ui()
         local stage_idx = config_state.config_stage
         print("Configuring Lane " .. lane_idx .. ", Stage " .. stage_idx)
 
-        -- Build a dynamic parameter table based on current lane and stage
-        local param_table = {
-            { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-            { id = "lane_" .. lane_idx .. "_config_stage"},
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-            { separator = true, title = "Transform" },
-            { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
-            { separator = true, title = "Advanced" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif"}
-        }
-        
-        -- Update the UI with the new parameter table
-        self.params = param_table
-        
+        -- Delegate to active stage config for initial parameter population
+        local active_config = get_active_stage_config()
+        active_config.populate_params(self, lane_idx, stage_idx)
+
         -- Set the config stage param to match our local state
         params:set("lane_" .. lane_idx .. "_config_stage", config_state.config_stage)
-        
+
         -- End by calling the original enter method
         original_enter(self)
-        
-        -- Rebuild params to show transform-specific parameters
+
+        -- Rebuild params to show mode-specific parameters
         self:rebuild_params()
     end
 
@@ -120,109 +146,9 @@ local function create_screen_ui()
         local lane_idx = _seeker.ui_state.get_focused_lane()
         local stage_idx = config_state.config_stage
 
-        local param_table = {
-            { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-            { id = "lane_" .. lane_idx .. "_config_stage"},
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-            { separator = true, title = "Transform" },
-            { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx }
-        }
-
-        -- Get the current transform type and add its specific parameters
-        local transform_type = params:string("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
-
-        -- Add specific parameters based on transform type
-        if transform_type == "None" then
-        elseif transform_type == "Overdub Filter" then
-            -- Add a header for transform-specific parameters
-            table.insert(param_table, { separator = true, title = "Overdub Filter Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_mode",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Overdub Filter", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Overdub Filter", operator = "="}}
-            })
-        elseif transform_type == "Harmonize" then
-            -- Add a header for transform-specific parameters
-            table.insert(param_table, { separator = true, title = "Harmonize Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_chance",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Harmonize", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_volume",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Harmonize", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_chance",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Harmonize", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_volume",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Harmonize", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_chance",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Harmonize", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_volume",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Harmonize", operator = "="}}
-            })
-        elseif transform_type == "Transpose" then
-            -- Add a header for transform-specific parameters
-            table.insert(param_table, { separator = true, title = "Transpose Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transpose_amount",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Transpose", operator = "="}}
-            })
-        elseif transform_type == "Rotate" then
-            -- Add a header for transform-specific parameters
-            table.insert(param_table, { separator = true, title = "Rotate Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_rotate_amount",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Rotate", operator = "="}}
-            })
-        elseif transform_type == "Skip" then
-            -- Add a header for transform-specific parameters
-            table.insert(param_table, { separator = true, title = "Skip Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_interval",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Skip", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_offset", 
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Skip", operator = "="}}
-            })
-        elseif transform_type == "Ratchet" then
-            -- Add a header for transform-specific parameters
-            table.insert(param_table, { separator = true, title = "Ratchet Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_chance",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Ratchet", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Ratchet", operator = "="}}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing",
-                view_conditions = {{id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, value = "Ratchet", operator = "="}}
-            })
-        elseif transform_type == "Reverse" then
-
-        end
-
-        -- Add Advanced section at the end
-        table.insert(param_table, { separator = true, title = "Advanced" })
-        table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" })
-        table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" })
-
-        -- Update the UI with the new parameter table
-        self.params = param_table
+        -- Delegate to active stage config for parameter rebuilding
+        local active_config = get_active_stage_config()
+        active_config.rebuild_params(self, lane_idx, stage_idx)
     end
 
     return norns_ui
@@ -334,8 +260,11 @@ function StageConfig.init()
         grid = create_grid_ui()
     }
     create_params()
-    
+
     return component
 end
+
+-- Export dispatcher for use by other modules (e.g., grid_ii.lua)
+StageConfig.get_active_config = get_active_stage_config
 
 return StageConfig
