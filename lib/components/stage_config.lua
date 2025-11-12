@@ -5,13 +5,13 @@
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
 local GridConstants = include("lib/grid_constants")
-local transforms = include("lib/transforms")
+local tape_transforms = include("lib/tape_transforms")
 
 local StageConfig = {}
 StageConfig.__index = StageConfig
 
--- Use transform UI names directly from transforms.lua
-local transform_types = transforms.ui_names
+-- Use tape transform UI names for transform selector
+local transform_types = tape_transforms.ui_names
 
 -- Local state for stage configuration
 -- Solves some UI problems with stage config params being overridden by global stage change

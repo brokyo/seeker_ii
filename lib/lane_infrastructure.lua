@@ -8,7 +8,7 @@ local lane_infrastructure = {}
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
     -- Separate repository for transforms. Makes maintenance easier and keeps boundaries clear.
-    local transforms = include('lib/transforms')
+    local transforms = include('lib/tape_transforms')
     
     params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 20)
     -- Create four stages per lane with their defaults
@@ -105,12 +105,12 @@ end
 
 -- Create arpeggio sequencer parameters for each lane
 local function create_arpeggio_lane_params(i)
-    params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 10)
+    params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 9)
 
     params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 16)
     params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root", theory.get_scale_chord_roots(), 1)
     params:add_option("lane_" .. i .. "_arpeggio_chord_type", "Chord Type",
-        {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dominant 7", "diminished", "augmented", "add9", "minor 9", "major 9"}, 1)
+        {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dom 7", "diminished", "augmented"}, 1)
     params:add_number("lane_" .. i .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)
     params:add_option("lane_" .. i .. "_arpeggio_chord_inversion", "Chord Inversion",
         {"Root", "1st", "2nd", "3rd"}, 1)
@@ -119,8 +119,7 @@ local function create_arpeggio_lane_params(i)
     params:add_number("lane_" .. i .. "_arpeggio_note_duration", "Note Duration", 1, 99, 50, function(param) return param.value .. "%" end)
     params:add_option("lane_" .. i .. "_arpeggio_step_length", "Step Length",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
-    params:add_number("lane_" .. i .. "_arpeggio_normal_velocity", "Normal Velocity", 1, 127, 80)
-    params:add_number("lane_" .. i .. "_arpeggio_accent_velocity", "Accent Velocity", 1, 127, 127)
+    params:add_number("lane_" .. i .. "_arpeggio_normal_velocity", "Velocity", 1, 127, 80)
 end
 
 -- Initialize all lane infrastructure parameters

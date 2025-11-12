@@ -3,7 +3,6 @@
 local params_manager_ii = {}
 local musicutil = require('musicutil')
 local theory = include('lib/theory_utils')
-local transforms = include('lib/transforms')
 
 -- Old Component Approach
 local ClearMotif = include("lib/components/clear_motif")

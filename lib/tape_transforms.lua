@@ -1,5 +1,8 @@
--- transforms.lua
--- Changes motifs on a schedule. Repository for all transforms. Called by @stage_config.lua. Params created there, too.
+-- tape_transforms.lua
+-- Tape mode transforms (time-based event modifications)
+-- Called by Lane:prepare_stage() for tape mode stages
+
+local musicutil = require('musicutil')
 
 local transforms = {}
 

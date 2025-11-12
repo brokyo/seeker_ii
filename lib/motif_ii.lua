@@ -3,8 +3,6 @@
 --   1. Store original state of a musical pattern (genesis)
 --   2. Maintain working state for transformations
 
-local Transforms = include('lib/transforms')
-
 local Motif = {}
 Motif.__index = Motif
 
@@ -63,33 +61,6 @@ function Motif:store_events(recorded_data)
   print("∞ Motif stored")
 end
 
--- Regenerate trigger pattern from current grid state
-function Motif:regenerate_trigger_pattern_from_grid(lane_id)
-  -- Check if this is a trigger pattern motif
-  if #self.genesis.events == 1 and self.genesis.events[1].type == "trigger_pattern" then
-    local original_event = self.genesis.events[1]
-
-    -- Use the motif recorder to generate fresh events from current state
-    local regenerated_events, new_duration = _seeker.motif_recorder:regenerate_trigger_motif_from_current_state(
-      lane_id,
-      {
-        attack = original_event.attack,
-        decay = original_event.decay,
-        sustain = original_event.sustain,
-        release = original_event.release,
-        pan = original_event.pan
-      }
-    )
-
-    -- Replace working events and update duration
-    self.events = regenerated_events
-    self.duration = new_duration
-
-    return true
-  end
-  return false
-end
-
 -- Reset working state to genesis
 function Motif:reset_to_genesis()
   self.events = {}
@@ -106,15 +77,6 @@ function Motif:get_duration()
     return self.custom_duration
   end
   return self.duration
-end
-
--- Apply a transform to the working state
-function Motif:apply_transform(transform_name, lane_id, stage_id)
-  -- Get transform from registry
-  local transform = Transforms.available[transform_name]
-  
-  -- Apply transform to working state with new signature
-  self.events = transform.fn(self.events, lane_id, stage_id)
 end
 
 -- Clear all motif data

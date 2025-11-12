@@ -2,7 +2,8 @@
 local params_manager_ii = include('lib/params_manager_ii')
 local Motif = include('lib/motif_ii')
 local forms = include('lib/forms')
-local transforms = include('lib/transforms')
+local tape_transforms = include('lib/tape_transforms')
+local arpeggio_transforms = include('lib/arpeggio_transforms')
 local GridConstants = include('lib/grid_constants')
 local theory = include('lib/theory_utils')
 local KeyboardRegion = include('lib/grid/regions/keyboard_region')
@@ -189,28 +190,31 @@ end
 
 ---------------------------------------------------------
 -- prepare_stage(stage)
---   Prepares the working_motif for the stage by applying its transform
+--   Prepares the working_motif for the stage by applying mode-specific transforms
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
   local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
 
-  -- Check for trigger pattern regeneration FIRST (especially on stage 1 return)
-  local regenerated = false
-  if stage.id == 1 then
-    -- Try to regenerate trigger pattern from current grid state
-    regenerated = self.motif:regenerate_trigger_pattern_from_grid(self.id)
-  end
-
-  -- Only reset to genesis if we didn't just regenerate AND reset_motif is enabled
-  if reset_motif and not regenerated then
+  -- Reset to genesis if enabled
+  if reset_motif then
     self.motif:reset_to_genesis()
   end
 
-  local transform_ui_name = params:string("lane_" .. self.id .. "_transform_stage_" .. stage.id)
-  local transform_id = transforms.get_transform_id_by_ui_name(transform_ui_name)
-  if transform_id and transform_id ~= "none" then
-    self.motif:apply_transform(transform_id, self.id, stage.id)
+  -- Apply mode-specific transforms
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+
+  if motif_type == 1 then  -- Tape mode
+    local transform_ui_name = params:string("lane_" .. self.id .. "_transform_stage_" .. stage.id)
+    local transform_id = tape_transforms.get_transform_id_by_ui_name(transform_ui_name)
+    if transform_id and transform_id ~= "none" then
+      local transform = tape_transforms.available[transform_id]
+      self.motif.events = transform.fn(self.motif.events, self.id, stage.id)
+    end
+
+  elseif motif_type == 2 then  -- Arpeggio mode
+    -- Always apply arpeggio variations (reads stage-specific params)
+    self.motif.events = arpeggio_transforms.apply(self.motif.events, self.id, stage.id)
   end
 
   return true
