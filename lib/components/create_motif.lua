@@ -87,10 +87,9 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_direction" })
 
             -- Performance Details
-            table.insert(param_table, { separator = true, title = "Performance Details" })
+            table.insert(param_table, { separator = true, title = "Performance" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_note_duration" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_normal_velocity" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_accent_velocity" })
         end
         
         -- Update the UI with the new parameter table
@@ -411,25 +410,7 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
     
-    -- Helper function for arpeggio mode recording start
-    local function handle_arpeggio_recording_start(self)
-        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
-        local current_lane = _seeker.lanes[focused_lane_idx]
-        
-        -- Clear the current motif and start new arpeggio recording
-        current_lane:clear()
-        
-        -- Rebuild parameters to hide duration since motif was cleared
-        if _seeker.create_motif and _seeker.create_motif.screen then
-            _seeker.create_motif.screen:rebuild_params()
-        end
-        
-        _seeker.motif_recorder:start_arpeggio_recording()
-        
-        _seeker.screen_ui.set_needs_redraw()
-    end
-    
-    -- Helper function for arpeggio mode recording logic
+    -- Helper function for arpeggio mode - instant snapshot of current pattern
     -- Note: Arpeggio mode never supports overdubbing - always starts fresh
     local function handle_arpeggio_recording_start(self)
         local focused_lane_idx = _seeker.ui_state.get_focused_lane()
@@ -438,6 +419,11 @@ local function create_grid_ui()
         -- Always clear the current motif (no overdubbing in arpeggio mode)
         current_lane:clear()
 
+        -- Rebuild parameters to hide duration since motif was cleared
+        if _seeker.create_motif and _seeker.create_motif.screen then
+            _seeker.create_motif.screen:rebuild_params()
+        end
+
         -- Convert step pattern immediately - no waiting for button release
         _seeker.motif_recorder:set_recording_mode(3) -- Set to arpeggio recording mode
         _seeker.motif_recorder:start_recording(nil)
@@ -445,11 +431,16 @@ local function create_grid_ui()
         -- Immediately convert step pattern to motif and stop
         local arpeggio_motif = _seeker.motif_recorder:stop_recording()
 
-        -- Set the motif and start playback
-        current_lane:set_motif(arpeggio_motif)
+        if arpeggio_motif and arpeggio_motif.events and #arpeggio_motif.events > 0 then
+            -- Set the motif and start playback
+            current_lane:set_motif(arpeggio_motif)
+            current_lane:play()
 
-        -- Lane's reset_motif() will handle arpeggio regeneration automatically
-        current_lane:play()
+            print(string.format("✓ Arpeggio motif created: %d events, duration %.2f",
+                #arpeggio_motif.events, arpeggio_motif.duration))
+        else
+            print("⚠ No active steps to create arpeggio motif")
+        end
 
         -- Rebuild parameters to show duration based on new motif state
         if _seeker.create_motif and _seeker.create_motif.screen then

@@ -7,27 +7,27 @@ local ArpeggioUtils = {}
 
 -- Convert scale degree (1-7) to semitone offset based on global scale
 -- @param degree: Scale degree (1=I, 2=ii, 3=iii, 4=IV, 5=V, 6=vi, 7=vii°)
--- @param scale_type: Scale type name (e.g., "Major", "Minor", etc.)
+-- @param scale_type_index: Scale type index (from params:get("scale_type"))
 -- @param root_note: Root note (1-12, where 1=C)
 -- @return: Semitone offset from root
-function ArpeggioUtils.scale_degree_to_semitones(degree, scale_type, root_note)
+function ArpeggioUtils.scale_degree_to_semitones(degree, scale_type_index, root_note)
   -- Convert UI root note (1-12) to MIDI note (0-11)
   local root_midi = (root_note - 1) % 12
 
-  -- Get scale intervals
-  local scale_intervals = musicutil.SCALES[musicutil.scale_names_index(scale_type)]
+  -- Get scale from index
+  local scale = musicutil.SCALES[scale_type_index]
 
-  if not scale_intervals then
-    print("ERROR: Unknown scale type: " .. scale_type)
+  if not scale or not scale.intervals then
+    print("ERROR: Invalid scale index: " .. scale_type_index)
     return 0
   end
 
   -- Clamp degree to valid range
   degree = math.max(1, math.min(7, degree))
 
-  -- Get the interval for this scale degree (wrap if >7)
-  local degree_index = ((degree - 1) % #scale_intervals) + 1
-  local semitone_offset = scale_intervals[degree_index]
+  -- Get the interval for this scale degree (wrap if needed)
+  local degree_index = ((degree - 1) % #scale.intervals) + 1
+  local semitone_offset = scale.intervals[degree_index]
 
   return semitone_offset
 end

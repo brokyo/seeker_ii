@@ -38,7 +38,7 @@ local function get_active_stage_config()
         return stage_configs.tape
     elseif motif_type == 2 then -- Arpeggio mode
         if not stage_configs.arpeggio then
-            stage_configs.arpeggio = include("lib/components/stage_configs/arpeggio_variation")
+            stage_configs.arpeggio = include("lib/components/stage_configs/arpeggio_sequence")
         end
         return stage_configs.arpeggio
     end
@@ -71,7 +71,7 @@ local function create_params()
             -- Stage Volume Param
             params:add_control("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", "Stage Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
 
-            -- Overdub Filter Params
+            -- Tape Transform Params (Overdub Filter, Harmonize, etc.)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_mode", "Filter Mode", {"Up to", "Only", "Except"}, 1)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", "Filter Round", 1, 10, 1)
 
@@ -98,11 +98,13 @@ local function create_params()
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats", "Max Repeats", 1, 8, 3)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing", "Timing Window", {"1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8"}, 15)
 
-            -- Arpeggio Params
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_scale_degree", "Scale Degree", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
+            -- Arpeggio Regeneration Params
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root", "Chord Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type", "Chord Type", {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dom 7", "diminished", "augmented"}, 1)
+            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion", "Chord Inversion", {"Root", "1st", "2nd"}, 1)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_direction", "Direction", {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern", "Pattern", {"All", "Odds", "Evens", "Downbeats", "Upbeats", "Sparse"}, 1)
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_direction", "Direction", {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_inversion", "Inversion", -12, 12, 0)
 
             -- Transform-specific parameters only - infrastructure params handled in @lane_infrastructure
         end

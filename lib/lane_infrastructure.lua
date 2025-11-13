@@ -81,7 +81,12 @@ local function create_basic_lane_params(i)
     -- Per-lane motif creation type
     params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
     params:set_action("lane_" .. i .. "_motif_type", function(value)
-        -- Only trigger rebuild if create_motif component is initialized
+        -- Stop playback when switching modes
+        if _seeker and _seeker.lanes and _seeker.lanes[i] then
+            _seeker.lanes[i]:stop()
+        end
+
+        -- Rebuild UI if initialized
         if _seeker and _seeker.create_motif and _seeker.create_motif.screen then
             _seeker.create_motif.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
@@ -108,7 +113,7 @@ local function create_arpeggio_lane_params(i)
     params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 9)
 
     params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 16)
-    params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root", theory.get_scale_chord_roots(), 1)
+    params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
     params:add_option("lane_" .. i .. "_arpeggio_chord_type", "Chord Type",
         {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dom 7", "diminished", "augmented"}, 1)
     params:add_number("lane_" .. i .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)

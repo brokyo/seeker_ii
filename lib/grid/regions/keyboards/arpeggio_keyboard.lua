@@ -1,60 +1,29 @@
 -- arpeggio_keyboard.lua
--- Step sequencer keyboard for arpeggio sequencer mode
--- Grid layout adapts to the number of steps parameter
+-- Piano roll visualization for arpeggio sequencer mode
+-- Shows windowed view of pattern with relative pitch mapping
 
 local theory = include("lib/theory_utils")
 local musicutil = require('musicutil')
 local GridConstants = include("lib/grid_constants")
 local GridLayers = include("lib/grid_layers")
+local arpeggio_utils = include("lib/arpeggio_utils")
 
 local ArpeggioKeyboard = {}
 
--- Step state tracking - organized by lane
-ArpeggioKeyboard.step_states = {}
-
--- Initialize step states for a lane
-function ArpeggioKeyboard.init_lane_steps(lane_id)
-  if not ArpeggioKeyboard.step_states[lane_id] then
-    ArpeggioKeyboard.step_states[lane_id] = {}
-  end
-end
-
--- Get step state for a specific lane and step
--- Returns: 0 = off, 1 = on, 2 = accent
+-- Get step state - all steps are active by default
+-- Returns: 1 = on
 function ArpeggioKeyboard.get_step_state(lane_id, step)
-  ArpeggioKeyboard.init_lane_steps(lane_id)
-  return ArpeggioKeyboard.step_states[lane_id][step] or 0
+  return 1 -- All steps are always on
 end
 
--- Check if step is active (on or accent)
+-- Check if step is active
 function ArpeggioKeyboard.is_step_active(lane_id, step)
-  return ArpeggioKeyboard.get_step_state(lane_id, step) > 0
+  return true -- All steps are always active
 end
 
--- Toggle step state through three states: off -> on -> accent -> off
-function ArpeggioKeyboard.toggle_step(lane_id, step)
-  ArpeggioKeyboard.init_lane_steps(lane_id)
-  local current_state = ArpeggioKeyboard.step_states[lane_id][step] or 0
-  local new_state = (current_state + 1) % 3
-  ArpeggioKeyboard.step_states[lane_id][step] = new_state
-  return new_state
-end
-
--- Get velocity for a step based on its state
+-- Get velocity for a step
 function ArpeggioKeyboard.get_step_velocity(lane_id, step)
-  local state = ArpeggioKeyboard.get_step_state(lane_id, step)
-  if state == 1 then -- Normal
-    return params:get("lane_" .. lane_id .. "_arpeggio_normal_velocity")
-  elseif state == 2 then -- Accent
-    return params:get("lane_" .. lane_id .. "_arpeggio_accent_velocity")
-  else -- Off
-    return 0
-  end
-end
-
--- Clear all steps for a lane
-function ArpeggioKeyboard.clear_lane_steps(lane_id)
-  ArpeggioKeyboard.step_states[lane_id] = {}
+  return params:get("lane_" .. lane_id .. "_arpeggio_normal_velocity")
 end
 
 -- Dynamic layout based on step count parameter
@@ -127,147 +96,204 @@ function ArpeggioKeyboard.step_to_grid(step)
   }
 end
 
--- Get the MIDI note for a step (uses chord parameters)
-function ArpeggioKeyboard.step_to_note(step)
-  -- This function is maintained for compatibility, but actual chord generation
-  -- happens during motif regeneration. For preview purposes, return root note.
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local chord_root = params:get("lane_" .. focused_lane .. "_arpeggio_chord_root")
-  local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
-
-  -- Return root note for preview (actual chord arpeggiation happens in motif regeneration)
-  return (octave + 1) * 12 + (chord_root - 1)
-end
-
--- Create a standardized note event
-function ArpeggioKeyboard.create_note_event(x, y, step, velocity)
-  local note = ArpeggioKeyboard.step_to_note(step)
-  local positions = {{x = x, y = y}} -- Only one position per step
-  
-  return {
-    note = note,
-    velocity = velocity or 0,
-    x = x,
-    y = y,
-    step = step, -- Add step info for trigger sequencer
-    positions = positions,
-    is_playback = false,
-    source = "grid"
-  }
-end
-
--- Handle step trigger (note on)
-function ArpeggioKeyboard.note_on(x, y)
-  local step = ArpeggioKeyboard.grid_to_step(x, y)
-  if step then
-    local focused_lane_id = _seeker.ui_state.get_focused_lane()
-    local focused_lane = _seeker.lanes[focused_lane_id]
-
-
-    -- When not recording, toggle step state for programming
-    if not _seeker.motif_recorder.is_recording then
-      local new_state = ArpeggioKeyboard.toggle_step(focused_lane_id, step)
-      local state_names = {"OFF", "ON", "ACCENT"}
-      print(string.format("Step %d %s at (%d,%d)", step, state_names[new_state + 1], x, y))
-      return
-    end
-
-    -- When recording, send note events (for recording conversion)
-    print(string.format("Recording trigger step %d at (%d,%d)", step, x, y))
-
-    -- Get velocity from velocity region
-    local velocity_region = include("lib/grid/regions/velocity_region")
-    local event = ArpeggioKeyboard.create_note_event(x, y, step, velocity_region.get_current_velocity())
-
-    _seeker.motif_recorder:on_note_on(event)
-    focused_lane:on_note_on(event)
-  end
-end
-
--- Handle step release (note off)
-function ArpeggioKeyboard.note_off(x, y)
-  local step = ArpeggioKeyboard.grid_to_step(x, y)
-  if step then
-    -- When not recording, do nothing (steps are toggled on press)
-    if not _seeker.motif_recorder.is_recording then
-      return
-    end
-
-    -- When recording, send note_off events
-    local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-    local event = ArpeggioKeyboard.create_note_event(x, y, step, 0)
-
-    _seeker.motif_recorder:on_note_off(event)
-    focused_lane:on_note_off(event)
-  end
-end
-
--- Handle key presses
+-- Grid is read-only for arpeggio mode - all programming via params
 function ArpeggioKeyboard.handle_key(x, y, z)
-  if z == 1 then
-    ArpeggioKeyboard.note_on(x, y)
-  else
-    ArpeggioKeyboard.note_off(x, y)
-  end
+  -- No interaction - visualization only
 end
 
--- Draw the step sequencer grid
+-- Draw the piano roll visualization
 function ArpeggioKeyboard.draw(layers)
   local layout = ArpeggioKeyboard.get_layout()
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
+  local focused_lane = _seeker.lanes[focused_lane_id]
 
-  for step = 1, layout.num_steps do
-    local pos = ArpeggioKeyboard.step_to_grid(step)
-    if pos then
-      -- Show different brightness levels for each state
+  -- Get motif to calculate note mapping
+  local motif = focused_lane and focused_lane.motif
+  if not motif or not motif.events or #motif.events == 0 then
+    -- No motif yet, show blank grid
+    return
+  end
+
+  -- Get current playback position (which step)
+  local current_step = ArpeggioKeyboard._get_current_playback_step(focused_lane)
+
+  -- Get number of steps from params
+  local num_steps = params:get("lane_" .. focused_lane_id .. "_arpeggio_num_steps")
+
+  -- Calculate windowed step indices
+  local window_steps = arpeggio_utils.calculate_step_window(current_step, num_steps, layout.width)
+
+  -- Collect notes from motif events for pitch range calculation
+  local step_notes = {}  -- step_notes[step] = MIDI note
+  for _, event in ipairs(motif.events) do
+    if event.type == "note_on" and event.step then
+      step_notes[event.step] = event.note
+    end
+  end
+
+  -- Find min/max notes in window
+  local min_note, max_note = nil, nil
+  for _, step in ipairs(window_steps) do
+    local note = step_notes[step]
+    if note then
+      if not min_note or note < min_note then
+        min_note = note
+      end
+      if not max_note or note > max_note then
+        max_note = note
+      end
+    end
+  end
+
+  -- Draw each step in the window
+  for col_index, step in ipairs(window_steps) do
+    local note = step_notes[step]
+    if note and min_note and max_note then
+      -- Map note to row (1-6)
+      local row = arpeggio_utils.map_note_to_row(note, min_note, max_note)
+
+      -- Calculate grid position
+      local grid_x = layout.upper_left_x + (col_index - 1)
+      local grid_y = layout.upper_left_y + (layout.height - row)  -- Invert Y (row 1 = bottom)
+
+      -- Get step state for brightness
       local state = ArpeggioKeyboard.get_step_state(focused_lane_id, step)
       local brightness
-      if state == 0 then -- Off
+      if state == 0 then -- Off (shouldn't happen if note exists, but safety)
         brightness = GridConstants.BRIGHTNESS.LOW
       elseif state == 1 then -- On
         brightness = GridConstants.BRIGHTNESS.MEDIUM
       else -- Accent (state == 2)
         brightness = GridConstants.BRIGHTNESS.HIGH
       end
-      GridLayers.set(layers.ui, pos.x, pos.y, brightness)
+
+      GridLayers.set(layers.ui, grid_x, grid_y, brightness)
     end
   end
 end
 
--- Draw motif events for active steps
+-- Helper to get current playback step
+function ArpeggioKeyboard._get_current_playback_step(lane)
+  if not lane or not lane.playing or not lane.motif then
+    return 1  -- Default to step 1 if not playing
+  end
+
+  -- Get current stage timing
+  local current_stage = lane.stages[lane.current_stage_index]
+  if not current_stage or not current_stage.last_start_time then
+    return 1
+  end
+
+  -- Calculate elapsed time
+  local now = clock.get_beats()
+  local elapsed_time = (now - current_stage.last_start_time) * lane.speed
+
+  -- Calculate position within motif
+  local motif_duration = lane.motif.duration
+  if motif_duration <= 0 then
+    return 1
+  end
+
+  local position_in_motif = elapsed_time % motif_duration
+
+  -- Get step length
+  local focused_lane_id = _seeker.ui_state.get_focused_lane()
+  local step_length_str = params:string("lane_" .. focused_lane_id .. "_arpeggio_step_length")
+  local step_length = ArpeggioKeyboard._interval_to_beats(step_length_str)
+
+  if step_length <= 0 then
+    return 1
+  end
+
+  -- Calculate current step (1-based)
+  local current_step = math.floor(position_in_motif / step_length) + 1
+
+  -- Get num_steps and wrap
+  local num_steps = params:get("lane_" .. focused_lane_id .. "_arpeggio_num_steps")
+  current_step = ((current_step - 1) % num_steps) + 1
+
+  return current_step
+end
+
+-- Helper to convert interval string to beats
+function ArpeggioKeyboard._interval_to_beats(interval_str)
+  if tonumber(interval_str) then
+    return tonumber(interval_str)
+  end
+  local num, den = interval_str:match("(%d+)/(%d+)")
+  if num and den then
+    return tonumber(num) / tonumber(den)
+  end
+  return 1/8
+end
+
+-- Draw motif events for active steps (piano roll playback visualization)
 function ArpeggioKeyboard.draw_motif_events(layers)
+  local layout = ArpeggioKeyboard.get_layout()
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local focused_lane = _seeker.lanes[focused_lane_id]
 
-  -- Get active positions from focused lane
-  local active_positions = focused_lane:get_active_positions()
+  if not focused_lane or not focused_lane.motif or #focused_lane.motif.events == 0 then
+    return
+  end
 
-  -- Illuminate active positions with brightness based on step state
-  for _, pos in ipairs(active_positions) do
-    if ArpeggioKeyboard.contains(pos.x, pos.y) then
-      -- Convert position back to step number to check state
-      local step = ArpeggioKeyboard.grid_to_step(pos.x, pos.y)
-      if step then
-        local step_state = ArpeggioKeyboard.get_step_state(focused_lane_id, step)
-        local brightness
-        if step_state > 0 then
-          -- On or accent step: full brightness
-          brightness = GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE
-        else
-          -- Off step: medium brightness (shows position but dimmer)
-          brightness = GridConstants.BRIGHTNESS.MEDIUM
-        end
-        GridLayers.set(layers.response, pos.x, pos.y, brightness)
+  -- Get current playback position
+  local current_step = ArpeggioKeyboard._get_current_playback_step(focused_lane)
+  local num_steps = params:get("lane_" .. focused_lane_id .. "_arpeggio_num_steps")
+
+  -- Calculate windowed step indices
+  local window_steps = arpeggio_utils.calculate_step_window(current_step, num_steps, layout.width)
+
+  -- Collect notes from motif events
+  local step_notes = {}
+  for _, event in ipairs(focused_lane.motif.events) do
+    if event.type == "note_on" and event.step then
+      step_notes[event.step] = event.note
+    end
+  end
+
+  -- Find min/max notes in window
+  local min_note, max_note = nil, nil
+  for _, step in ipairs(window_steps) do
+    local note = step_notes[step]
+    if note then
+      if not min_note or note < min_note then
+        min_note = note
+      end
+      if not max_note or note > max_note then
+        max_note = note
       end
     end
   end
-  
-  -- Draw MIDI input notes if available
-  if _seeker.midi_input then
-    local midi_positions = _seeker.midi_input.get_active_positions()
-    for _, pos in ipairs(midi_positions) do
-      if ArpeggioKeyboard.contains(pos.x, pos.y) then
-        GridLayers.set(layers.response, pos.x, pos.y, GridConstants.BRIGHTNESS.CONTROLS.PLAY_ACTIVE)
+
+  -- Get active positions from lane (currently playing notes)
+  local active_positions = focused_lane:get_active_positions()
+
+  -- Create lookup table of active steps from positions
+  local active_steps_lookup = {}
+  for _, pos in ipairs(active_positions) do
+    -- Find which step this position corresponds to in current motif
+    for _, event in ipairs(focused_lane.motif.events) do
+      if event.type == "note_on" and event.x == pos.x and event.y == pos.y and event.step then
+        active_steps_lookup[event.step] = true
+      end
+    end
+  end
+
+  -- Draw currently active steps with full brightness
+  for col_index, step in ipairs(window_steps) do
+    if active_steps_lookup[step] then
+      local note = step_notes[step]
+      if note and min_note and max_note then
+        -- Map note to row
+        local row = arpeggio_utils.map_note_to_row(note, min_note, max_note)
+
+        -- Calculate grid position
+        local grid_x = layout.upper_left_x + (col_index - 1)
+        local grid_y = layout.upper_left_y + (layout.height - row)
+
+        -- Full brightness for active playback
+        GridLayers.set(layers.response, grid_x, grid_y, GridConstants.BRIGHTNESS.FULL)
       end
     end
   end

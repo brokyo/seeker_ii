@@ -335,41 +335,129 @@ end
 
 -- Private method for arpeggio recording
 function MotifRecorder:_stop_arpeggio_recording()
-  -- Store metadata for regeneration instead of fixed MIDI events
+  -- Generate full note events immediately from current arpeggio state
   local focused_lane = _seeker.ui_state.get_focused_lane()
 
-  -- Create a single metadata event that will be used for regeneration
-  self.events = {
-    {
-      time = 0,
-      type = "trigger_pattern",
-      lane_id = focused_lane,
+  print("🎹 Generating arpeggio motif from step pattern...")
+
+  -- Get current arpeggio parameters
+  local step_length_str = params:string("lane_" .. focused_lane .. "_arpeggio_step_length")
+  local step_length = self:_interval_to_beats(step_length_str)
+  local num_steps = params:get("lane_" .. focused_lane .. "_arpeggio_num_steps")
+  local chord_root = params:get("lane_" .. focused_lane .. "_arpeggio_chord_root")
+  local chord_type = params:string("lane_" .. focused_lane .. "_arpeggio_chord_type")
+  local chord_length = params:get("lane_" .. focused_lane .. "_arpeggio_chord_length")
+  local chord_inversion = params:get("lane_" .. focused_lane .. "_arpeggio_chord_inversion") - 1
+  local chord_direction = params:get("lane_" .. focused_lane .. "_arpeggio_chord_direction")
+  local note_duration_percent = params:get("lane_" .. focused_lane .. "_arpeggio_note_duration")
+  local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
+
+  print(string.format("  Chord: %s, Length: %d, Inversion: %d", chord_type, chord_length, chord_inversion))
+
+  -- Generate chord notes
+  local effective_chord = self:_generate_chord(chord_root, chord_type, chord_length, chord_inversion)
+
+  if not effective_chord or #effective_chord == 0 then
+    print("ERROR: Failed to generate chord for arpeggio recording")
+    return {events = {}, duration = num_steps * step_length}
+  end
+
+  -- Get arpeggio keyboard to read step states
+  local ArpeggioKeyboard = _seeker.keyboards[2]
+
+  -- Collect active steps
+  local active_steps = {}
+  for step = 1, num_steps do
+    if ArpeggioKeyboard.is_step_active(focused_lane, step) then
+      table.insert(active_steps, step)
+    end
+  end
+
+  print(string.format("  Found %d active steps out of %d total", #active_steps, num_steps))
+
+  -- Apply direction to chord
+  effective_chord = self:_apply_direction(effective_chord, chord_direction, #active_steps)
+
+  -- Generate note events for each active step
+  local events = {}
+  for active_index, step in ipairs(active_steps) do
+    local step_time = (step - 1) * step_length
+
+    -- Map to chord note
+    local chord_position = ((active_index - 1) % #effective_chord) + 1
+    local chord_note = effective_chord[chord_position]
+    local final_note = chord_note + ((octave + 1) * 12)
+
+    -- Get velocity for this step
+    local step_velocity = ArpeggioKeyboard.get_step_velocity(focused_lane, step)
+
+    -- Get grid coordinates
+    local step_pos = ArpeggioKeyboard.step_to_grid(step)
+    local step_x = step_pos and step_pos.x or 0
+    local step_y = step_pos and step_pos.y or 0
+
+    -- Add note_on event with step info for transform filtering
+    table.insert(events, {
+      time = step_time,
+      type = "note_on",
+      note = final_note,
+      velocity = step_velocity,
+      x = step_x,
+      y = step_y,
+      step = step,  -- Store step number for pattern preset filtering
       generation = self.current_generation,
-      -- Parameters will be read fresh during regeneration
       attack = params:get("lane_" .. focused_lane .. "_attack"),
       decay = params:get("lane_" .. focused_lane .. "_decay"),
       sustain = params:get("lane_" .. focused_lane .. "_sustain"),
       release = params:get("lane_" .. focused_lane .. "_release"),
       pan = params:get("lane_" .. focused_lane .. "_pan")
-    }
-  }
+    })
 
-  -- Calculate actual duration based on current arpeggio parameters
-  local step_length_str = params:string("lane_" .. focused_lane .. "_arpeggio_step_length")
-  local step_length = self:_interval_to_beats(step_length_str)
-  local num_steps = params:get("lane_" .. focused_lane .. "_arpeggio_num_steps")
+    -- Add note_off event
+    local note_duration = step_length * (note_duration_percent / 100)
+    local note_off_time = step_time + note_duration
+    table.insert(events, {
+      time = note_off_time,
+      type = "note_off",
+      note = final_note,
+      x = step_x,
+      y = step_y,
+      step = step,  -- Store step number for pattern preset filtering
+      generation = self.current_generation
+    })
+  end
+
+  -- Sort by time
+  table.sort(events, function(a, b) return a.time < b.time end)
+
+  -- Calculate duration
   local duration = num_steps * step_length
 
-  return {events = self.events, duration = duration}
+  return {events = events, duration = duration}
 end
 
 --- Generate chord notes with octave cycling (based on seeker/core.lua)
-function MotifRecorder:_generate_chord(chord_root, chord_type, chord_length, chord_inversion)
-  -- Convert UI chord root (1-12) to MIDI note (0-11)
-  local chord_root_midi = (chord_root - 1) % 12
+function MotifRecorder:_generate_chord(chord_root_degree, chord_type, chord_length, chord_inversion)
+  -- Get global scale settings
+  local root_note = params:get("root_note")
+  local scale_type_index = params:get("scale_type")
+  local scale = musicutil.SCALES[scale_type_index]
+
+  -- Convert scale degree (1-7) to semitone offset from root
+  local degree_index = ((chord_root_degree - 1) % #scale.intervals) + 1
+  local semitone_offset = scale.intervals[degree_index]
+
+  -- Calculate actual MIDI note for chord root
+  local chord_root_midi = ((root_note - 1) + semitone_offset) % 12
 
   -- Get base chord intervals from musicutil with inversion
   local base_chord = musicutil.generate_chord(chord_root_midi, chord_type, chord_inversion or 0, 3)
+
+  -- Error handling if chord type not recognized
+  if not base_chord or #base_chord == 0 then
+    print("ERROR: Unknown chord type '" .. chord_type .. "', falling back to major")
+    base_chord = musicutil.generate_chord(chord_root_midi, "major", 0, 3)
+  end
 
   -- Convert to intervals relative to root
   local chord_intervals = {}
@@ -442,109 +530,6 @@ function MotifRecorder:_apply_direction(chord_notes, direction, num_active_steps
   return chord_notes  -- Fallback to up
 end
 
---- Regenerate trigger motif from current grid state and chord parameters
-function MotifRecorder:regenerate_trigger_motif_from_current_state(lane_id, original_envelope_settings)
-  -- Get current trigger parameters
-  local step_length_str = params:string("lane_" .. lane_id .. "_arpeggio_step_length")
-  local step_length = self:_interval_to_beats(step_length_str)
-  local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
-  local chord_root = params:get("lane_" .. lane_id .. "_arpeggio_chord_root")
-  local chord_type = params:string("lane_" .. lane_id .. "_arpeggio_chord_type")
-  local chord_length = params:get("lane_" .. lane_id .. "_arpeggio_chord_length")
-  local chord_inversion = params:get("lane_" .. lane_id .. "_arpeggio_chord_inversion") - 1  -- Convert to 0-based
-  local chord_direction = params:get("lane_" .. lane_id .. "_arpeggio_chord_direction")
-  local note_duration_percent = params:get("lane_" .. lane_id .. "_arpeggio_note_duration")
-  local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
-
-  -- Generate chord notes with specified length and inversion
-  local effective_chord = self:_generate_chord(chord_root, chord_type, chord_length, chord_inversion)
-
-  -- Store original chord for logging before direction is applied
-  local original_chord = {}
-  for i, note in ipairs(effective_chord) do
-    table.insert(original_chord, note)
-  end
-
-  -- Ensure chord generation succeeded
-  if not effective_chord or #effective_chord == 0 then
-    print("ERROR: Failed to generate effective chord")
-    return {}
-  end
-
-  -- Get arpeggio keyboard directly from global cache (this function is arpeggio-specific)
-  local ArpeggioKeyboard = _seeker.keyboards[2] -- Arpeggio keyboard is mode 2
-
-  -- First pass: collect active steps
-  local active_steps = {}
-  for step = 1, num_steps do
-    if ArpeggioKeyboard.is_step_active(lane_id, step) then
-      table.insert(active_steps, step)
-    end
-  end
-
-  -- Apply direction logic to the chord based on number of active steps
-  effective_chord = self:_apply_direction(effective_chord, chord_direction, #active_steps)
-
-  -- Log the chord with direction info
-  local original_str = table.concat(original_chord, ", ")
-  local play_order_str = table.concat(effective_chord, ", ")
-  local direction_names = {"Up", "Down", "Up-Down", "Down-Up", "Random"}
-  print(string.format("🎼 Chord: [%s] → %s: [%s]", original_str, direction_names[chord_direction] or "Up", play_order_str))
-
-  -- Generate events from active step sequence
-  local events = {}
-  for active_index, step in ipairs(active_steps) do
-    local step_time = (step - 1) * step_length
-
-    -- Map active sequence position to chord note with actual chord size wrapping
-    local chord_position = ((active_index - 1) % #effective_chord) + 1
-    local chord_note = effective_chord[chord_position]
-
-    local final_note = chord_note + ((octave + 1) * 12)
-
-    -- Get velocity for this step based on its state
-    local step_velocity = ArpeggioKeyboard.get_step_velocity(lane_id, step)
-
-    -- Get grid coordinates for this step
-    local step_pos = ArpeggioKeyboard.step_to_grid(step)
-    local step_x = step_pos and step_pos.x or 0
-    local step_y = step_pos and step_pos.y or 0
-
-    -- Add note_on event
-    table.insert(events, {
-      time = step_time,
-      type = "note_on",
-      note = final_note,
-      velocity = step_velocity,
-      x = step_x,
-      y = step_y,
-      generation = self.current_generation,
-      attack = original_envelope_settings.attack,
-      decay = original_envelope_settings.decay,
-      sustain = original_envelope_settings.sustain,
-      release = original_envelope_settings.release,
-      pan = original_envelope_settings.pan
-    })
-
-    -- Add note_off event using duration parameter
-    local note_duration = step_length * (note_duration_percent / 100)
-    local note_off_time = step_time + note_duration
-    table.insert(events, {
-      time = note_off_time,
-      type = "note_off",
-      note = final_note,
-      x = step_x,
-      y = step_y,
-      generation = self.current_generation
-    })
-
-  end
-
-  -- Calculate duration based on current parameters
-  local duration = num_steps * step_length
-
-  return events, duration
-end
 
 --- Helper function to convert interval string to beats
 function MotifRecorder:_interval_to_beats(interval_str)
