@@ -164,7 +164,7 @@ end
 function TapeKeyboard.draw_motif_events(layers)
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local focused_lane = _seeker.lanes[focused_lane_id]
-  
+
   -- Get active positions from focused lane
   local active_positions = focused_lane:get_active_positions()
   

@@ -745,17 +745,14 @@ function Lane:on_note_on(event)
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   local is_arpeggio_mode = (motif_type == 2)
 
-  -- Set trail properties based on keyboard mode
-  local trail_brightness, trail_decay
+  -- Arpeggio mode uses built-in keyboard tail decay, skip trail system
   if is_arpeggio_mode then
-    -- Arpeggio mode: immediate on/off (no decay, full brightness)
-    trail_brightness = GridConstants.BRIGHTNESS.FULL
-    trail_decay = 1.0  -- No decay
-  else
-    -- Tape/arpeggio modes: gradual fade trails
-    trail_brightness = GridConstants.BRIGHTNESS.HIGH
-    trail_decay = 0.95
+    return
   end
+
+  -- Tape mode: gradual fade trails
+  local trail_brightness = GridConstants.BRIGHTNESS.HIGH
+  local trail_decay = 0.95
 
   if positions then
     for _, pos in ipairs(positions) do
@@ -1053,38 +1050,19 @@ function Lane:get_active_positions()
   local positions = {}
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
-  -- For arpeggio mode, use step-based timing illumination
+  -- For arpeggio mode, use note-based illumination
   if motif_type == 2 then
-    -- Only show illumination if we're currently playing
     if not self.playing then
       return positions
     end
 
-    local current_stage = self.stages[self.current_stage_index]
-    if not current_stage.last_start_time then
-      return positions
-    end
-
-    -- Calculate current position within the motif
-    local now = clock.get_beats()
-    local elapsed_since_stage_start = now - current_stage.last_start_time
-    local pattern_position = (elapsed_since_stage_start * self.speed) % self.motif:get_duration()
-
-    -- Get arpeggio parameters
-    local num_steps = params:get("lane_" .. self.id .. "_arpeggio_num_steps")
-    local step_length_str = params:string("lane_" .. self.id .. "_arpeggio_step_length")
-    local step_length = self:_interval_to_beats(step_length_str)
-
-    -- Calculate which step should be illuminated
-    local current_step = math.floor(pattern_position / step_length) + 1
-
-    -- Clamp to valid step range
-    if current_step >= 1 and current_step <= num_steps then
-      -- Get arpeggio keyboard and convert step to grid position
-      local ArpeggioKeyboard = _seeker.keyboards[2] -- Arpeggio keyboard is mode 2
-      local step_pos = ArpeggioKeyboard.step_to_grid(current_step)
-      if step_pos then
-        table.insert(positions, {x = step_pos.x, y = step_pos.y})
+    local ArpeggioKeyboard = _seeker.keyboards[2]
+    for key, note in pairs(self.active_notes) do
+      local current_positions = ArpeggioKeyboard.note_to_positions(note.note)
+      if current_positions then
+        for _, pos in ipairs(current_positions) do
+          table.insert(positions, {x = pos.x, y = pos.y, note = note.note})
+        end
       end
     end
 

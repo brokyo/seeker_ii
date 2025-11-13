@@ -1,99 +1,112 @@
 -- arpeggio_keyboard.lua
--- Piano roll visualization for arpeggio sequencer mode
--- Shows windowed view of pattern with relative pitch mapping
+-- Scale interval visualization for arpeggio sequencer mode
+-- 8 rows × 6 columns (2 blocks of 3 columns each)
+-- Shows first 16 scale intervals with block illumination and tonnetz-style tail
 
 local theory = include("lib/theory_utils")
 local musicutil = require('musicutil')
 local GridConstants = include("lib/grid_constants")
 local GridLayers = include("lib/grid_layers")
-local arpeggio_utils = include("lib/arpeggio_utils")
 
 local ArpeggioKeyboard = {}
 
--- Get step state - all steps are active by default
--- Returns: 1 = on
-function ArpeggioKeyboard.get_step_state(lane_id, step)
-  return 1 -- All steps are always on
+-- Fixed layout: 8 rows × 6 columns at position (6,1)
+ArpeggioKeyboard.layout = {
+  upper_left_x = 6,
+  upper_left_y = 1,
+  width = 6,
+  height = 8
+}
+
+-- Tail state for tonnetz-style decay
+ArpeggioKeyboard.note_tails = {}  -- {[interval] = {brightness, timestamp}}
+
+-- Map MIDI note to scale interval (1-16)
+-- Returns interval number or nil if outside range
+function ArpeggioKeyboard.note_to_interval(note)
+  local root_note = params:get("root_note")
+  local scale_type_index = params:get("scale_type")
+  local scale = musicutil.SCALES[scale_type_index]
+
+  if not scale or not scale.intervals then
+    return nil
+  end
+
+  -- Calculate semitone offset from root
+  local root_midi = root_note - 1
+  local semitone_offset = (note - root_midi) % 12
+
+  -- Find which scale interval this matches (allowing octaves)
+  local octave = math.floor((note - root_midi) / 12)
+
+  for i, interval in ipairs(scale.intervals) do
+    if interval == semitone_offset then
+      local scale_interval = i + (octave * #scale.intervals)
+
+      -- Wrap to 1-16 display range (handles negative octaves)
+      scale_interval = ((scale_interval - 1) % 16) + 1
+
+      return scale_interval
+    end
+  end
+
+  return nil
 end
 
--- Check if step is active
+-- Map scale interval (1-16) to block columns
+-- Returns table of 3 column positions for the block
+function ArpeggioKeyboard.interval_to_block_columns(interval)
+  if interval < 1 or interval > 16 then
+    return nil
+  end
+
+  -- Determine which block (left=1-2, right=4-6) and which row
+  local is_left_block = (interval % 2) == 1  -- Odd intervals go left
+  local row = math.ceil(interval / 2)  -- Two intervals per row
+
+  -- Calculate y position (row 1 at bottom = y=8, row 8 at top = y=1)
+  local y = ArpeggioKeyboard.layout.upper_left_y + (ArpeggioKeyboard.layout.height - row)
+
+  -- Calculate x positions for the 3-column block
+  local x_start = ArpeggioKeyboard.layout.upper_left_x + (is_left_block and 0 or 3)
+
+  return {
+    {x = x_start, y = y},
+    {x = x_start + 1, y = y},
+    {x = x_start + 2, y = y}
+  }
+end
+
+-- Required functions for keyboard interface
 function ArpeggioKeyboard.is_step_active(lane_id, step)
-  return true -- All steps are always active
+  return true
 end
 
--- Get velocity for a step
 function ArpeggioKeyboard.get_step_velocity(lane_id, step)
   return params:get("lane_" .. lane_id .. "_arpeggio_normal_velocity")
 end
 
--- Dynamic layout based on step count parameter
-function ArpeggioKeyboard.get_layout()
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local num_steps = params:get("lane_" .. focused_lane .. "_arpeggio_num_steps")
-
-  -- Fixed width of 6 columns, variable height based on steps
-  local width = 6
-  local height = math.ceil(num_steps / width)
-
-  -- Fixed horizontal position, vertically centered
-  local start_x = 6
-  local start_y = 2 + math.floor((6 - height) / 2)
-
-  return {
-    upper_left_x = start_x,
-    upper_left_y = start_y,
-    width = width,
-    height = height,
-    num_steps = num_steps
-  }
-end
-
--- Static layout property for compatibility
-ArpeggioKeyboard.layout = ArpeggioKeyboard.get_layout()
-
--- Check if coordinates are within trigger keyboard area
-function ArpeggioKeyboard.contains(x, y)
-  local layout = ArpeggioKeyboard.get_layout()
-  return x >= layout.upper_left_x and
-         x < layout.upper_left_x + layout.width and
-         y >= layout.upper_left_y and
-         y < layout.upper_left_y + layout.height
-end
-
--- Find all grid positions for a given MIDI note
--- Arpeggio keyboard doesn't illuminate by note, so return nil
-function ArpeggioKeyboard.note_to_positions(note)
-  return nil
-end
-
--- Convert grid coordinates to step number
-function ArpeggioKeyboard.grid_to_step(x, y)
-  local layout = ArpeggioKeyboard.get_layout()
-  local rel_x = x - layout.upper_left_x
-  local rel_y = y - layout.upper_left_y
-  local step = rel_y * layout.width + rel_x + 1
-  
-  if step <= layout.num_steps then
-    return step
-  end
-  return nil
-end
-
--- Convert step number back to grid coordinates
 function ArpeggioKeyboard.step_to_grid(step)
-  local layout = ArpeggioKeyboard.get_layout()
-  if step < 1 or step > layout.num_steps then
-    return nil
-  end
-  
-  local zero_based_step = step - 1
-  local rel_y = math.floor(zero_based_step / layout.width)
-  local rel_x = zero_based_step % layout.width
-  
+  -- Legacy function for motif recording - return center of layout
   return {
-    x = layout.upper_left_x + rel_x,
-    y = layout.upper_left_y + rel_y
+    x = ArpeggioKeyboard.layout.upper_left_x + 3,
+    y = ArpeggioKeyboard.layout.upper_left_y + 4
   }
+end
+
+function ArpeggioKeyboard.contains(x, y)
+  return x >= ArpeggioKeyboard.layout.upper_left_x and
+         x < ArpeggioKeyboard.layout.upper_left_x + ArpeggioKeyboard.layout.width and
+         y >= ArpeggioKeyboard.layout.upper_left_y and
+         y < ArpeggioKeyboard.layout.upper_left_y + ArpeggioKeyboard.layout.height
+end
+
+function ArpeggioKeyboard.note_to_positions(note)
+  local interval = ArpeggioKeyboard.note_to_interval(note)
+  if interval then
+    return ArpeggioKeyboard.interval_to_block_columns(interval)
+  end
+  return nil
 end
 
 -- Grid is read-only for arpeggio mode - all programming via params
@@ -101,199 +114,91 @@ function ArpeggioKeyboard.handle_key(x, y, z)
   -- No interaction - visualization only
 end
 
--- Draw the piano roll visualization
+-- Draw the scale interval visualization (base state)
 function ArpeggioKeyboard.draw(layers)
-  local layout = ArpeggioKeyboard.get_layout()
-  local focused_lane_id = _seeker.ui_state.get_focused_lane()
-  local focused_lane = _seeker.lanes[focused_lane_id]
+  local layout = ArpeggioKeyboard.layout
 
-  -- Get motif to calculate note mapping
-  local motif = focused_lane and focused_lane.motif
-  if not motif or not motif.events or #motif.events == 0 then
-    -- No motif yet, show blank grid
-    return
-  end
+  -- Draw all blocks at LOW brightness as base state
+  for row = 1, 8 do
+    for block = 1, 2 do  -- 2 blocks (left, right)
+      local x_start = layout.upper_left_x + ((block - 1) * 3)
+      local y = layout.upper_left_y + (8 - row)
 
-  -- Get current playback position (which step)
-  local current_step = ArpeggioKeyboard._get_current_playback_step(focused_lane)
-
-  -- Get number of steps from params
-  local num_steps = params:get("lane_" .. focused_lane_id .. "_arpeggio_num_steps")
-
-  -- Calculate windowed step indices
-  local window_steps = arpeggio_utils.calculate_step_window(current_step, num_steps, layout.width)
-
-  -- Collect notes from motif events for pitch range calculation
-  local step_notes = {}  -- step_notes[step] = MIDI note
-  for _, event in ipairs(motif.events) do
-    if event.type == "note_on" and event.step then
-      step_notes[event.step] = event.note
-    end
-  end
-
-  -- Find min/max notes in window
-  local min_note, max_note = nil, nil
-  for _, step in ipairs(window_steps) do
-    local note = step_notes[step]
-    if note then
-      if not min_note or note < min_note then
-        min_note = note
+      -- Illuminate all 3 columns in the block
+      for col_offset = 0, 2 do
+        GridLayers.set(layers.ui, x_start + col_offset, y, GridConstants.BRIGHTNESS.LOW)
       end
-      if not max_note or note > max_note then
-        max_note = note
-      end
-    end
-  end
-
-  -- Draw each step in the window
-  for col_index, step in ipairs(window_steps) do
-    local note = step_notes[step]
-    if note and min_note and max_note then
-      -- Map note to row (1-6)
-      local row = arpeggio_utils.map_note_to_row(note, min_note, max_note)
-
-      -- Calculate grid position
-      local grid_x = layout.upper_left_x + (col_index - 1)
-      local grid_y = layout.upper_left_y + (layout.height - row)  -- Invert Y (row 1 = bottom)
-
-      -- Get step state for brightness
-      local state = ArpeggioKeyboard.get_step_state(focused_lane_id, step)
-      local brightness
-      if state == 0 then -- Off (shouldn't happen if note exists, but safety)
-        brightness = GridConstants.BRIGHTNESS.LOW
-      elseif state == 1 then -- On
-        brightness = GridConstants.BRIGHTNESS.MEDIUM
-      else -- Accent (state == 2)
-        brightness = GridConstants.BRIGHTNESS.HIGH
-      end
-
-      GridLayers.set(layers.ui, grid_x, grid_y, brightness)
     end
   end
 end
 
--- Helper to get current playback step
-function ArpeggioKeyboard._get_current_playback_step(lane)
-  if not lane or not lane.playing or not lane.motif then
-    return 1  -- Default to step 1 if not playing
-  end
-
-  -- Get current stage timing
-  local current_stage = lane.stages[lane.current_stage_index]
-  if not current_stage or not current_stage.last_start_time then
-    return 1
-  end
-
-  -- Calculate elapsed time
-  local now = clock.get_beats()
-  local elapsed_time = (now - current_stage.last_start_time) * lane.speed
-
-  -- Calculate position within motif
-  local motif_duration = lane.motif.duration
-  if motif_duration <= 0 then
-    return 1
-  end
-
-  local position_in_motif = elapsed_time % motif_duration
-
-  -- Get step length
-  local focused_lane_id = _seeker.ui_state.get_focused_lane()
-  local step_length_str = params:string("lane_" .. focused_lane_id .. "_arpeggio_step_length")
-  local step_length = ArpeggioKeyboard._interval_to_beats(step_length_str)
-
-  if step_length <= 0 then
-    return 1
-  end
-
-  -- Calculate current step (1-based)
-  local current_step = math.floor(position_in_motif / step_length) + 1
-
-  -- Get num_steps and wrap
-  local num_steps = params:get("lane_" .. focused_lane_id .. "_arpeggio_num_steps")
-  current_step = ((current_step - 1) % num_steps) + 1
-
-  return current_step
-end
-
--- Helper to convert interval string to beats
-function ArpeggioKeyboard._interval_to_beats(interval_str)
-  if tonumber(interval_str) then
-    return tonumber(interval_str)
-  end
-  local num, den = interval_str:match("(%d+)/(%d+)")
-  if num and den then
-    return tonumber(num) / tonumber(den)
-  end
-  return 1/8
-end
-
--- Draw motif events for active steps (piano roll playback visualization)
+-- Draw motif events with tonnetz-style tail decay
 function ArpeggioKeyboard.draw_motif_events(layers)
-  local layout = ArpeggioKeyboard.get_layout()
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local focused_lane = _seeker.lanes[focused_lane_id]
 
-  if not focused_lane or not focused_lane.motif or #focused_lane.motif.events == 0 then
+  if not focused_lane then
     return
-  end
-
-  -- Get current playback position
-  local current_step = ArpeggioKeyboard._get_current_playback_step(focused_lane)
-  local num_steps = params:get("lane_" .. focused_lane_id .. "_arpeggio_num_steps")
-
-  -- Calculate windowed step indices
-  local window_steps = arpeggio_utils.calculate_step_window(current_step, num_steps, layout.width)
-
-  -- Collect notes from motif events
-  local step_notes = {}
-  for _, event in ipairs(focused_lane.motif.events) do
-    if event.type == "note_on" and event.step then
-      step_notes[event.step] = event.note
-    end
-  end
-
-  -- Find min/max notes in window
-  local min_note, max_note = nil, nil
-  for _, step in ipairs(window_steps) do
-    local note = step_notes[step]
-    if note then
-      if not min_note or note < min_note then
-        min_note = note
-      end
-      if not max_note or note > max_note then
-        max_note = note
-      end
-    end
   end
 
   -- Get active positions from lane (currently playing notes)
   local active_positions = focused_lane:get_active_positions()
 
-  -- Create lookup table of active steps from positions
-  local active_steps_lookup = {}
+  -- Track which intervals are currently active
+  local active_intervals = {}
+
+  -- Process active notes
   for _, pos in ipairs(active_positions) do
-    -- Find which step this position corresponds to in current motif
-    for _, event in ipairs(focused_lane.motif.events) do
-      if event.type == "note_on" and event.x == pos.x and event.y == pos.y and event.step then
-        active_steps_lookup[event.step] = true
+    if pos.note then
+      local interval = ArpeggioKeyboard.note_to_interval(pos.note)
+      if interval then
+        active_intervals[interval] = true
+
+        -- Update tail timestamp for active notes
+        ArpeggioKeyboard.note_tails[interval] = {
+          brightness = GridConstants.BRIGHTNESS.FULL,
+          timestamp = util.time()
+        }
+
+        -- Illuminate block at FULL brightness
+        local block_cols = ArpeggioKeyboard.interval_to_block_columns(interval)
+        if block_cols then
+          for _, col in ipairs(block_cols) do
+            GridLayers.set(layers.response, col.x, col.y, GridConstants.BRIGHTNESS.FULL)
+          end
+        end
       end
     end
   end
 
-  -- Draw currently active steps with full brightness
-  for col_index, step in ipairs(window_steps) do
-    if active_steps_lookup[step] then
-      local note = step_notes[step]
-      if note and min_note and max_note then
-        -- Map note to row
-        local row = arpeggio_utils.map_note_to_row(note, min_note, max_note)
+  -- Decay tails for non-active notes
+  local current_time = util.time()
+  local decay_duration = 0.5  -- Total decay time in seconds
 
-        -- Calculate grid position
-        local grid_x = layout.upper_left_x + (col_index - 1)
-        local grid_y = layout.upper_left_y + (layout.height - row)
+  for interval, tail in pairs(ArpeggioKeyboard.note_tails) do
+    if not active_intervals[interval] then
+      local elapsed = current_time - tail.timestamp
+      local brightness = GridConstants.BRIGHTNESS.LOW
 
-        -- Full brightness for active playback
-        GridLayers.set(layers.response, grid_x, grid_y, GridConstants.BRIGHTNESS.FULL)
+      if elapsed < decay_duration then
+        -- Decay from FULL → MEDIUM → LOW
+        local progress = elapsed / decay_duration
+        if progress < 0.5 then
+          brightness = GridConstants.BRIGHTNESS.MEDIUM
+        else
+          brightness = GridConstants.BRIGHTNESS.LOW
+        end
+
+        -- Draw tail
+        local block_cols = ArpeggioKeyboard.interval_to_block_columns(interval)
+        if block_cols then
+          for _, col in ipairs(block_cols) do
+            GridLayers.set(layers.response, col.x, col.y, brightness)
+          end
+        end
+      else
+        -- Remove old tail
+        ArpeggioKeyboard.note_tails[interval] = nil
       end
     end
   end

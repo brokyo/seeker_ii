@@ -30,7 +30,7 @@ function GridLayers.init()
 end
 
 -- Set a value in a layer
-function GridLayers.set(matrix, x, y, value)  
+function GridLayers.set(matrix, x, y, value)
   if x >= 1 and x <= GridLayers.GRID_WIDTH and
      y >= 1 and y <= GridLayers.GRID_HEIGHT then
     matrix[x][y] = value

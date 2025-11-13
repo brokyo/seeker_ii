@@ -1,5 +1,4 @@
 ### Current Session
-- [] Support second Crow
 
 ### Active Concerns
 
@@ -11,7 +10,8 @@
 ### Bugs
 
 ### Long List
-- [] Refactor Tuning to component 
+- [] Refactor trail/tail visual feedback system to separate rendering from Lane
+- [] Refactor Tuning to component
 - [] Refactor Motif Config to component
 - [] Refactor Velocity to component
 - [] Centralize "sync all" system. Current one is very hacky
@@ -25,6 +25,7 @@
 - [] Param preset saving and "default" button in config
 - [] app_on_screen is vestigial. Remove it.
 - [] Add MIDI CC to control ableton recording
+- [] Support second Crow
 
 ### Open Questions
 
