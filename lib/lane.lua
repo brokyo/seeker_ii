@@ -194,7 +194,7 @@ end
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
   -- Delegate to mode-specific stage config
-  local active_config = StageConfig.get_active_config()
+  local active_config = StageConfig.get_active_config(self.id)
   active_config.prepare_stage(self.id, stage.id, self.motif)
 
   return true

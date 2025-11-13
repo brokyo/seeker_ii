@@ -26,9 +26,9 @@ local stage_configs = {
 }
 
 -- Get the active stage config based on current lane's motif type
-local function get_active_stage_config()
-    local focused_lane = _seeker.ui_state.get_focused_lane()
-    local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
+local function get_active_stage_config(lane_id)
+    lane_id = lane_id or _seeker.ui_state.get_focused_lane()
+    local motif_type = params:get("lane_" .. lane_id .. "_motif_type")
 
     -- Lazy-load stage config modules
     if motif_type == 1 then -- Tape mode
