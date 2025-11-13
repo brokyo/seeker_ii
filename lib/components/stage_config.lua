@@ -100,7 +100,7 @@ local function create_params()
 
             -- Arpeggio Regeneration Params
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root", "Chord Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type", "Chord Type", {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dom 7", "diminished", "augmented"}, 1)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type", "Chord Type", {"Diatonic", "Major", "Minor", "Sus2", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion", "Chord Inversion", {"Root", "1st", "2nd"}, 1)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_direction", "Direction", {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)

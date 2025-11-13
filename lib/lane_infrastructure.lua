@@ -115,7 +115,7 @@ local function create_arpeggio_lane_params(i)
     params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 16)
     params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
     params:add_option("lane_" .. i .. "_arpeggio_chord_type", "Chord Type",
-        {"major", "minor", "sus2", "sus4", "major 7", "minor 7", "dom 7", "diminished", "augmented"}, 1)
+        {"Diatonic", "Major", "Minor", "Sus2", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
     params:add_number("lane_" .. i .. "_arpeggio_chord_length", "Chord Length", 1, 12, 3)
     params:add_option("lane_" .. i .. "_arpeggio_chord_inversion", "Chord Inversion",
         {"Root", "1st", "2nd", "3rd"}, 1)
