@@ -50,12 +50,9 @@ end
 
 -- Function to update all LFO frequencies when tempo changes
 local function update_all_lfo_frequencies()
-    print("=== BPM changed, updating all LFO frequencies ===")
     for i = 1, 4 do
-        print("Updating LFO " .. i)
         send_lfo_frequency(i)
     end
-    print("=== LFO frequency update complete ===")
 end
 
 local function create_params()
@@ -258,8 +255,6 @@ local function sync_to_frequency(sync_div)
 
     -- Get current tempo in BPM and convert to frequency
     local beat_sec = clock.get_beat_sec() -- seconds per beat
-    local tempo_bpm = params:get("clock_tempo")
-    print("  clock.get_beat_sec() = " .. beat_sec .. " sec, clock_tempo param = " .. tempo_bpm .. " BPM")
     local freq_hz = 1 / (beat_sec * beats) -- cycles per second
 
     return freq_hz
@@ -284,7 +279,6 @@ end
 function send_lfo_frequency(lfo_index)
     local sync_div = params:string("osc_lfo_" .. lfo_index .. "_sync")
     local frequency = sync_to_frequency(sync_div)
-    print("LFO " .. lfo_index .. " - sync: " .. sync_div .. ", calculated freq: " .. frequency .. " Hz")
 
     -- Stop existing LFO sync clock if any
     if active_lfo_sync_clocks["lfo_" .. lfo_index] then
@@ -551,7 +545,6 @@ function OscConfig.init()
 
     -- Listen for tempo changes and update LFO frequencies
     params:set_action("clock_tempo", function(value)
-        print("clock_tempo changed to: " .. value .. " BPM")
         update_all_lfo_frequencies()
     end)
 
