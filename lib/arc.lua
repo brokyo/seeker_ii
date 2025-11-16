@@ -132,9 +132,13 @@ function Arc.init()
           direction = -1
         end
 
+        -- Get current section and selected parameter
+        local current_section_id = _seeker.ui_state.get_current_section()
+
         -- Check if dual keyboard is active and handle velocity encoders
+        -- ONLY when in CREATE_MOTIF section to avoid stealing encoders from other sections
         local dual_keyboard_active = _seeker.keyboards and _seeker.keyboards.dual_tape and _seeker.keyboards.dual_tape.is_active
-        if dual_keyboard_active and (n == 3 or n == 4) then
+        if current_section_id == "CREATE_MOTIF" and dual_keyboard_active and (n == 3 or n == 4) then
           -- Encoder 3: Left keyboard velocity
           -- Encoder 4: Right keyboard velocity
           local velocity_delta = direction * 3
@@ -150,9 +154,10 @@ function Arc.init()
         end
 
         -- Check if single tape keyboard should handle velocity on encoder 4
+        -- ONLY when in CREATE_MOTIF section to avoid stealing encoder from other sections
         local focused_lane = _seeker.ui_state.get_focused_lane()
         local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-        if motif_type == 1 and n == 4 and _seeker.keyboards and _seeker.keyboards[1] then
+        if current_section_id == "CREATE_MOTIF" and motif_type == 1 and n == 4 and _seeker.keyboards and _seeker.keyboards[1] then
           -- Encoder 4: Single keyboard velocity
           local velocity_delta = direction * 3
           _seeker.keyboards[1].velocity = util.clamp(_seeker.keyboards[1].velocity + velocity_delta, 0, 127)
@@ -160,9 +165,6 @@ function Arc.init()
           device.update_single_keyboard_velocity_display()
           return
         end
-
-        -- Get current section and selected parameter
-        local current_section_id = _seeker.ui_state.get_current_section()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
 
@@ -496,23 +498,27 @@ function Arc.init()
       -- HOTFIX: Skip Arc handling for special sections
       if device.skip_current_section then return end
 
+      -- Get current section first
+      local current_section_id = _seeker.ui_state.get_current_section()
+
       -- Check if dual keyboard is active - if so, use dual keyboard velocity display
+      -- ONLY when in CREATE_MOTIF section
       local dual_keyboard_active = _seeker.keyboards and _seeker.keyboards.dual_tape and _seeker.keyboards.dual_tape.is_active
-      if dual_keyboard_active then
+      if current_section_id == "CREATE_MOTIF" and dual_keyboard_active then
         device.update_dual_keyboard_velocity_display()
         return
       end
 
       -- Check if single tape keyboard should show velocity display
+      -- ONLY when in CREATE_MOTIF section
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-      if motif_type == 1 and _seeker.keyboards and _seeker.keyboards[1] then
+      if current_section_id == "CREATE_MOTIF" and motif_type == 1 and _seeker.keyboards and _seeker.keyboards[1] then
         device.update_single_keyboard_velocity_display()
         return
       end
 
       -- Get current param info
-      local current_section_id = _seeker.ui_state.get_current_section()
       local current_section = _seeker.screen_ui.sections[current_section_id]
       local param = current_section.params[current_section.state.selected_index]
 

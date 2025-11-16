@@ -302,7 +302,7 @@ function NornsUI:draw_params(start_y)
     else
       -- Get param metadata using Norns paramset api
       local param_base = params:lookup_param(param.id)
-      local param_name = param_base.name
+      local param_name = param.name or param_base.name
       local param_value = params:string(param.id)
 
       -- Overwrite displayed param value if it's a toggle or trigger
