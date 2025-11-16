@@ -62,6 +62,17 @@ local function tap_tempo()
         if bpm then
             params:set("clock_tempo", bpm)
             params:set("seeker_clock_tempo", bpm) -- Also update our wrapper parameter
+
+            -- Directly set the internal clock tempo (this actually updates the clock engine)
+            if clock.internal and clock.internal.set_tempo then
+                clock.internal.set_tempo(bpm)
+            end
+
+            -- Manually trigger tempo change handler
+            if clock.tempo_change_handler then
+                clock.tempo_change_handler(bpm)
+            end
+
             _seeker.screen_ui.set_needs_redraw()
         end
         tap_times = {}
@@ -135,6 +146,16 @@ local function create_params()
     params:set_action("seeker_clock_tempo", function(value)
         -- Update the system clock_tempo parameter
         params:set("clock_tempo", value)
+
+        -- Directly set the internal clock tempo (this actually updates the clock engine)
+        if clock.internal and clock.internal.set_tempo then
+            clock.internal.set_tempo(value)
+        end
+
+        -- Manually trigger tempo change handler since params:set() doesn't always trigger it
+        if clock.tempo_change_handler then
+            clock.tempo_change_handler(value)
+        end
     end)
     
     params:add_binary("tap_tempo", "Tap Tempo", "trigger", 0)

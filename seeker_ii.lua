@@ -63,10 +63,26 @@ _seeker = {
 
 function init()
   print('◎ Open The Next')
+
+  -- Add tempo change handler for debugging
+  clock.tempo_change_handler = function(bpm)
+    local current_beat = clock.get_beats()
+    print(string.format("⏱ TEMPO CHANGED TO: %.2f BPM", bpm))
+    print(string.format("   clock.get_tempo() = %.2f", clock.get_tempo()))
+    print(string.format("   clock.get_beat_sec() = %.4f", clock.get_beat_sec()))
+    print(string.format("   clock.get_beats() = %.2f", current_beat))
+
+    -- Debug: show next scheduled event
+    if #_seeker.conductor.events > 0 then
+      local next_event = _seeker.conductor.events[1]
+      print(string.format("   Next event at beat %.2f (%.2f beats away)", next_event.time, next_event.time - current_beat))
+    end
+  end
+
   -- Core audio setup
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
-    
+
   _seeker.ui_state = ui_state.init()
 
   -- Initialize config first since lane infrastructure now depends on config parameters

@@ -401,29 +401,33 @@ function update_trigger_clock(trigger_index)
     
     -- Create clock function for trigger pulses (Envelope mode only)
     local function trigger_clock_function()
-        -- Wait for proper phase alignment before starting
-        clock.sync(beats)
+        -- Track tempo for sub-beat gate timing
+        local current_beat_sec = clock.get_beat_sec()
 
         while true do
-            -- Envelope mode: Send pulse high for gate length, then low
+            -- Sync to beat boundary (tempo-tracked automatically)
+            clock.sync(beats)
+
+            -- Poll for tempo changes each iteration
+            local new_beat_sec = clock.get_beat_sec()
+            if new_beat_sec ~= current_beat_sec then
+                current_beat_sec = new_beat_sec
+            end
+
+            -- Get current gate length parameter
             local gate_length = params:get("osc_trigger_" .. trigger_index .. "_env_gate_length") / 100
-            local high_beats = beats * gate_length
 
             -- Send high pulse
             send_trigger_pulse(trigger_index, 1)
 
-            -- Wait for gate length portion
-            clock.sleep(high_beats * clock.get_beat_sec())
+            -- Sub-beat gate timing using current tempo
+            local gate_time_sec = beats * gate_length * current_beat_sec
+            clock.sleep(gate_time_sec)
 
             -- Send low pulse
             send_trigger_pulse(trigger_index, 0)
 
-            -- Wait for remaining interval
-            local remaining_beats = beats - high_beats
-            clock.sleep(remaining_beats * clock.get_beat_sec())
-
-            -- Sync to next interval
-            clock.sync(beats)
+            -- Loop continues - next sync will align to next beat boundary
         end
     end
     

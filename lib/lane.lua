@@ -361,12 +361,15 @@ function Lane:schedule_stage(stage_index, start_time)
       time = start_time,
       lane_id = self.id,
       callback = function()
+        -- Convert 10ms to beats for conductor scheduling
+        local trigger_duration_beats = 0.01 / clock.get_beat_sec()
+
         if trigger <= 5 then
           -- Crow trigger
           crow.output[trigger - 1].volts = 5
-          -- Schedule trigger off after 10ms
+          -- Schedule trigger off after 10ms (converted to beats)
           _seeker.conductor.insert_event({
-            time = start_time + 0.01,
+            time = clock.get_beats() + trigger_duration_beats,
             lane_id = self.id,
             callback = function()
               crow.output[trigger - 1].volts = 0
@@ -375,9 +378,9 @@ function Lane:schedule_stage(stage_index, start_time)
         else
           -- TXO trigger (subtract 5 to get 1-4 range)
           crow.ii.txo.tr(trigger - 5, 1)
-          -- Schedule trigger off after 10ms
+          -- Schedule trigger off after 10ms (converted to beats)
           _seeker.conductor.insert_event({
-            time = start_time + 0.01,
+            time = clock.get_beats() + trigger_duration_beats,
             lane_id = self.id,
             callback = function()
               crow.ii.txo.tr(trigger - 5, 0)
