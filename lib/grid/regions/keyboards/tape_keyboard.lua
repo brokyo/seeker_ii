@@ -1,6 +1,6 @@
 -- tape_keyboard.lua
 -- Tonnetz-style keyboard for tape recording mode
--- Extracted from grid_ii.lua to support modal keyboards
+-- Extracted from grid.lua to support modal keyboards
 
 local theory = include("lib/theory_utils")
 local musicutil = require('musicutil')
@@ -46,7 +46,7 @@ function TapeKeyboard.note_to_positions(note)
   return #positions > 0 and positions or nil
 end
 
--- Create a standardized note event (extracted from grid_ii.lua)
+-- Create a standardized note event (extracted from grid.lua)
 function TapeKeyboard.create_note_event(x, y, note, velocity)
   local all_positions = TapeKeyboard.note_to_positions(note)
 
@@ -61,7 +61,7 @@ function TapeKeyboard.create_note_event(x, y, note, velocity)
   }
 end
 
--- Handle note on event (extracted from grid_ii.lua)
+-- Handle note on event (extracted from grid.lua)
 function TapeKeyboard.note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
@@ -84,7 +84,7 @@ function TapeKeyboard.note_on(x, y)
   focused_lane:on_note_on(event)
 end
 
--- Handle note off event (extracted from grid_ii.lua)
+-- Handle note off event (extracted from grid.lua)
 function TapeKeyboard.note_off(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
@@ -108,7 +108,7 @@ function TapeKeyboard.handle_key(x, y, z)
   end
 end
 
--- Draw the tonnetz keyboard layout (extracted from grid_ii.lua)
+-- Draw the tonnetz keyboard layout (extracted from grid.lua)
 function TapeKeyboard.draw(layers)
   local root = params:get("root_note")
   local focused_lane = _seeker.ui_state.get_focused_lane()
@@ -160,7 +160,7 @@ function TapeKeyboard.draw(layers)
   end
 end
 
--- Draw motif events for active positions (extracted from grid_ii.lua)
+-- Draw motif events for active positions (extracted from grid.lua)
 function TapeKeyboard.draw_motif_events(layers)
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local focused_lane = _seeker.lanes[focused_lane_id]

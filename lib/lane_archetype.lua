@@ -2,7 +2,7 @@
 --
 -- Reference patterns and configurations for testing core functionality.
 -- Provides "golden record" data to verify:
---   1. Motif event storage and playback (via motif_ii)
+--   1. Motif event storage and playback (via motif)
 --   2. Lane configuration and scheduling (via lane)
 --   3. Stage transitions and transforms
 --
@@ -10,7 +10,7 @@
 --   _seeker.debug_lane = lane_archetype.create_debug_lane()
 --------------------------------------------------
 
-local Motif = include('lib/motif_ii')
+local Motif = include('lib/motif')
 local Lane = include('lib/lane')
 local forms = include('lib/forms')
 

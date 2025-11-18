@@ -266,7 +266,7 @@ function StageConfig.init()
     return component
 end
 
--- Export dispatcher for use by other modules (e.g., grid_ii.lua)
+-- Export dispatcher for use by other modules (e.g., grid.lua)
 StageConfig.get_active_config = get_active_stage_config
 
 return StageConfig

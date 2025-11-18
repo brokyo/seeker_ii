@@ -1,4 +1,4 @@
--- motif_ii.lua
+-- motif.lua
 -- Core Responsibilities:
 --   1. Store original state of a musical pattern (genesis)
 --   2. Maintain working state for transformations

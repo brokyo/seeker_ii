@@ -1,4 +1,4 @@
--- screen_iii.lua
+-- screen.lua
 local ScreenSaver = include('lib/ui/screen_saver')
 
 local ScreenUI = {}

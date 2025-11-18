@@ -701,17 +701,12 @@ local function create_screen_ui()
     end
 
     norns_ui.rebuild_params = function(self)
-        print("🐦 rebuild_params: START")
         local selected_number = params:get("eurorack_selected_number")
-        print("🐦 rebuild_params: selected_number = " .. selected_number)
-
         self.name = string.format("Crow %d", selected_number)
-        print("🐦 rebuild_params: name set to " .. self.name)
 
         local param_table = {}
         local output_num = selected_number
         local type = params:string("crow_" .. output_num .. "_type")
-        print("🐦 rebuild_params: type = " .. type)
 
         table.insert(param_table, { id = "crow_" .. output_num .. "_type" })
 
@@ -795,9 +790,7 @@ local function create_screen_ui()
             end
         end
 
-        print("🐦 rebuild_params: About to set self.params with " .. #param_table .. " items")
         self.params = param_table
-        print("🐦 rebuild_params: COMPLETE")
     end
 
     return norns_ui
@@ -845,25 +838,11 @@ local function create_grid_ui()
   -- Override handle_key to select output and switch to CROW_OUTPUT section
   grid_ui.handle_key = function(self, x, y, z)
     if z == 1 then
-      print("🐦 Crow button pressed at x=" .. x .. " y=" .. y)
       local output_num = (x - self.layout.x) + 1
-      print("🐦 Output num: " .. output_num)
-
-      print("🐦 Setting eurorack_selected_type to 1")
       params:set("eurorack_selected_type", 1) -- 1 = Crow
-
-      print("🐦 Setting eurorack_selected_number to " .. output_num)
       params:set("eurorack_selected_number", output_num)
-
-      print("🐦 Switching to CROW_OUTPUT section")
-      -- Switch to crow output section
       _seeker.ui_state.set_current_section("CROW_OUTPUT")
-
-      print("🐦 Triggering screen redraw")
-      -- Trigger UI updates
       _seeker.screen_ui.set_needs_redraw()
-
-      print("🐦 Crow button handler complete")
       _seeker.grid_ui.redraw()
     end
   end

@@ -15,14 +15,14 @@ function ClearMotif.init()
     if instance then return instance end
 
     instance = {
-        -- Params interface used by @params_manager_ii for loading core data
+        -- Params interface used by @params for loading core data
         params = {
             create = function()
                 params:add_group("clear_motif", "CLEAR MOTIF", 1)
             end
         },
         
-        -- Screen interface used by @screen_iii
+        -- Screen interface used by @screen
         screen = NornsUI.new({
             id = "CLEAR_MOTIF",
             name = "Clear Motif",
@@ -32,7 +32,7 @@ function ClearMotif.init()
             }
         }),
 
-        -- Grid interface used by @grid_ii
+        -- Grid interface used by @grid
         grid = GridUI.new({
             id = "CLEAR_MOTIF",
             layout = {

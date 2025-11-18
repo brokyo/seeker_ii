@@ -1,6 +1,6 @@
 -- lane.lua
-local params_manager_ii = include('lib/params_manager_ii')
-local Motif = include('lib/motif_ii')
+local params_manager = include('lib/params')
+local Motif = include('lib/motif')
 local forms = include('lib/forms')
 local StageConfig = include('lib/components/stage_config')
 local GridConstants = include('lib/grid_constants')
@@ -953,7 +953,7 @@ end
 
 function Lane:get_instrument()
   local instrument_id = params:get("lane_" .. self.id .. "_instrument")
-  local instruments = params_manager_ii.get_instrument_list()
+  local instruments = params_manager.get_instrument_list()
 
   if self.id == 99 then
     return instruments[1]

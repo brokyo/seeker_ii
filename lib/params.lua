@@ -1,6 +1,6 @@
--- params_manager_ii.lua
+-- params.lua
 -- Manage norns-stored params
-local params_manager_ii = {}
+local params_manager = {}
 local musicutil = require('musicutil')
 local theory = include('lib/theory_utils')
 
@@ -8,7 +8,7 @@ local theory = include('lib/theory_utils')
 local ClearMotif = include("lib/components/clear_motif")
 
 -- Get sorted list of available instruments
-function params_manager_ii.get_instrument_list()
+function params_manager.get_instrument_list()
     local instruments = {}
     for k, v in pairs(_seeker.skeys.instrument) do
         table.insert(instruments, k)
@@ -49,7 +49,7 @@ local function add_midi_input_params()
     }
 end
 
-function params_manager_ii.init_params()
+function params_manager.init_params()
     -- Note: All lane parameters are now created by LaneConfig component
     -- This includes voice, stage, and motif playback parameters
     
@@ -60,4 +60,4 @@ function params_manager_ii.init_params()
     add_midi_input_params()
 end
 
-return params_manager_ii
+return params_manager

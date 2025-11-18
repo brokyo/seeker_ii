@@ -456,24 +456,18 @@ end
 --------------------------------
 
 function NornsUI:enter()
-  print("NornsUI:enter START")
   -- Called when section becomes active
   self.state.is_active = true
 
-  print("NornsUI:enter - filtering active params")
   -- Filter params and set initial selection
   self:filter_active_params()
-  print("NornsUI:enter - finding first selectable")
   self.state.selected_index = self:find_first_selectable()
 
-  print("NornsUI:enter - calling arc.new_section with " .. #self.params .. " params")
   -- Get the number of params (and their type) to send to Arc
   -- TODO: This is a bit of a hack. There should probably be a new_section method and update_params method on Arc.
   _seeker.arc.new_section(self.params)
 
-  print("NornsUI:enter - calling update")
   self:update()
-  print("NornsUI:enter COMPLETE")
 end
 
 function NornsUI:exit()
