@@ -968,6 +968,10 @@ function Lane:set_motif(recorded_data)
   for _, evt in ipairs(recorded_data.events) do
   end
   self.motif:store_events(recorded_data)
+
+  -- Update duration param to reflect new motif's actual duration
+  params:set("create_motif_duration", recorded_data.duration)
+
   return self.motif
 end
 

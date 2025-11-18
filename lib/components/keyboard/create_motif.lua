@@ -17,7 +17,7 @@ local current_mode = 1
 local function create_params()
     params:add_group("create_motif_group", "CREATE MOTIF", 1)
     -- Duration parameter for tape mode
-    params:add_control("create_motif_duration", "Duration (k3)", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
+    params:add_control("create_motif_duration", "Duration", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
     params:set_action("create_motif_duration", function(value)
         local focused_lane = _seeker.ui_state.get_focused_lane()
         if _seeker.lanes[focused_lane] and _seeker.lanes[focused_lane].motif then
@@ -205,110 +205,225 @@ local function create_screen_ui()
             end
         end
         
-        -- Draw tooltip if we have one
-        if tooltip then
-            local width_tooltip = screen.text_extents(tooltip)
-            
-            if _seeker.ui_state.is_long_press_active() then
-                screen.level(15)
-            else
-                screen.level(2)
-            end
-            
-            screen.move(64 - width_tooltip/2, 46)
-            screen.text(tooltip)
-        end
-        
-        -- Draw loop visualization whenever there's a motif (only in tape mode)
+        -- Draw loop visualization whenever there's a motif or recording (only in tape mode)
         local focused_lane_vis = _seeker.ui_state.get_focused_lane()
         local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
+        local show_piano_roll = false
         if motif_type_vis == 1 then
             local lane_vis = _seeker.lanes[focused_lane_vis]
             local motif_vis = lane_vis.motif
 
-            if motif_vis and #motif_vis.events > 0 then
-             -- Constants for visualization
-            local VIS_Y = 32    
-            local VIS_HEIGHT = 6
-            local VIS_X = 8
-            local VIS_WIDTH = 112
-                
-            -- Get the effective duration (handles custom duration)
-            local loop_duration = motif_vis:get_duration()
-                
-            -- Draw loop outline
-            screen.level(4)
-            screen.rect(VIS_X, VIS_Y, VIS_WIDTH, VIS_HEIGHT)
-            screen.stroke()
-                
-            -- Visualization highlights generation via brightness
-            local max_gen = 1
-            
-            -- Find the latest generation
-            for _, event in ipairs(motif_vis.events) do
-                if event.generation and event.generation > max_gen then
-                    max_gen = event.generation
-                end
-            end
+            -- Show visualization if we have a motif OR if we're currently recording
+            local has_existing_motif = motif_vis and #motif_vis.events > 0
+            local is_recording_new = _seeker.motif_recorder.is_recording and not _seeker.motif_recorder.original_motif
 
-            -- Draw existing event markers with generation-based brightness
-            for _, event in ipairs(motif_vis.events) do
-                if event.type == "note_on" then
-                    -- Calculate brightness based on generation (older=dimmer, newer=brighter)
-                    local gen = event.generation or 1
+            if has_existing_motif or is_recording_new then
+                show_piano_roll = true
+                -- Constants for visualization
+                local VIS_Y = 35
+                local VIS_HEIGHT = 14
+                local VIS_X = 8
+                local VIS_WIDTH = 107
+
+                -- Get the effective duration
+                -- During initial recording, use elapsed time as duration
+                local loop_duration
+                if is_recording_new then
+                    loop_duration = math.max(clock.get_beats() - _seeker.motif_recorder.start_time, 0.25)
+                else
+                    loop_duration = motif_vis:get_duration()
+                end
+
+                -- Draw grey background
+                screen.level(2)
+                screen.rect(VIS_X, VIS_Y, VIS_WIDTH, VIS_HEIGHT)
+                screen.fill()
+
+                -- Draw loop outline
+                screen.level(3)
+                screen.rect(VIS_X, VIS_Y, VIS_WIDTH, VIS_HEIGHT)
+                screen.stroke()
+
+                -- Find max generation and note range from existing motif
+                local max_gen = 1
+                local min_note = 127
+                local max_note = 0
+
+                if has_existing_motif then
+                    for _, event in ipairs(motif_vis.events) do
+                        if event.generation and event.generation > max_gen then
+                            max_gen = event.generation
+                        end
+                        if event.type == "note_on" then
+                            if event.note < min_note then min_note = event.note end
+                            if event.note > max_note then max_note = event.note end
+                        end
+                    end
+                end
+
+                -- Match note_on with note_off events to show duration
+                local note_pairs = {}
+                if has_existing_motif then
+                    for _, event in ipairs(motif_vis.events) do
+                    if event.type == "note_on" then
+                        -- Find matching note_off
+                        local note_off_time = nil
+                        for _, off_event in ipairs(motif_vis.events) do
+                            if off_event.type == "note_off" and
+                               off_event.note == event.note and
+                               off_event.time > event.time then
+                                note_off_time = off_event.time
+                                break
+                            end
+                        end
+
+                        table.insert(note_pairs, {
+                            note = event.note,
+                            start_time = event.time,
+                            end_time = note_off_time or event.time,
+                            generation = event.generation or 1
+                        })
+                    end
+                    end
+                end
+
+                -- Draw note events as horizontal bars
+                for _, note_pair in ipairs(note_pairs) do
+                    local gen = note_pair.generation
                     local brightness = 2 + math.floor((gen / max_gen) * 10)
                     screen.level(brightness)
-                    
-                    -- TODO: Visualization shows original note timing rather than quantized timing used during playback
-                    -- Calculate x position based on event time relative to loop duration
-                    local x_event = VIS_X + (event.time / loop_duration * VIS_WIDTH)
-                  
-                    -- Draw small vertical line for event
-                    screen.move(x_event, VIS_Y)
-                    screen.line(x_event, VIS_Y + VIS_HEIGHT)
-                    screen.stroke()
-                end
-            end
-                
-            -- Draw new overdub events if recording
-            if _seeker.motif_recorder.is_recording and _seeker.motif_recorder.original_motif then
-                screen.level(15)
-                
-                for _, event in ipairs(_seeker.motif_recorder.events) do
-                    -- Only show newly added events from current generation
-                    if event.type == "note_on" and event.generation == _seeker.motif_recorder.current_generation then
-                        -- Use event time directly from recorder
-                        local x_overdub = VIS_X + (event.time / loop_duration * VIS_WIDTH)
-                        -- Draw slightly taller line for new events
-                        screen.move(x_overdub, VIS_Y - 1)
-                        screen.line(x_overdub, VIS_Y + VIS_HEIGHT + 1)
+
+                    local x_start = VIS_X + (note_pair.start_time / loop_duration * VIS_WIDTH)
+                    local x_end = VIS_X + (note_pair.end_time / loop_duration * VIS_WIDTH)
+
+                    -- Map note pitch to Y position within visualization
+                    if max_note > min_note then
+                        local note_range = max_note - min_note
+                        local note_y_offset = ((note_pair.note - min_note) / note_range) * (VIS_HEIGHT - 2)
+                        local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
+                        screen.move(x_start, note_y)
+                        screen.line(x_end, note_y)
+                        screen.stroke()
+                    else
+                        -- Single note - draw in center
+                        local note_y = VIS_Y + VIS_HEIGHT / 2
+                        screen.move(x_start, note_y)
+                        screen.line(x_end, note_y)
                         screen.stroke()
                     end
                 end
-            end
 
-            -- Draw playhead
-            local current_beat = clock.get_beats()
-            local position = current_beat % loop_duration  -- Default position
+                -- Draw live recording events
+                if _seeker.motif_recorder.is_recording then
+                    screen.level(15)
 
-            if lane_vis.playing then
-                -- Use more precise position based on stage timing when playing
-                local current_stage = lane_vis.stages[lane_vis.current_stage_index]
-                if current_stage and current_stage.last_start_time then
-                    local elapsed_time = current_beat - current_stage.last_start_time
-                    position = (elapsed_time * lane_vis.speed) % loop_duration
+                    -- Find note range including recorder events
+                    local recorder_min = min_note
+                    local recorder_max = max_note
+                    for _, event in ipairs(_seeker.motif_recorder.events) do
+                        if event.type == "note_on" then
+                            if event.note < recorder_min then recorder_min = event.note end
+                            if event.note > recorder_max then recorder_max = event.note end
+                        end
+                    end
+
+                    -- Match note pairs from recorder events
+                    local recorder_note_pairs = {}
+                    for _, event in ipairs(_seeker.motif_recorder.events) do
+                        if event.type == "note_on" then
+                            local note_off_time = nil
+                            for _, off_event in ipairs(_seeker.motif_recorder.events) do
+                                if off_event.type == "note_off" and
+                                   off_event.note == event.note and
+                                   off_event.time > event.time then
+                                    note_off_time = off_event.time
+                                    break
+                                end
+                            end
+
+                            table.insert(recorder_note_pairs, {
+                                note = event.note,
+                                start_time = event.time,
+                                end_time = note_off_time,
+                                generation = event.generation or _seeker.motif_recorder.current_generation
+                            })
+                        end
+                    end
+
+                    -- Draw recorder events as bars or marks
+                    for _, note_pair in ipairs(recorder_note_pairs) do
+                        local x_start = VIS_X + (note_pair.start_time / loop_duration * VIS_WIDTH)
+
+                        -- Map note to Y position using expanded range
+                        if recorder_max > recorder_min then
+                            local note_range = recorder_max - recorder_min
+                            local note_y_offset = ((note_pair.note - recorder_min) / note_range) * (VIS_HEIGHT - 2)
+                            local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
+
+                            if note_pair.end_time then
+                                -- Draw horizontal bar for completed notes
+                                local x_end = VIS_X + (note_pair.end_time / loop_duration * VIS_WIDTH)
+                                screen.move(x_start, note_y)
+                                screen.line(x_end, note_y)
+                                screen.stroke()
+                            else
+                                -- Draw vertical mark for notes still held
+                                screen.move(x_start, note_y - 1)
+                                screen.line(x_start, note_y + 1)
+                                screen.stroke()
+                            end
+                        else
+                            -- Single note - draw in center
+                            local note_y = VIS_Y + VIS_HEIGHT / 2
+                            if note_pair.end_time then
+                                local x_end = VIS_X + (note_pair.end_time / loop_duration * VIS_WIDTH)
+                                screen.move(x_start, note_y)
+                                screen.line(x_end, note_y)
+                                screen.stroke()
+                            else
+                                screen.move(x_start, VIS_Y)
+                                screen.line(x_start, VIS_Y + VIS_HEIGHT)
+                                screen.stroke()
+                            end
+                        end
+                    end
+                end
+
+                -- Draw playhead (only when playing existing motif, not during initial recording)
+                if not is_recording_new and lane_vis.playing then
+                    local current_beat = clock.get_beats()
+                    local position = current_beat % loop_duration
+
+                    local current_stage = lane_vis.stages[lane_vis.current_stage_index]
+                    if current_stage and current_stage.last_start_time then
+                        local elapsed_time = current_beat - current_stage.last_start_time
+                        position = (elapsed_time * lane_vis.speed) % loop_duration
+                    end
+
+                    local x_playhead = VIS_X + (position / loop_duration * VIS_WIDTH)
+                    screen.level(15)
+                    screen.move(x_playhead, VIS_Y)
+                    screen.line(x_playhead, VIS_Y + VIS_HEIGHT)
+                    screen.stroke()
                 end
             end
-
-            -- Draw playhead
-            local x_playhead = VIS_X + (position / loop_duration * VIS_WIDTH)
-            screen.level(15)
-            screen.move(x_playhead, VIS_Y - 1)
-            screen.line(x_playhead, VIS_Y + VIS_HEIGHT + 1)
-            screen.stroke()
-            end
         end
-        
+
+        -- Draw tooltip if we have one (after piano roll so it overlays)
+        if tooltip then
+            local width_tooltip = screen.text_extents(tooltip)
+
+            -- Use black text when piano roll is showing, otherwise grey/white
+            if _seeker.ui_state.is_long_press_active() then
+                screen.level(15)
+            else
+                screen.level(show_piano_roll and 1 or 2)
+            end
+
+            screen.move(64 - width_tooltip/2, 46)
+            screen.text(tooltip)
+        end
+
         screen.update() -- Single update at the very end
     end
     
