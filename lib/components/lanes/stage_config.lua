@@ -4,7 +4,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
-local GridConstants = include("lib/grid_constants")
+local GridConstants = include("lib/grid/constants")
 local tape_transforms = include("lib/motif_core/transforms")
 
 local StageConfig = {}
@@ -33,19 +33,19 @@ local function get_active_stage_config(lane_id)
     -- Lazy-load stage config modules
     if motif_type == 1 then -- Tape mode
         if not stage_configs.tape then
-            stage_configs.tape = include("lib/components/stage_configs/tape_transform")
+            stage_configs.tape = include("lib/components/lanes/stage_types/tape_transform")
         end
         return stage_configs.tape
     elseif motif_type == 2 then -- Arpeggio mode
         if not stage_configs.arpeggio then
-            stage_configs.arpeggio = include("lib/components/stage_configs/arpeggio_sequence")
+            stage_configs.arpeggio = include("lib/components/lanes/stage_types/arpeggio_sequence")
         end
         return stage_configs.arpeggio
     end
 
     -- Default to tape if something goes wrong
     if not stage_configs.tape then
-        stage_configs.tape = include("lib/components/stage_configs/tape_transform")
+        stage_configs.tape = include("lib/components/lanes/stage_types/tape_transform")
     end
     return stage_configs.tape
 end

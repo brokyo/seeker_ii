@@ -3,7 +3,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
-local GridConstants = include("lib/grid_constants")
+local GridConstants = include("lib/grid/constants")
 
 local LaneConfig = {}
 LaneConfig.__index = LaneConfig

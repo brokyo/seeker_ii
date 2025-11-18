@@ -3,7 +3,7 @@
 -- Handles default logic but can be overriden 
 -- (see: @create_motif.lua for straightforward example)
 
-local GridConstants = include("lib/grid_constants")
+local GridConstants = include("lib/grid/constants")
 
 local GridUI = {}
 GridUI.__index = GridUI

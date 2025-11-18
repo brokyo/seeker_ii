@@ -5,7 +5,7 @@ local musicutil = require('musicutil')
 local theory = include('lib/motif_core/theory')
 
 -- Old Component Approach
-local ClearMotif = include("lib/components/clear_motif")
+local ClearMotif = include("lib/components/keyboard/clear_motif")
 
 -- Get sorted list of available instruments
 function params_manager.get_instrument_list()

@@ -5,8 +5,8 @@
 
 local theory = include("lib/motif_core/theory")
 local musicutil = require('musicutil')
-local GridConstants = include("lib/grid_constants")
-local GridLayers = include("lib/grid_layers")
+local GridConstants = include("lib/grid/constants")
+local GridLayers = include("lib/grid/layers")
 
 local DualTapeKeyboard = {}
 

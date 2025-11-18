@@ -3,8 +3,8 @@
 -- Orchestrates keyboard, velocity, tuning, motif, and lane control components
 
 local KeyboardRegion = include("lib/grid/keyboard_region")
-local StageConfig = include("lib/components/stage_config")
-local GridAnimations = include("lib/grid_animations")
+local StageConfig = include("lib/components/lanes/stage_config")
+local GridAnimations = include("lib/grid/animations")
 
 local KeyboardMode = {}
 

@@ -2,7 +2,7 @@
 -- 3×4 grid for selecting and switching to OSC output screens (Float/LFO/Trigger 1-4)
 -- Similar to lane_config - each button switches focus to that output's parameters
 
-local GridConstants = include("lib/grid_constants")
+local GridConstants = include("lib/grid/constants")
 
 local OscSelector = {}
 

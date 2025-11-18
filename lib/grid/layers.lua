@@ -1,4 +1,4 @@
-local GridConstants = include('lib/grid_constants')
+local GridConstants = include('lib/grid/constants')
 
 local GridLayers = {
   -- Import constants

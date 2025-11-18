@@ -1,8 +1,8 @@
 -- mode_switcher.lua
 -- Shared utilities for drawing and handling mode switcher buttons
 
-local GridConstants = include("lib/grid_constants")
-local GridModeRegistry = include("lib/grid_mode_registry")
+local GridConstants = include("lib/grid/constants")
+local GridModeRegistry = include("lib/grid/modes")
 
 local ModeSwitcher = {}
 

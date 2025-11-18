@@ -2,8 +2,8 @@
 -- Handles visual animations for the grid
 --------------------------------------------------
 
-local GridConstants = include('lib/grid_constants')
-local GridLayers = include("lib/grid_layers")
+local GridConstants = include('lib/grid/constants')
+local GridLayers = include("lib/grid/layers")
 local GridAnimations = {}
 
 -- Use GridConstants brightness values as our range

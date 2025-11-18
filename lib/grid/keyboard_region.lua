@@ -7,8 +7,8 @@
 -- based on motif_type. Keep as pure region rather than componentizing.
 
 local TapeKeyboard = include("lib/grid/keyboards/tape_keyboard")
-local GridConstants = include("lib/grid_constants")
-local GridLayers = include("lib/grid_layers")
+local GridConstants = include("lib/grid/constants")
+local GridLayers = include("lib/grid/layers")
 
 local KeyboardRegion = {}
 
