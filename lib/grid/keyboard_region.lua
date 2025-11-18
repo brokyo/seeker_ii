@@ -6,7 +6,7 @@
 -- It has no params, no screen UI - just dispatches to keyboard implementations
 -- based on motif_type. Keep as pure region rather than componentizing.
 
-local TapeKeyboard = include("lib/grid/regions/keyboards/tape_keyboard")
+local TapeKeyboard = include("lib/grid/keyboards/tape_keyboard")
 local GridConstants = include("lib/grid_constants")
 local GridLayers = include("lib/grid_layers")
 
@@ -31,7 +31,7 @@ function KeyboardRegion.get_active_keyboard()
   if motif_type == 1 and current_section == "CREATE_MOTIF" then
     -- Lazy-load dual keyboard
     if not _seeker.keyboards.dual_tape then
-      _seeker.keyboards.dual_tape = include("lib/grid/regions/keyboards/dual_tape_keyboard")
+      _seeker.keyboards.dual_tape = include("lib/grid/keyboards/dual_tape_keyboard")
     end
 
     -- Return dual keyboard if active
@@ -43,7 +43,7 @@ function KeyboardRegion.get_active_keyboard()
   -- Lazy-load non-default keyboards using global cache
   if not _seeker.keyboards[motif_type] then
     local keyboard_files = {
-      [2] = "lib/grid/regions/keyboards/arpeggio_keyboard"
+      [2] = "lib/grid/keyboards/arpeggio_keyboard"
     }
     _seeker.keyboards[motif_type] = include(keyboard_files[motif_type])
   end
@@ -109,7 +109,7 @@ function KeyboardRegion.handle_key(x, y, z)
      x == TOGGLE_BUTTON_X and y == TOGGLE_BUTTON_Y and z == 1 then
     -- Lazy-load dual keyboard
     if not _seeker.keyboards.dual_tape then
-      _seeker.keyboards.dual_tape = include("lib/grid/regions/keyboards/dual_tape_keyboard")
+      _seeker.keyboards.dual_tape = include("lib/grid/keyboards/dual_tape_keyboard")
     end
 
     -- Toggle the keyboard

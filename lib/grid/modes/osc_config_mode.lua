@@ -2,7 +2,7 @@
 -- Full-page grid mode for OSC configuration
 -- Orchestrates OSC-specific regions
 
-local OscSelector = include("lib/grid/regions/osc/osc_selector")
+local OscSelector = include("lib/components/osc/osc_selector")
 
 local OscConfigMode = {}
 

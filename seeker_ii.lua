@@ -132,7 +132,7 @@ function init()
 
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
-  _seeker.keyboard_region = include("lib/grid/regions/keyboard_region")
+  _seeker.keyboard_region = include("lib/grid/keyboard_region")
   
   -- Initialize MIDI input
   _seeker.midi_input = MidiInput.init()

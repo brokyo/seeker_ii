@@ -2,7 +2,7 @@
 -- Full-page grid mode for keyboard/performance interface
 -- Orchestrates keyboard, velocity, tuning, motif, and lane control components
 
-local KeyboardRegion = include("lib/grid/regions/keyboard_region")
+local KeyboardRegion = include("lib/grid/keyboard_region")
 local StageConfig = include("lib/components/stage_config")
 local GridAnimations = include("lib/grid_animations")
 

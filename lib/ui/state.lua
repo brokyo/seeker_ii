@@ -73,8 +73,7 @@ function UIState.set_focused_lane(lane_idx)
   if _seeker.screen_ui.sections.LANE_CONFIG and _seeker.screen_ui.sections.LANE_CONFIG.rebuild_params then
     _seeker.screen_ui.sections.LANE_CONFIG:rebuild_params()
   end
-  _seeker.screen_ui.sections.MOTIF:update_focused_motif(lane_idx)
-  
+
   -- Rebuild create_motif parameters to show/hide duration based on new lane's motif state
   if _seeker.create_motif and _seeker.create_motif.screen then
     _seeker.create_motif.screen:rebuild_params()
