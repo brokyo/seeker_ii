@@ -58,7 +58,7 @@ local function get_active_mode()
   if not mode_impls[mode_id] then
     local config = GridModeRegistry.get_mode(mode_id)
     if config then
-      mode_impls[mode_id] = include(config.mode_impl)
+      mode_impls[mode_id] = include(config.path)
     end
   end
 

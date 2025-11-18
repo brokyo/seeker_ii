@@ -1,5 +1,8 @@
 -- mode_switcher.lua
 -- Shared utilities for drawing and handling mode switcher buttons
+-- Mode buttons serve dual purpose: switch modes AND provide virtual navigation to primary component
+-- Component config buttons (keyboard_config, wtape_config, etc) define no physical grid button
+-- ModeSwitcher owns the physical buttons and delegates navigation to modes
 
 local GridConstants = include("lib/grid/constants")
 local GridModeRegistry = include("lib/grid/modes")

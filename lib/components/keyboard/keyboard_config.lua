@@ -86,24 +86,10 @@ local function create_screen_ui()
 end
 
 local function create_grid_ui()
-    local grid_ui = GridUI.new({
-        id = "KEYBOARD",
-        layout = {
-            x = 16,
-            y = 2,
-            width = 1,
-            height = 1
-        }
-    })
-
-    -- Override handle_key to switch to KEYBOARD section
-    grid_ui.handle_key = function(self, x, y, z)
-        if z == 1 then
-            _seeker.ui_state.set_current_section("KEYBOARD")
-        end
-    end
-
-    return grid_ui
+    -- No grid button - the KEYBOARD mode button at (16, 2) serves as virtual navigation
+    -- ModeSwitcher handles switching to KEYBOARD mode and setting default section
+    -- This pattern allows mode buttons to serve dual purpose: mode switching + component access
+    return nil
 end
 
 function Keyboard.init()

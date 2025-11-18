@@ -467,26 +467,10 @@ local function create_screen_ui()
 end
 
 local function create_grid_ui()
-    -- Grid UI now handled by osc_config_mode.lua
-    -- This button serves as the OSC config mode switcher
-    local grid_ui = GridUI.new({
-        id = "OSC_CONFIG",
-        layout = {
-            x = 13,
-            y = 2,
-            width = 1,
-            height = 1
-        }
-    })
-
-    -- Override handle_key to switch to OSC_CONFIG section
-    grid_ui.handle_key = function(self, x, y, z)
-        if z == 1 then
-            _seeker.ui_state.set_current_section("OSC_CONFIG")
-        end
-    end
-
-    return grid_ui
+    -- No grid button - the OSC_CONFIG mode button at (14, 2) serves as virtual navigation
+    -- ModeSwitcher handles switching to OSC_CONFIG mode and setting default section
+    -- This pattern allows mode buttons to serve dual purpose: mode switching + component access
+    return nil
 end
 
 function OscConfig.init()

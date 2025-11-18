@@ -10,21 +10,21 @@ GridModeRegistry.MODES = {
     button = { x = 13, y = 2 },
     default_section = "WTAPE",
     sections = { "WTAPE" },
-    mode_impl = "lib/grid/modes/wtape_mode"
+    path = "lib/grid/modes/wtape_mode"
   },
 
   OSC_CONFIG = {
     button = { x = 14, y = 2 },
     default_section = "OSC_CONFIG",
     sections = { "OSC_CONFIG", "OSC_OUTPUT" },
-    mode_impl = "lib/grid/modes/osc_config_mode"
+    path = "lib/grid/modes/osc_config_mode"
   },
 
   EURORACK_OUTPUT = {
     button = { x = 15, y = 2 },
     default_section = "EURORACK_CONFIG",
     sections = { "EURORACK_CONFIG", "CROW_OUTPUT", "TXO_TR_OUTPUT", "TXO_CV_OUTPUT" },
-    mode_impl = "lib/grid/modes/eurorack_mode"
+    path = "lib/grid/modes/eurorack_mode"
   },
 
   KEYBOARD = {
@@ -42,14 +42,14 @@ GridModeRegistry.MODES = {
       "STAGE_CONFIG",
       "CLEAR_MOTIF"
     },
-    mode_impl = "lib/grid/modes/keyboard_mode"
+    path = "lib/grid/modes/keyboard_mode"
   },
 
   CONFIG = {
     button = { x = 16, y = 1 },
     default_section = "CONFIG",
     sections = { "CONFIG" },
-    mode_impl = "lib/grid/modes/config_mode" -- Will hide keyboard UI
+    path = "lib/grid/modes/config_mode"
   }
 }
 
