@@ -15,6 +15,27 @@ Using these voices:
 ## Installation
 In Maiden: ;install https://github.com/brokyo/seeker_ii
 
+## Code Structure
+```
+lib/
+├── motif_core/        Musical data structures and transformations
+├── sequencing/        Timing and playback engine
+├── ui/                Screen interface and state management
+│   └── base/          Base UI classes (norns_ui, grid_ui)
+├── controllers/       Hardware input handlers
+├── grid/              Grid UI infrastructure
+│   ├── keyboards/     Keyboard layout implementations
+│   └── selector/      UI selector components
+└── components/        Feature modules with screen/grid/params
+    ├── global_config/ Global app configuration
+    ├── keyboard/      Keyboard configuration and motif creation
+    ├── lanes/         Lane management and stage transforms
+    │   └── stage_types/ Mode-specific stage configurations
+    ├── eurorack/      Eurorack CV/gate output (Crow, TXO)
+    ├── osc/           OSC output for TouchDesigner
+    └── wtape/         W/Tape integration
+```
+
 ## Layout
 ![Seeker II Layout](https://github.com/brokyo/seeker_ii/raw/main/layout.png)
 

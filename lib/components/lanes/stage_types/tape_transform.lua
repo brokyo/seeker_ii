@@ -2,6 +2,7 @@
 -- Stage configuration for tape mode (live recording)
 -- Handles transform selection and transform-specific parameters
 
+local tape_transforms = include('lib/motif_core/transforms')
 local TapeTransform = {}
 
 -- Populate initial parameters when entering stage config
@@ -145,8 +146,6 @@ end
 
 -- Prepare stage: Reset to genesis and apply transform
 function TapeTransform.prepare_stage(lane_id, stage_id, motif)
-  local tape_transforms = include('lib/motif_core/transforms')
-
   -- Reset motif to genesis if configured
   local reset_motif = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_reset_motif") == 2
   if reset_motif then

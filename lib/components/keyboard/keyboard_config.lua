@@ -8,7 +8,7 @@ local Keyboard = {}
 Keyboard.__index = Keyboard
 
 local function create_params()
-    params:add_group("keyboard", "KEYBOARD", 14)
+    params:add_group("keyboard", "KEYBOARD", 8)
 
     -- Keyboard layout parameters (moved from config)
     params:add_number("keyboard_column_steps", "Column Spacing", 1, 8, 1)
@@ -58,20 +58,6 @@ local function create_params()
         theory.print_keyboard_layout()
     end)
 
-    -- Global Effects (shared across all lanes)
-    params:add_option("mxsamples_delay_rate", "Delay Rate",
-        {"whole-note", "half-note", "quarter note", "eighth note", "sixteenth note", "thirtysecond"}, 4)
-    params:set_action("mxsamples_delay_rate", function(value)
-        local delay_rates = {4, 2, 1, 1/2, 1/4, 1/8}
-        engine.mxsamples_delay_beats(delay_rates[value])
-    end)
-
-    params:add_control("mxsamples_delay_feedback", "Delay Feedback",
-        controlspec.new(0, 100, 'lin', 1, 40, "%"))
-    params:set_action("mxsamples_delay_feedback", function(value)
-        engine.mxsamples_delay_feedback(value / 100)
-    end)
-
     -- MIDI
     params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 1)
     params:add_number("record_midi_note", "Record Toggle Note", 0, 127, 0)
@@ -91,9 +77,6 @@ local function create_screen_ui()
             { separator = true, title = "Layout" },
             { id = "keyboard_column_steps" },
             { id = "keyboard_row_steps" },
-            { separator = true, title = "Global Effects" },
-            { id = "mxsamples_delay_rate" },
-            { id = "mxsamples_delay_feedback" },
             { separator = true, title = "MIDI" },
             { id = "snap_midi_to_scale" },
             { id = "record_midi_note" },

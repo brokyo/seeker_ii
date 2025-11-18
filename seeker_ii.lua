@@ -126,10 +126,6 @@ function init()
   -- UI Setup and global access
   params_manager.init_params()
 
-  -- Initialize global delay defaults
-  params:set("mxsamples_delay_rate", 4) -- eighth note
-  params:set("mxsamples_delay_feedback", 40) -- 40% feedback
-
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
   _seeker.keyboard_region = include("lib/grid/keyboard_region")

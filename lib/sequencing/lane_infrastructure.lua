@@ -3,12 +3,11 @@
 -- Intended to be centralized Lane setup so that components like @lane_config and @stage_config are focused on configuration, not infrastructure
 
 local theory = include('lib/motif_core/theory')
+local transforms = include('lib/motif_core/transforms')
 local lane_infrastructure = {}
 
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
-    -- Separate repository for transforms. Makes maintenance easier and keeps boundaries clear.
-    local transforms = include('lib/motif_core/transforms')
     
     params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 20)
     -- Create four stages per lane with their defaults
