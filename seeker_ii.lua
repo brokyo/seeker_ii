@@ -171,7 +171,9 @@ function enc(n, d)
 end
 
 function redraw()
-  _seeker.screen_ui.set_needs_redraw()
+  if _seeker.screen_ui then
+    _seeker.screen_ui.redraw()
+  end
 end
 
 function cleanup()

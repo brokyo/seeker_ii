@@ -36,20 +36,20 @@ function ScreenUI.init()
   clock.run(function()
     while true do
       if ScreenSaver.check_timeout() then
-        ScreenUI.redraw()
+        redraw()
       else
         -- Hardcode views that should be constantly updating
         -- TODO: I may not stand behind this. Review.
-        
+
         -- When we have a motif or are overdubbing
-        if _seeker.motif_recorder.is_recording or 
+        if _seeker.motif_recorder.is_recording or
           (_seeker.ui_state.get_current_section() == "CREATE_MOTIF" and
            _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing) then
           ScreenUI.set_needs_redraw()
         end
-        
+
         if ScreenUI.state.needs_redraw then
-          ScreenUI.redraw()
+          redraw()
         end
       end
       clock.sync(1/ScreenUI.state.fps)
