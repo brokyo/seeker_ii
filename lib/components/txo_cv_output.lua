@@ -1,8 +1,8 @@
 -- txo_cv_output.lua
 -- Component for individual TXO CV output configuration (1-4)
 
-local NornsUI = include("lib/components/classes/norns_ui")
-local GridUI = include("lib/components/classes/grid_ui")
+local NornsUI = include("lib/ui/base/norns_ui")
+local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid_constants")
 
 local TxoCvOutput = {}

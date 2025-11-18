@@ -2,8 +2,8 @@
 -- Global Eurorack configuration component
 -- Contains sync button and type/number selection
 
-local NornsUI = include("lib/components/classes/norns_ui")
-local GridUI = include("lib/components/classes/grid_ui")
+local NornsUI = include("lib/ui/base/norns_ui")
+local GridUI = include("lib/ui/base/grid_ui")
 
 local EurorackConfig = {}
 EurorackConfig.__index = EurorackConfig

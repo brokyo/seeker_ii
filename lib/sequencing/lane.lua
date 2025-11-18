@@ -1,5 +1,5 @@
 -- lane.lua
-local params_manager = include('lib/params')
+local params_manager = include('lib/ui/params')
 local Motif = include('lib/motif_core/motif')
 local forms = include('lib/motif_core/forms')
 local StageConfig = include('lib/components/stage_config')

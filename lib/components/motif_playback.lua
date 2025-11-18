@@ -4,8 +4,8 @@
 -- ARCHITECTURAL DEBT: Playback config arguably belongs to Motif object, not Lane
 -- See roadmap.md for refactoring discussion
 
-local NornsUI = include("lib/components/classes/norns_ui")
-local GridUI = include("lib/components/classes/grid_ui")
+local NornsUI = include("lib/ui/base/norns_ui")
+local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid_constants")
 
 local Motif = {}

@@ -2,8 +2,8 @@
 -- Self-contained component for the Create Motif functionality.
 -- Handles parameter, screen, grid, and arc initialization and management
 
-local NornsUI = include("lib/components/classes/norns_ui")
-local GridUI = include("lib/components/classes/grid_ui")
+local NornsUI = include("lib/ui/base/norns_ui")
+local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid_constants")
 
 local CreateMotif = {}

@@ -1,8 +1,8 @@
 -- keyboard.lua
 -- Component for keyboard mode - represents musical/performance parameters
 
-local NornsUI = include("lib/components/classes/norns_ui")
-local GridUI = include("lib/components/classes/grid_ui")
+local NornsUI = include("lib/ui/base/norns_ui")
+local GridUI = include("lib/ui/base/grid_ui")
 
 local Keyboard = {}
 Keyboard.__index = Keyboard

@@ -2,7 +2,7 @@
 -- Component for individual OSC output configuration (Float/LFO/Trigger 1-4)
 -- Similar to lane_config - grid buttons select which output to configure
 
-local NornsUI = include("lib/components/classes/norns_ui")
+local NornsUI = include("lib/ui/base/norns_ui")
 
 local OscOutput = {}
 OscOutput.__index = OscOutput
