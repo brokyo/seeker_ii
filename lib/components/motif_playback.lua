@@ -7,7 +7,6 @@
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
 local GridConstants = include("lib/grid_constants")
-local Section = include("lib/ui/section")
 
 local Motif = {}
 Motif.__index = Motif
