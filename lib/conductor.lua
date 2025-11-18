@@ -72,10 +72,10 @@ function Conductor.sync_lanes()
   for _, lane in pairs(_seeker.lanes) do
     lane:stop()
   end
-  
+
   -- Clear all past events
   Conductor.clear_events()
-  
+
   -- Schedule restart at next beat
   local next_beat = math.ceil(clock.get_beats())
   Conductor.insert_event({
@@ -86,6 +86,40 @@ function Conductor.sync_lanes()
       end
     end
   })
+end
+
+-- Synchronize all timed outputs (lanes + eurorack outputs)
+function Conductor.sync_all()
+  clock.run(function()
+    -- Calculate next whole beat
+    local current_beat = math.floor(clock.get_beats())
+    local next_beat = current_beat + 1
+    local beats_to_wait = next_beat - clock.get_beats()
+
+    -- Reset all eurorack outputs
+    for i = 1, 4 do
+      crow.output[i].volts = 0
+      crow.ii.txo.tr(i, 0)
+      crow.ii.txo.cv(i, 0)
+    end
+
+    -- Sync each component that has a sync method
+    if _seeker.crow_output and _seeker.crow_output.sync then
+      _seeker.crow_output.sync()
+    end
+    if _seeker.txo_tr_output and _seeker.txo_tr_output.sync then
+      _seeker.txo_tr_output.sync()
+    end
+    if _seeker.txo_cv_output and _seeker.txo_cv_output.sync then
+      _seeker.txo_cv_output.sync()
+    end
+
+    -- Wait for next beat
+    clock.sync(beats_to_wait)
+
+    -- Sync all lanes
+    Conductor.sync_lanes()
+  end)
 end
 
 -- Debug function to print all scheduled events

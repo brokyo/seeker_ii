@@ -22,22 +22,15 @@ function ClearMotif.init()
             end
         },
         
-        -- Screen interface used by @screen_iii 
-        screen = {
-            instance = NornsUI.new({
-                id = "CLEAR_MOTIF",
-                name = "Clear Motif",
-                description = "Hold to clear the current lane's motif",
-                params = {
-                    { separator = true, title = "Clear Motif" }
-                }
-            }),
-            
-            -- This build function is needed by screen_iii.lua
-            build = function()
-                return instance.screen.instance
-            end
-        },
+        -- Screen interface used by @screen_iii
+        screen = NornsUI.new({
+            id = "CLEAR_MOTIF",
+            name = "Clear Motif",
+            description = "Hold to clear the current lane's motif",
+            params = {
+                { separator = true, title = "Clear Motif" }
+            }
+        }),
 
         -- Grid interface used by @grid_ii
         grid = GridUI.new({
@@ -55,7 +48,7 @@ function ClearMotif.init()
     --------------------------------
     -- Screen Overrides
     --------------------------------
-    instance.screen.instance.draw_default = function(self)
+    instance.screen.draw_default = function(self)
         -- Call the original draw method from ScreenUI
         NornsUI.draw_default(self)
         

@@ -712,13 +712,8 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "EURORACK_OUTPUT",
         name = "Eurorack Output",
-        description = "Configure Crow outputs for clock pulses and LFOs",
-        params = {
-            { separator = true, title = "Actions" },
-            { id = "sync_all_clocks", is_action = true },
-            { separator = true, title = "Output Selection" },
-            { id = "selected_output" }
-        }
+        description = "Configure eurorack outputs. Use grid to select output.",
+        params = {}
     })
     
     -- Override enter method to build initial params
@@ -733,13 +728,10 @@ local function create_screen_ui()
     -- NB: This is where extended arc control ("multi-float") is set
     norns_ui.rebuild_params = function(self)
         local selected_output = params:string("selected_output")
-        
-        local param_table = {
-            { separator = true, title = "Actions" },
-            { id = "sync_all_clocks", is_action = true },
-            { separator = true, title = "Output Selection" },
-            { id = "selected_output" }
-        }
+
+        self.name = selected_output
+
+        local param_table = {}
         
         -- If the output is Crow, build the relevant table
         if selected_output:match("^Crow") then
@@ -1878,12 +1870,15 @@ function EurorackOutput.update_txo_cv(output_num)
 end
 
 function EurorackOutput.init()
+    print("EurorackOutput.init() starting")
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
         handle_encoder_input = EurorackOutput.handle_encoder_input
     }
+    print("EurorackOutput.init() - screen and grid UI created")
     create_params()
+    print("EurorackOutput.init() - params created")
     
     -- Initialize patterns for all outputs
     for i = 1, 4 do
@@ -1899,12 +1894,15 @@ function EurorackOutput.init()
     end
     
     -- Start outputs with default settings (all outputs off by default since clock_div defaults to "Off")
+    print("EurorackOutput.init() - initializing outputs")
     for i = 1, 4 do
+        print("  - updating output " .. i)
         EurorackOutput.update_crow(i)
         EurorackOutput.update_txo_tr(i)
         EurorackOutput.update_txo_cv(i)
     end
-    
+
+    print("EurorackOutput.init() complete")
     return component
 end
 

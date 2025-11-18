@@ -102,16 +102,16 @@ local function create_params()
     params:add_separator("osc_output_selection", "Output Selection")
     params:add_option("osc_selected_type", "Type", {"Float", "LFO", "Trigger"}, 1)
     params:set_action("osc_selected_type", function(value)
-        if _seeker and _seeker.osc_config then
-            _seeker.osc_config.screen:rebuild_params()
+        if _seeker and _seeker.osc_output then
+            _seeker.osc_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
 
     params:add_option("osc_selected_number", "Number", {"1", "2", "3", "4"}, 1)
     params:set_action("osc_selected_number", function(value)
-        if _seeker and _seeker.osc_config then
-            _seeker.osc_config.screen:rebuild_params()
+        if _seeker and _seeker.osc_output then
+            _seeker.osc_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
@@ -444,79 +444,31 @@ function test_osc_connection()
 end
 
 local function create_screen_ui()
+    -- Global OSC settings only (connection, sync)
     local norns_ui = NornsUI.new({
         id = "OSC_CONFIG",
         name = "OSC Config",
-        description = "Configure OSC send parameters",
+        description = "Global OSC configuration and connection setup",
         params = {
             { separator = true, title = "Actions" },
             { id = "osc_sync_all_clocks", is_action = true },
-            { separator = true, title = "Output Selection" },
-            { id = "osc_selected_type" },
-            { id = "osc_selected_number" }
+            { separator = true, title = "Connection" },
+            { id = "osc_dest_octet_1" },
+            { id = "osc_dest_octet_2" },
+            { id = "osc_dest_octet_3" },
+            { id = "osc_dest_octet_4" },
+            { id = "osc_dest_port" },
+            { separator = true, title = "Test" },
+            { id = "osc_test_trigger", is_action = true }
         }
     })
-
-    -- Override enter method to build initial params
-    local original_enter = norns_ui.enter
-    norns_ui.enter = function(self)
-        original_enter(self)
-        self:rebuild_params()
-    end
-
-    -- Dynamic parameter rebuilding based on selected type and number
-    norns_ui.rebuild_params = function(self)
-        local selected_type = params:string("osc_selected_type")
-        local selected_number = params:get("osc_selected_number")
-
-        local param_table = {
-            { separator = true, title = "Actions" },
-            { id = "osc_sync_all_clocks", is_action = true },
-            { separator = true, title = "Output Selection" },
-            { id = "osc_selected_type" },
-            { id = "osc_selected_number" }
-        }
-
-        -- Build type-specific parameters
-        if selected_type == "Float" then
-            table.insert(param_table, { id = "osc_float_" .. selected_number .. "_value", name = "Value", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "osc_float_" .. selected_number .. "_multiplier", name = "Multiplier" })
-        elseif selected_type == "LFO" then
-            table.insert(param_table, { id = "osc_lfo_" .. selected_number .. "_sync", name = "Sync" })
-            table.insert(param_table, { id = "osc_lfo_" .. selected_number .. "_shape", name = "Shape" })
-            table.insert(param_table, { id = "osc_lfo_" .. selected_number .. "_min", name = "Min", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "osc_lfo_" .. selected_number .. "_max", name = "Max", arc_multi_float = {1.0, 0.1, 0.01} })
-        elseif selected_type == "Trigger" then
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_sync", name = "Sync" })
-            table.insert(param_table, { separator = true, title = "Shape" })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_env_gate_length", name = "Gate Length", arc_multi_float = {10.0, 1.0, 0.1} })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_attack", name = "Attack", arc_multi_float = {10.0, 1.0, 0.1} })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_decay", name = "Decay", arc_multi_float = {10.0, 1.0, 0.1} })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_min_sustain", name = "Min Sustain", arc_multi_float = {10.0, 1.0, 0.1} })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_release", name = "Release", arc_multi_float = {10.0, 1.0, 0.1} })
-            table.insert(param_table, { separator = true, title = "Range" })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_env_min", name = "Min", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_env_max", name = "Max", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "osc_trigger_" .. selected_number .. "_env_multiplier", name = "Multiplier" })
-        end
-
-        -- Add connection configuration at the end
-        table.insert(param_table, { separator = true, title = "Connection" })
-        table.insert(param_table, { id = "osc_dest_octet_1" })
-        table.insert(param_table, { id = "osc_dest_octet_2" })
-        table.insert(param_table, { id = "osc_dest_octet_3" })
-        table.insert(param_table, { id = "osc_dest_octet_4" })
-        table.insert(param_table, { id = "osc_dest_port" })
-        table.insert(param_table, { separator = true, title = "Test" })
-        table.insert(param_table, { id = "osc_test_trigger", is_action = true })
-
-        self.params = param_table
-    end
 
     return norns_ui
 end
 
 local function create_grid_ui()
+    -- Grid UI now handled by osc_config_mode.lua
+    -- This button serves as the OSC config mode switcher
     local grid_ui = GridUI.new({
         id = "OSC_CONFIG",
         layout = {
@@ -526,6 +478,13 @@ local function create_grid_ui()
             height = 1
         }
     })
+
+    -- Override handle_key to switch to OSC_CONFIG section
+    grid_ui.handle_key = function(self, x, y, z)
+        if z == 1 then
+            _seeker.ui_state.set_current_section("OSC_CONFIG")
+        end
+    end
 
     return grid_ui
 end

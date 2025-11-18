@@ -20,12 +20,21 @@ local Arc = include("lib/arc")
 
 -- Components
 local Config = include("lib/components/config")
+local Keyboard = include("lib/components/keyboard")
 local CreateMotif = include("lib/components/create_motif")
+local ClearMotif = include("lib/components/clear_motif")
 local WTape = include("lib/components/w_tape")
 local StageConfig = include("lib/components/stage_config")
-local EurorackOutput = include("lib/components/eurorack_output")
+local EurorackConfig = include("lib/components/eurorack_config")
+local CrowOutput = include("lib/components/crow_output")
+local TxoTrOutput = include("lib/components/txo_tr_output")
+local TxoCvOutput = include("lib/components/txo_cv_output")
 local OscConfig = include("lib/components/osc_config")
+local OscOutput = include("lib/components/osc_output")
 local LaneConfig = include("lib/components/lane_config")
+local Velocity = include("lib/components/velocity")
+local MotifPlayback = include("lib/components/motif_playback")
+local Tuning = include("lib/components/tuning")
 local lane_infrastructure = include("lib/lane_infrastructure")
 
 -- Global state
@@ -47,12 +56,17 @@ _seeker = {
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
   velocity = 3,
 
+  current_mode = nil,
+
   -- Component Approach
   config = nil,
   create_motif = nil,
   w_tape = nil,
   stage_config = nil,
-  eurorack_output = nil,
+  eurorack_config = nil,
+  crow_output = nil,
+  txo_tr_output = nil,
+  txo_cv_output = nil,
   osc_config = nil,
   lane_config = nil,
 }
@@ -91,14 +105,23 @@ function init()
 
   -- Initialize lane infrastructure to provide parameters for lane.lua
   lane_infrastructure.init()
+  _seeker.keyboard = Keyboard.init()
+  _seeker.velocity = Velocity.init()
+  _seeker.tuning = Tuning.init()
+  _seeker.motif_playback = MotifPlayback.init()
   _seeker.create_motif = CreateMotif.init()
+  _seeker.clear_motif = ClearMotif.init()
   _seeker.w_tape = WTape.init()
   -- NOTE: LaneConfig must be initialized before StageConfig to avoid race conditions
   -- LaneConfig creates stage parameters that StageConfig references
   _seeker.lane_config = LaneConfig.init()
   _seeker.stage_config = StageConfig.init()
-  _seeker.eurorack_output = EurorackOutput.init()
+  _seeker.eurorack_config = EurorackConfig.init()
+  _seeker.crow_output = CrowOutput.init()
+  _seeker.txo_tr_output = TxoTrOutput.init()
+  _seeker.txo_cv_output = TxoCvOutput.init()
   _seeker.osc_config = OscConfig.init()
+  _seeker.osc_output = OscOutput.init()
   
   -- UI Setup and global access
   params_manager.init_params()
@@ -133,9 +156,13 @@ function init()
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
-  
+
+  _seeker.current_mode = "KEYBOARD"
+  _seeker.ui_state.set_current_section("KEYBOARD")
+
+  -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()
-  _seeker.ui_state.set_current_section("CONFIG")
+
   print('⌬ Seeker Online')
 end
 

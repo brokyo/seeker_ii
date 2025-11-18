@@ -82,65 +82,8 @@ local function tap_tempo()
 end
 
 local function create_params()
-    params:add_group("config", "CONFIG", 16)
+    params:add_group("config", "CONFIG", 4)
 
-    -- Global Tuning
-    params:add_option("tuning_preset", "Preset",
-        {"Custom", "Ethereal", "Mysterious", "Melancholic", "Hopeful", "Contemplative", "Triumphant", "Dreamy",
-         "Ancient", "Floating", "Pastoral", "Nocturne", "Ritual", "Celestial", "Distant"}, 1)
-    params:set_action("tuning_preset", function(value)
-        if value > 1 then -- Skip action for "Custom"
-            local presets = {{6, 7}, -- F Lydian
-            {3, 5}, -- D Dorian
-            {10, 2}, -- A Minor (Natural)
-            {8, 1}, -- G Major
-            {5, 2}, -- E Minor (Natural)
-            {1, 1}, -- C Major
-            {2, 1}, -- Db Major
-            {3, 6}, -- D Phrygian
-            {1, 10}, -- C Whole Tone
-            {8, 11}, -- G Major Pentatonic (Pastoral)
-            {7, 12}, -- F# Minor Pentatonic (Nocturne)
-            {5, 6}, -- E Phrygian (Ritual)
-            {7, 7}, -- F# Lydian (Celestial)
-            {11, 10} -- Bb Whole Tone (Distant)
-            }
-            local preset = presets[value - 1]
-            params:set("root_note", preset[1], true)
-            params:set("scale_type", preset[2], true)
-            theory.print_keyboard_layout()
-        end
-    end)
-    
-    params:add_option("root_note", "Root Note", {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}, 6)
-    params:set_action("root_note", function(value)
-        -- Set tuning preset to custom when manually changing root
-        params:set("tuning_preset", 1, true)
-        theory.print_keyboard_layout()
-    end)
-    
-    local scale_names = {}
-    for i = 1, #musicutil.SCALES do
-        scale_names[i] = musicutil.SCALES[i].name
-    end
-    params:add_option("scale_type", "Scale", scale_names, 8)
-    params:set_action("scale_type", function(value)
-        -- Set tuning preset to custom when manually changing scale
-        params:set("tuning_preset", 1, true)
-        theory.print_keyboard_layout()
-    end)
-    
-    -- Keyboard Layout
-    params:add_number("keyboard_column_steps", "Column Spacing", 1, 8, 1)
-    params:set_action("keyboard_column_steps", function(value)
-        theory.print_keyboard_layout()
-    end)
-    
-    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 2)
-    params:set_action("keyboard_row_steps", function(value)
-        theory.print_keyboard_layout()
-    end)
-    
     -- Clock - create wrapper parameter that controls system clock_tempo
     params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
     params:set_action("seeker_clock_tempo", function(value)
@@ -157,83 +100,31 @@ local function create_params()
             clock.tempo_change_handler(value)
         end
     end)
-    
+
     params:add_binary("tap_tempo", "Tap Tempo", "trigger", 0)
     params:set_action("tap_tempo", function(value)
         if value == 1 then
             tap_tempo()
         end
     end)
-    
+
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
     params:add_binary("screensaver_enabled", "Screensaver", "toggle", 1)
-
-    -- Global Effects (shared across all lanes)
-    params:add_option("mxsamples_delay_rate", "Delay Rate",
-        {"whole-note", "half-note", "quarter note", "eighth note", "sixteenth note", "thirtysecond"}, 4)
-    params:set_action("mxsamples_delay_rate", function(value)
-        local delay_rates = {4, 2, 1, 1/2, 1/4, 1/8}
-        engine.mxsamples_delay_beats(delay_rates[value])
-    end)
-
-    params:add_control("mxsamples_delay_feedback", "Delay Feedback",
-        controlspec.new(0, 100, 'lin', 1, 40, "%"))
-    params:set_action("mxsamples_delay_feedback", function(value)
-        engine.mxsamples_delay_feedback(value / 100)
-    end)
-
-    -- MIDI
-    params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 1)
-    params:add_number("record_midi_note", "Record Toggle Note", 0, 127, 0)
-    params:add_number("overdub_midi_note", "Overdub Toggle Note", 0, 127, 0)
-
-    params:add_binary("reset", "Clear Layers", "trigger", 0)
-    params:set_action("reset", function(value)
-        if value == 1 then
-            for i = 1, 8 do
-                if _seeker.lanes[i] then
-                    _seeker.lanes[i]:clear()            
-                    -- Reset all stage transforms to noop
-                    for stage_idx = 1, 4 do
-                        for transform_idx = 1, 3 do
-                            _seeker.lanes[i]:change_stage_transform(i, stage_idx, transform_idx, "noop")
-                        end
-                    end
-                end
-            end
-            print("⚡ Reset all layers")
-        end
-    end)
 end
 
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "CONFIG",
         name = "Seeker II Config",
-        description = "Global level configuration. Press k3 to trigger actions.",
+        description = "Global configuration for clock and visuals",
         params = {
-            { separator = true, title = "Global Tuning" },
-            { id = "tuning_preset" },
-            { id = "root_note" },
-            { id = "scale_type" },
-            { id = "keyboard_column_steps" },
-            { id = "keyboard_row_steps" },
             { separator = true, title = "Clock" },
             { id = "seeker_clock_tempo" },
             { id = "tap_tempo", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },
-            { id = "screensaver_enabled" },
-            { separator = true, title = "Global Effects" },
-            { id = "mxsamples_delay_rate" },
-            { id = "mxsamples_delay_feedback" },
-            { separator = true, title = "MIDI" },
-            { id = "snap_midi_to_scale" },
-            { id = "record_midi_note" },
-            { id = "overdub_midi_note" },
-            { separator = true, title = "Actions" },
-            { id = "reset", is_action = true }
+            { id = "screensaver_enabled" }
         }
     })
 
@@ -241,15 +132,27 @@ local function create_screen_ui()
 end
 
 local function create_grid_ui()
-    return GridUI.new({
+    local grid_ui = GridUI.new({
         id = "CONFIG",
         layout = {
             x = 16,
-            y = 2,
+            y = 1,
             width = 1,
             height = 1
         }
     })
+
+    -- Draw normally (visible button)
+    -- Uses default GridUI draw behavior
+
+    -- Override handle_key to switch to CONFIG section
+    grid_ui.handle_key = function(self, x, y, z)
+        if z == 1 then
+            _seeker.ui_state.set_current_section("CONFIG")
+        end
+    end
+
+    return grid_ui
 end
 
 function Config.init()

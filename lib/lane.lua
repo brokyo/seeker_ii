@@ -467,7 +467,7 @@ function Lane:on_note_on(event)
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
-    -- This is a playback event, apply offsets that come from `MotifSection`
+    -- This is a playback event, apply offsets that come from motif_playback component
     local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
     local scale_degree_offset = params:get("lane_" .. self.id .. "_scale_degree_offset")
     
@@ -787,7 +787,7 @@ function Lane:on_note_off(event)
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
-    -- This is a playback event, apply offsets that come from `MotifSection`
+    -- This is a playback event, apply offsets that come from motif_playback component
     local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
     local scale_degree_offset = params:get("lane_" .. self.id .. "_scale_degree_offset")
     

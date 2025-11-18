@@ -1,6 +1,10 @@
 -- keyboard_region.lua
 -- Modal keyboard coordinator that delegates to mode-specific keyboards
 -- Each keyboard mode defines its own layout within the keyboard area
+--
+-- NOTE: This is NOT a component - it's infrastructure/routing layer
+-- It has no params, no screen UI - just dispatches to keyboard implementations
+-- based on motif_type. Keep as pure region rather than componentizing.
 
 local TapeKeyboard = include("lib/grid/regions/keyboards/tape_keyboard")
 local GridConstants = include("lib/grid_constants")

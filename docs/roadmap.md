@@ -10,10 +10,8 @@
 ### Bugs
 
 ### Long List
+- [] **Architectural Debt: Lane/Motif Separation** - Playback config (speed, playback_offset, scale_degree_offset, quantize) currently lives on Lane but conceptually belongs to Motif behavior. Consider moving to Motif object for better separation of concerns. Lane = execution channel (voices, routing), Motif = musical pattern + playback behavior.
 - [] Refactor trail/tail visual feedback system to separate rendering from Lane
-- [] Refactor Tuning to component
-- [] Refactor Motif Config to component
-- [] Refactor Velocity to component
 - [] Centralize "sync all" system. Current one is very hacky
 - [] Create motif UI one loop ahead of playing transform when ratcheting
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.

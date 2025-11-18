@@ -1,11 +1,5 @@
 -- screen_iii.lua
-local MotifSection = include('lib/ui/sections/motif_section')
-local TuningSection = include('lib/ui/sections/tuning_section')
-local VelocitySection = include('lib/ui/sections/velocity_section')
 local ScreenSaver = include('lib/ui/screen_saver')
-
--- Old Component Approach
-local ClearMotif = include('lib/components/clear_motif')
 
 local ScreenUI = {}
 
@@ -18,20 +12,22 @@ ScreenUI.state = {
 ScreenUI.sections = {}
 
 function ScreenUI.init()  
-  -- Initialize sections
   ScreenUI.sections = {
-    MOTIF = MotifSection.new(),
-    TUNING = TuningSection.new(),
-    VELOCITY = VelocitySection.new(),
-    
-    -- Components
     CONFIG = _seeker.config.screen,
-    CLEAR_MOTIF = ClearMotif.init().screen.build(),
+    KEYBOARD = _seeker.keyboard.screen,
+    VELOCITY = _seeker.velocity.screen,
+    TUNING = _seeker.tuning.screen,
+    MOTIF = _seeker.motif_playback.screen,
+    CLEAR_MOTIF = _seeker.clear_motif.screen,
     CREATE_MOTIF = _seeker.create_motif.screen,
     WTAPE = _seeker.w_tape.screen,
     STAGE_CONFIG = _seeker.stage_config.screen,
-    EURORACK_OUTPUT = _seeker.eurorack_output.screen,
+    EURORACK_CONFIG = _seeker.eurorack_config.screen,
+    CROW_OUTPUT = _seeker.crow_output.screen,
+    TXO_TR_OUTPUT = _seeker.txo_tr_output.screen,
+    TXO_CV_OUTPUT = _seeker.txo_cv_output.screen,
     OSC_CONFIG = _seeker.osc_config.screen,
+    OSC_OUTPUT = _seeker.osc_output.screen,
     LANE_CONFIG = _seeker.lane_config.screen
   }
   

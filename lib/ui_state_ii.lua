@@ -103,21 +103,34 @@ end
 
 function UIState.set_current_section(section_id)
   if section_id == UIState.state.current_section then return end
-  
+
+  -- Validate and auto-switch mode if needed
+  if _seeker.current_mode then
+    local GridModeRegistry = include("lib/grid_mode_registry")
+    local required_mode = GridModeRegistry.get_mode_for_section(section_id)
+
+    if required_mode and required_mode ~= _seeker.current_mode then
+      print("⚠ Auto-switching mode: " .. _seeker.current_mode .. " → " .. required_mode .. " (section: " .. section_id .. ")")
+      _seeker.current_mode = required_mode
+    elseif not required_mode then
+      print("⚠ Warning: Section '" .. section_id .. "' not registered in any mode")
+    end
+  end
+
   -- Exit old section
   local old_section = _seeker.screen_ui.sections[UIState.state.current_section]
-  if old_section then 
+  if old_section then
     old_section:exit()
   end
-  
+
   UIState.state.current_section = section_id
-  
+
   -- Enter new section
   local new_section = _seeker.screen_ui.sections[section_id]
   if new_section then
     new_section:enter()
   end
-  
+
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
   end

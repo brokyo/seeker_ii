@@ -150,15 +150,24 @@ local function create_screen_ui()
 end
 
 local function create_grid_ui()
-    return GridUI.new({
+    local grid_ui = GridUI.new({
         id = "WTAPE",
         layout = {
-            x = 14, 
+            x = 13,
             y = 2,
             width = 1,
             height = 1
         }
     })
+
+    -- Override handle_key to switch to WTAPE section
+    grid_ui.handle_key = function(self, x, y, z)
+        if z == 1 then
+            _seeker.ui_state.set_current_section("WTAPE")
+        end
+    end
+
+    return grid_ui
 end
 
 function WTape.init()
