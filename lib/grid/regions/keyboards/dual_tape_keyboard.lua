@@ -3,7 +3,7 @@
 -- Left keyboard (bass) and right keyboard (treble) with independent octave controls
 -- Only visible when in CREATE_MOTIF view
 
-local theory = include("lib/theory_utils")
+local theory = include("lib/motif_core/theory")
 local musicutil = require('musicutil')
 local GridConstants = include("lib/grid_constants")
 local GridLayers = include("lib/grid_layers")

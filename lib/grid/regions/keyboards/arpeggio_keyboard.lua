@@ -3,7 +3,7 @@
 -- 8 rows × 6 columns (2 blocks of 3 columns each)
 -- Shows first 16 scale intervals with block illumination and tonnetz-style tail
 
-local theory = include("lib/theory_utils")
+local theory = include("lib/motif_core/theory")
 local musicutil = require('musicutil')
 local GridConstants = include("lib/grid_constants")
 local GridLayers = include("lib/grid_layers")

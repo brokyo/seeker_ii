@@ -63,7 +63,7 @@ end
 -- Prepare stage: Regenerate arpeggio from parameters
 function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local success, err = pcall(function()
-    local arpeggio_utils = include('lib/arpeggio_utils')
+    local arpeggio_utils = include('lib/motif_core/arpeggio')
     local musicutil = require('musicutil')
 
   -- Collect parameters (stage overrides OR lane defaults)

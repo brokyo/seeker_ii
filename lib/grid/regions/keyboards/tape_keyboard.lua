@@ -2,7 +2,7 @@
 -- Tonnetz-style keyboard for tape recording mode
 -- Extracted from grid.lua to support modal keyboards
 
-local theory = include("lib/theory_utils")
+local theory = include("lib/motif_core/theory")
 local musicutil = require('musicutil')
 local GridConstants = include("lib/grid_constants")
 local GridLayers = include("lib/grid_layers")

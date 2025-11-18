@@ -2,7 +2,7 @@
 -- Manage norns-stored params
 local params_manager = {}
 local musicutil = require('musicutil')
-local theory = include('lib/theory_utils')
+local theory = include('lib/motif_core/theory')
 
 -- Old Component Approach
 local ClearMotif = include("lib/components/clear_motif")

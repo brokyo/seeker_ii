@@ -2,7 +2,7 @@
 -- Handles MIDI input for playing and recording motifs
 
 local MidiInput = {}
-local theory = include("lib/theory_utils")
+local theory = include("lib/motif_core/theory")
 local KeyboardRegion = include("lib/grid/regions/keyboard_region")
 local musicutil = require("musicutil")
 

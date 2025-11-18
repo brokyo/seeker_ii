@@ -14,7 +14,7 @@ local grid = include("lib/grid")
 local screen_ui = include("/lib/screen")
 local params_manager = include('/lib/params')
 local ui_state = include('/lib/state')
-local MotifRecorder = include("lib/motif_recorder")
+local MotifRecorder = include("lib/motif_core/recorder")
 local MidiInput = include("lib/midi_input")
 local Arc = include("lib/arc")
 

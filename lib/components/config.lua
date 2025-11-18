@@ -4,7 +4,7 @@
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
 local GridConstants = include("lib/grid_constants")
-local theory = include('lib/theory_utils')
+local theory = include('lib/motif_core/theory')
 local musicutil = require('musicutil')
 
 local Config = {}

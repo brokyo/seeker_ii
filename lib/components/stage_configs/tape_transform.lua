@@ -145,7 +145,7 @@ end
 
 -- Prepare stage: Reset to genesis and apply transform
 function TapeTransform.prepare_stage(lane_id, stage_id, motif)
-  local tape_transforms = include('lib/tape_transforms')
+  local tape_transforms = include('lib/motif_core/transforms')
 
   -- Reset motif to genesis if configured
   local reset_motif = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_reset_motif") == 2

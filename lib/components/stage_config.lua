@@ -5,7 +5,7 @@
 local NornsUI = include("lib/components/classes/norns_ui")
 local GridUI = include("lib/components/classes/grid_ui")
 local GridConstants = include("lib/grid_constants")
-local tape_transforms = include("lib/tape_transforms")
+local tape_transforms = include("lib/motif_core/transforms")
 
 local StageConfig = {}
 StageConfig.__index = StageConfig

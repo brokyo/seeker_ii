@@ -10,9 +10,9 @@
 --   _seeker.debug_lane = lane_archetype.create_debug_lane()
 --------------------------------------------------
 
-local Motif = include('lib/motif')
+local Motif = include('lib/motif_core/motif')
 local Lane = include('lib/lane')
-local forms = include('lib/forms')
+local forms = include('lib/motif_core/forms')
 
 local lane_archetype = {}
 

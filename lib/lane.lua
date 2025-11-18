@@ -1,10 +1,10 @@
 -- lane.lua
 local params_manager = include('lib/params')
-local Motif = include('lib/motif')
-local forms = include('lib/forms')
+local Motif = include('lib/motif_core/motif')
+local forms = include('lib/motif_core/forms')
 local StageConfig = include('lib/components/stage_config')
 local GridConstants = include('lib/grid_constants')
-local theory = include('lib/theory_utils')
+local theory = include('lib/motif_core/theory')
 local KeyboardRegion = include('lib/grid/regions/keyboard_region')
 local musicutil = require('musicutil')
 local Lane = {}
