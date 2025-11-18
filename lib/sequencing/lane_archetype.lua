@@ -11,7 +11,7 @@
 --------------------------------------------------
 
 local Motif = include('lib/motif_core/motif')
-local Lane = include('lib/lane')
+local Lane = include('lib/sequencing/lane')
 local forms = include('lib/motif_core/forms')
 
 local lane_archetype = {}

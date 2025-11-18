@@ -7,9 +7,9 @@ engine.name = "MxSamples"
 
 -- Libraries
 local mxsamples = include("mx.samples/lib/mx.samples")
-local Lane = include("lib/lane")
-local conductor = include("lib/conductor")
-local lane_archetype = include("lib/lane_archetype")
+local Lane = include("lib/sequencing/lane")
+local conductor = include("lib/sequencing/conductor")
+local lane_archetype = include("lib/sequencing/lane_archetype")
 local grid = include("lib/grid")
 local screen_ui = include("/lib/screen")
 local params_manager = include('/lib/params')
@@ -35,7 +35,7 @@ local LaneConfig = include("lib/components/lane_config")
 local Velocity = include("lib/components/velocity")
 local MotifPlayback = include("lib/components/motif_playback")
 local Tuning = include("lib/components/tuning")
-local lane_infrastructure = include("lib/lane_infrastructure")
+local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
 
 -- Global state
 _seeker = {
