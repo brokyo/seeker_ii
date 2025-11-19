@@ -132,32 +132,6 @@ function TapeKeyboard.draw(layers)
       GridLayers.set(layers.ui, grid_x, grid_y, brightness)
     end
   end
-
-  -- Draw count display when recording
-  if _seeker.motif_recorder.is_recording then
-    local current_quarter = math.floor(clock.get_beats()) % 4
-    local count_x_start = 7
-    local count_x_end = 10
-    local count_y = 1
-
-    -- Set all count LEDs to low brightness
-    for x_count = count_x_start, count_x_end do
-      GridLayers.set(layers.ui, x_count, count_y, GridConstants.BRIGHTNESS.LOW)
-    end
-
-    -- Highlight current beat with sharp attack and quick decay
-    local highlight_x = count_x_start + current_quarter
-    local beat_phase = clock.get_beats() % 1
-    local brightness
-    if beat_phase < 0.25 then
-      local decay = math.exp(-beat_phase * 12)
-      local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
-      brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
-    else
-      brightness = GridConstants.BRIGHTNESS.LOW
-    end
-    GridLayers.set(layers.ui, highlight_x, count_y, brightness)
-  end
 end
 
 -- Draw motif events for active positions (extracted from grid.lua)

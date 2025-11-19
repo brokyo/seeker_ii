@@ -413,9 +413,14 @@ local function create_screen_ui()
         if tooltip then
             local width_tooltip = screen.text_extents(tooltip)
 
-            -- Use black text when piano roll is showing, otherwise grey/white
-            if _seeker.ui_state.is_long_press_active() then
-                screen.level(15)
+            -- Pulse brightness when recording, otherwise static
+            if _seeker.motif_recorder.is_recording then
+                -- Pulse using sine wave synced to beats
+                local base = 10
+                local range = 5
+                local speed = 4  -- cycles per beat
+                local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
+                screen.level(pulse)
             else
                 screen.level(show_piano_roll and 1 or 2)
             end
@@ -619,18 +624,11 @@ local function create_grid_ui()
         if _seeker.motif_recorder.is_recording then
             draw_count_display(self, layers)
 
-            -- Make the Create Motif button flash while recording
-            -- Tape mode: 2 flashes per beat, Arpeggio mode: 1 flash per beat
-            local focused_lane_draw = _seeker.ui_state.get_focused_lane()
-            local motif_type = params:get("lane_" .. focused_lane_draw .. "_motif_type")
-            local pulse_rate = (motif_type == 1) and 2 or 1
-            local beat_phase = (clock.get_beats() * pulse_rate) % 1
-
-            if beat_phase < 0.1 then
-                brightness = GridConstants.BRIGHTNESS.HIGH
-            else
-                brightness = GridConstants.BRIGHTNESS.UI.NORMAL
-            end
+            -- Pulse button smoothly while recording
+            local base = GridConstants.BRIGHTNESS.UI.NORMAL
+            local range = 3
+            local speed = 4  -- cycles per beat
+            brightness = math.floor(math.sin(clock.get_beats() * speed) * range + base + range)
         end
 
         layers.ui[x][y] = brightness

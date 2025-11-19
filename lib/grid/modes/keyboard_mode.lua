@@ -31,7 +31,7 @@ function KeyboardMode.draw_full_page(layers)
   -- Draw keyboard
   KeyboardRegion.draw(layers)
 
-  -- Draw component buttons (bottom row)
+  -- Draw motif configuration buttons (bottom row)
   _seeker.clear_motif.grid:draw(layers)
   _seeker.create_motif.grid:draw(layers)
   _seeker.stage_config.grid:draw(layers)
