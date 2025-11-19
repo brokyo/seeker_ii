@@ -82,7 +82,7 @@ local function tap_tempo()
 end
 
 local function create_params()
-    params:add_group("config", "CONFIG", 4)
+    params:add_group("config", "CONFIG", 5)
 
     -- Clock - create wrapper parameter that controls system clock_tempo
     params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
@@ -108,6 +108,16 @@ local function create_params()
         end
     end)
 
+    params:add_binary("sync_all_clocks", "Synchronize All", "trigger", 0)
+    params:set_action("sync_all_clocks", function(value)
+        if value == 1 then
+            if _seeker and _seeker.conductor then
+                _seeker.conductor.sync_all()
+            end
+            _seeker.ui_state.trigger_activated("sync_all_clocks")
+        end
+    end)
+
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
     params:add_binary("screensaver_enabled", "Screensaver", "toggle", 1)
@@ -122,6 +132,7 @@ local function create_screen_ui()
             { separator = true, title = "Clock" },
             { id = "seeker_clock_tempo" },
             { id = "tap_tempo", is_action = true },
+            { id = "sync_all_clocks", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },
             { id = "screensaver_enabled" }

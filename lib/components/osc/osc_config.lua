@@ -61,41 +61,10 @@ local function create_params()
     -- Sync all OSC clocks and lanes
     params:add_binary("osc_sync_all_clocks", "Synchronize All", "trigger", 0)
     params:set_action("osc_sync_all_clocks", function()
-        clock.run(function()
-            -- Cancel all existing OSC clocks
-            for clock_id, _ in pairs(active_trigger_clocks) do
-                if active_trigger_clocks[clock_id] then
-                    clock.cancel(active_trigger_clocks[clock_id])
-                    active_trigger_clocks[clock_id] = nil
-                end
-            end
-
-            for clock_id, _ in pairs(active_lfo_sync_clocks) do
-                if active_lfo_sync_clocks[clock_id] then
-                    clock.cancel(active_lfo_sync_clocks[clock_id])
-                    active_lfo_sync_clocks[clock_id] = nil
-                end
-            end
-
-
-
-            -- Sync to next whole beat
-            local current_beat = math.floor(clock.get_beats())
-            local next_beat = current_beat + 1
-            local beats_to_wait = next_beat - clock.get_beats()
-            clock.sync(beats_to_wait)
-
-            -- Restart all OSC clocks fresh
-            for i = 1, 4 do
-                send_lfo_frequency(i)
-                update_trigger_clock(i)
-            end
-
-            -- Sync all lanes to ensure they're aligned with the global sync
-            if _seeker and _seeker.conductor then
-                _seeker.conductor.sync_lanes()
-            end
-        end)
+        -- Delegate to conductor for unified global sync
+        if _seeker and _seeker.conductor then
+            _seeker.conductor.sync_all()
+        end
     end)
 
     -- Output Selection params
@@ -443,6 +412,30 @@ function test_osc_connection()
     end
 end
 
+-- Sync all OSC outputs by restarting their clocks
+function OscConfig.sync()
+    -- Cancel all existing OSC clocks
+    for clock_id, _ in pairs(active_trigger_clocks) do
+        if active_trigger_clocks[clock_id] then
+            clock.cancel(active_trigger_clocks[clock_id])
+            active_trigger_clocks[clock_id] = nil
+        end
+    end
+
+    for clock_id, _ in pairs(active_lfo_sync_clocks) do
+        if active_lfo_sync_clocks[clock_id] then
+            clock.cancel(active_lfo_sync_clocks[clock_id])
+            active_lfo_sync_clocks[clock_id] = nil
+        end
+    end
+
+    -- Restart all OSC clocks fresh (will sync on next beat boundary via their internal logic)
+    for i = 1, 4 do
+        send_lfo_frequency(i)
+        update_trigger_clock(i)
+    end
+end
+
 local function create_screen_ui()
     -- Global OSC settings only (connection, sync)
     local norns_ui = NornsUI.new({
@@ -477,6 +470,7 @@ function OscConfig.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
+        sync = OscConfig.sync,
         send_message = send_osc_message,
         test_connection = test_osc_connection,
         send_lfo_frequency = send_lfo_frequency,

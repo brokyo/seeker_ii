@@ -88,7 +88,7 @@ function Conductor.sync_lanes()
   })
 end
 
--- Synchronize all timed outputs (lanes + eurorack outputs)
+-- Synchronize all timed outputs (lanes + eurorack + OSC)
 function Conductor.sync_all()
   clock.run(function()
     -- Calculate next whole beat
@@ -112,6 +112,9 @@ function Conductor.sync_all()
     end
     if _seeker.txo_cv_output and _seeker.txo_cv_output.sync then
       _seeker.txo_cv_output.sync()
+    end
+    if _seeker.osc_config and _seeker.osc_config.sync then
+      _seeker.osc_config.sync()
     end
 
     -- Wait for next beat

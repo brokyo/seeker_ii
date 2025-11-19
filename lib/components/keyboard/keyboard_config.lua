@@ -8,7 +8,18 @@ local Keyboard = {}
 Keyboard.__index = Keyboard
 
 local function create_params()
-    params:add_group("keyboard", "KEYBOARD", 8)
+    params:add_group("keyboard", "KEYBOARD", 9)
+
+    -- Sync trigger
+    params:add_binary("keyboard_sync_all_clocks", "Synchronize All", "trigger", 0)
+    params:set_action("keyboard_sync_all_clocks", function(value)
+        if value == 1 then
+            if _seeker and _seeker.conductor then
+                _seeker.conductor.sync_all()
+            end
+            _seeker.ui_state.trigger_activated("keyboard_sync_all_clocks")
+        end
+    end)
 
     -- Keyboard layout parameters (moved from config)
     params:add_number("keyboard_column_steps", "Column Spacing", 1, 8, 1)
@@ -70,6 +81,8 @@ local function create_screen_ui()
         name = "Keyboard",
         description = "Musical keyboard and tuning configuration",
         params = {
+            { separator = true, title = "Actions" },
+            { id = "keyboard_sync_all_clocks", is_action = true },
             { separator = true, title = "Tuning" },
             { id = "tuning_preset" },
             { id = "root_note" },
