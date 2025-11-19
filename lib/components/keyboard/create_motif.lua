@@ -1,6 +1,15 @@
 -- create_motif.lua
 -- Self-contained component for the Create Motif functionality.
 -- Handles parameter, screen, grid, and arc initialization and management
+--
+-- ARCHITECTURAL NOTE: This component handles two distinct modes (Tape and Arpeggio)
+-- via conditional branching on motif_type. This creates coupling but keeps the UI
+-- simple (one screen, one button). If arpeggio mode grows significantly complex
+-- (step visualization, pattern presets, unique features), consider splitting into:
+--   - create_motif_region.lua (routing layer, owns grid button)
+--   - tape_motif.lua (tape recording component)
+--   - arpeggio_motif.lua (arpeggio generation component)
+-- See keyboard_region.lua for precedent on this pattern.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -66,42 +75,12 @@ local function create_screen_ui()
         end
         
         
-        -- Only show arpeggio params when in arpeggio mode
+        -- Only show arpeggio sequence structure when in arpeggio mode
+        -- Musical params (chord, velocity, strum) are now configured in Stage Config
         if motif_type == 2 then
-
-            -- Sequence Structure
             table.insert(param_table, { separator = true, title = "Sequence Structure" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_num_steps" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_step_length" })
-
-            -- Chord Generation
-            table.insert(param_table, { separator = true, title = "Chord Generation" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_root" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_type" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_length" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_keyboard_octave" })
-
-            -- Chord Voicing
-            table.insert(param_table, { separator = true, title = "Chord Voicing" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_inversion" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_direction" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_phasing" })
-
-            -- Performance Details
-            table.insert(param_table, { separator = true, title = "Performance" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_note_duration" })
-
-            -- Velocity
-            table.insert(param_table, { separator = true, title = "Velocity" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_velocity_curve" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_velocity_min" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_velocity_max" })
-
-            -- Strum
-            table.insert(param_table, { separator = true, title = "Strum" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_strum_curve" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_strum_amount" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_strum_direction" })
         end
         
         -- Update the UI with the new parameter table
@@ -209,7 +188,11 @@ local function create_screen_ui()
             local lane_tooltip = _seeker.lanes[focused_lane_tooltip]
 
             if motif_type == 2 then -- Arpeggio mode
-
+                if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
+                    tooltip = "stage cfg: edit"
+                else
+                    tooltip = "⏺: hold [create]"
+                end
             elseif lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                 tooltip = "⏺: hold [overdub]"
             else

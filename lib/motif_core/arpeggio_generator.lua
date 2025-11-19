@@ -25,6 +25,8 @@ function ArpeggioGenerator.calculate_velocity(index, total_steps, curve_type, mi
     return max_vel - (progress * range)
   elseif curve_type == "Wave" then
     return min_vel + (math.sin(progress * math.pi) * range)
+  elseif curve_type == "Alternating" then
+    return (index % 2 == 1) and max_vel or min_vel
   elseif curve_type == "Accent First" then
     return (index == 1) and max_vel or min_vel
   elseif curve_type == "Accent Last" then
@@ -51,21 +53,18 @@ function ArpeggioGenerator.calculate_strum_position(index, total_steps, curve_ty
   local position_in_window = 0
 
   -- Apply curve shape to distribute notes within window
-  if curve_type == "Gentle" then
-    -- Linear distribution (like seeker_1.5's sweep)
+  if curve_type == "Linear" then
+    -- Linear distribution
     position_in_window = progress * window_duration
-  elseif curve_type == "Picking" then
-    -- Quadratic acceleration (like seeker_1.5's rush)
+  elseif curve_type == "Accelerating" then
+    -- Quadratic acceleration (slow start, fast end)
     position_in_window = (progress * progress) * window_duration
+  elseif curve_type == "Decelerating" then
+    -- Inverse quadratic (fast start, slow end)
+    position_in_window = (1 - math.pow(1 - progress, 2)) * window_duration
   elseif curve_type == "Sweep" then
-    -- Sine curve acceleration (like seeker_1.5's gliss)
+    -- Sine curve acceleration
     position_in_window = math.sin(progress * math.pi / 2) * window_duration
-  elseif curve_type == "Natural" then
-    -- Cubic with jitter (like seeker_1.5's burst)
-    local curved = math.pow(progress, 3)
-    local chaos = (1 - progress) * 0.1
-    local jitter = (math.random() * 2 - 1) * chaos
-    position_in_window = (curved + jitter) * window_duration
   end
 
   -- Apply direction
@@ -83,12 +82,21 @@ function ArpeggioGenerator.calculate_strum_position(index, total_steps, curve_ty
     local distance = math.abs(index - center)
     local max_distance = math.max(center - 1, total_steps - center)
     return window_duration - ((distance / max_distance) * window_duration)
-  elseif direction == "Thumb First" then
-    if index == 1 then
-      return 0
+  elseif direction == "Alternating" then
+    -- Split odd/even steps into two groups
+    local half_window = window_duration / 2
+    if index % 2 == 1 then
+      -- Odd steps in first half
+      local odd_index = math.floor((index - 1) / 2)
+      local total_odds = math.ceil(total_steps / 2)
+      local odd_progress = odd_index / math.max(total_odds - 1, 1)
+      return odd_progress * half_window
     else
-      local remaining_progress = (index - 2) / math.max(total_steps - 2, 1)
-      return remaining_progress * window_duration
+      -- Even steps in second half
+      local even_index = (index / 2) - 1
+      local total_evens = math.floor(total_steps / 2)
+      local even_progress = even_index / math.max(total_evens - 1, 1)
+      return half_window + (even_progress * half_window)
     end
   elseif direction == "Random" then
     return math.random() * window_duration

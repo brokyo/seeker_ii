@@ -341,27 +341,28 @@ function MotifRecorder:_stop_arpeggio_recording()
 
   print("🎹 Generating arpeggio motif from step pattern...")
 
-  -- Get current arpeggio parameters
+  -- Get sequence structure (stays on lane)
   local step_length_str = params:string("lane_" .. focused_lane .. "_arpeggio_step_length")
   local step_length = self:_interval_to_beats(step_length_str)
   local num_steps = params:get("lane_" .. focused_lane .. "_arpeggio_num_steps")
-  local chord_root = params:get("lane_" .. focused_lane .. "_arpeggio_chord_root")
-  local chord_type = params:string("lane_" .. focused_lane .. "_arpeggio_chord_type")
-  local chord_length = params:get("lane_" .. focused_lane .. "_arpeggio_chord_length")
-  local chord_inversion = params:get("lane_" .. focused_lane .. "_arpeggio_chord_inversion") - 1
-  local chord_direction = params:get("lane_" .. focused_lane .. "_arpeggio_chord_direction")
-  local note_duration_percent = params:get("lane_" .. focused_lane .. "_arpeggio_note_duration")
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
 
-  -- Get velocity curve parameters
-  local velocity_curve = params:string("lane_" .. focused_lane .. "_arpeggio_velocity_curve")
-  local velocity_min = params:get("lane_" .. focused_lane .. "_arpeggio_velocity_min")
-  local velocity_max = params:get("lane_" .. focused_lane .. "_arpeggio_velocity_max")
+  -- Get musical parameters from Stage 1
+  local chord_root = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_root")
+  local chord_type = params:string("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_type")
+  local chord_length = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_length")
+  local chord_inversion = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_inversion") - 1
+  local note_duration_percent = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_note_duration")
 
-  -- Get strum parameters
-  local strum_curve = params:string("lane_" .. focused_lane .. "_arpeggio_strum_curve")
-  local strum_amount = params:get("lane_" .. focused_lane .. "_arpeggio_strum_amount")
-  local strum_direction = params:string("lane_" .. focused_lane .. "_arpeggio_strum_direction")
+  -- Get velocity curve parameters from Stage 1
+  local velocity_curve = params:string("lane_" .. focused_lane .. "_stage_1_arpeggio_velocity_curve")
+  local velocity_min = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_velocity_min")
+  local velocity_max = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_velocity_max")
+
+  -- Get strum parameters from Stage 1
+  local strum_curve = params:string("lane_" .. focused_lane .. "_stage_1_arpeggio_strum_curve")
+  local strum_amount = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_strum_amount")
+  local strum_shape = params:string("lane_" .. focused_lane .. "_stage_1_arpeggio_strum_shape")
 
   print(string.format("  Chord: %s, Length: %d, Inversion: %d", chord_type, chord_length, chord_inversion))
 
@@ -386,9 +387,6 @@ function MotifRecorder:_stop_arpeggio_recording()
 
   print(string.format("  Found %d active steps out of %d total", #active_steps, num_steps))
 
-  -- Apply direction to chord
-  effective_chord = self:_apply_direction(effective_chord, chord_direction, #active_steps)
-
   -- Calculate sequence duration for strum calculation
   local sequence_duration = num_steps * step_length
 
@@ -399,7 +397,7 @@ function MotifRecorder:_stop_arpeggio_recording()
   local events = {}
   for active_index, step in ipairs(active_steps) do
     -- Calculate absolute time position using strum window
-    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_direction, sequence_duration)
+    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_shape, sequence_duration)
 
     -- Map to chord note with phasing (always 0 for genesis)
     local chord_position = arpeggio_gen.calculate_chord_position(active_index, #effective_chord, phase_offset)
@@ -523,51 +521,6 @@ function MotifRecorder:_generate_chord(chord_root_degree, chord_type, chord_leng
   end
 
   return chord_notes
-end
-
---- Apply direction logic to chord sequence
-function MotifRecorder:_apply_direction(chord_notes, direction, num_active_steps)
-  local result = {}
-
-  if direction == 1 then -- Up (default)
-    return chord_notes
-  elseif direction == 2 then -- Down
-    -- Reverse the chord notes
-    for i = #chord_notes, 1, -1 do
-      table.insert(result, chord_notes[i])
-    end
-    return result
-  elseif direction == 3 then -- Up-Down
-    -- Go up then down
-    for i = 1, #chord_notes do
-      table.insert(result, chord_notes[i])
-    end
-    for i = #chord_notes - 1, 2, -1 do
-      table.insert(result, chord_notes[i])
-    end
-    return result
-  elseif direction == 4 then -- Down-Up
-    -- Go down then up
-    for i = #chord_notes, 1, -1 do
-      table.insert(result, chord_notes[i])
-    end
-    for i = 2, #chord_notes - 1 do
-      table.insert(result, chord_notes[i])
-    end
-    return result
-  elseif direction == 5 then -- Random
-    -- Shuffle the chord notes
-    for i = 1, #chord_notes do
-      table.insert(result, chord_notes[i])
-    end
-    for i = #result, 2, -1 do
-      local j = math.random(i)
-      result[i], result[j] = result[j], result[i]
-    end
-    return result
-  end
-
-  return chord_notes  -- Fallback to up
 end
 
 

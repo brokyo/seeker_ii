@@ -12,13 +12,16 @@ function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
     { id = "lane_" .. lane_idx .. "_config_stage" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
     { separator = true, title = "Chord Sequence" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_direction" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
+    { separator = true, title = "Performance" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_note_duration" },
     { separator = true, title = "Velocity" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
@@ -26,9 +29,7 @@ function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
     { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_direction" },
-    { separator = true, title = "Advanced" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" }
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape" }
   }
 
   ui.params = param_table
@@ -47,8 +48,10 @@ function ArpeggioSequence.rebuild_params(ui, lane_idx, stage_idx)
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_direction" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
+    { separator = true, title = "Performance" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_note_duration" },
     { separator = true, title = "Velocity" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
@@ -56,7 +59,7 @@ function ArpeggioSequence.rebuild_params(ui, lane_idx, stage_idx)
     { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_direction" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape" },
     { separator = true, title = "Advanced" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" }
   }
@@ -83,28 +86,15 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
     local arpeggio_utils = include('lib/motif_core/arpeggio')
     local musicutil = require('musicutil')
 
-  -- Collect parameters (stage overrides OR lane defaults)
+  -- Read parameters directly from stage (no lane-level fallback)
   local function get_param(name)
     local stage_param = "lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_" .. name
-    local lane_param = "lane_" .. lane_id .. "_arpeggio_" .. name
-
-    -- Try stage override first, fall back to lane default
-    local stage_value = params:get(stage_param)
-    if stage_value and stage_value > 0 then
-      return stage_value
-    end
-    return params:get(lane_param)
+    return params:get(stage_param)
   end
 
   local function get_param_string(name)
     local stage_param = "lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_" .. name
-    local lane_param = "lane_" .. lane_id .. "_arpeggio_" .. name
-
-    local stage_value = params:string(stage_param)
-    if stage_value and stage_value ~= "" then
-      return stage_value
-    end
-    return params:string(lane_param)
+    return params:string(stage_param)
   end
 
   -- Get generation parameters
@@ -112,12 +102,13 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local chord_type = get_param_string("chord_type")
   local chord_length = get_param("chord_length")
   local chord_inversion = get_param("chord_inversion") - 1  -- Convert to 0-based
-  local chord_direction = get_param("chord_direction")
   local pattern_preset = get_param_string("pattern")
   local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
   local step_length_str = params:string("lane_" .. lane_id .. "_arpeggio_step_length")
-  local note_duration_percent = params:get("lane_" .. lane_id .. "_arpeggio_note_duration")
   local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
+
+  -- Get performance parameters
+  local note_duration_percent = get_param("note_duration")
 
   -- Get velocity curve parameters
   local velocity_curve = get_param_string("velocity_curve")
@@ -127,10 +118,10 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   -- Get strum parameters
   local strum_curve = get_param_string("strum_curve")
   local strum_amount = get_param("strum_amount")
-  local strum_direction = get_param_string("strum_direction")
+  local strum_shape = get_param_string("strum_shape")
 
   -- Get phasing parameter
-  local phasing_enabled = params:get("lane_" .. lane_id .. "_arpeggio_chord_phasing") == 2
+  local phasing_enabled = get_param("chord_phasing") == 2
 
   -- Get global scale settings
   local root_note = params:get("root_note")
@@ -154,9 +145,6 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
       table.insert(active_steps, step)
     end
   end
-
-  -- Apply direction to chord
-  effective_chord = motif_recorder:_apply_direction(effective_chord, chord_direction, #active_steps)
 
   -- Parse step length
   local step_length
@@ -182,7 +170,7 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local events = {}
   for active_index, step in ipairs(active_steps) do
     -- Calculate absolute time position using strum window
-    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_direction, sequence_duration)
+    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_shape, sequence_duration)
 
     -- Map to chord note with optional phasing
     local chord_position = arpeggio_gen.calculate_chord_position(active_index, #effective_chord, phase_offset)
