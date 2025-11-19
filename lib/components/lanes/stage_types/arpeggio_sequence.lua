@@ -129,6 +129,9 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local strum_amount = get_param("strum_amount")
   local strum_direction = get_param_string("strum_direction")
 
+  -- Get phasing parameter
+  local phasing_enabled = params:get("lane_" .. lane_id .. "_arpeggio_chord_phasing") == 2
+
   -- Get global scale settings
   local root_note = params:get("root_note")
   local scale_type_index = params:get("scale_type")
@@ -171,14 +174,18 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   -- Calculate sequence duration for strum calculation
   local sequence_duration = num_steps * step_length
 
+  -- Get phase offset from lane (only used if phasing enabled)
+  local lane = _seeker.lanes[lane_id]
+  local phase_offset = (phasing_enabled and lane) and lane.chord_phase_offset or 0
+
   -- Generate note events for each active step
   local events = {}
   for active_index, step in ipairs(active_steps) do
     -- Calculate absolute time position using strum window
     local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_direction, sequence_duration)
 
-    -- Map to chord note
-    local chord_position = ((active_index - 1) % #effective_chord) + 1
+    -- Map to chord note with optional phasing
+    local chord_position = arpeggio_gen.calculate_chord_position(active_index, #effective_chord, phase_offset)
     local chord_note = effective_chord[chord_position]
     local final_note = chord_note + ((octave + 1) * 12)
 
@@ -232,6 +239,11 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
     -- Update motif with regenerated events
     motif.events = events
     motif.duration = num_steps * step_length
+
+    -- Update phase offset for next loop if phasing enabled
+    if phasing_enabled and lane then
+      lane.chord_phase_offset = (lane.chord_phase_offset + #active_steps) % #effective_chord
+    end
   end)
 
   if not success then

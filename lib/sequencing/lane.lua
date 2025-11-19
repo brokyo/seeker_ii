@@ -33,10 +33,11 @@ function Lane.new(config)
   lane.instrument = params:get("lane_" .. lane.id .. "_instrument")
   lane.volume = params:get("lane_" .. lane.id .. "_volume")
   lane.speed = config.speed or 1.0
-  lane.current_stage_index = 1 
+  lane.current_stage_index = 1
   lane.midi_out_device = params:get("lane_" .. lane.id .. "_midi_device")
   lane.delay_send = params:get("lane_" .. lane.id .. "_delay_send")
   lane.reverb_send = params:get("lane_" .. lane.id .. "_reverb_send")
+  lane.chord_phase_offset = 0  -- Track chord position for phasing across loops
   
   -- Initialize with four default stages if none provided
   lane.stages = config.stages or {

@@ -85,6 +85,7 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Chord Voicing" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_inversion" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_direction" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_chord_phasing" })
 
             -- Performance Details
             table.insert(param_table, { separator = true, title = "Performance" })

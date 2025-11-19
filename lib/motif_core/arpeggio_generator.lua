@@ -4,6 +4,12 @@
 
 local ArpeggioGenerator = {}
 
+-- Calculate chord position with optional phasing
+-- Phasing causes chord position to continue from previous loop instead of resetting
+function ArpeggioGenerator.calculate_chord_position(active_index, chord_length, phase_offset)
+  return ((active_index - 1 + phase_offset) % chord_length) + 1
+end
+
 -- Calculate velocity based on curve type and position in sequence
 function ArpeggioGenerator.calculate_velocity(index, total_steps, curve_type, min_vel, max_vel)
   if curve_type == "Flat" then

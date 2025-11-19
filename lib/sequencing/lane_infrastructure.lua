@@ -127,7 +127,7 @@ end
 -- Architecturally they might belong in a component or in motif_core, but lane_infrastructure serves as the
 -- param dumping ground for all lane-related parameters to keep them grouped in PARAMS menu
 local function create_arpeggio_lane_params(i)
-    params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 15)
+    params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 16)
 
     params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 16)
     params:add_option("lane_" .. i .. "_arpeggio_chord_root", "Chord Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
@@ -138,6 +138,8 @@ local function create_arpeggio_lane_params(i)
         {"Root", "1st", "2nd", "3rd"}, 1)
     params:add_option("lane_" .. i .. "_arpeggio_chord_direction", "Chord Direction",
         {"Up", "Down", "Up-Down", "Down-Up", "Random"}, 1)
+    params:add_option("lane_" .. i .. "_arpeggio_chord_phasing", "Chord Phasing",
+        {"Off", "On"}, 1)
     params:add_number("lane_" .. i .. "_arpeggio_note_duration", "Note Duration", 1, 99, 50, function(param) return param.value .. "%" end)
     params:add_option("lane_" .. i .. "_arpeggio_step_length", "Step Length",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)

@@ -392,14 +392,17 @@ function MotifRecorder:_stop_arpeggio_recording()
   -- Calculate sequence duration for strum calculation
   local sequence_duration = num_steps * step_length
 
+  -- Genesis always starts with phase_offset 0 (phasing only affects subsequent loops)
+  local phase_offset = 0
+
   -- Generate note events for each active step
   local events = {}
   for active_index, step in ipairs(active_steps) do
     -- Calculate absolute time position using strum window
     local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_direction, sequence_duration)
 
-    -- Map to chord note
-    local chord_position = ((active_index - 1) % #effective_chord) + 1
+    -- Map to chord note with phasing (always 0 for genesis)
+    local chord_position = arpeggio_gen.calculate_chord_position(active_index, #effective_chord, phase_offset)
     local chord_note = effective_chord[chord_position]
     local final_note = chord_note + ((octave + 1) * 12)
 
