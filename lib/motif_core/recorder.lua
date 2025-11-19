@@ -5,6 +5,7 @@
 -- 3. Arpeggio: Generate a motif from arpeggio sequencer pattern data (immediate, no real-time recording)
 
 local musicutil = require('musicutil')
+local arpeggio_gen = include('lib/motif_core/arpeggio_generator')
 
 local MotifRecorder = {}
 MotifRecorder.__index = MotifRecorder
@@ -352,6 +353,16 @@ function MotifRecorder:_stop_arpeggio_recording()
   local note_duration_percent = params:get("lane_" .. focused_lane .. "_arpeggio_note_duration")
   local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
 
+  -- Get velocity curve parameters
+  local velocity_curve = params:string("lane_" .. focused_lane .. "_arpeggio_velocity_curve")
+  local velocity_min = params:get("lane_" .. focused_lane .. "_arpeggio_velocity_min")
+  local velocity_max = params:get("lane_" .. focused_lane .. "_arpeggio_velocity_max")
+
+  -- Get strum parameters
+  local strum_curve = params:string("lane_" .. focused_lane .. "_arpeggio_strum_curve")
+  local strum_amount = params:get("lane_" .. focused_lane .. "_arpeggio_strum_amount")
+  local strum_direction = params:string("lane_" .. focused_lane .. "_arpeggio_strum_direction")
+
   print(string.format("  Chord: %s, Length: %d, Inversion: %d", chord_type, chord_length, chord_inversion))
 
   -- Generate chord notes
@@ -378,18 +389,22 @@ function MotifRecorder:_stop_arpeggio_recording()
   -- Apply direction to chord
   effective_chord = self:_apply_direction(effective_chord, chord_direction, #active_steps)
 
+  -- Calculate sequence duration for strum calculation
+  local sequence_duration = num_steps * step_length
+
   -- Generate note events for each active step
   local events = {}
   for active_index, step in ipairs(active_steps) do
-    local step_time = (step - 1) * step_length
+    -- Calculate absolute time position using strum window
+    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_direction, sequence_duration)
 
     -- Map to chord note
     local chord_position = ((active_index - 1) % #effective_chord) + 1
     local chord_note = effective_chord[chord_position]
     local final_note = chord_note + ((octave + 1) * 12)
 
-    -- Get velocity for this step
-    local step_velocity = ArpeggioKeyboard.get_step_velocity(focused_lane, step)
+    -- Calculate velocity using curve
+    local step_velocity = arpeggio_gen.calculate_velocity(active_index, #active_steps, velocity_curve, velocity_min, velocity_max)
 
     -- Get grid coordinates
     local step_pos = ArpeggioKeyboard.step_to_grid(step)

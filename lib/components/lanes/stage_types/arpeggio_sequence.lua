@@ -2,6 +2,7 @@
 -- Stage configuration for arpeggio mode (parameter-driven chord sequencer)
 -- Unlike tape mode (transform-based), arpeggio stages regenerate events from chord parameters
 
+local arpeggio_gen = include('lib/motif_core/arpeggio_generator')
 local ArpeggioSequence = {}
 
 -- Populate initial parameters when entering stage config
@@ -18,6 +19,14 @@ function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_direction" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
+    { separator = true, title = "Velocity" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max" },
+    { separator = true, title = "Strum" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_direction" },
     { separator = true, title = "Advanced" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" }
   }
@@ -40,6 +49,14 @@ function ArpeggioSequence.rebuild_params(ui, lane_idx, stage_idx)
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_direction" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
+    { separator = true, title = "Velocity" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max" },
+    { separator = true, title = "Strum" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_direction" },
     { separator = true, title = "Advanced" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" }
   }
@@ -102,6 +119,16 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local note_duration_percent = params:get("lane_" .. lane_id .. "_arpeggio_note_duration")
   local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
 
+  -- Get velocity curve parameters
+  local velocity_curve = get_param_string("velocity_curve")
+  local velocity_min = get_param("velocity_min")
+  local velocity_max = get_param("velocity_max")
+
+  -- Get strum parameters
+  local strum_curve = get_param_string("strum_curve")
+  local strum_amount = get_param("strum_amount")
+  local strum_direction = get_param_string("strum_direction")
+
   -- Get global scale settings
   local root_note = params:get("root_note")
   local scale_type_index = params:get("scale_type")
@@ -141,18 +168,22 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
     end
   end
 
+  -- Calculate sequence duration for strum calculation
+  local sequence_duration = num_steps * step_length
+
   -- Generate note events for each active step
   local events = {}
   for active_index, step in ipairs(active_steps) do
-    local step_time = (step - 1) * step_length
+    -- Calculate absolute time position using strum window
+    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_direction, sequence_duration)
 
     -- Map to chord note
     local chord_position = ((active_index - 1) % #effective_chord) + 1
     local chord_note = effective_chord[chord_position]
     local final_note = chord_note + ((octave + 1) * 12)
 
-    -- Get velocity for this step
-    local step_velocity = ArpeggioKeyboard.get_step_velocity(lane_id, step)
+    -- Calculate velocity using curve
+    local step_velocity = arpeggio_gen.calculate_velocity(active_index, #active_steps, velocity_curve, velocity_min, velocity_max)
 
     -- Get grid coordinates
     local step_pos = ArpeggioKeyboard.step_to_grid(step)

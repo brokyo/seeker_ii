@@ -89,7 +89,18 @@ local function create_screen_ui()
             -- Performance Details
             table.insert(param_table, { separator = true, title = "Performance" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_note_duration" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_normal_velocity" })
+
+            -- Velocity
+            table.insert(param_table, { separator = true, title = "Velocity" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_velocity_curve" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_velocity_min" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_velocity_max" })
+
+            -- Strum
+            table.insert(param_table, { separator = true, title = "Strum" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_strum_curve" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_strum_amount" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_strum_direction" })
         end
         
         -- Update the UI with the new parameter table
