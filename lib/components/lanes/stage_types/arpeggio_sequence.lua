@@ -58,155 +58,20 @@ end
 -- Prepare stage: Regenerate arpeggio from parameters
 function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local success, err = pcall(function()
-    local arpeggio_utils = include('lib/motif_core/arpeggio')
-    local musicutil = require('musicutil')
+    -- Use unified generator for core motif generation
+    local regenerated = arpeggio_gen.generate_motif(lane_id, stage_id)
 
-  -- Read parameters directly from stage (no lane-level fallback)
-  local function get_param(name)
-    local stage_param = "lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_" .. name
-    return params:get(stage_param)
-  end
-
-  local function get_param_string(name)
-    local stage_param = "lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_" .. name
-    return params:string(stage_param)
-  end
-
-  -- Get generation parameters
-  local chord_root_degree = get_param("chord_root")
-  local chord_type = get_param_string("chord_type")
-  local chord_length = get_param("chord_length")
-  local chord_inversion = get_param("chord_inversion") - 1  -- Convert to 0-based
-  local pattern_preset = get_param_string("pattern")
-  local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
-  local step_length_str = params:string("lane_" .. lane_id .. "_arpeggio_step_length")
-  local octave = get_param("octave")
-
-  -- Get performance parameters
-  local note_duration_percent = get_param("note_duration")
-
-  -- Get velocity curve parameters
-  local velocity_curve = get_param_string("velocity_curve")
-  local velocity_min = get_param("velocity_min")
-  local velocity_max = get_param("velocity_max")
-
-  -- Get strum parameters
-  local strum_curve = get_param_string("strum_curve")
-  local strum_amount = get_param("strum_amount")
-  local strum_shape = get_param_string("strum_shape")
-
-  -- Get phasing parameter
-  local phasing_enabled = get_param("chord_phasing") == 2
-
-  -- Get global scale settings
-  local root_note = params:get("root_note")
-  local scale_type_index = params:get("scale_type")
-  local scale = musicutil.SCALES[scale_type_index]
-
-  -- Convert scale degree to semitone offset
-  local degree_index = ((chord_root_degree - 1) % #scale.intervals) + 1
-  local semitone_offset = scale.intervals[degree_index]
-  local chord_root_midi = ((root_note - 1) + semitone_offset) % 12
-
-  -- Generate chord using motif_recorder's method
-  local motif_recorder = _seeker.motif_recorder
-  local effective_chord = motif_recorder:_generate_chord(chord_root_degree, chord_type, chord_length, chord_inversion)
-
-  -- Get arpeggio keyboard to check active steps (all steps active in current model)
-  local ArpeggioKeyboard = _seeker.keyboards[2]
-  local active_steps = {}
-  for step = 1, num_steps do
-    if ArpeggioKeyboard.is_step_active(lane_id, step) then
-      table.insert(active_steps, step)
+    -- Apply pattern preset filter (stage-specific feature)
+    local pattern_preset = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_pattern")
+    if pattern_preset and pattern_preset ~= "All" then
+      local arpeggio_utils = include('lib/motif_core/arpeggio')
+      local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
+      regenerated.events = arpeggio_utils.apply_pattern_preset(regenerated.events, pattern_preset, num_steps)
     end
-  end
 
-  -- Parse step length
-  local step_length
-  if tonumber(step_length_str) then
-    step_length = tonumber(step_length_str)
-  else
-    local num, den = step_length_str:match("(%d+)/(%d+)")
-    if num and den then
-      step_length = tonumber(num) / tonumber(den)
-    else
-      step_length = 1/8  -- Default
-    end
-  end
-
-  -- Calculate sequence duration for strum calculation
-  local sequence_duration = num_steps * step_length
-
-  -- Get phase offset from lane (only used if phasing enabled)
-  local lane = _seeker.lanes[lane_id]
-  local phase_offset = (phasing_enabled and lane) and lane.chord_phase_offset or 0
-
-  -- Generate note events for each active step
-  local events = {}
-  for active_index, step in ipairs(active_steps) do
-    -- Calculate absolute time position using strum window
-    local step_time = arpeggio_gen.calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_shape, sequence_duration)
-
-    -- Map to chord note with optional phasing
-    local chord_position = arpeggio_gen.calculate_chord_position(active_index, #effective_chord, phase_offset)
-    local chord_note = effective_chord[chord_position]
-    local final_note = chord_note + ((octave + 1) * 12)
-
-    -- Calculate velocity using curve
-    local step_velocity = arpeggio_gen.calculate_velocity(active_index, #active_steps, velocity_curve, velocity_min, velocity_max)
-
-    -- Get grid coordinates
-    local step_pos = ArpeggioKeyboard.step_to_grid(step)
-    local step_x = step_pos and step_pos.x or 0
-    local step_y = step_pos and step_pos.y or 0
-
-    -- Add note_on event with step info for pattern filtering
-    table.insert(events, {
-      time = step_time,
-      type = "note_on",
-      note = final_note,
-      velocity = step_velocity,
-      x = step_x,
-      y = step_y,
-      step = step,
-      generation = motif_recorder.current_generation,
-      attack = params:get("lane_" .. lane_id .. "_attack"),
-      decay = params:get("lane_" .. lane_id .. "_decay"),
-      sustain = params:get("lane_" .. lane_id .. "_sustain"),
-      release = params:get("lane_" .. lane_id .. "_release"),
-      pan = params:get("lane_" .. lane_id .. "_pan")
-    })
-
-    -- Add note_off event
-    local note_duration = step_length * (note_duration_percent / 100)
-    local note_off_time = step_time + note_duration
-    table.insert(events, {
-      time = note_off_time,
-      type = "note_off",
-      note = final_note,
-      x = step_x,
-      y = step_y,
-      step = step,
-      generation = motif_recorder.current_generation
-    })
-  end
-
-  -- Sort by time
-  table.sort(events, function(a, b) return a.time < b.time end)
-
-  -- Apply pattern preset filter
-  if pattern_preset and pattern_preset ~= "All" then
-    events = arpeggio_utils.apply_pattern_preset(events, pattern_preset, num_steps)
-  end
-
-    -- Update motif with regenerated events
-    motif.events = events
-    motif.duration = num_steps * step_length
-
-    -- Update phase offset for next loop if phasing enabled
-    if phasing_enabled and lane then
-      lane.chord_phase_offset = (lane.chord_phase_offset + #active_steps) % #effective_chord
-    end
+    -- Update motif in place
+    motif.events = regenerated.events
+    motif.duration = regenerated.duration
   end)
 
   if not success then

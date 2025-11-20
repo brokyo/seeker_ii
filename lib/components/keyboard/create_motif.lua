@@ -14,6 +14,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local arpeggio_gen = include('lib/motif_core/arpeggio_generator')
 
 local CreateMotif = {}
 CreateMotif.__index = CreateMotif
@@ -507,24 +508,6 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
     
-    -- Helper function for arpeggio mode recording logic
-    local function handle_arpeggio_recording_stop(self)
-        local focused_lane_idx = _seeker.ui_state.get_focused_lane()
-        local current_lane = _seeker.lanes[focused_lane_idx]
-        
-        local arpeggio_motif = _seeker.motif_recorder:stop_arpeggio_recording()
-        
-        current_lane:set_motif(arpeggio_motif)
-        current_lane:play() -- Start playing immediately after recording
-        
-        -- Rebuild parameters to show/hide duration based on new motif state
-        if _seeker.create_motif and _seeker.create_motif.screen then
-            _seeker.create_motif.screen:rebuild_params()
-        end
-        
-        _seeker.screen_ui.set_needs_redraw()
-    end
-    
     -- Helper function for arpeggio mode - instant snapshot of current pattern
     -- Note: Arpeggio mode never supports overdubbing - always starts fresh
     local function handle_arpeggio_recording_start(self)
@@ -539,12 +522,10 @@ local function create_grid_ui()
             _seeker.create_motif.screen:rebuild_params()
         end
 
-        -- Convert step pattern immediately - no waiting for button release
-        _seeker.motif_recorder:set_recording_mode(3) -- Set to arpeggio recording mode
-        _seeker.motif_recorder:start_recording(nil)
-
-        -- Immediately convert step pattern to motif and stop
-        local arpeggio_motif = _seeker.motif_recorder:stop_recording()
+        -- Generate arpeggio from current step pattern using Stage 1 parameters
+        -- ARCHITECTURE NOTE: Arpeggio uses generator pattern (params → motif)
+        -- not recorder pattern (real-time input → motif)
+        local arpeggio_motif = arpeggio_gen.generate_motif(focused_lane_idx, 1)
 
         if arpeggio_motif and arpeggio_motif.events and #arpeggio_motif.events > 0 then
             -- Set the motif and start playback
