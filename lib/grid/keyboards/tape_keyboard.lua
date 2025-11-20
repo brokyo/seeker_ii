@@ -9,9 +9,6 @@ local GridLayers = include("lib/grid/layers")
 
 local TapeKeyboard = {}
 
--- Module state
-TapeKeyboard.velocity = 100  -- Default to forte (0-127)
-
 -- Layout definition - full 6x6 keyboard area
 TapeKeyboard.layout = {
   upper_left_x = 6,
@@ -66,16 +63,17 @@ function TapeKeyboard.note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
   local note = theory.grid_to_note(x, y, keyboard_octave)
+  local velocity = _seeker.velocity.get_current_velocity()
 
   -- Print the note being played for debugging
   if note then
     local note_name = musicutil.note_num_to_name(note, true)
     local actual_octave = tonumber(string.match(note_name, "%d+"))
     print(string.format("Note played: %s (MIDI %d) at grid position (%d,%d), Octave param: %d, Actual octave: %d, Velocity: %d",
-          note_name, note, x, y, keyboard_octave, actual_octave, TapeKeyboard.velocity))
+          note_name, note, x, y, keyboard_octave, actual_octave, velocity))
   end
 
-  local event = TapeKeyboard.create_note_event(x, y, note, TapeKeyboard.velocity)
+  local event = TapeKeyboard.create_note_event(x, y, note, velocity)
 
   if _seeker.motif_recorder.is_recording then
     _seeker.motif_recorder:on_note_on(event)

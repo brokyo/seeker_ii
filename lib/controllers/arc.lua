@@ -153,18 +153,6 @@ function Arc.init()
           return
         end
 
-        -- Check if single tape keyboard should handle velocity on encoder 4
-        -- ONLY when in CREATE_MOTIF section to avoid stealing encoder from other sections
-        local focused_lane = _seeker.ui_state.get_focused_lane()
-        local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-        if current_section_id == "CREATE_MOTIF" and motif_type == 1 and n == 4 and _seeker.keyboards and _seeker.keyboards[1] then
-          -- Encoder 4: Single keyboard velocity
-          local velocity_delta = direction * 3
-          _seeker.keyboards[1].velocity = util.clamp(_seeker.keyboards[1].velocity + velocity_delta, 0, 127)
-
-          device.update_single_keyboard_velocity_display()
-          return
-        end
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
 
@@ -509,14 +497,6 @@ function Arc.init()
         return
       end
 
-      -- Check if single tape keyboard should show velocity display
-      -- ONLY when in CREATE_MOTIF section
-      local focused_lane = _seeker.ui_state.get_focused_lane()
-      local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-      if current_section_id == "CREATE_MOTIF" and motif_type == 1 and _seeker.keyboards and _seeker.keyboards[1] then
-        device.update_single_keyboard_velocity_display()
-        return
-      end
 
       -- Get current param info
       local current_section = _seeker.screen_ui.sections[current_section_id]
@@ -661,31 +641,6 @@ function Arc.init()
       device:refresh()
     end
 
-    -- Update Arc display for single keyboard velocity control
-    device.update_single_keyboard_velocity_display = function()
-      if not _seeker.keyboards or not _seeker.keyboards[1] then
-        return
-      end
-
-      -- Clear ring 3
-      for i = 1, 64 do
-        device:led(3, i, 0)
-      end
-
-      -- Clear ring 4
-      for i = 1, 64 do
-        device:led(4, i, 1) -- Dim base
-      end
-
-      -- Ring 4: Single keyboard velocity (0-127)
-      local vel = _seeker.keyboards[1].velocity
-      local leds = math.floor((vel / 127) * 64)
-      for i = 1, leds do
-        device:led(4, i, 10)
-      end
-
-      device:refresh()
-    end
 
   else
     print("No Arc device found")

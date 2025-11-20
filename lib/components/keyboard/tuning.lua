@@ -86,21 +86,21 @@ local function create_grid_ui()
       local focused_lane = _seeker.ui_state.get_focused_lane()
 
       -- Handle octave controls
-      if x == button_layout.octave.decrease.x then
+      if x == button_layout.octave.decrease.x and y == button_layout.octave.decrease.y then
         local current = params:get("lane_" .. focused_lane .. "_keyboard_octave")
         params:set("lane_" .. focused_lane .. "_keyboard_octave", math.max(1, current - 1))
         _seeker.tuning.screen.jump_to_param = 2 -- Octave param
-      elseif x == button_layout.octave.increase.x then
+      elseif x == button_layout.octave.increase.x and y == button_layout.octave.increase.y then
         local current = params:get("lane_" .. focused_lane .. "_keyboard_octave")
         params:set("lane_" .. focused_lane .. "_keyboard_octave", math.min(7, current + 1))
         _seeker.tuning.screen.jump_to_param = 2 -- Octave param
 
       -- Handle offset controls
-      elseif x == button_layout.offset.decrease.x then
+      elseif x == button_layout.offset.decrease.x and y == button_layout.offset.decrease.y then
         local current = params:get("lane_" .. focused_lane .. "_grid_offset")
         params:set("lane_" .. focused_lane .. "_grid_offset", math.max(-8, current - 1))
         _seeker.tuning.screen.jump_to_param = 3 -- Offset param
-      elseif x == button_layout.offset.increase.x then
+      elseif x == button_layout.offset.increase.x and y == button_layout.offset.increase.y then
         local current = params:get("lane_" .. focused_lane .. "_grid_offset")
         params:set("lane_" .. focused_lane .. "_grid_offset", math.min(8, current + 1))
         _seeker.tuning.screen.jump_to_param = 3 -- Offset param
