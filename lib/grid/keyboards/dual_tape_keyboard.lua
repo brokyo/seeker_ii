@@ -439,15 +439,11 @@ function DualTapeKeyboard.draw(layers)
   -- Draw record button
   local record_brightness = GridConstants.BRIGHTNESS.UI.NORMAL
   if _seeker.motif_recorder.is_recording then
-    -- Flash while recording (2 flashes per beat for tape mode)
-    local pulse_rate = 2
-    local beat_phase = (clock.get_beats() * pulse_rate) % 1
-
-    if beat_phase < 0.1 then
-      record_brightness = GridConstants.BRIGHTNESS.HIGH
-    else
-      record_brightness = GridConstants.BRIGHTNESS.UI.NORMAL
-    end
+    -- Pulse smoothly while recording
+    local base = GridConstants.BRIGHTNESS.UI.NORMAL
+    local range = 3
+    local speed = 4  -- cycles per beat
+    record_brightness = math.floor(math.sin(clock.get_beats() * speed) * range + base + range)
   elseif record_key_state.is_pressed then
     record_brightness = GridConstants.BRIGHTNESS.UI.FOCUSED
   end
