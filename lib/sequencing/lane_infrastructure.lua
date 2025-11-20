@@ -1,6 +1,15 @@
 -- lane_infrastructure.lua
--- Creates the foundational parameter structure that lane.lua depends on
--- Intended to be centralized Lane setup so that components like @lane_config and @stage_config are focused on configuration, not infrastructure
+-- Creates foundational parameters that lane.lua REQUIRES during initialization:
+--   - Stage params (loops, active, reset_motif, transform) - read by Lane:sync_stage_from_params()
+--   - Volume param - read by Lane.new()
+--   - Playback params (offset, speed, quantize) - read by Lane playback logic
+--   - Keyboard octave - read by keyboard components
+--   - Scale degree offset - read by Lane note transformation
+--
+-- DOES NOT create:
+--   - Instrument, MIDI device, sends (created in @lane_config)
+--   - Arpeggio params (created in @arpeggio_params)
+--   - Transform params (created in @stage_config)
 
 local theory = include('lib/motif_core/theory')
 local transforms = include('lib/motif_core/transforms')
@@ -9,7 +18,7 @@ local lane_infrastructure = {}
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
 
-    params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 52)
+    params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 20)
     -- Create four stages per lane with their defaults
     -- NB: Many of these params are not (yet?) available on the front end. Most notably: loop count and trigger
     for stage_idx = 1, 4 do
@@ -49,26 +58,6 @@ local function create_stage_params(i)
         params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_transform", function(value)
             _seeker.lanes[i]:change_stage_transform(i, stage_idx, transform_names[value])
         end)
-
-        -- Arpeggio-specific stage parameters
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing", "Chord Phasing",
-            {"Off", "On"}, 1)
-
-        params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_note_duration", "Note Duration", 1, 99, 50, function(param) return param.value .. "%" end)
-
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve", "Velocity Curve",
-            {"Flat", "Crescendo", "Decrescendo", "Wave", "Alternating", "Accent First", "Accent Last", "Random"}, 1)
-
-        params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min", "Velocity Min", 1, 127, 60)
-        params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max", "Velocity Max", 1, 127, 100)
-
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve", "Strum Curve",
-            {"None", "Linear", "Accelerating", "Decelerating", "Sweep"}, 1)
-
-        params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount", "Strum Amount", 0, 100, 0, function(param) return param.value .. "%" end)
-
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape", "Strum Shape",
-            {"Forward", "Reverse", "Center Out", "Edges In", "Alternating", "Random"}, 1)
     end
 end
 
@@ -127,34 +116,16 @@ local function create_basic_lane_params(i)
 
 end
 
--- Create arpeggio sequencer parameters for each lane
--- NOTE: Arpeggio params are technically generation/creation params (used by recorder), not sequencing params
--- Architecturally they might belong in a component or in motif_core, but lane_infrastructure serves as the
--- param dumping ground for all lane-related parameters to keep them grouped in PARAMS menu
-local function create_arpeggio_lane_params(i)
-    -- Arpeggio sequence structure params (musical params now live on stages)
-    params:add_group("lane_" .. i .. "_arpeggio", "ARPEGGIO SEQUENCER", 2)
-
-    params:add_number("lane_" .. i .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 4)
-    params:add_option("lane_" .. i .. "_arpeggio_step_length", "Step Length",
-        {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 12)
-end
 
 -- Initialize all lane infrastructure parameters
 function lane_infrastructure.init()
-    print("⚙ Setting up lane infrastructure...")
-
     -- Create infrastructure parameters for all 8 lanes
     -- NB: Ideally we would also want to create the params in @stage_config and @lane_config here so they stay grouped in the PARAMS UI. Long list thing.
     for i = 1, 8 do
-        params:add_separator("lane_" .. i .. "_separator", "LANE " .. i)
         create_stage_params(i)
         create_basic_lane_params(i)
         create_motif_playback_params(i)
-        create_arpeggio_lane_params(i)
     end
-    
-    print("⚙ Lane infrastructure complete")
 end
 
 return lane_infrastructure

@@ -10,9 +10,12 @@
 ### Bugs
 
 ### Long List
+- [] **Architectural Debt: Param Ownership** - Current split between lane_infrastructure, stage_config, lane_config, and arpeggio_params works but is conceptually messy. Future refactor options:
+  - **Phase 3**: Split lane_config.init() into early param creation + late UI creation. Allows components to reference lane params during their init. Medium risk.
+  - **Phase 4**: Delete lane_infrastructure entirely. Each component (lane.lua, arpeggio_sequence.lua, tape_transform.lua) creates its own params during init. True component ownership. High risk - requires solving initialization order dependencies.
+  - See conversation log from 2025-11-20 for full analysis.
 - [] **Architectural Debt: Lane/Motif Separation** - Playback config (speed, playback_offset, scale_degree_offset, quantize) currently lives on Lane but conceptually belongs to Motif behavior. Consider moving to Motif object for better separation of concerns. Lane = execution channel (voices, routing), Motif = musical pattern + playback behavior.
 - [] Refactor trail/tail visual feedback system to separate rendering from Lane
-- [] Centralize "sync all" system. Current one is very hacky
 - [] Create motif UI one loop ahead of playing transform when ratcheting
 - [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
 - [] Static voltage out

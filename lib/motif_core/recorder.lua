@@ -345,9 +345,9 @@ function MotifRecorder:_stop_arpeggio_recording()
   local step_length_str = params:string("lane_" .. focused_lane .. "_arpeggio_step_length")
   local step_length = self:_interval_to_beats(step_length_str)
   local num_steps = params:get("lane_" .. focused_lane .. "_arpeggio_num_steps")
-  local octave = params:get("lane_" .. focused_lane .. "_keyboard_octave")
 
   -- Get musical parameters from Stage 1
+  local octave = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_octave")
   local chord_root = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_root")
   local chord_type = params:string("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_type")
   local chord_length = params:get("lane_" .. focused_lane .. "_stage_1_arpeggio_chord_length")

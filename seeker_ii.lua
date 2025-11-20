@@ -37,6 +37,7 @@ local Velocity = include("lib/components/keyboard/velocity")
 local MotifPlayback = include("lib/components/keyboard/motif_playback")
 local Tuning = include("lib/components/keyboard/tuning")
 local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
+local arpeggio_params = include("lib/motif_core/arpeggio_params")
 
 -- Global state
 _seeker = {
@@ -106,6 +107,7 @@ function init()
 
   -- Initialize lane infrastructure to provide parameters for lane.lua
   lane_infrastructure.init()
+  arpeggio_params.init()
   _seeker.keyboard = Keyboard.init()
   _seeker.velocity = Velocity.init()
   _seeker.tuning = Tuning.init()

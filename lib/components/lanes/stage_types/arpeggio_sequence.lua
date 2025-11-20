@@ -5,9 +5,9 @@
 local arpeggio_gen = include('lib/motif_core/arpeggio_generator')
 local ArpeggioSequence = {}
 
--- Populate initial parameters when entering stage config
-function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
-  local param_table = {
+-- Build parameter list (shared by populate and rebuild)
+local function build_param_list(lane_idx, stage_idx)
+  return {
     { separator = true, title = "Stage " .. stage_idx .. " Settings" },
     { id = "lane_" .. lane_idx .. "_config_stage" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
@@ -18,54 +18,29 @@ function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_octave" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
-    { separator = true, title = "Performance" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_note_duration" },
-    { separator = true, title = "Velocity" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max" },
     { separator = true, title = "Strum" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape" }
-  }
-
-  ui.params = param_table
-end
-
--- Rebuild parameters (arpeggio mode has fixed parameter set, no dynamic rebuilding)
-function ArpeggioSequence.rebuild_params(ui, lane_idx, stage_idx)
-  -- Arpeggio mode always shows the same parameters
-  local param_table = {
-    { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-    { id = "lane_" .. lane_idx .. "_config_stage" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-    { separator = true, title = "Chord Sequence" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
-    { separator = true, title = "Performance" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_note_duration" },
-    { separator = true, title = "Velocity" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max" },
-    { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape" },
-    { separator = true, title = "Advanced" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" }
+    { separator = true, title = "Velocity" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max" }
   }
+end
 
-  -- Update the UI with the parameter table
-  ui.params = param_table
+-- Populate initial parameters when entering stage config
+function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
+  ui.params = build_param_list(lane_idx, stage_idx)
+end
+
+-- Rebuild parameters (arpeggio mode has fixed parameter set)
+function ArpeggioSequence.rebuild_params(ui, lane_idx, stage_idx)
+  ui.params = build_param_list(lane_idx, stage_idx)
 end
 
 -- Draw grid UI (uses standard grid_ui draw from stage_config)
@@ -105,7 +80,7 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   local pattern_preset = get_param_string("pattern")
   local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
   local step_length_str = params:string("lane_" .. lane_id .. "_arpeggio_step_length")
-  local octave = params:get("lane_" .. lane_id .. "_keyboard_octave")
+  local octave = get_param("octave")
 
   -- Get performance parameters
   local note_duration_percent = get_param("note_duration")
