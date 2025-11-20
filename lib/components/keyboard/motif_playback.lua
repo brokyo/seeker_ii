@@ -8,8 +8,8 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
-local Motif = {}
-Motif.__index = Motif
+local MotifPlayback = {}
+MotifPlayback.__index = MotifPlayback
 
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
@@ -96,16 +96,7 @@ local function create_grid_ui()
   grid_ui.draw = function(self, layers)
     -- Draw keyboard outline during long press
     if self:is_holding_long_press() then
-      -- Top and bottom rows
-      for x = 0, 5 do
-        layers.response[6 + x][2] = GridConstants.BRIGHTNESS.HIGH
-        layers.response[6 + x][7] = GridConstants.BRIGHTNESS.HIGH
-      end
-      -- Left and right columns
-      for y = 0, 5 do
-        layers.response[6][2 + y] = GridConstants.BRIGHTNESS.HIGH
-        layers.response[11][2 + y] = GridConstants.BRIGHTNESS.HIGH
-      end
+      self:draw_keyboard_outline_highlight(layers)
     end
 
     -- Draw button with brightness logic
@@ -162,7 +153,7 @@ local function create_grid_ui()
   return grid_ui
 end
 
-function Motif.init()
+function MotifPlayback.init()
   local component = {
     screen = create_screen_ui(),
     grid = create_grid_ui()
@@ -172,4 +163,4 @@ function Motif.init()
   return component
 end
 
-return Motif
+return MotifPlayback
