@@ -3,9 +3,9 @@
 ### Active Concerns
 
 ### Near Term Priorities
+- [] W/Tape Mode buttons
 - [] W/Tape pitched sample mode
 - [] Disting SD 6 Triggers support
-- [] Alternate keyboard mode supporting easier two handed playing
 
 ### Bugs
 
