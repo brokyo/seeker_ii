@@ -19,13 +19,15 @@ local function get_instrument_list()
 end
 
 local function create_mx_samples_params(i)
-    params:add_option("lane_" .. i .. "_mx_samples_active", "MX Samples Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_mx_samples_active", "MX Samples Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_mx_samples_active", function(value)
-        if value == 2 then
+        if value == 1 then
             _seeker.lanes[i].mx_samples_active = true
-            _seeker.lane_config.screen:rebuild_params()
-            _seeker.screen_ui.set_needs_redraw()
+        else
+            _seeker.lanes[i].mx_samples_active = false
         end
+        _seeker.lane_config.screen:rebuild_params()
+        _seeker.screen_ui.set_needs_redraw()
     end)
 
     params:add_control("lane_" .. i .. "_mx_voice_volume", "Voice Volume", controlspec.new(0, 1, 'lin', 0.02, 1, ""))
@@ -95,9 +97,9 @@ local function create_mx_samples_params(i)
 end
 
 local function create_midi_params(i)
-    params:add_option("lane_" .. i .. "_midi_active", "MIDI Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_midi_active", "MIDI Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_midi_active", function(value)
-        if value == 2 then
+        if value == 1 then
             _seeker.lanes[i].midi_active = true
         else
             _seeker.lanes[i].midi_active = false
@@ -127,9 +129,9 @@ local function create_midi_params(i)
 end
 
 local function create_crow_txo_params(i)
-    params:add_option("lane_" .. i .. "_eurorack_active", "CV/Gate Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_eurorack_active", "CV/Gate Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_eurorack_active", function(value)
-        if value == 2 then
+        if value == 1 then
             _seeker.lanes[i].eurorack_active = true
         else
             _seeker.lanes[i].eurorack_active = false
@@ -153,9 +155,9 @@ local function create_crow_txo_params(i)
 end
 
 local function create_just_friends_params(i)
-    params:add_option("lane_" .. i .. "_just_friends_active", "Just Friends Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_just_friends_active", "Just Friends Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_just_friends_active", function(value)
-        if value == 2 then
+        if value == 1 then
             crow.ii.jf.mode(1)
         else
             crow.ii.jf.mode(0)
@@ -177,9 +179,9 @@ local function create_just_friends_params(i)
 end
 
 local function create_wsyn_params(i)
-    params:add_option("lane_" .. i .. "_wsyn_active", "w/syn Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_wsyn_active", "w/syn Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_wsyn_active", function(value)
-        if value == 2 then
+        if value == 1 then
             _seeker.lanes[i].wsyn_active = true
         else
             _seeker.lanes[i].wsyn_active = false
@@ -280,9 +282,9 @@ local function create_wsyn_params(i)
 end
 
 local function create_osc_params(i)
-    params:add_option("lane_" .. i .. "_osc_active", "OSC Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_osc_active", "OSC Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_osc_active", function(value)
-        if value == 2 then
+        if value == 1 then
             _seeker.lanes[i].osc_active = true
         else
             _seeker.lanes[i].osc_active = false
@@ -537,9 +539,9 @@ local function create_disting_dx7_params(i)
 end
 
 local function create_disting_params(i)
-    params:add_option("lane_" .. i .. "_disting_active", "Disting Active", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_disting_active", "Disting Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_disting_active", function(value)
-        if value == 2 then
+        if value == 1 then
             _seeker.lanes[i].disting_active = true
         else
             _seeker.lanes[i].disting_active = false
@@ -640,7 +642,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_samples_active" })
 
             -- Only show additional MX Samples params if active
-            if params:get("lane_" .. lane_idx .. "_mx_samples_active") == 2 then
+            if params:get("lane_" .. lane_idx .. "_mx_samples_active") == 1 then
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
                 table.insert(param_table, { separator = true, title = "Individual Event" })
@@ -667,7 +669,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_active" })
 
             -- Only show additional MIDI params if active
-            if params:get("lane_" .. lane_idx .. "_midi_active") == 2 then
+            if params:get("lane_" .. lane_idx .. "_midi_active") == 1 then
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_device" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_channel" })
@@ -677,7 +679,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_active" })
 
             -- Only show additional Crow/TXO params if active
-            if params:get("lane_" .. lane_idx .. "_eurorack_active") == 2 then
+            if params:get("lane_" .. lane_idx .. "_eurorack_active") == 1 then
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_euro_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_gate_out" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_cv_out" })
@@ -688,7 +690,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_active" })
 
             -- Only show additional Just Friends params if active
-            if params:get("lane_" .. lane_idx .. "_just_friends_active") == 2 then
+            if params:get("lane_" .. lane_idx .. "_just_friends_active") == 1 then
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_select" })
             end
@@ -697,7 +699,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_active" })
 
             -- Only show additional w/syn params if active
-            if params:get("lane_" .. lane_idx .. "_wsyn_active") == 2 then
+            if params:get("lane_" .. lane_idx .. "_wsyn_active") == 1 then
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_select" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
@@ -721,7 +723,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_active" })
 
             -- Only show additional Disting params if active
-            if params:get("lane_" .. lane_idx .. "_disting_active") == 2 then
+            if params:get("lane_" .. lane_idx .. "_disting_active") == 1 then
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_voice_volume" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_algorithm" })
 

@@ -179,7 +179,16 @@ function NornsUI:modify_param(param, delta)
       return
     end
   end
-  
+
+  -- Prevent binary params from wrapping at boundaries
+  local param_type = params:t(param.id)
+  if param_type == params.tBINARY then
+    local current = params:get(param.id)
+    if (current == 0 and delta < 0) or (current == 1 and delta > 0) then
+      return
+    end
+  end
+
   -- Default implementation for norns params as defined in the API (https://monome.org/docs/norns/api/modules/paramset.html#delta)
   params:delta(param.id, delta)
 end

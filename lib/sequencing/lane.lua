@@ -38,6 +38,15 @@ function Lane.new(config)
   lane.delay_send = params:get("lane_" .. lane.id .. "_delay_send")
   lane.reverb_send = params:get("lane_" .. lane.id .. "_reverb_send")
   lane.chord_phase_offset = 0  -- Track chord position for phasing across loops
+
+  -- Initialize voice active states from params
+  lane.mx_samples_active = params:get("lane_" .. lane.id .. "_mx_samples_active") == 1
+  lane.midi_active = params:get("lane_" .. lane.id .. "_midi_active") == 1
+  lane.eurorack_active = params:get("lane_" .. lane.id .. "_eurorack_active") == 1
+  lane.just_friends_active = params:get("lane_" .. lane.id .. "_just_friends_active") == 1
+  lane.wsyn_active = params:get("lane_" .. lane.id .. "_wsyn_active") == 1
+  lane.osc_active = params:get("lane_" .. lane.id .. "_osc_active") == 1
+  lane.disting_active = params:get("lane_" .. lane.id .. "_disting_active") == 1
   
   -- Initialize with four default stages if none provided
   lane.stages = config.stages or {
@@ -532,8 +541,7 @@ function Lane:on_note_on(event)
   end 
 
   -- If MIDI is active, play the note
-  local midi_active = params:get("lane_" .. self.id .. "_midi_active")
-  if midi_active == 1 then
+  if self.midi_active then
     local midi_voice_volume = params:get("lane_" .. self.id .. "_midi_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
     local device_idx = params:get("lane_" .. self.id .. "_midi_device")
@@ -548,8 +556,7 @@ function Lane:on_note_on(event)
   --------------------------------
 
   -- If MX Samples is active, play the event using that voice
-  local mx_samples_active = params:get("lane_" .. self.id .. "_mx_samples_active")
-  if mx_samples_active == 1 then
+  if self.mx_samples_active then
     -- Normalize velocity for MX Samples and apply both voice and lane volume
     local mx_voice_volume = params:get("lane_" .. self.id .. "_mx_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
@@ -597,8 +604,7 @@ function Lane:on_note_on(event)
   --------------------------------
 
   -- If CV/Gate is active, send the note via Crow/TXO
-  local cv_gate_active = params:get("lane_" .. self.id .. "_eurorack_active")
-  if cv_gate_active == 1 then
+  if self.eurorack_active then
     -- Send hardware output if enabled
     local gate_out = params:get("lane_" .. self.id .. "_gate_out")
     local cv_out = params:get("lane_" .. self.id .. "_cv_out")
@@ -637,9 +643,7 @@ function Lane:on_note_on(event)
   --------------------------------  
 
   -- Handle Just Friends if active
-  local just_friends_active = params:get("lane_" .. self.id .. "_just_friends_active")
-
-  if just_friends_active == 1 then
+  if self.just_friends_active then
     -- Convert MIDI velocity (0-127) to JF velocity (0-10V), applying both voice and lane volume
     local just_friends_voice_volume = params:get("lane_" .. self.id .. "_just_friends_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
@@ -661,8 +665,7 @@ function Lane:on_note_on(event)
   -- w/syn Output
   --------------------------------
 
-  local wsyn_active = params:get("lane_" .. self.id .. "_wsyn_active")
-  if wsyn_active == 1 then
+  if self.wsyn_active then
     -- Apply both voice and lane volume
     local wsyn_voice_volume = params:get("lane_" .. self.id .. "_wsyn_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
@@ -683,14 +686,13 @@ function Lane:on_note_on(event)
   -- OSC Output
   --------------------------------
 
-  local osc_active = params:get("lane_" .. self.id .. "_osc_active")
-  if osc_active == 1 then
-    local dest_ip = params:get("osc_dest_octet_1") .. "." .. 
-                    params:get("osc_dest_octet_2") .. "." .. 
-                    params:get("osc_dest_octet_3") .. "." .. 
+  if self.osc_active then
+    local dest_ip = params:get("osc_dest_octet_1") .. "." ..
+                    params:get("osc_dest_octet_2") .. "." ..
+                    params:get("osc_dest_octet_3") .. "." ..
                     params:get("osc_dest_octet_4")
     local dest_port = params:get("osc_dest_port")
-    
+
     -- Send trigger high
     osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/trigger_active", {1})
     -- Send note value
@@ -703,8 +705,7 @@ function Lane:on_note_on(event)
   -- Disting EX Note On
   --------------------------------
 
-  local disting_active = params:get("lane_" .. self.id .. "_disting_active")
-  if disting_active == 1 then
+  if self.disting_active then
     -- Set up event params
     local disting_voice_volume = params:get("lane_" .. self.id .. "_disting_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
@@ -820,14 +821,13 @@ function Lane:on_note_off(event)
   end
   
   -- Send OSC note_off if configured
-  local osc_active = params:get("lane_" .. self.id .. "_osc_active")
-  if osc_active == 1 then
-    local dest_ip = params:get("osc_dest_octet_1") .. "." .. 
-                    params:get("osc_dest_octet_2") .. "." .. 
-                    params:get("osc_dest_octet_3") .. "." .. 
+  if self.osc_active then
+    local dest_ip = params:get("osc_dest_octet_1") .. "." ..
+                    params:get("osc_dest_octet_2") .. "." ..
+                    params:get("osc_dest_octet_3") .. "." ..
                     params:get("osc_dest_octet_4")
     local dest_port = params:get("osc_dest_port")
-    
+
     -- Send trigger low
     osc.send({dest_ip, dest_port}, "/seeker/lane/" .. self.id .. "/trigger_active", {0})
     -- Send note value
@@ -848,8 +848,7 @@ function Lane:on_note_off(event)
   --------------------------------
   -- Disting EX note off
   --------------------------------
-  local disting_active = params:get("lane_" .. self.id .. "_disting_active")
-  if disting_active == 1 then
+  if self.disting_active then
     local algorithm = params:get("lane_" .. self.id .. "_disting_algorithm")
     -- Convert note to v8 format for Disting EX
     local adjusted_note = note - 60
