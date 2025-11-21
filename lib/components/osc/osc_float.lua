@@ -33,7 +33,7 @@ local function create_params()
             send_float_value(i, value)
         end)
 
-        params:add_number("osc_float_" .. i .. "_multiplier", "Float " .. i .. " Multiplier", -100, 100, 1)
+        params:add_control("osc_float_" .. i .. "_multiplier", "Float " .. i .. " Multiplier", controlspec.new(-100.0, 100.0, 'lin', 0.01, 1.0))
         params:set_action("osc_float_" .. i .. "_multiplier", function(value)
             send_float_multiplier(i)
         end)
@@ -63,7 +63,7 @@ local function create_screen_ui()
         local param_table = {
             { separator = true, title = "Float " .. selected_float },
             { id = "osc_float_" .. selected_float .. "_value", name = "Value", arc_multi_float = {1.0, 0.1, 0.01} },
-            { id = "osc_float_" .. selected_float .. "_multiplier", name = "Multiplier" }
+            { id = "osc_float_" .. selected_float .. "_multiplier", name = "Multiplier", arc_multi_float = {10, 1, 0.1} }
         }
 
         self.params = param_table
@@ -138,6 +138,12 @@ function OscFloat.init()
         grid = create_grid_ui()
     }
     create_params()
+
+    -- Initialize TouchDesigner with current param values
+    for i = 1, 4 do
+        send_float_value(i, params:get("osc_float_" .. i .. "_value"))
+        send_float_multiplier(i)
+    end
 
     return component
 end

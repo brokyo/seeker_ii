@@ -287,6 +287,12 @@ function OscTrigger.init()
     }
     create_params()
 
+    -- Initialize TouchDesigner with current param values
+    for i = 1, 4 do
+        send_trigger_envelope(i)
+        update_trigger_clock(i)
+    end
+
     return component
 end
 

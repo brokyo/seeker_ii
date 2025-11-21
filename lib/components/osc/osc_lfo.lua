@@ -212,6 +212,13 @@ function OscLfo.init()
         end
     end)
 
+    -- Initialize TouchDesigner with current param values
+    for i = 1, 4 do
+        send_lfo_frequency(i)
+        send_lfo_shape(i)
+        send_lfo_range(i)
+    end
+
     return component
 end
 
