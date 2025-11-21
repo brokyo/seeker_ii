@@ -28,7 +28,7 @@ local function create_params()
         theory.print_keyboard_layout()
     end)
 
-    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 2)
+    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 5)
     params:set_action("keyboard_row_steps", function(value)
         local theory = include('lib/motif_core/theory')
         theory.print_keyboard_layout()
