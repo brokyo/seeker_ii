@@ -45,7 +45,9 @@ function ScreenUI.init()
 
     -- OSC Mode
     OSC_CONFIG = _seeker.osc_config.screen,
-    OSC_OUTPUT = _seeker.osc_output.screen,
+    OSC_FLOAT = _seeker.osc_float.screen,
+    OSC_LFO = _seeker.osc_lfo.screen,
+    OSC_TRIGGER = _seeker.osc_trigger.screen,
   }
   
   ScreenSaver.init()

@@ -52,7 +52,9 @@ local TxoCvOutput = include("lib/components/eurorack/txo_cv_output")
 
 -- Components: OSC Mode
 local OscConfig = include("lib/components/osc/osc_config")
-local OscOutput = include("lib/components/osc/osc_output")
+local OscFloat = include("lib/components/osc/osc_float")
+local OscLfo = include("lib/components/osc/osc_lfo")
+local OscTrigger = include("lib/components/osc/osc_trigger")
 
 -- Global state
 _seeker = {
@@ -154,7 +156,9 @@ function init()
 
   -- OSC Mode
   _seeker.osc_config = OscConfig.init()
-  _seeker.osc_output = OscOutput.init()
+  _seeker.osc_float = OscFloat.init()
+  _seeker.osc_lfo = OscLfo.init()
+  _seeker.osc_trigger = OscTrigger.init()
   
   -- UI Setup and global access
   params_manager.init_params()

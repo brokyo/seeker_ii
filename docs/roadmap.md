@@ -10,6 +10,7 @@
 ### Bugs
 
 ### Long List
+- [] **Architectural Debt: Clock Utilities Duplication** - division_to_beats() and sync_options are duplicated across OSC, eurorack (crow, txo), arpeggio_params, stage_config, and transforms. Should be consolidated into lib/clock_utils.lua for shared tempo/sync utilities.
 - [] **Architectural Debt: Param Ownership** - Current split between lane_infrastructure, stage_config, lane_config, and arpeggio_params works but is conceptually messy. Future refactor options:
   - Split lane_config.init() into early param creation + late UI creation. Allows components to reference lane params during their init. Medium risk.
   - Delete lane_infrastructure entirely. Each component (lane.lua, arpeggio_sequence.lua, tape_transform.lua) creates its own params during init. True component ownership. High risk - requires solving initialization order dependencies.

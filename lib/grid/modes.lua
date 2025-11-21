@@ -16,7 +16,7 @@ GridModeRegistry.MODES = {
   OSC_CONFIG = {
     button = { x = 14, y = 2 },
     default_section = "OSC_CONFIG",
-    sections = { "OSC_CONFIG", "OSC_OUTPUT" },
+    sections = { "OSC_CONFIG", "OSC_FLOAT", "OSC_LFO", "OSC_TRIGGER" },
     path = "lib/grid/modes/osc_config_mode"
   },
 
