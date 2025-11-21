@@ -13,22 +13,39 @@ ScreenUI.sections = {}
 
 function ScreenUI.init()  
   ScreenUI.sections = {
+    -- Global
     CONFIG = _seeker.config.screen,
+
+    -- Keyboard Mode
     KEYBOARD = _seeker.keyboard.screen,
     VELOCITY = _seeker.velocity.screen,
     TUNING = _seeker.tuning.screen,
     MOTIF = _seeker.motif_playback.screen,
     CLEAR_MOTIF = _seeker.clear_motif.screen,
     CREATE_MOTIF = _seeker.create_motif.screen,
-    WTAPE = _seeker.w_tape.screen,
+    LANE_CONFIG = _seeker.lane_config.screen,
     STAGE_CONFIG = _seeker.stage_config.screen,
+
+    -- WTape Mode
+    WTAPE = _seeker.w_tape.screen,
+    WTAPE_PLAYBACK = _seeker.wtape_playback.screen,
+    WTAPE_RECORD = _seeker.wtape_record.screen,
+    WTAPE_FF = _seeker.wtape_ff.screen,
+    WTAPE_REWIND = _seeker.wtape_rewind.screen,
+    WTAPE_LOOP_START = _seeker.wtape_loop_start.screen,
+    WTAPE_LOOP_END = _seeker.wtape_loop_end.screen,
+    WTAPE_REVERSE = _seeker.wtape_reverse.screen,
+    WTAPE_LOOP_ACTIVE = _seeker.wtape_loop_active.screen,
+
+    -- Eurorack Mode
     EURORACK_CONFIG = _seeker.eurorack_config.screen,
     CROW_OUTPUT = _seeker.crow_output.screen,
     TXO_TR_OUTPUT = _seeker.txo_tr_output.screen,
     TXO_CV_OUTPUT = _seeker.txo_cv_output.screen,
+
+    -- OSC Mode
     OSC_CONFIG = _seeker.osc_config.screen,
     OSC_OUTPUT = _seeker.osc_output.screen,
-    LANE_CONFIG = _seeker.lane_config.screen
   }
   
   ScreenSaver.init()

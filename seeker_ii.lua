@@ -18,26 +18,41 @@ local MotifRecorder = include("lib/motif_core/recorder")
 local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
 
--- Components
+-- Components: Global
 local Config = include("lib/components/global_config")
+local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
+local arpeggio_params = include("lib/motif_core/arpeggio_params")
+
+-- Components: Keyboard Mode
 local Keyboard = include("lib/components/keyboard/keyboard_config")
+local Velocity = include("lib/components/keyboard/velocity")
+local Tuning = include("lib/components/keyboard/tuning")
+local MotifPlayback = include("lib/components/keyboard/motif_playback")
 local CreateMotif = include("lib/components/keyboard/create_motif")
 local ClearMotif = include("lib/components/keyboard/clear_motif")
+local LaneConfig = include("lib/components/lanes/lane_config")
+local StageConfig = include("lib/components/lanes/stage_config")
+
+-- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
 local WTapePlayback = include("lib/components/wtape/wtape_playback")
-local StageConfig = include("lib/components/lanes/stage_config")
+local WTapeRecord = include("lib/components/wtape/wtape_record")
+local WTapeFF = include("lib/components/wtape/wtape_ff")
+local WTapeRewind = include("lib/components/wtape/wtape_rewind")
+local WTapeLoopStart = include("lib/components/wtape/wtape_loop_start")
+local WTapeLoopEnd = include("lib/components/wtape/wtape_loop_end")
+local WTapeReverse = include("lib/components/wtape/wtape_reverse")
+local WTapeLoopActive = include("lib/components/wtape/wtape_loop_active")
+
+-- Components: Eurorack Mode
 local EurorackConfig = include("lib/components/eurorack/eurorack_config")
 local CrowOutput = include("lib/components/eurorack/crow_output")
 local TxoTrOutput = include("lib/components/eurorack/txo_tr_output")
 local TxoCvOutput = include("lib/components/eurorack/txo_cv_output")
+
+-- Components: OSC Mode
 local OscConfig = include("lib/components/osc/osc_config")
 local OscOutput = include("lib/components/osc/osc_output")
-local LaneConfig = include("lib/components/lanes/lane_config")
-local Velocity = include("lib/components/keyboard/velocity")
-local MotifPlayback = include("lib/components/keyboard/motif_playback")
-local Tuning = include("lib/components/keyboard/tuning")
-local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
-local arpeggio_params = include("lib/motif_core/arpeggio_params")
 
 -- Global state
 _seeker = {
@@ -108,22 +123,36 @@ function init()
   -- Initialize lane infrastructure to provide parameters for lane.lua
   lane_infrastructure.init()
   arpeggio_params.init()
+
+  -- Keyboard Mode
   _seeker.keyboard = Keyboard.init()
   _seeker.velocity = Velocity.init()
   _seeker.tuning = Tuning.init()
   _seeker.motif_playback = MotifPlayback.init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.clear_motif = ClearMotif.init()
-  _seeker.w_tape = WTape.init()
-  _seeker.wtape_playback = WTapePlayback.init()
   -- NOTE: LaneConfig must be initialized before StageConfig to avoid race conditions
-  -- LaneConfig creates stage parameters that StageConfig references
   _seeker.lane_config = LaneConfig.init()
   _seeker.stage_config = StageConfig.init()
+
+  -- WTape Mode
+  _seeker.w_tape = WTape.init()
+  _seeker.wtape_playback = WTapePlayback.init()
+  _seeker.wtape_record = WTapeRecord.init()
+  _seeker.wtape_ff = WTapeFF.init()
+  _seeker.wtape_rewind = WTapeRewind.init()
+  _seeker.wtape_loop_start = WTapeLoopStart.init()
+  _seeker.wtape_loop_end = WTapeLoopEnd.init()
+  _seeker.wtape_reverse = WTapeReverse.init()
+  _seeker.wtape_loop_active = WTapeLoopActive.init()
+
+  -- Eurorack Mode
   _seeker.eurorack_config = EurorackConfig.init()
   _seeker.crow_output = CrowOutput.init()
   _seeker.txo_tr_output = TxoTrOutput.init()
   _seeker.txo_cv_output = TxoCvOutput.init()
+
+  -- OSC Mode
   _seeker.osc_config = OscConfig.init()
   _seeker.osc_output = OscOutput.init()
   

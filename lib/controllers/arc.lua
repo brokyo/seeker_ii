@@ -44,9 +44,20 @@ function Arc.init()
       end
       
       device.skip_current_section = false
-      
+
       -- Update the number of params
       device.current_section_param_count = #params
+
+      -- Skip LED display for sections with no params
+      if device.current_section_param_count == 0 then
+        for n = 1, 4 do
+          for i = 1, 64 do
+            device:led(n, i, 0)
+          end
+        end
+        device:refresh()
+        return
+      end
 
       -- Drawn a dimmed LED ring
       for i = 1, 64 do
@@ -59,7 +70,7 @@ function Arc.init()
       -- And set illuminate the first parameter cluster
       for i = 1, num_leds do
         device:led(1, i, 10)
-      end      
+      end
 
        device:refresh()
     end
