@@ -18,7 +18,7 @@ function ClearMotif.init()
         -- Params interface used by @params for loading core data
         params = {
             create = function()
-                params:add_group("clear_motif", "CLEAR MOTIF", 1)
+                params:add_group("clear_motif", "CLEAR MOTIF", 0)
             end
         },
         
