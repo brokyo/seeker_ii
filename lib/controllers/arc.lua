@@ -17,6 +17,7 @@ function Arc.init()
 
     -- Parameters for state tracking
     device.index = {0, 0, 0, 0}
+    device.movement_count = {0, 0, 0, 0}  -- Track movements since last trigger for consistent sensitivity
     device.current_section_param_count = 0
     -- HOTFIX: Flag to ignore certain sections (like Tuning) that don't follow the standard params pattern
     -- TODO: Implement proper integration for special sections instead of skipping them
@@ -122,16 +123,30 @@ function Arc.init()
       -- offset counter on rotation (modulo 64 to stay aligned with the LED ring)
       device.index[n] = device.index[n] + delta % 64
 
-      -- Only trigger every 8th consecutive movement (improves UX)
-      if device.index[n] % 8 == 0 then
-        -- Determine movement direction based on last delta direction
-        local direction
-        if delta > 0 then
-          direction = 1
-        else
-          direction = -1
-        end
+      -- Determine movement direction based on last delta direction
+      local direction
+      if delta > 0 then
+        direction = 1
+      else
+        direction = -1
+      end
 
+      -- Handle encoder 1 (list scrolling) with consistent movement counter
+      if n == 1 then
+        device.movement_count[1] = device.movement_count[1] + 1
+
+        if device.movement_count[1] >= 12 then
+          device.movement_count[1] = 0  -- Reset for next trigger cycle
+
+          _seeker.ui_state.enc(2, direction)
+          device.update_param_key_display()
+          device.update_param_value_display()
+        end
+        return
+      end
+
+      -- Handle encoders 2, 3, 4 with existing modulo approach
+      if device.index[n] % 8 == 0 then
         -- Get current section and selected parameter
         local current_section_id = _seeker.ui_state.get_current_section()
 
@@ -159,16 +174,8 @@ function Arc.init()
         -- Check if this parameter uses multi-encoder float editing
         local is_multi_float = selected_param and selected_param.arc_multi_float
 
-        -- Map Arc encoder 1 to Norns encoder 2. Use custom param key illumination logic.
-        if n == 1 then
-          _seeker.ui_state.enc(2, direction)
-          device.update_param_key_display()
-
-          -- Update the param ring to keep in sync
-          device.update_param_value_display()
-
         -- Handle multi-encoder float editing
-        elseif is_multi_float and selected_param.id then
+        if is_multi_float and selected_param.id then
           if n == 2 then
             -- Encoder 2: Integer component
             device.modify_float_component(selected_param, 2, direction)
