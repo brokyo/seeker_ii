@@ -21,6 +21,12 @@ ArpeggioKeyboard.layout = {
 -- Tail state for tonnetz-style decay
 ArpeggioKeyboard.note_tails = {}  -- {[interval] = {brightness, timestamp}}
 
+-- Track held notes for live playback
+ArpeggioKeyboard.held_notes = {}  -- {[x_y] = note}
+
+-- Track pressed blocks for live playback illumination
+ArpeggioKeyboard.pressed_blocks = {}  -- {[x_y] = {x, y, timestamp}}
+
 -- Map MIDI note to scale interval (1-16)
 -- Returns interval number or nil if outside range
 function ArpeggioKeyboard.note_to_interval(note)
@@ -51,6 +57,56 @@ function ArpeggioKeyboard.note_to_interval(note)
   end
 
   return nil
+end
+
+-- Map grid position to scale interval (1-16)
+-- Returns interval number or nil if outside keyboard area
+function ArpeggioKeyboard.grid_to_interval(x, y)
+  if not ArpeggioKeyboard.contains(x, y) then
+    return nil
+  end
+
+  -- Calculate row (1-8, bottom to top)
+  local row = ArpeggioKeyboard.layout.height - (y - ArpeggioKeyboard.layout.upper_left_y)
+
+  -- Determine if this is left block (columns 0-2) or right block (columns 3-5)
+  local col_offset = x - ArpeggioKeyboard.layout.upper_left_x
+  local is_left_block = col_offset < 3
+
+  -- Calculate interval: each row has 2 intervals (left=odd, right=even)
+  local interval = (row - 1) * 2 + (is_left_block and 1 or 2)
+
+  return interval
+end
+
+-- Map scale interval (1-16) to MIDI note
+-- Returns MIDI note number or nil if invalid interval
+function ArpeggioKeyboard.interval_to_note(interval)
+  if interval < 1 or interval > 16 then
+    return nil
+  end
+
+  local root_note = params:get("root_note")
+  local scale_type_index = params:get("scale_type")
+  local scale = musicutil.SCALES[scale_type_index]
+
+  if not scale or not scale.intervals then
+    return nil
+  end
+
+  -- Calculate which octave and scale degree within that octave
+  local scale_intervals = #scale.intervals
+  local octave = math.floor((interval - 1) / scale_intervals)
+  local scale_degree = ((interval - 1) % scale_intervals) + 1
+
+  -- Get the semitone offset for this scale degree
+  local semitone_offset = scale.intervals[scale_degree]
+
+  -- Calculate final MIDI note
+  local root_midi = root_note - 1
+  local note = root_midi + (octave * 12) + semitone_offset
+
+  return note
 end
 
 -- Map scale interval (1-16) to block columns
@@ -109,9 +165,56 @@ function ArpeggioKeyboard.note_to_positions(note)
   return nil
 end
 
--- Grid is read-only for arpeggio mode - all programming via params
+-- Handle grid key press for live playback
 function ArpeggioKeyboard.handle_key(x, y, z)
-  -- No interaction - visualization only
+  local interval = ArpeggioKeyboard.grid_to_interval(x, y)
+  if not interval then
+    return
+  end
+
+  local note = ArpeggioKeyboard.interval_to_note(interval)
+  if not note then
+    return
+  end
+
+  local focused_lane_id = _seeker.ui_state.get_focused_lane()
+  local focused_lane = _seeker.lanes[focused_lane_id]
+  if not focused_lane then
+    return
+  end
+
+  local key = string.format("%d_%d", x, y)
+
+  if z == 1 then
+    -- Key press - trigger note on (+3 octaves for playable range)
+    local playback_note = note + 36
+    ArpeggioKeyboard.held_notes[key] = playback_note
+    ArpeggioKeyboard.pressed_blocks[key] = {x = x, y = y, timestamp = util.time()}
+
+    local velocity = _seeker.velocity.get_current_velocity()
+
+    focused_lane:on_note_on({
+      note = playback_note,
+      velocity = velocity,
+      x = x,
+      y = y,
+      is_playback = false
+    })
+  else
+    -- Key release - trigger note off
+    local held_note = ArpeggioKeyboard.held_notes[key]
+    if held_note then
+      focused_lane:on_note_off({
+        note = held_note,
+        velocity = 0,
+        x = x,
+        y = y,
+        is_playback = false
+      })
+      ArpeggioKeyboard.held_notes[key] = nil
+      ArpeggioKeyboard.pressed_blocks[key] = nil
+    end
+  end
 end
 
 -- Draw the scale interval visualization (base state)
@@ -141,13 +244,26 @@ function ArpeggioKeyboard.draw_motif_events(layers)
     return
   end
 
-  -- Get active positions from lane (currently playing notes)
+  -- Draw live playback pressed blocks
+  for key, block in pairs(ArpeggioKeyboard.pressed_blocks) do
+    local interval = ArpeggioKeyboard.grid_to_interval(block.x, block.y)
+    if interval then
+      local block_cols = ArpeggioKeyboard.interval_to_block_columns(interval)
+      if block_cols then
+        for _, col in ipairs(block_cols) do
+          GridLayers.set(layers.response, col.x, col.y, GridConstants.BRIGHTNESS.FULL)
+        end
+      end
+    end
+  end
+
+  -- Get active positions from lane (algorithmic playback only)
   local active_positions = focused_lane:get_active_positions()
 
   -- Track which intervals are currently active
   local active_intervals = {}
 
-  -- Process active notes
+  -- Process active notes from algorithmic playback
   for _, pos in ipairs(active_positions) do
     if pos.note then
       local interval = ArpeggioKeyboard.note_to_interval(pos.note)
