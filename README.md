@@ -15,6 +15,7 @@ Using these voices:
 ## Installation
 In Maiden: ;install https://github.com/brokyo/seeker_ii
 
+
 ## Layout
 ![Seeker II Layout](https://github.com/brokyo/seeker_ii/raw/main/layout.png)
 
@@ -97,3 +98,25 @@ In Maiden: ;install https://github.com/brokyo/seeker_ii
 - Set all voices to trigger on I2C [Instance n > I2C trigger 1]
 - Set all voices to share params from Norns [Instances n > Share Params 1]
 #### Drone Voice
+
+## Code Structure
+```
+lib/
+├── motif_core/        Musical data structures and transformations
+├── sequencing/        Timing and playback engine
+├── ui/                Screen interface and state management
+│   └── base/          Base UI classes (norns_ui, grid_ui)
+├── controllers/       Hardware input handlers
+├── grid/              Grid UI infrastructure
+│   ├── keyboards/     Keyboard layout implementations
+│   └── selector/      UI selector components
+├── components/        Feature modules with screen/grid/params
+│   ├── global_config/ Global app configuration
+│   ├── keyboard/      Keyboard configuration and motif creation
+│   ├── lanes/         Lane management and stage transforms
+│   │   └── stage_types/ Mode-specific stage configurations
+│   ├── eurorack/      Eurorack CV/gate output (Crow, TXO)
+│   ├── osc/           OSC output for TouchDesigner
+│   └── wtape/         W/Tape integration
+└── etc/               Miscellaneous utilities and resources
+```

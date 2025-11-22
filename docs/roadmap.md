@@ -1,151 +1,26 @@
 ### Current Session
-- [] Support second Crow
 
 ### Active Concerns
 
 ### Near Term Priorities
+- [] W/Tape Mode buttons
 - [] W/Tape pitched sample mode
 - [] Disting SD 6 Triggers support
-- [] Alternate keyboard mode supporting easier two handed playing
 
 ### Bugs
 
 ### Long List
-- [] Refactor Tuning to component 
-- [] Refactor Motif Config to component
-- [] Refactor Velocity to component
-- [] Centralize "sync all" system. Current one is very hacky
-- [] Create motif UI one loop ahead of playing transform when ratcheting
-- [] Keyboard region in `grid_ii.lua` is the only remaining region that isn't a component.
-- [] Static voltage out
+- [] Arc was written before I really understood it and all logic is encapsulated in one file. Sanity check.
+- [] **Architectural Debt: Clock Utilities Duplication** - division_to_beats() and sync_options are duplicated across OSC, eurorack (crow, txo), arpeggio_params, stage_config, and transforms. Should be consolidated into lib/clock_utils.lua for shared tempo/sync utilities.
+- [] **Architectural Debt: Param Ownership** - Current split between lane_infrastructure, stage_config, lane_config, and arpeggio_params works but is conceptually messy. Future refactor options:
+  - Split lane_config.init() into early param creation + late UI creation. Allows components to reference lane params during their init. Medium risk.
+  - Delete lane_infrastructure entirely. Each component (lane.lua, arpeggio_sequence.lua, tape_transform.lua) creates its own params during init. True component ownership. High risk - requires solving initialization order dependencies.
+- [] **Architectural Debt: Lane/Motif Separation** - Playback config (speed, playback_offset, scale_degree_offset, quantize) currently lives on Lane but conceptually belongs to Motif behavior. Consider moving to Motif object for better separation of concerns. Lane = execution channel (voices, routing), Motif = musical pattern + playback behavior.
+- [] Refactor trail visual feedback system to separate rendering from Lane
 - [] Note Event Refactoring
 -- [] Create consistent note event structure in a single place
 -- [] Separate live vs playback event creation logic
 -- [] Move event param handling out of `Lane:on_note_on`
-- [] Param preset saving and "default" button in config
-- [] app_on_screen is vestigial. Remove it.
 - [] Add MIDI CC to control ableton recording
 
 ### Open Questions
-
-
-### Done
-- [x] Ensuring notes are getting recorded into motif_recorder
-- [x] Volume control for each lane
-- [x] Lanes respect instrument settings
-- [x] Return background animation
-- [x] Transform logic should live on `Motif` and `Lane` just calls it
-- [x] UI — FRAME
-- [x] UI — RECORDING
-- [x] Restore theory_utils.print_keyboard_layout()
-- [x] UI — MUSICAL
-- [x] Highlight active lane
-- [x] Add speed control for each lane
-- [x] UI — LANES
-- [x] UI — STAGES (basic)
-- [x] Stage playback ignoring settings
-- [x] Scrollable params list
-- [x] UI — STAGES (transform)
-- [x] Transform parameters have configurable type and step
-- [x] Highlight root note on keyboard
-- [x] Change controls > one row for lanes; one row for stages
-- [x] Add per-lane MIDI support and associated params
-- [x] Revisit `theory_utils.lua`; it is one of the final holdovers from the old codebase.
-- [x] Ensure keyboard is generating correct note structure
-- [x] Add Per-lane octave control and associated params
-- [x] Play non-focused lanes grid illumination in background with dimmer light 
-- [x] Make Lane playback speed controllable per-lane
-- [x] Add duration controls to motif
-- [x] All stages default to reset motif
-- [x] UI Overhaul
-- [x] Transform chains
-- [x] Optional crow output
-- [x] Universal timeline view
-- [x] Motif view
-- [x] Overdubbing
-- [x] Figure out a solution for velocity. There needs to be some way of broadly controlling. Looped MIDI at 127 velocity is just too unpleasant
-- [x] Grid logic cleanup (modular regions)
-- [x] Footer navigation (current lane and stage)
-- [x] "screen saver" that sets core view to blinkenlights. Changes back to controls on encoder or key.
-- [x] TXO Support
-- [x] Events on loop/stage end
-- [x] `ui_state_ii` should handle key and enc events
-- [x] Motif pattern generation from preset. "Quickstart presets"
-- [x] Fix footer padding
-- [x] Set default UI section to CONFIG
-- [x] Flash grid outline when motif is generated
-- [x] Improve grid recording state animation
-- [x] Lane button toggle playback state.
-- [x] Add double-tap pattern for executing actions with regions
-- [x] Review how we create the grid in theory_utils.lua
-- [x] Generated patterns to create x/y values
-- [x] Change transforms back to one-per-stage
-- [x] Improve transform UI
-- [x] Refactor generator system for better logic handling and future extensibility.
-- [x] Grid octave control (distinct from Motif)
-- [x] Add motif record region with buttons for record, generate, overdub, and play
-- [x] Confirmation animations on double click
-- [x] REC button pulsing and play button illumination are LLM generated without review. Take a close look.
-- [x] Playing lane illumination jumps to zero when playing and selected.
-- [x] Consider motif length and if recording should record silences
-- [x] Long press for overdub in rec section
-- [x] Change lane stop logic so that all future events cancel
-- [x] Don't convert x/y position to match shifted notes.
-- [x] Generators generate x/y coordinates.
-- [x] background_brightness defaults to 3
-- [x] k2 for info on every section
-- [x] Separators in all menus
-- [x] Selected layer should illuminate as HIGH. Rest stay at default even when region is active.
-- [x] Loops defaults to 2
-- [x] When layer is selected pulse keyboard ring
-- [x] Engine mute option
-- [x] Engine pan
-- [x] Filter controls
-- [x] Resoante transform works, is musically interesting, and is default
-- [x] Pulse playing lanes like we do in motif playback.
-- [x] Screensaver lines should move at bpm.
-- [x] K2 for info
-- [x] Overdub visualization is often shifted and in unpredictable ways.
-- [x] Overdub stored in generations. Different visual treatment and undo option.
-- [x] Do we want to catch MIDI events from a keyboard?
-- [x] All equivalent notes light up when key press
-- [x] MIDI for record and overdub
-- [x] First stage selection always `Stage 0.` Likely not using ui_manager.
-- [x] ADSR Integration
--- [x] Align defaults with Mx Samples defaults (https://github.com/schollz/mx.samples/blob/main/lib/mx.samples.lua)
--- [x] Store ADSR, amp, and velocity on note events so playback respects them
--- [x] Change playback in `Lane` so it takes these values rather than
-- [x] Only show current Lane's illumination
-- [x] Tuning affects illumination
-- [x] Grid UI changes
--- [x] Change section positions
--- [x] Pulse active stage
-- [x] Overdub visualization doesn't account for speed.
-- [x] Scale degree offset for motif
-- [x] Eurorack Control Menu
--- [x] Crow CV/Gate Options
--- [x] TXO CV/Gate Options
-- [x] Lane Voice Improvements
--- [x] Add volume per voice
--- [x] Conditional display in UI
--- [x] Ensure voice volume is appropriate used in playback (probably in motif)
--- [x] Check volume double counting issue (probably in motif_recorder)
-- [x] New component architecture
-- [x] Combine record/overdub
-- [x] Clear motif
-- [x] Place config buttons in stages region
-- [x] Get WTape working!
-- [x] Update create motif to new architecture
-- [x] Port stage to component architecture
-- [x] Arpeggio mode
-- [x] Knob Recorder
-- [x] Custom params with options wrap around. They should be bounded.
-- [x] Dynamic Params for stage>transform (see: overdub-filter rounds hardcoding)
-- [x] Rebuild window manager.
-- [x] Reduce dependency on params system 
-- [x] I bet a lot of stuff can be pulled out of `params_manager_ii.lua`. We don't need so many params.
-- [x] Stage change is overriding stage config params
-- [x] Ratchet doesn't seem to work
-- [x] Update motif playback to new architecture
-- [x] Update clear motif to new architecture
-- [x] Update config to new architecture

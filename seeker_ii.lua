@@ -7,26 +7,54 @@ engine.name = "MxSamples"
 
 -- Libraries
 local mxsamples = include("mx.samples/lib/mx.samples")
-local Lane = include("lib/lane")
-local conductor = include("lib/conductor")
-local lane_archetype = include("lib/lane_archetype")
-local grid = include("lib/grid_ii")
-local screen_ui = include("/lib/screen_iii")
-local params_manager = include('/lib/params_manager_ii')
-local ui_state = include('/lib/ui_state_ii')
-local MotifRecorder = include("lib/motif_recorder")
-local MidiInput = include("lib/midi_input")
-local Arc = include("lib/arc")
+local Lane = include("lib/sequencing/lane")
+local conductor = include("lib/sequencing/conductor")
+local lane_archetype = include("lib/sequencing/lane_archetype")
+local grid = include("lib/controllers/grid")
+local screen_ui = include("/lib/ui/screen")
+local params_manager = include('/lib/ui/params')
+local ui_state = include('/lib/ui/state')
+local MotifRecorder = include("lib/motif_core/recorder")
+local MidiInput = include("lib/controllers/midi")
+local Arc = include("lib/controllers/arc")
 
--- Components
-local Config = include("lib/components/config")
-local CreateMotif = include("lib/components/create_motif")
-local WTape = include("lib/components/w_tape")
-local StageConfig = include("lib/components/stage_config")
-local EurorackOutput = include("lib/components/eurorack_output")
-local OscConfig = include("lib/components/osc_config")
-local LaneConfig = include("lib/components/lane_config")
-local lane_infrastructure = include("lib/lane_infrastructure")
+-- Components: Global
+local Config = include("lib/components/global_config")
+local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
+local arpeggio_params = include("lib/motif_core/arpeggio_params")
+
+-- Components: Keyboard Mode
+local Keyboard = include("lib/components/keyboard/keyboard_config")
+local Velocity = include("lib/components/keyboard/velocity")
+local Tuning = include("lib/components/keyboard/tuning")
+local MotifPlayback = include("lib/components/keyboard/motif_playback")
+local CreateMotif = include("lib/components/keyboard/create_motif")
+local ClearMotif = include("lib/components/keyboard/clear_motif")
+local LaneConfig = include("lib/components/lanes/lane_config")
+local StageConfig = include("lib/components/lanes/stage_config")
+
+-- Components: WTape Mode
+local WTape = include("lib/components/wtape/wtape_config")
+local WTapePlayback = include("lib/components/wtape/wtape_playback")
+local WTapeRecord = include("lib/components/wtape/wtape_record")
+local WTapeFF = include("lib/components/wtape/wtape_ff")
+local WTapeRewind = include("lib/components/wtape/wtape_rewind")
+local WTapeLoopStart = include("lib/components/wtape/wtape_loop_start")
+local WTapeLoopEnd = include("lib/components/wtape/wtape_loop_end")
+local WTapeReverse = include("lib/components/wtape/wtape_reverse")
+local WTapeLoopActive = include("lib/components/wtape/wtape_loop_active")
+
+-- Components: Eurorack Mode
+local EurorackConfig = include("lib/components/eurorack/eurorack_config")
+local CrowOutput = include("lib/components/eurorack/crow_output")
+local TxoTrOutput = include("lib/components/eurorack/txo_tr_output")
+local TxoCvOutput = include("lib/components/eurorack/txo_cv_output")
+
+-- Components: OSC Mode
+local OscConfig = include("lib/components/osc/osc_config")
+local OscFloat = include("lib/components/osc/osc_float")
+local OscLfo = include("lib/components/osc/osc_lfo")
+local OscTrigger = include("lib/components/osc/osc_trigger")
 
 -- Global state
 _seeker = {
@@ -47,12 +75,17 @@ _seeker = {
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
   velocity = 3,
 
+  current_mode = nil,
+
   -- Component Approach
   config = nil,
   create_motif = nil,
   w_tape = nil,
   stage_config = nil,
-  eurorack_output = nil,
+  eurorack_config = nil,
+  crow_output = nil,
+  txo_tr_output = nil,
+  txo_cv_output = nil,
   osc_config = nil,
   lane_config = nil,
 }
@@ -63,10 +96,26 @@ _seeker = {
 
 function init()
   print('◎ Open The Next')
+
+  -- Add tempo change handler for debugging
+  clock.tempo_change_handler = function(bpm)
+    local current_beat = clock.get_beats()
+    print(string.format("⏱ TEMPO CHANGED TO: %.2f BPM", bpm))
+    print(string.format("   clock.get_tempo() = %.2f", clock.get_tempo()))
+    print(string.format("   clock.get_beat_sec() = %.4f", clock.get_beat_sec()))
+    print(string.format("   clock.get_beats() = %.2f", current_beat))
+
+    -- Debug: show next scheduled event
+    if #_seeker.conductor.events > 0 then
+      local next_event = _seeker.conductor.events[1]
+      print(string.format("   Next event at beat %.2f (%.2f beats away)", next_event.time, next_event.time - current_beat))
+    end
+  end
+
   -- Core audio setup
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
-    
+
   _seeker.ui_state = ui_state.init()
 
   -- Initialize config first since lane infrastructure now depends on config parameters
@@ -75,21 +124,48 @@ function init()
 
   -- Initialize lane infrastructure to provide parameters for lane.lua
   lane_infrastructure.init()
+  arpeggio_params.init()
+
+  -- Keyboard Mode
+  _seeker.keyboard = Keyboard.init()
+  _seeker.velocity = Velocity.init()
+  _seeker.tuning = Tuning.init()
+  _seeker.motif_playback = MotifPlayback.init()
   _seeker.create_motif = CreateMotif.init()
-  _seeker.w_tape = WTape.init()
+  _seeker.clear_motif = ClearMotif.init()
   -- NOTE: LaneConfig must be initialized before StageConfig to avoid race conditions
-  -- LaneConfig creates stage parameters that StageConfig references
   _seeker.lane_config = LaneConfig.init()
   _seeker.stage_config = StageConfig.init()
-  _seeker.eurorack_output = EurorackOutput.init()
+
+  -- WTape Mode
+  _seeker.w_tape = WTape.init()
+  _seeker.wtape_playback = WTapePlayback.init()
+  _seeker.wtape_record = WTapeRecord.init()
+  _seeker.wtape_ff = WTapeFF.init()
+  _seeker.wtape_rewind = WTapeRewind.init()
+  _seeker.wtape_loop_start = WTapeLoopStart.init()
+  _seeker.wtape_loop_end = WTapeLoopEnd.init()
+  _seeker.wtape_reverse = WTapeReverse.init()
+  _seeker.wtape_loop_active = WTapeLoopActive.init()
+
+  -- Eurorack Mode
+  _seeker.eurorack_config = EurorackConfig.init()
+  _seeker.crow_output = CrowOutput.init()
+  _seeker.txo_tr_output = TxoTrOutput.init()
+  _seeker.txo_cv_output = TxoCvOutput.init()
+
+  -- OSC Mode
   _seeker.osc_config = OscConfig.init()
+  _seeker.osc_float = OscFloat.init()
+  _seeker.osc_lfo = OscLfo.init()
+  _seeker.osc_trigger = OscTrigger.init()
   
   -- UI Setup and global access
   params_manager.init_params()
 
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
-  _seeker.keyboard_region = include("lib/grid/regions/keyboard_region")
+  _seeker.keyboard_region = include("lib/grid/keyboard_region")
   
   -- Initialize MIDI input
   _seeker.midi_input = MidiInput.init()
@@ -113,9 +189,13 @@ function init()
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
-  
+
+  _seeker.current_mode = "KEYBOARD"
+  _seeker.ui_state.set_current_section("KEYBOARD")
+
+  -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()
-  _seeker.ui_state.set_current_section("CONFIG")
+
   print('⌬ Seeker Online')
 end
 
@@ -128,7 +208,9 @@ function enc(n, d)
 end
 
 function redraw()
-  _seeker.screen_ui.set_needs_redraw()
+  if _seeker.screen_ui then
+    _seeker.screen_ui.redraw()
+  end
 end
 
 function cleanup()
