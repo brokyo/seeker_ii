@@ -381,7 +381,10 @@ function NornsUI:handle_enc_default(n, d)
   if n == 2 then
     -- Filter active params first
     self:filter_active_params()
-    
+
+    -- Guard against components with no params (e.g., action-only components)
+    if #self.active_params == 0 then return end
+
     -- Manage index in active_params space
     local new_index = self.state.selected_index + d
     

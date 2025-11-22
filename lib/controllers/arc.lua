@@ -19,32 +19,9 @@ function Arc.init()
     device.index = {0, 0, 0, 0}
     device.movement_count = {0, 0, 0, 0}  -- Track movements since last trigger for consistent sensitivity
     device.current_section_param_count = 0
-    -- HOTFIX: Flag to ignore certain sections (like Tuning) that don't follow the standard params pattern
-    -- TODO: Implement proper integration for special sections instead of skipping them
-    device.skip_current_section = false
 
     -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
     device.new_section = function(params)
-      -- HOTFIX: Check if we should ignore this section
-      -- TODO: Refactor to properly handle sections with custom parameter systems
-      local current_section_id = _seeker.ui_state.get_current_section()
-      local current_section = _seeker.screen_ui.sections[current_section_id]
-      
-      -- Skip sections that have the skip_arc
-      if current_section and current_section.skip_arc then
-        device.skip_current_section = true
-        -- Clear all LEDs
-        for n = 1, 4 do
-          for i = 1, 64 do
-            device:led(n, i, 0)
-          end
-        end
-        device:refresh()
-        return
-      end
-      
-      device.skip_current_section = false
-
       -- Update the number of params
       device.current_section_param_count = #params
 
@@ -76,9 +53,6 @@ function Arc.init()
     end
 
     device.update_display = function(n)
-      -- HOTFIX: Skip Arc updates for special sections
-      if device.skip_current_section then return end
-      
       device:refresh()
     end
 
@@ -119,9 +93,6 @@ function Arc.init()
 
     -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
     device.delta = function(n, delta)
-      -- HOTFIX: Skip Arc handling for special sections
-      if device.skip_current_section then return end
-
       -- Check for knob recording mode and intercept encoder turns
       if _seeker.ui_state.state.knob_recording_active and n == 2 then
         _seeker.eurorack_output.handle_encoder_input(delta)
@@ -182,6 +153,9 @@ function Arc.init()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
 
+        -- Action-only components (e.g., wtape) have no params
+        if not selected_param then return end
+
         -- Check if this parameter uses multi-encoder float editing
         local is_multi_float = selected_param and selected_param.arc_multi_float
 
@@ -212,9 +186,6 @@ function Arc.init()
 
     -- Add a trigger animation function
     device.animate_trigger = function(param_id)
-      -- Skip if section should be skipped
-      if device.skip_current_section then return end
-      
       -- Start a multi-step animation
       clock.run(function()
         -- Animation step 1: Bright flash on ring 2
@@ -254,9 +225,6 @@ function Arc.init()
     end
 
     device.key = function(n, d)
-      -- HOTFIX: Skip Arc handling for special sections
-      if device.skip_current_section then return end
-      
       if d == 1 then
         -- Get current section and selected parameter
         local current_section_id = _seeker.ui_state.get_current_section()
@@ -284,8 +252,9 @@ function Arc.init()
 
     -- Update the param key display
     device.update_param_key_display = function()
-      -- HOTFIX: Skip Arc handling for special sections
-      if device.skip_current_section then return end
+      -- Action-only components have no params to display
+      if device.current_section_param_count == 0 then return end
+
       -- Set base illumination
       for i = 1, 64 do
         device:led(1, i, 3)
@@ -501,9 +470,6 @@ function Arc.init()
     end
 
     device.update_param_value_display = function()
-      -- HOTFIX: Skip Arc handling for special sections
-      if device.skip_current_section then return end
-
       -- Get current section first
       local current_section_id = _seeker.ui_state.get_current_section()
 
