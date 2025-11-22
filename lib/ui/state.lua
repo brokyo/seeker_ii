@@ -1,4 +1,6 @@
 -- state.lua
+local GridModeRegistry = include("lib/grid/modes")
+
 local UIState = {}
 
 -- Initial state
@@ -105,7 +107,6 @@ function UIState.set_current_section(section_id)
 
   -- Validate and auto-switch mode if needed
   if _seeker.current_mode then
-    local GridModeRegistry = include("lib/grid/modes")
     local required_mode = GridModeRegistry.get_mode_for_section(section_id)
 
     if required_mode and required_mode ~= _seeker.current_mode then

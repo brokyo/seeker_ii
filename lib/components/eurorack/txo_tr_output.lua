@@ -4,14 +4,10 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local EurorackUtils = include("lib/components/eurorack/eurorack_utils")
 
 local TxoTrOutput = {}
 TxoTrOutput.__index = TxoTrOutput
-
--- Configuration constants
-local interval_options = {"Off", "1", "2", "3", "4", "5", "6", "7", "8", "12", "13", "14", "15", "16", "24", "32", "48", "64"}
-local modifier_options = {"1/64", "1/32", "1/24", "1/23", "1/22", "1/21", "1/20", "1/19", "1/18", "1/17", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "48", "64"}
-local offset_options = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
 
 -- Store active clock IDs globally
 local active_clocks = {}
@@ -19,55 +15,13 @@ local active_clocks = {}
 -- Store pattern states globally for rhythmic patterns
 local pattern_states = {}
 
--- Shared utility functions
-
--- Convert division string to beats
-function TxoTrOutput.division_to_beats(div)
-    if div == "Off" then
-        return 0
-    end
-
-    if tonumber(div) then
-        return tonumber(div)
-    end
-
-    local num, den = div:match("(%d+)/(%d+)")
-    if num and den then
-        return tonumber(num)/tonumber(den)
-    end
-
-    return 1
-end
-
--- Convert modifier string to numeric value
-function TxoTrOutput.modifier_to_value(modifier)
-    if tonumber(modifier) then
-        return tonumber(modifier)
-    end
-
-    local num, den = modifier:match("(%d+)/(%d+)")
-    if num and den then
-        return tonumber(num)/tonumber(den)
-    end
-
-    return 1
-end
-
--- Convert interval string to beats
-function TxoTrOutput.interval_to_beats(interval)
-    if interval == "Off" then
-        return 0
-    end
-
-    return tonumber(interval) or 1
-end
 
 -- Get clock timing parameters
 local function get_clock_timing(interval, modifier, offset)
     if interval == "Off" then return nil end
 
     local interval_beats = tonumber(interval)
-    local modifier_value = TxoTrOutput.modifier_to_value(modifier)
+    local modifier_value = EurorackUtils.modifier_to_value(modifier)
     local offset_value = tonumber(offset)
 
     local beats = interval_beats * modifier_value
@@ -150,8 +104,8 @@ function TxoTrOutput.update_txo_tr(output_num)
     local clock_interval = params:string("txo_tr_" .. output_num .. "_clock_interval")
     local clock_modifier = params:string("txo_tr_" .. output_num .. "_clock_modifier")
     local clock_offset = params:string("txo_tr_" .. output_num .. "_clock_offset")
-    local interval_beats = TxoTrOutput.interval_to_beats(clock_interval)
-    local modifier_value = TxoTrOutput.modifier_to_value(clock_modifier)
+    local interval_beats = EurorackUtils.interval_to_beats(clock_interval)
+    local modifier_value = EurorackUtils.modifier_to_value(clock_modifier)
     local beats = interval_beats * modifier_value
 
     if beats == 0 then
@@ -239,6 +193,7 @@ local function create_screen_ui()
         local output_num = selected_number
         local type = params:string("txo_tr_" .. output_num .. "_type")
 
+        table.insert(param_table, { separator = true, title = "TXO TR " .. output_num })
         table.insert(param_table, { id = "txo_tr_" .. output_num .. "_type" })
 
         table.insert(param_table, { separator = true, title = "Clock" })
@@ -332,9 +287,9 @@ end
 
 local function create_params()
     for i = 1, 4 do
-        params:add_option("txo_tr_" .. i .. "_clock_interval", "Interval", interval_options, 1)
-        params:add_option("txo_tr_" .. i .. "_clock_modifier", "Modifier", modifier_options, 26)
-        params:add_option("txo_tr_" .. i .. "_clock_offset", "Offset", offset_options, 1)
+        params:add_option("txo_tr_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
+        params:add_option("txo_tr_" .. i .. "_clock_modifier", "Modifier", EurorackUtils.modifier_options, 26)
+        params:add_option("txo_tr_" .. i .. "_clock_offset", "Offset", EurorackUtils.offset_options, 1)
         params:set_action("txo_tr_" .. i .. "_clock_interval", function(value)
             TxoTrOutput.update_txo_tr(i)
         end)
