@@ -282,7 +282,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TXO_CV_OUTPUT",
         name = "TXO CV Output",
-        description = "Configure individual TXO CV output. Use grid to select output.",
+        description = "Configure TXO CV output. LFOs, random walks, etc.",
         params = {}
     })
 

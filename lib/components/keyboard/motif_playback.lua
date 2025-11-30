@@ -15,7 +15,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "MOTIF",
     name = "Motif Playback",
-    description = "Configure motifs created in generate or record. Hold grid to start and stop playback.",
+    description = "Control the timing and structure of the motif.",
     params = {}
   })
 

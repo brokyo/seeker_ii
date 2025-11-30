@@ -26,7 +26,7 @@ function ClearMotif.init()
         screen = NornsUI.new({
             id = "CLEAR_MOTIF",
             name = "Clear Motif",
-            description = "Hold to clear the current lane's motif",
+            description = "Hold to clear the currently stored motif",
             params = {
                 { separator = true, title = "Clear Motif" }
             }

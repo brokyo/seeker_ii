@@ -644,7 +644,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "CROW_OUTPUT",
         name = "Crow Output",
-        description = "Configure individual Crow output. Use grid to select output.",
+        description = "Configure Crow voltage output. Gates, bursts, LFOs, etc.",
         params = {}
     })
 

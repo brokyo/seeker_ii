@@ -127,7 +127,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "CONFIG",
         name = "Seeker II Config",
-        description = "Global configuration for clock and visuals",
+        description = "Settings that affect all modes",
         params = {
             { separator = true, title = "Clock" },
             { id = "seeker_clock_tempo" },

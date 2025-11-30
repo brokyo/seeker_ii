@@ -105,7 +105,7 @@ local function create_screen_ui()
     return NornsUI.new({
         id = "WTAPE",
         name = "WTape Config",
-        description = "Configuration for WTape. Transport controls available via grid buttons.",
+        description = "WTape settings. Most documented features implemented via grid buttons.",
         params = {
             { separator = true, title = "Playback" },
             { id = "wtape_speed", arc_multi_float = {1.0, 0.1, 0.01}},

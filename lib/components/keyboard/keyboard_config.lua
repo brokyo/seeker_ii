@@ -78,8 +78,8 @@ end
 local function create_screen_ui()
     return NornsUI.new({
         id = "KEYBOARD",
-        name = "Keyboard",
-        description = "Musical keyboard and tuning configuration",
+        name = "Keyboard Config",
+        description = "Select the scale. Set keyboard intervals. Connect MIDI.",
         params = {
             { separator = true, title = "Actions" },
             { id = "keyboard_sync_all_clocks", is_action = true },

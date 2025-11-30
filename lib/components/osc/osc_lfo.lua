@@ -99,7 +99,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_LFO",
         name = "LFO 1",
-        description = "OSC LFO output configuration",
+        description = "Send an LFO value over OSC. Use Seeker TD tox. Best with Arc controller.",
         params = {}
     })
 

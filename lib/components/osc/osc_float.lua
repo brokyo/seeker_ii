@@ -44,7 +44,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_FLOAT",
         name = "Float 1",
-        description = "OSC float output configuration",
+        description = "Send a float value over OSC. Use Seeker TD tox. Best with Arc controller.",
         params = {}
     })
 

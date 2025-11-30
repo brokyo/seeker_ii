@@ -76,7 +76,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TAPE_STAGE_CONFIG",
         name = "Tape Stage Config",
-        description = "Configure tape transforms",
+        description = "Sequence changes to the loop. Structured and probabilistic options. Harmonize is a lot of fun.",
         params = {
             { separator = true, title = "Tape Stage Config" },
         }

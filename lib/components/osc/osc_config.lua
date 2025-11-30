@@ -62,7 +62,7 @@ local function create_screen_ui()
     return NornsUI.new({
         id = "OSC_CONFIG",
         name = "OSC Config",
-        description = "Global OSC configuration and connection setup",
+        description = "OSC connection and settings. Tuned for TouchDesigner.",
         params = {
             { separator = true, title = "Actions" },
             { id = "osc_sync_all_clocks", is_action = true },

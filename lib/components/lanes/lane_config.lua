@@ -610,7 +610,7 @@ local function create_screen_ui()
         id = "LANE_CONFIG",
         name = "Lane 1",
         icon = "⌸",
-        description = "Select and configure voices. Any number can run in parallel.",
+        description = "Voice configuration. Multiple voices can run simultaneously",
         params = {}
     })
     

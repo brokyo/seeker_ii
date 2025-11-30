@@ -81,7 +81,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "ARP_STAGE_CONFIG",
         name = "Arp Stage Config",
-        description = "Configure arpeggio stage",
+        description = "Sequence changes to the live arpeggio. Based on chords for easy melodic construction.",
         params = {
             { separator = true, title = "Arp Stage Config" },
         }

@@ -49,7 +49,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "CREATE_MOTIF",
         name = "Create Motif",
-        description = "Motif creation methods. Change type to play live, create arpeggios, or generate automatically",
+        description = "Record a motif to be looped. Acts like a reel-to-reel tape machine or sequencer.",
         params = {
             { separator = true, title = "Create Motif" },
             { id = "create_motif_duration" }

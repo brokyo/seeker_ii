@@ -174,7 +174,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TXO_TR_OUTPUT",
         name = "TXO TR Output",
-        description = "Configure individual TXO TR output. Use grid to select output.",
+        description = "Configure TXO trigger output. Clocks, patterns, etc.",
         params = {}
     })
 

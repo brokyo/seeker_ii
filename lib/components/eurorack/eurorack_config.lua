@@ -47,7 +47,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "EURORACK_CONFIG",
         name = "Eurorack Config",
-        description = "Global Eurorack configuration and sync",
+        description = "Control Eurorack modules over i2c. Supports Crow and TXO.",
         params = {
             { separator = true, title = "Actions" },
             { id = "sync_all_eurorack_clocks", is_action = true }

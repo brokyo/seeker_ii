@@ -34,7 +34,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "VELOCITY",
     name = "Velocity",
-    description = "Adjust velocity dynamics. Higher values create louder notes.",
+    description = "Note velocity control. Press any of the four keys to change velocity while playing.",
     params = {
       { separator = true, title = "Velocity Levels" },
       { id = "velocity_1" },

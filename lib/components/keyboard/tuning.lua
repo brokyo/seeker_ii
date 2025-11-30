@@ -13,7 +13,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "TUNING",
     name = "Tuning",
-    description = "Adjust octave and grid offset for the focused lane.",
+    description = "Octave and grid offset for this Lane",
     params = {}
   })
 

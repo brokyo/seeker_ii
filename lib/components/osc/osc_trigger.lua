@@ -174,7 +174,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_TRIGGER",
         name = "Trigger 1",
-        description = "OSC trigger output configuration",
+        description = "Send a trigger value over OSC. Use Seeker TD tox. Best with Arc controller.",
         params = {}
     })
 
