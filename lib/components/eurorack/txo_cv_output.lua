@@ -321,7 +321,7 @@ local function create_screen_ui()
         elseif type == "Random Walk" then
             table.insert(param_table, { separator = true, title = "Random Walk" })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_mode" })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_slew" })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_slew", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_min", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_max", arc_multi_float = {1.0, 0.1, 0.01} })
 
