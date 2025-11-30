@@ -14,7 +14,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local arpeggio_gen = include('lib/motif_core/arpeggio_generator')
+local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
 
 local CreateMotif = {}
 CreateMotif.__index = CreateMotif
@@ -201,7 +201,7 @@ local function create_screen_ui()
             end
         end
 
-        -- Draw loop visualization whenever there's a motif or recording (only in tape mode)
+        -- Draw piano roll visualization when motif exists or recording in progress (tape mode only)
         local focused_lane_vis = _seeker.ui_state.get_focused_lane()
         local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
         local show_piano_roll = false
@@ -240,7 +240,9 @@ local function create_screen_ui()
                 screen.rect(VIS_X, VIS_Y, VIS_WIDTH, VIS_HEIGHT)
                 screen.stroke()
 
-                -- Draw tooltip after background/outline but before notes
+                -- Draw tooltip over piano roll background, before notes
+                -- Tooltip drawn here OR at end depending on piano roll visibility
+                -- This ensures notes appear on top while keeping tooltip visible in all contexts
                 if tooltip then
                     local width_tooltip = screen.text_extents(tooltip)
 
@@ -425,7 +427,7 @@ local function create_screen_ui()
             end
         end
 
-        -- Draw tooltip when piano roll is NOT shown
+        -- Draw tooltip below parameters when no piano roll shown (arpeggio mode or tape with no motif)
         if tooltip and not show_piano_roll then
             local width_tooltip = screen.text_extents(tooltip)
 
@@ -545,7 +547,7 @@ local function create_grid_ui()
         -- Generate arpeggio from current step pattern using Stage 1 parameters
         -- ARCHITECTURE NOTE: Arpeggio uses generator pattern (params → motif)
         -- not recorder pattern (real-time input → motif)
-        local arpeggio_motif = arpeggio_gen.generate_motif(focused_lane_idx, 1)
+        local arpeggio_motif = arpeggio_sequence.generate_motif(focused_lane_idx, 1)
 
         if arpeggio_motif and arpeggio_motif.events and #arpeggio_motif.events > 0 then
             -- Set the motif and start playback

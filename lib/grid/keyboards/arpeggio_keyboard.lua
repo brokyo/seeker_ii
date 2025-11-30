@@ -167,6 +167,7 @@ end
 
 -- Handle grid key press for live playback
 function ArpeggioKeyboard.handle_key(x, y, z)
+  -- Handle keyboard note playback
   local interval = ArpeggioKeyboard.grid_to_interval(x, y)
   if not interval then
     return

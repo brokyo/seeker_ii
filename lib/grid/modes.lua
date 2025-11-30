@@ -39,7 +39,8 @@ GridModeRegistry.MODES = {
       "VELOCITY",
       "TUNING",
       "LANE_CONFIG",
-      "STAGE_CONFIG",
+      "TAPE_STAGE_CONFIG",
+      "ARP_STAGE_CONFIG",
       "CLEAR_MOTIF"
     },
     path = "lib/grid/modes/keyboard_mode"

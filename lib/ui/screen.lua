@@ -24,7 +24,8 @@ function ScreenUI.init()
     CLEAR_MOTIF = _seeker.clear_motif.screen,
     CREATE_MOTIF = _seeker.create_motif.screen,
     LANE_CONFIG = _seeker.lane_config.screen,
-    STAGE_CONFIG = _seeker.stage_config.screen,
+    TAPE_STAGE_CONFIG = _seeker.tape_stage_config.screen,
+    ARP_STAGE_CONFIG = _seeker.arp_stage_config.screen,
 
     -- WTape Mode
     WTAPE = _seeker.w_tape.screen,

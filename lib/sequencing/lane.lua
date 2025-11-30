@@ -2,7 +2,13 @@
 local params_manager = include('lib/ui/params')
 local Motif = include('lib/motif_core/motif')
 local forms = include('lib/motif_core/forms')
-local StageConfig = include('lib/components/lanes/stage_config')
+-- Stage type modules for mode-specific preparation
+local tape_transform = include('lib/components/lanes/stage_types/tape_transform')
+local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
+
+-- Motif type constants
+local TAPE_MODE = 1
+local ARPEGGIO_MODE = 2
 local GridConstants = include('lib/grid/constants')
 local theory = include('lib/motif_core/theory')
 local KeyboardRegion = include('lib/grid/keyboard_region')
@@ -203,9 +209,14 @@ end
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
-  -- Delegate to mode-specific stage config
-  local active_config = StageConfig.get_active_config(self.id)
-  active_config.prepare_stage(self.id, stage.id, self.motif)
+  -- Delegate to mode-specific stage preparation
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+
+  if motif_type == TAPE_MODE then
+    tape_transform.prepare_stage(self.id, stage.id, self.motif)
+  elseif motif_type == ARPEGGIO_MODE then
+    arpeggio_sequence.prepare_stage(self.id, stage.id, self.motif)
+  end
 
   return true
 end
@@ -403,15 +414,15 @@ function Lane:schedule_stage(stage_index, start_time)
   end
   
 
-  -- Trigger stage_config button blink on stage start (first loop only)
-  if stage.current_loop == 0 and _seeker.stage_config and _seeker.stage_config.grid then
+  -- Trigger tape stage config button blink on stage start (first loop only)
+  if stage.current_loop == 0 and _seeker.tape_stage_config and _seeker.tape_stage_config.grid then
     -- Only trigger for the focused lane
     if self.id == _seeker.ui_state.get_focused_lane() then
       _seeker.conductor.insert_event({
         time = start_time,
         lane_id = self.id,
         callback = function()
-          _seeker.stage_config.grid:trigger_stage_blink(stage_index)
+          _seeker.tape_stage_config.grid:trigger_stage_blink(stage_index)
         end
       })
     end

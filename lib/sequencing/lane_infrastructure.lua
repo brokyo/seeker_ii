@@ -66,7 +66,7 @@ end
 local function create_motif_playback_params(i)
     params:add_group("lane_" .. i .. "_motif_playback", "MOTIF PLAYBACK", 3)
     -- Playback octave offset
-    params:add_number("lane_" .. i .. "_playback_offset", "Playback Offset", -3, 3, 0)
+    params:add_number("lane_" .. i .. "_playback_offset", "Degree Offset", -8, 8, 0)
 
     -- Speed control with musical ratios
     params:add_option("lane_" .. i .. "_speed", "Speed",

@@ -10,6 +10,7 @@
 - [] W/Tape pitched sample mode
 - [] Disting SD 6 Triggers support
 - [] Arc was written before I really understood it and all logic is encapsulated in one file. Sanity check.
+- [] **Architectural Debt: Mode System Grid Component Registration** - Components currently check motif_type in draw() to conditionally render (e.g., arp_stage_config vs tuning at same grid position). Mode definitions should specify both screen sections AND active grid components per mode/state. Components shouldn't contain mode logic.
 - [] **Architectural Debt: Clock Utilities Duplication** - division_to_beats() and sync_options are duplicated across OSC, eurorack (crow, txo), arpeggio_params, stage_config, and transforms. Should be consolidated into lib/clock_utils.lua for shared tempo/sync utilities.
 - [] **Architectural Debt: Param Ownership** - Current split between lane_infrastructure, stage_config, lane_config, and arpeggio_params works but is conceptually messy. Future refactor options:
   - Split lane_config.init() into early param creation + late UI creation. Allows components to reference lane params during their init. Medium risk.

@@ -9,7 +9,7 @@ local TapeTransform = {}
 function TapeTransform.populate_params(ui, lane_idx, stage_idx)
   local param_table = {
     { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-    { id = "lane_" .. lane_idx .. "_config_stage" },
+    { id = "lane_" .. lane_idx .. "_tape_config_stage" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
@@ -28,7 +28,7 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
 
   local param_table = {
     { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-    { id = "lane_" .. lane_idx .. "_config_stage" },
+    { id = "lane_" .. lane_idx .. "_tape_config_stage" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },

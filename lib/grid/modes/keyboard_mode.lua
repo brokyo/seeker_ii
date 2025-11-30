@@ -3,16 +3,30 @@
 -- Orchestrates keyboard, velocity, tuning, motif, and lane control components
 
 local KeyboardRegion = include("lib/grid/keyboard_region")
-local StageConfig = include("lib/components/lanes/stage_config")
 local GridAnimations = include("lib/grid/animations")
 
 local KeyboardMode = {}
 
+-- Motif type constants
+local TAPE_MODE = 1
+local ARPEGGIO_MODE = 2
+
 -- Determine which regions should be visible based on current motif type
+-- NOTE: This duplicates logic from stage_types/tape_transform and arpeggio_sequence
+-- See roadmap.md - Mode System Grid Component Registration debt
 local function should_draw_region(region_name)
-  -- Delegate mode-specific region visibility to active stage config
-  local active_config = StageConfig.get_active_config()
-  return active_config.should_draw_region(region_name)
+  local focused_lane_id = _seeker.ui_state.get_focused_lane()
+  local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
+
+  if motif_type == TAPE_MODE then
+    -- Tape mode shows all regions
+    return true
+  elseif motif_type == ARPEGGIO_MODE then
+    -- Arpeggio mode hides velocity and tuning regions
+    return not (region_name == "velocity" or region_name == "tuning")
+  end
+
+  return true
 end
 
 -- Draw all keyboard mode elements
@@ -28,13 +42,16 @@ function KeyboardMode.draw_full_page(layers)
     _seeker.tuning.grid:draw(layers)
   end
 
+  -- Draw arpeggio stage selector (shares position with tuning)
+  _seeker.arp_stage_config.grid:draw(layers)
+
   -- Draw keyboard
   KeyboardRegion.draw(layers)
 
   -- Draw motif configuration buttons (bottom row)
   _seeker.clear_motif.grid:draw(layers)
   _seeker.create_motif.grid:draw(layers)
-  _seeker.stage_config.grid:draw(layers)
+  _seeker.tape_stage_config.grid:draw(layers)
 
   -- Draw lane config (8-button grid)
   _seeker.lane_config.grid:draw(layers)
@@ -70,12 +87,14 @@ function KeyboardMode.handle_full_page_key(x, y, z)
     _seeker.velocity.grid:handle_key(x, y, z)
   elseif _seeker.tuning.grid:contains(x, y) and should_draw_region("tuning") then
     _seeker.tuning.grid:handle_key(x, y, z)
+  elseif _seeker.arp_stage_config.grid:contains(x, y) then
+    _seeker.arp_stage_config.grid:handle_key(x, y, z)
   elseif _seeker.clear_motif.grid:contains(x, y) then
     _seeker.clear_motif.grid:handle_key(x, y, z)
   elseif _seeker.create_motif.grid:contains(x, y) then
     _seeker.create_motif.grid:handle_key(x, y, z)
-  elseif _seeker.stage_config.grid:contains(x, y) then
-    _seeker.stage_config.grid:handle_key(x, y, z)
+  elseif _seeker.tape_stage_config.grid:contains(x, y) then
+    _seeker.tape_stage_config.grid:handle_key(x, y, z)
   end
 
   return true
