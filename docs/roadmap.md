@@ -3,13 +3,12 @@
 ### Active Concerns
 
 ### Near Term Priorities
-- [] W/Tape Mode buttons
-- [] W/Tape pitched sample mode
-- [] Disting SD 6 Triggers support
 
 ### Bugs
 
 ### Long List
+- [] W/Tape pitched sample mode
+- [] Disting SD 6 Triggers support
 - [] Arc was written before I really understood it and all logic is encapsulated in one file. Sanity check.
 - [] **Architectural Debt: Clock Utilities Duplication** - division_to_beats() and sync_options are duplicated across OSC, eurorack (crow, txo), arpeggio_params, stage_config, and transforms. Should be consolidated into lib/clock_utils.lua for shared tempo/sync utilities.
 - [] **Architectural Debt: Param Ownership** - Current split between lane_infrastructure, stage_config, lane_config, and arpeggio_params works but is conceptually messy. Future refactor options:

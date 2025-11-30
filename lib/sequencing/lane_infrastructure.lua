@@ -106,7 +106,7 @@ local function create_basic_lane_params(i)
     params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -3)
 
     -- Volume parameter that lane.lua expects
-    params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.02, 1, ""))
+    params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
     params:set_action("lane_" .. i .. "_volume", function(value)
         _seeker.lanes[i].volume = value
     end)

@@ -30,7 +30,7 @@ local function create_mx_samples_params(i)
         _seeker.screen_ui.set_needs_redraw()
     end)
 
-    params:add_control("lane_" .. i .. "_mx_voice_volume", "Voice Volume", controlspec.new(0, 1, 'lin', 0.02, 1, ""))
+    params:add_control("lane_" .. i .. "_mx_voice_volume", "Voice Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
     params:set_action("lane_" .. i .. "_mx_voice_volume", function(value)
         _seeker.lanes[i].mx_voice_volume = value
     end)
@@ -632,7 +632,7 @@ local function create_screen_ui()
         -- Start with common params
         local param_table = {
             { separator = true, title = string.format("Lane %d Config", lane_idx) },
-            { id = "lane_" .. lane_idx .. "_volume" },
+            { id = "lane_" .. lane_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
             { id = "lane_" .. lane_idx .. "_visible_voice" }
         }
         
@@ -643,26 +643,26 @@ local function create_screen_ui()
 
             -- Only show additional MX Samples params if active
             if params:get("lane_" .. lane_idx .. "_mx_samples_active") == 1 then
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
                 table.insert(param_table, { separator = true, title = "Individual Event" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.5, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { separator = true, title = "Lane Effects" })
-                table.insert(param_table, { 
-                    id = "lane_" .. lane_idx .. "_lpf", 
+                table.insert(param_table, {
+                    id = "lane_" .. lane_idx .. "_lpf",
                     arc_multi_float = {1000, 100, 10}
                 })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_resonance" })
-                table.insert(param_table, { 
-                    id = "lane_" .. lane_idx .. "_hpf", 
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
+                table.insert(param_table, {
+                    id = "lane_" .. lane_idx .. "_hpf",
                     arc_multi_float = {1000, 100, 10}
                 })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_delay_send" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_delay_send", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send", arc_multi_float = {0.1, 0.05, 0.01} })
             end
         elseif visible_voice == 2 then -- MIDI
             table.insert(param_table, { separator = true, title = "MIDI" })

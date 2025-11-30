@@ -69,16 +69,21 @@ function Arc.init()
         }
     end
 
-    -- Helper function to modify parameter value based on encoder step sizes
-    device.modify_float_component = function(param, component_idx, direction)
+    -- Apply delta change to a multi-encoder float parameter
+    device.modify_float_component = function(param, encoder_num, direction)
         if not param.arc_multi_float then
-            error("arc_multi_float must be defined with step sizes per encoder")
+            error("arc_multi_float must be defined as array of delta values")
         end
-        
+
+        -- Convert encoder number (2,3,4) to array index (1,2,3)
+        local array_idx = encoder_num - 1
+        if not param.arc_multi_float[array_idx] then
+            return -- This encoder is not active for this parameter
+        end
+
         local current_value = params:get(param.id)
         local param_obj = params:lookup_param(param.id)
-        -- Array indices 1,2,3 correspond to encoders 2,3,4
-        local delta = direction * param.arc_multi_float[component_idx - 1]
+        local delta = direction * param.arc_multi_float[array_idx]
         local new_value = current_value + delta
         
         -- Handle parameter range limits
@@ -161,14 +166,15 @@ function Arc.init()
 
         -- Handle multi-encoder float editing
         if is_multi_float and selected_param.id then
+          local num_encoders = #selected_param.arc_multi_float
           if n == 2 then
-            -- Encoder 2: Integer component
+            -- Encoder 2: Coarse adjustment
             device.modify_float_component(selected_param, 2, direction)
-          elseif n == 3 then
-            -- Encoder 3: Tenth component
+          elseif n == 3 and num_encoders >= 2 then
+            -- Encoder 3: Medium adjustment
             device.modify_float_component(selected_param, 3, direction)
-          elseif n == 4 then
-            -- Encoder 4: Hundredth component
+          elseif n == 4 and num_encoders >= 3 then
+            -- Encoder 4: Fine adjustment
             device.modify_float_component(selected_param, 4, direction)
           end
 
@@ -421,46 +427,66 @@ function Arc.init()
       device:refresh()
     end
     
-    -- Helper function for displaying multi-encoder float values
+    -- Display numeric value across 2-3 rings showing place values
     local function update_multi_float_rings(param_id)
         local current_value = params:get(param_id)
         local current_section_id = _seeker.ui_state.get_current_section()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local param = current_section.params[current_section.state.selected_index]
-        local step_sizes = get_param_step_sizes(param)
-        
-        -- Clear all rings first
-        for ring = 2, 4 do
+        local num_encoders = #param.arc_multi_float
+
+        -- Light active rings (ring 1 + number of encoders, capped at ring 4)
+        local max_ring = math.min(4, 1 + num_encoders)
+        for ring = 2, max_ring do
             for i = 1, 64 do
                 device:led(ring, i, 1) -- Dim base illumination
             end
         end
+
+        -- Clear any unused rings
+        for ring = max_ring + 1, 4 do
+            for i = 1, 64 do
+                device:led(ring, i, 0)
+            end
+        end
         
-        -- Calculate display values based on step sizes
+        -- Display value at each encoder's delta scale
         local value = math.abs(current_value)
-        local thousands = math.floor(value / 1000)
-        local hundreds = math.floor((value % 1000) / 100)
-        local tens = math.floor((value % 100) / 10)
-        
-        -- Ring 2: Thousands (0-20 for frequency)
-        local thousand_leds = math.floor(64 / 20)
-        local thousand_start = (thousands % 20) * thousand_leds + 1
-        for i = 0, thousand_leds - 1 do
-            device:led(2, thousand_start + i, 10)
+        local remainder = value
+
+        -- Ring 2: Show value at first encoder's delta scale
+        if num_encoders >= 1 then
+            local delta = param.arc_multi_float[1]
+            local digit = math.floor(remainder / delta) % 10
+            local leds_per_digit = math.floor(64 / 10)
+            local led_start = digit * leds_per_digit + 1
+            for i = 0, leds_per_digit - 1 do
+                device:led(2, led_start + i, 10)
+            end
+            remainder = remainder % delta
         end
-        
-        -- Ring 3: Hundreds (0-9)
-        local hundred_leds = math.floor(64 / 10)
-        local hundred_start = hundreds * hundred_leds + 1
-        for i = 0, hundred_leds - 1 do
-            device:led(3, hundred_start + i, 10)
+
+        -- Ring 3: Show value at second encoder's delta scale
+        if num_encoders >= 2 then
+            local delta = param.arc_multi_float[2]
+            local digit = math.floor(remainder / delta) % 10
+            local leds_per_digit = math.floor(64 / 10)
+            local led_start = digit * leds_per_digit + 1
+            for i = 0, leds_per_digit - 1 do
+                device:led(3, led_start + i, 10)
+            end
+            remainder = remainder % delta
         end
-        
-        -- Ring 4: Tens (0-9)
-        local ten_leds = math.floor(64 / 10)
-        local ten_start = tens * ten_leds + 1
-        for i = 0, ten_leds - 1 do
-            device:led(4, ten_start + i, 10)
+
+        -- Ring 4: Show value at third encoder's delta scale
+        if num_encoders >= 3 then
+            local delta = param.arc_multi_float[3]
+            local digit = math.floor(remainder / delta) % 10
+            local leds_per_digit = math.floor(64 / 10)
+            local led_start = digit * leds_per_digit + 1
+            for i = 0, leds_per_digit - 1 do
+                device:led(4, led_start + i, 10)
+            end
         end
         
         -- Add sign indicator on ring 2 if negative
