@@ -67,11 +67,11 @@ local function create_screen_ui()
             { separator = true, title = "Actions" },
             { id = "osc_sync_all_clocks", is_action = true },
             { separator = true, title = "Connection" },
-            { id = "osc_dest_octet_1" },
-            { id = "osc_dest_octet_2" },
-            { id = "osc_dest_octet_3" },
-            { id = "osc_dest_octet_4" },
-            { id = "osc_dest_port" },
+            { id = "osc_dest_octet_1", arc_multi_float = {10, 5, 1} },
+            { id = "osc_dest_octet_2", arc_multi_float = {10, 5, 1} },
+            { id = "osc_dest_octet_3", arc_multi_float = {10, 5, 1} },
+            { id = "osc_dest_octet_4", arc_multi_float = {10, 5, 1} },
+            { id = "osc_dest_port", arc_multi_float = {1000, 100, 10} },
             { separator = true, title = "Test" },
             { id = "osc_test_trigger", is_action = true }
         }
