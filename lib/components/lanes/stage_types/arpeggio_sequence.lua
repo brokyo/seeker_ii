@@ -271,17 +271,7 @@ end
 -- Build parameter list (shared by populate and rebuild)
 local function build_param_list(lane_idx, stage_idx)
   return {
-    { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-    { id = "lane_" .. lane_idx .. "_arp_config_stage" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
-    { separator = true, title = "Chord Sequence" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_octave", arc_multi_float = {1, 1, 1} },
+    { separator = true, title = "Pattern" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
     { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount", arc_multi_float = {10, 5, 1} },

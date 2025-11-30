@@ -31,7 +31,8 @@ local CreateMotif = include("lib/components/keyboard/create_motif")
 local ClearMotif = include("lib/components/keyboard/clear_motif")
 local LaneConfig = include("lib/components/lanes/lane_config")
 local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
-local ArpStageConfig = include("lib/components/lanes/arp_stage_config")
+local ExpressionConfig = include("lib/components/lanes/expression_config")
+local HarmonicConfig = include("lib/components/lanes/harmonic_config")
 
 -- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
@@ -82,7 +83,8 @@ _seeker = {
   create_motif = nil,
   w_tape = nil,
   tape_stage_config = nil,
-  arp_stage_config = nil,
+  expression_config = nil,
+  harmonic_config = nil,
   eurorack_config = nil,
   crow_output = nil,
   txo_tr_output = nil,
@@ -136,7 +138,8 @@ function init()
   -- NOTE: LaneConfig must be initialized before stage configs to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
   _seeker.tape_stage_config = TapeStageConfig.init()
-  _seeker.arp_stage_config = ArpStageConfig.init()
+  _seeker.expression_config = ExpressionConfig.init()
+  _seeker.harmonic_config = HarmonicConfig.init()
 
   -- WTape Mode
   _seeker.w_tape = WTape.init()

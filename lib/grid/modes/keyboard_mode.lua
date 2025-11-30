@@ -42,8 +42,11 @@ function KeyboardMode.draw_full_page(layers)
     _seeker.tuning.grid:draw(layers)
   end
 
-  -- Draw arpeggio stage selector (shares position with tuning)
-  _seeker.arp_stage_config.grid:draw(layers)
+  -- Draw harmonic config (row 2, arpeggio mode only)
+  _seeker.harmonic_config.grid:draw(layers)
+
+  -- Draw expression config (row 3, shares row position with tuning in tape mode)
+  _seeker.expression_config.grid:draw(layers)
 
   -- Draw keyboard
   KeyboardRegion.draw(layers)
@@ -87,8 +90,10 @@ function KeyboardMode.handle_full_page_key(x, y, z)
     _seeker.velocity.grid:handle_key(x, y, z)
   elseif _seeker.tuning.grid:contains(x, y) and should_draw_region("tuning") then
     _seeker.tuning.grid:handle_key(x, y, z)
-  elseif _seeker.arp_stage_config.grid:contains(x, y) then
-    _seeker.arp_stage_config.grid:handle_key(x, y, z)
+  elseif _seeker.harmonic_config.grid:contains(x, y) then
+    _seeker.harmonic_config.grid:handle_key(x, y, z)
+  elseif _seeker.expression_config.grid:contains(x, y) then
+    _seeker.expression_config.grid:handle_key(x, y, z)
   elseif _seeker.clear_motif.grid:contains(x, y) then
     _seeker.clear_motif.grid:handle_key(x, y, z)
   elseif _seeker.create_motif.grid:contains(x, y) then

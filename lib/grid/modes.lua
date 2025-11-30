@@ -40,7 +40,8 @@ GridModeRegistry.MODES = {
       "TUNING",
       "LANE_CONFIG",
       "TAPE_STAGE_CONFIG",
-      "ARP_STAGE_CONFIG",
+      "EXPRESSION_CONFIG",
+      "HARMONIC_CONFIG",
       "CLEAR_MOTIF"
     },
     path = "lib/grid/modes/keyboard_mode"

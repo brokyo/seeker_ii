@@ -27,13 +27,8 @@ local function create_stage_params(i)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        -- By default stage 1 is active and stages 2-4 are not
-        local default_active = 1
-        if stage_idx == 1 then
-            default_active = 2
-        end
-        
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, default_active)
+        -- All stages default to active
+        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, 2)
         params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_active", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)

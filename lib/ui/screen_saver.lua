@@ -143,6 +143,20 @@ function ScreenSaver.draw()
       screen.rect(MARGIN_LEFT, y_pos, timeline_width, lane_height)
       screen.stroke()
 
+      -- Draw stage indicator dots
+      local num_stages = 4
+      local dot_x = MARGIN_LEFT + 3
+      local dot_spacing = (lane_height - 4) / (num_stages - 1)
+      local current_stage = lane.current_stage_index or 1
+
+      for stage = 1, num_stages do
+        local dot_y = y_pos + 2 + ((stage - 1) * dot_spacing)
+        local is_active = (stage == current_stage)
+        screen.level(is_active and 15 or 3)
+        screen.circle(dot_x, dot_y, 1)
+        screen.fill()
+      end
+
       -- Find max generation and note range for brightness scaling and piano roll
       local max_gen = 1
       local min_note = 127

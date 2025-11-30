@@ -24,8 +24,96 @@ local lane_playback_state = {}
 -- Track the current mode to detect changes
 local current_mode = 1
 
+-- Configures sequence structure and performance parameters for all stages
+local function apply_expression_preset(lane_id, preset_name)
+    local presets = {
+        Mechanical = {
+            -- Structure (lane-level)
+            num_steps = 8,
+            step_length = 12, -- 1/4
+            -- Performance (applied to all stages)
+            pattern = 1, -- All
+            note_duration = 100,
+            velocity_curve = 1, -- Flat
+            velocity_min = 90,
+            velocity_max = 90,
+            strum_amount = 0,
+            chord_phasing = 1, -- Off
+            strum_curve = 1, -- None
+            strum_shape = 1 -- Forward
+        },
+        Whisper = {
+            -- Structure
+            num_steps = 16,
+            step_length = 8, -- 1/8
+            -- Performance
+            pattern = 1, -- All (strum creates gaps)
+            note_duration = 200,
+            velocity_curve = 8, -- Random
+            velocity_min = 40,
+            velocity_max = 70,
+            strum_amount = 60,
+            chord_phasing = 2, -- On
+            strum_curve = 5, -- Sweep
+            strum_shape = 5 -- Alternating
+        },
+        Shimmer = {
+            -- Structure
+            num_steps = 12,
+            step_length = 9, -- 1/6
+            -- Performance
+            pattern = 1, -- All
+            note_duration = 250,
+            velocity_curve = 4, -- Wave
+            velocity_min = 60,
+            velocity_max = 90,
+            strum_amount = 45,
+            chord_phasing = 2, -- On
+            strum_curve = 5, -- Sweep
+            strum_shape = 3 -- Center Out
+        },
+        Percussive = {
+            -- Structure
+            num_steps = 8,
+            step_length = 12, -- 1/4
+            -- Performance
+            pattern = 1, -- All
+            note_duration = 30,
+            velocity_curve = 6, -- Accent First
+            velocity_min = 100,
+            velocity_max = 127,
+            strum_amount = 0,
+            chord_phasing = 1, -- Off
+            strum_curve = 1, -- None
+            strum_shape = 1 -- Forward
+        }
+    }
+
+    local preset = presets[preset_name]
+    if preset then
+        -- Apply structure params (lane-level)
+        if preset.num_steps then
+            params:set("lane_" .. lane_id .. "_arpeggio_num_steps", preset.num_steps)
+        end
+        if preset.step_length then
+            params:set("lane_" .. lane_id .. "_arpeggio_step_length", preset.step_length)
+        end
+
+        -- Apply performance params to all 4 stages
+        for stage_idx = 1, 4 do
+            for param_name, value in pairs(preset) do
+                -- Skip structure params (already set above)
+                if param_name ~= "num_steps" and param_name ~= "step_length" then
+                    params:set("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_" .. param_name, value)
+                end
+            end
+        end
+    end
+end
+
 local function create_params()
-    params:add_group("create_motif_group", "CREATE MOTIF", 1)
+    params:add_group("create_motif_group", "CREATE MOTIF", 2)
+
     -- Duration parameter for tape mode
     params:add_control("create_motif_duration", "Duration", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
     params:set_action("create_motif_duration", function(value)
@@ -43,6 +131,24 @@ local function create_params()
         end
     end)
 
+    -- Expression preset selector for arpeggio mode
+    params:add_option("create_motif_expression_preset", "Expression Preset",
+        {"Mechanical", "Whisper", "Shimmer", "Percussive", "Custom"}, 1)
+    params:set_action("create_motif_expression_preset", function(value)
+        local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Custom"}
+        local preset_name = preset_names[value]
+
+        -- Don't apply Custom preset
+        if preset_name ~= "Custom" then
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            apply_expression_preset(focused_lane, preset_name)
+
+            -- Trigger screen redraw to show updated values
+            if _seeker.screen_ui then
+                _seeker.screen_ui.set_needs_redraw()
+            end
+        end
+    end)
 end
 
 local function create_screen_ui()
@@ -79,6 +185,8 @@ local function create_screen_ui()
         -- Only show arpeggio sequence structure when in arpeggio mode
         -- Musical params (chord, velocity, strum) are now configured in Stage Config
         if motif_type == 2 then
+            table.insert(param_table, { separator = true, title = "Expression" })
+            table.insert(param_table, { id = "create_motif_expression_preset" })
             table.insert(param_table, { separator = true, title = "Sequence Structure" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_num_steps" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_step_length" })
@@ -553,11 +661,6 @@ local function create_grid_ui()
             -- Set the motif and start playback
             current_lane:set_motif(arpeggio_motif)
             current_lane:play()
-
-            print(string.format("✓ Arpeggio motif created: %d events, duration %.2f",
-                #arpeggio_motif.events, arpeggio_motif.duration))
-        else
-            print("⚠ No active steps to create arpeggio motif")
         end
 
         -- Rebuild parameters to show duration based on new motif state
