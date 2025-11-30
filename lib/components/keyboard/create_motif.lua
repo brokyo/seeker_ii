@@ -179,7 +179,7 @@ local function create_screen_ui()
         self:_draw_standard_ui()
 
         -- Original create_motif drawing logic starts here
-        -- Show tooltip
+        -- Determine tooltip text
         local tooltip
         if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
             tooltip = "⏹: tap"
@@ -200,7 +200,7 @@ local function create_screen_ui()
                 tooltip = "⏺: hold [record]"
             end
         end
-        
+
         -- Draw loop visualization whenever there's a motif or recording (only in tape mode)
         local focused_lane_vis = _seeker.ui_state.get_focused_lane()
         local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
@@ -239,6 +239,26 @@ local function create_screen_ui()
                 screen.level(3)
                 screen.rect(VIS_X, VIS_Y, VIS_WIDTH, VIS_HEIGHT)
                 screen.stroke()
+
+                -- Draw tooltip after background/outline but before notes
+                if tooltip then
+                    local width_tooltip = screen.text_extents(tooltip)
+
+                    -- Pulse brightness when recording, otherwise static
+                    if _seeker.motif_recorder.is_recording then
+                        -- Pulse using sine wave synced to beats
+                        local base = 10
+                        local range = 5
+                        local speed = 4  -- cycles per beat
+                        local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
+                        screen.level(pulse)
+                    else
+                        screen.level(1)
+                    end
+
+                    screen.move(64 - width_tooltip/2, 46)
+                    screen.text(tooltip)
+                end
 
                 -- Find max generation and note range from existing motif
                 local max_gen = 1
@@ -405,8 +425,8 @@ local function create_screen_ui()
             end
         end
 
-        -- Draw tooltip if we have one (after piano roll so it overlays)
-        if tooltip then
+        -- Draw tooltip when piano roll is NOT shown
+        if tooltip and not show_piano_roll then
             local width_tooltip = screen.text_extents(tooltip)
 
             -- Pulse brightness when recording, otherwise static
@@ -418,7 +438,7 @@ local function create_screen_ui()
                 local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
                 screen.level(pulse)
             else
-                screen.level(show_piano_roll and 1 or 2)
+                screen.level(2)
             end
 
             screen.move(64 - width_tooltip/2, 46)
