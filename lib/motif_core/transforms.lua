@@ -38,8 +38,7 @@ transforms.available = {
     fn = function(events, lane_id, stage_id)
       local mode = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_overdub_filter_mode")
       local target_generation = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_overdub_filter_round")
-      
-      print("overdub filter")
+
       -- Find the maximum generations in the events
       local max_generation = 1
       for _, event in ipairs(events) do
@@ -166,11 +165,11 @@ transforms.available = {
         local harmonics = pair.harmonics
 
         -- Add original note_on
-        local new_event = {}
+        local original_note_on_copy = {}
         for k, v in pairs(original_note_on) do
-          new_event[k] = v
+          original_note_on_copy[k] = v
         end
-        table.insert(result, new_event)
+        table.insert(result, original_note_on_copy)
 
         -- Add harmonic note_ons
         if harmonics.has_sub_octave then
@@ -179,12 +178,17 @@ transforms.available = {
             humanize_value(sub_octave_volume, SUB_OCTAVE_VELOCITY_VARIATION)
           )
 
-          table.insert(result, {
-            type = "note_on",
-            time = original_note_on.time + harmonics.sub_octave_delay,
-            note = original_note_on.note - 12,
-            velocity = sub_octave_velocity
-          })
+          -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+          local sub_octave_on = {}
+          for k, v in pairs(original_note_on) do
+            if k ~= "generation" then
+              sub_octave_on[k] = v
+            end
+          end
+          sub_octave_on.time = original_note_on.time + harmonics.sub_octave_delay
+          sub_octave_on.note = original_note_on.note - 12
+          sub_octave_on.velocity = sub_octave_velocity
+          table.insert(result, sub_octave_on)
         end
 
         if harmonics.has_fifth then
@@ -193,12 +197,17 @@ transforms.available = {
             humanize_value(fifth_volume, FIFTH_VELOCITY_VARIATION)
           )
 
-          table.insert(result, {
-            type = "note_on",
-            time = original_note_on.time + harmonics.fifth_delay,
-            note = original_note_on.note + 7,
-            velocity = fifth_velocity
-          })
+          -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+          local fifth_on = {}
+          for k, v in pairs(original_note_on) do
+            if k ~= "generation" then
+              fifth_on[k] = v
+            end
+          end
+          fifth_on.time = original_note_on.time + harmonics.fifth_delay
+          fifth_on.note = original_note_on.note + 7
+          fifth_on.velocity = fifth_velocity
+          table.insert(result, fifth_on)
         end
 
         if harmonics.has_octave then
@@ -207,45 +216,65 @@ transforms.available = {
             humanize_value(octave_volume, OCTAVE_VELOCITY_VARIATION)
           )
 
-          table.insert(result, {
-            type = "note_on",
-            time = original_note_on.time + harmonics.octave_delay,
-            note = original_note_on.note + 12,
-            velocity = octave_velocity
-          })
+          -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+          local octave_on = {}
+          for k, v in pairs(original_note_on) do
+            if k ~= "generation" then
+              octave_on[k] = v
+            end
+          end
+          octave_on.time = original_note_on.time + harmonics.octave_delay
+          octave_on.note = original_note_on.note + 12
+          octave_on.velocity = octave_velocity
+          table.insert(result, octave_on)
         end
 
         -- Add original note_off if it exists
         if original_note_off then
-          local new_event = {}
+          local original_note_off_copy = {}
           for k, v in pairs(original_note_off) do
-            new_event[k] = v
+            original_note_off_copy[k] = v
           end
-          table.insert(result, new_event)
+          table.insert(result, original_note_off_copy)
 
           -- Add harmonic note_offs
           if harmonics.has_sub_octave then
-            table.insert(result, {
-              type = "note_off",
-              time = original_note_off.time + harmonics.sub_octave_delay,
-              note = original_note_on.note - 12
-            })
+            -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+            local sub_octave_off = {}
+            for k, v in pairs(original_note_off) do
+              if k ~= "generation" then
+                sub_octave_off[k] = v
+              end
+            end
+            sub_octave_off.time = original_note_off.time + harmonics.sub_octave_delay
+            sub_octave_off.note = original_note_on.note - 12
+            table.insert(result, sub_octave_off)
           end
 
           if harmonics.has_fifth then
-            table.insert(result, {
-              type = "note_off",
-              time = original_note_off.time + harmonics.fifth_delay + 0.05, -- Slight sustain
-              note = original_note_on.note + 7
-            })
+            -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+            local fifth_off = {}
+            for k, v in pairs(original_note_off) do
+              if k ~= "generation" then
+                fifth_off[k] = v
+              end
+            end
+            fifth_off.time = original_note_off.time + harmonics.fifth_delay + 0.05 -- Fifth sustains 50ms longer
+            fifth_off.note = original_note_on.note + 7
+            table.insert(result, fifth_off)
           end
 
           if harmonics.has_octave then
-            table.insert(result, {
-              type = "note_off",
-              time = original_note_off.time + harmonics.octave_delay,
-              note = original_note_on.note + 12
-            })
+            -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+            local octave_off = {}
+            for k, v in pairs(original_note_off) do
+              if k ~= "generation" then
+                octave_off[k] = v
+              end
+            end
+            octave_off.time = original_note_off.time + harmonics.octave_delay
+            octave_off.note = original_note_on.note + 12
+            table.insert(result, octave_off)
           end
         end
       end
