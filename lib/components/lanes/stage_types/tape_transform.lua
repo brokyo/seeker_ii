@@ -5,6 +5,23 @@
 local tape_transforms = include('lib/motif_core/transforms')
 local TapeTransform = {}
 
+-- Get the maximum generation from a lane's motif
+local function get_max_generation(lane_idx)
+  local lane = _seeker.lanes[lane_idx]
+  if not lane or not lane.motif or not lane.motif.events then
+    return 1
+  end
+
+  local max_gen = 1
+  for _, event in ipairs(lane.motif.events) do
+    if event.generation and event.generation > max_gen then
+      max_gen = event.generation
+    end
+  end
+
+  return max_gen
+end
+
 -- Populate initial parameters when entering stage config
 function TapeTransform.populate_params(ui, lane_idx, stage_idx)
   local param_table = {
@@ -23,6 +40,19 @@ end
 
 -- Rebuild parameters based on selected transform
 function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
+  -- Set overdub filter round parameter max to match the motif's generation count
+  local max_gen = get_max_generation(lane_idx)
+  local filter_round_param = params:lookup_param("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round")
+  if filter_round_param then
+    -- Ensure max is at least 2 to avoid division by zero in Arc controller
+    filter_round_param.max = math.max(max_gen, 2)
+    -- Clamp current value to actual max generation
+    local current_value = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round")
+    if current_value > max_gen then
+      params:set("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", max_gen)
+    end
+  end
+
   -- Get the current transform type
   local transform_type = params:string("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
 
