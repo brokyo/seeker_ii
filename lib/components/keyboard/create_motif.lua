@@ -310,10 +310,11 @@ local function create_screen_ui()
         end
 
         -- Draw piano roll visualization when motif exists or recording in progress (tape mode only)
+        -- Skip when showing description to avoid overlaying it
         local focused_lane_vis = _seeker.ui_state.get_focused_lane()
         local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
         local show_piano_roll = false
-        if motif_type_vis == 1 then
+        if motif_type_vis == 1 and not self.state.showing_description then
             local lane_vis = _seeker.lanes[focused_lane_vis]
             local motif_vis = lane_vis.motif
 
@@ -351,7 +352,8 @@ local function create_screen_ui()
                 -- Draw tooltip over piano roll background, before notes
                 -- Tooltip drawn here OR at end depending on piano roll visibility
                 -- This ensures notes appear on top while keeping tooltip visible in all contexts
-                if tooltip then
+                -- Skip tooltip when viewing parameter description
+                if tooltip and not self.state.showing_description then
                     local width_tooltip = screen.text_extents(tooltip)
 
                     -- Pulse brightness when recording, otherwise static
@@ -536,7 +538,8 @@ local function create_screen_ui()
         end
 
         -- Draw tooltip below parameters when no piano roll shown (arpeggio mode or tape with no motif)
-        if tooltip and not show_piano_roll then
+        -- Skip tooltip when viewing parameter description
+        if tooltip and not show_piano_roll and not self.state.showing_description then
             local width_tooltip = screen.text_extents(tooltip)
 
             -- Pulse brightness when recording, otherwise static

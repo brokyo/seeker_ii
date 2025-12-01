@@ -155,7 +155,6 @@ end
 function UIState.key(n, z)
   UIState.register_activity()
 
-  print("⎍ Key pressed", n, z)
   -- Handle global controls first
   if n == 1 and z == 1 then
     -- Toggle app visibility
