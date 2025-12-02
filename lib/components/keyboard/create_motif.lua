@@ -2,13 +2,13 @@
 -- Self-contained component for the Create Motif functionality.
 -- Handles parameter, screen, grid, and arc initialization and management
 --
--- ARCHITECTURAL NOTE: This component handles two distinct modes (Tape and Arpeggio)
+-- ARCHITECTURAL NOTE: This component handles two distinct modes (Tape and Composer)
 -- via conditional branching on motif_type. This creates coupling but keeps the UI
--- simple (one screen, one button). If arpeggio mode grows significantly complex
+-- simple (one screen, one button). If composer mode grows significantly complex
 -- (step visualization, pattern presets, unique features), consider splitting into:
 --   - create_motif_region.lua (routing layer, owns grid button)
 --   - tape_motif.lua (tape recording component)
---   - arpeggio_motif.lua (arpeggio generation component)
+--   - composer_motif.lua (composer generation component)
 -- See keyboard_region.lua for precedent on this pattern.
 
 local NornsUI = include("lib/ui/base/norns_ui")
@@ -43,11 +43,11 @@ local function apply_expression_preset(lane_id, preset_name)
             strum_shape = 1 -- Forward
         },
         Whisper = {
-            -- Structure
-            num_steps = 16,
-            step_length = 8, -- 1/8
+            -- Structure: 8 beats = sparse, delicate cascade
+            num_steps = 8,
+            step_length = 15, -- 1 beat
             -- Performance
-            pattern = 1, -- All (strum creates gaps)
+            pattern = 1, -- All
             note_duration = 200,
             velocity_curve = 8, -- Random
             velocity_min = 40,
@@ -58,9 +58,9 @@ local function apply_expression_preset(lane_id, preset_name)
             strum_shape = 5 -- Alternating
         },
         Shimmer = {
-            -- Structure
-            num_steps = 12,
-            step_length = 9, -- 1/6
+            -- Structure: 8 beats = dense, rippling texture
+            num_steps = 16,
+            step_length = 14, -- 1/2 beat
             -- Performance
             pattern = 1, -- All
             note_duration = 250,
@@ -73,15 +73,30 @@ local function apply_expression_preset(lane_id, preset_name)
             strum_shape = 3 -- Center Out
         },
         Percussive = {
-            -- Structure
+            -- Structure: 2 beats with rhythmic gaps
             num_steps = 8,
             step_length = 12, -- 1/4
-            -- Performance
-            pattern = 1, -- All
+            -- Performance: flat max velocity for consistent punch
+            pattern = 2, -- Odds
             note_duration = 30,
-            velocity_curve = 6, -- Accent First
-            velocity_min = 100,
+            velocity_curve = 1, -- Flat
+            velocity_min = 127,
             velocity_max = 127,
+            strum_amount = 0,
+            chord_phasing = 1, -- Off
+            strum_curve = 1, -- None
+            strum_shape = 1 -- Forward
+        },
+        Pluck = {
+            -- Structure: 3 beats = 3/4 time signature feel
+            num_steps = 6,
+            step_length = 14, -- 1/2 beat
+            -- Performance: accented downbeat creates rhythmic emphasis
+            pattern = 1, -- All
+            note_duration = 40,
+            velocity_curve = 6, -- Accent First
+            velocity_min = 70,
+            velocity_max = 100,
             strum_amount = 0,
             chord_phasing = 1, -- Off
             strum_curve = 1, -- None
@@ -131,11 +146,11 @@ local function create_params()
         end
     end)
 
-    -- Expression preset selector for arpeggio mode
+    -- Expression preset selector for composer mode
     params:add_option("create_motif_expression_preset", "Preset",
-        {"Mechanical", "Whisper", "Shimmer", "Percussive", "Custom"}, 1)
+        {"Mechanical", "Whisper", "Shimmer", "Percussive", "Pluck", "Custom"}, 1)
     params:set_action("create_motif_expression_preset", function(value)
-        local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Custom"}
+        local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Pluck", "Custom"}
         local preset_name = preset_names[value]
 
         -- Don't apply Custom preset
@@ -181,8 +196,8 @@ local function create_screen_ui()
             end
         end
         
-        
-        -- Only show arpeggio sequence structure when in arpeggio mode
+
+        -- Only show composer sequence structure when in composer mode
         -- Musical params (chord, velocity, strum) are now configured in Stage Config
         if motif_type == 2 then
             table.insert(param_table, { separator = true, title = "Expression" })
@@ -296,7 +311,7 @@ local function create_screen_ui()
             local motif_type = params:get("lane_" .. focused_lane_tooltip .. "_motif_type")
             local lane_tooltip = _seeker.lanes[focused_lane_tooltip]
 
-            if motif_type == 2 then -- Arpeggio mode
+            if motif_type == 2 then -- Composer mode
                 if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                     tooltip = "stage cfg: edit"
                 else
@@ -537,7 +552,7 @@ local function create_screen_ui()
             end
         end
 
-        -- Draw tooltip below parameters when no piano roll shown (arpeggio mode or tape with no motif)
+        -- Draw tooltip below parameters when no piano roll shown (composer mode or tape with no motif)
         -- Skip tooltip when viewing parameter description
         if tooltip and not show_piano_roll and not self.state.showing_description then
             local width_tooltip = screen.text_extents(tooltip)
@@ -641,13 +656,13 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
     
-    -- Helper function for arpeggio mode - instant snapshot of current pattern
-    -- Note: Arpeggio mode never supports overdubbing - always starts fresh
+    -- Helper function for composer mode - instant snapshot of current pattern
+    -- Note: Composer mode never supports overdubbing - always starts fresh
     local function handle_arpeggio_recording_start(self)
         local focused_lane_idx = _seeker.ui_state.get_focused_lane()
         local current_lane = _seeker.lanes[focused_lane_idx]
 
-        -- Always clear the current motif (no overdubbing in arpeggio mode)
+        -- Always clear the current motif (no overdubbing in composer mode)
         current_lane:clear()
 
         -- Rebuild parameters to hide duration since motif was cleared
@@ -655,8 +670,8 @@ local function create_grid_ui()
             _seeker.create_motif.screen:rebuild_params()
         end
 
-        -- Generate arpeggio from current step pattern using Stage 1 parameters
-        -- ARCHITECTURE NOTE: Arpeggio uses generator pattern (params → motif)
+        -- Generate composer sequence from current step pattern using Stage 1 parameters
+        -- ARCHITECTURE NOTE: Composer uses generator pattern (params → motif)
         -- not recorder pattern (real-time input → motif)
         local arpeggio_motif = arpeggio_sequence.generate_motif(focused_lane_idx, 1)
 
@@ -675,7 +690,7 @@ local function create_grid_ui()
     end
 
     local function handle_arpeggio_recording_stop(self)
-        -- Arpeggio mode completes immediately in start function - nothing to do here
+        -- Composer mode completes immediately in start function - nothing to do here
     end
     
     -- Helper function to draw count display when recording
@@ -752,14 +767,14 @@ local function create_grid_ui()
             if _seeker.motif_recorder.is_recording then
                 if motif_type == 1 then -- Tape mode
                     handle_tape_recording_stop(self)
-                elseif motif_type == 2 then -- Arpeggio mode
+                elseif motif_type == 2 then -- Composer mode
                     handle_arpeggio_recording_stop(self)
                 end
             -- Handle recording start logic for long press
             elseif self:is_long_press(key_id) then
                 if motif_type == 1 then -- Tape mode
                     handle_tape_recording_start(self)
-                elseif motif_type == 2 then -- Arpeggio mode
+                elseif motif_type == 2 then -- Composer mode
                     handle_arpeggio_recording_start(self)
                 end
             end

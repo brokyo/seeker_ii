@@ -86,7 +86,7 @@ local function create_basic_lane_params(i)
     params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 5)
 
     -- Per-lane motif creation type
-    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Arpeggio"}, 1)
+    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer"}, 1)
     params:set_action("lane_" .. i .. "_motif_type", function(value)
         -- Stop playback when switching modes
         if _seeker and _seeker.lanes and _seeker.lanes[i] then

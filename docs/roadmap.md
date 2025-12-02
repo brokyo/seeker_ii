@@ -7,6 +7,7 @@
 ### Bugs
 
 ### Long List
+- [] Rename arpeggio → composer architecture (breaking change). Includes: file names (arpeggio_sequence.lua → composer_sequence.lua), parameter IDs (arpeggio_* → composer_*), variable names. Requires pset migration strategy for backward compatibility.
 - [] W/Tape pitched sample mode
 - [] Disting SD 6 Triggers support
 - [] Refactor Arc to per-component pattern (currently global, unlike Grid/Screen). Start by extracting component-specific handlers from arc.lua.
