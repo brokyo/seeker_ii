@@ -27,6 +27,8 @@ local function send_float_multiplier(index)
 end
 
 local function create_params()
+    params:add_group("osc_float", "OSC FLOAT", 8)
+
     for i = 1, 4 do
         params:add_control("osc_float_" .. i .. "_value", "Float " .. i .. " Value", controlspec.new(-50.0, 50.0, 'lin', 0.01, 0.0))
         params:set_action("osc_float_" .. i .. "_value", function(value)

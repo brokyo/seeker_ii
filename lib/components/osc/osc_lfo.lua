@@ -72,6 +72,8 @@ local function send_lfo_shape(lfo_index)
 end
 
 local function create_params()
+    params:add_group("osc_lfo", "OSC LFO", 16)
+
     for i = 1, 4 do
         params:add_option("osc_lfo_" .. i .. "_sync", "LFO " .. i .. " Sync", OscUtils.sync_options, 1)
         params:set_action("osc_lfo_" .. i .. "_sync", function(value)

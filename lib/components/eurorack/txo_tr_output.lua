@@ -286,6 +286,8 @@ end
 -- Parameter creation
 
 local function create_params()
+    params:add_group("txo_tr_output", "TXO TR OUTPUT", 44)
+
     for i = 1, 4 do
         params:add_option("txo_tr_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
         params:add_option("txo_tr_" .. i .. "_clock_modifier", "Modifier", EurorackUtils.modifier_options, 26)

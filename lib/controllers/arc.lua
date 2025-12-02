@@ -100,7 +100,7 @@ function Arc.init()
     device.delta = function(n, delta)
       -- Check for knob recording mode and intercept encoder turns
       if _seeker.ui_state.state.knob_recording_active and n == 2 then
-        _seeker.eurorack_output.handle_encoder_input(delta)
+        _seeker.crow_output.handle_encoder_input(delta)
         return
       end
 
@@ -232,11 +232,20 @@ function Arc.init()
 
     device.key = function(n, d)
       if d == 1 then
+        -- Check for knob recording mode - Arc button stops recording
+        if _seeker.ui_state.state.knob_recording_active then
+          local output_num = params:get("eurorack_selected_number")
+          if _seeker.crow_output then
+            _seeker.crow_output.stop_recording_knob(output_num)
+          end
+          return
+        end
+
         -- Get current section and selected parameter
         local current_section_id = _seeker.ui_state.get_current_section()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section.params[current_section.state.selected_index]
-        
+
         -- If selected parameter is an action, trigger it
         if selected_param and selected_param.is_action then
           current_section:modify_param(selected_param, 1)

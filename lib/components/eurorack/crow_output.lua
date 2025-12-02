@@ -24,6 +24,22 @@ local random_walk_states = {}
 -- Store knob recording state for each output
 local recording_states = {}
 
+-- Clamp envelope param if total exceeds 100%
+local function clamp_envelope_if_needed(output_num, changed_param)
+    local attack = params:get("crow_" .. output_num .. "_envelope_attack")
+    local decay = params:get("crow_" .. output_num .. "_envelope_decay")
+    local release = params:get("crow_" .. output_num .. "_envelope_release")
+
+    local total = attack + decay + release
+
+    if total > 100 then
+        local excess = total - 100
+        local current_value = params:get(changed_param)
+        local clamped_value = math.max(1, current_value - excess)
+        params:set(changed_param, clamped_value)
+    end
+end
+
 -- Initialize recording states for all 4 crow outputs
 for i = 1, 4 do
     recording_states[i] = {
@@ -654,6 +670,18 @@ local function create_screen_ui()
         original_enter(self)
     end
 
+    -- Override key handler to stop recording with K2/K3
+    norns_ui.handle_key = function(self, n, z)
+        if _seeker.ui_state.state.knob_recording_active and (n == 2 or n == 3) and z == 1 then
+            local output_num = params:get("eurorack_selected_number")
+            CrowOutput.stop_recording_knob(output_num)
+            return
+        end
+
+        -- Call parent handler for normal behavior
+        NornsUI.handle_key(self, n, z)
+    end
+
     norns_ui.rebuild_params = function(self)
         local selected_number = params:get("eurorack_selected_number")
         self.name = string.format("Crow %d", selected_number)
@@ -713,8 +741,8 @@ local function create_screen_ui()
         elseif type == "Knob Recorder" then
             table.insert(param_table, { separator = true, title = "Knob Recorder" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity" })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_recording",  is_action = true})
-            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_clear", is_action = true})
+            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_start_recording", is_action = true })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_clear", is_action = true })
         elseif type == "Envelope" then
             table.insert(param_table, { separator = true, title = "Envelope" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_mode" })
@@ -808,6 +836,8 @@ end
 -- Parameter creation
 
 local function create_params()
+    params:add_group("crow_output", "CROW OUTPUT", 180)
+
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
         params:add_option("crow_" .. i .. "_clock_modifier", "Modifier", EurorackUtils.modifier_options, 26)
@@ -962,20 +992,20 @@ local function create_params()
             recording_states[i].sensitivity = value
         end)
 
-        params:add_binary("crow_" .. i .. "_knob_recording", "Record", "toggle", 0)
-        params:set_action("crow_" .. i .. "_knob_recording", function(value)
+        params:add_binary("crow_" .. i .. "_knob_start_recording", "Toggle Recording", "trigger", 0)
+        params:set_action("crow_" .. i .. "_knob_start_recording", function(value)
             if value == 1 then
                 CrowOutput.record_knob(i)
-            else
-                CrowOutput.stop_recording_knob(i)
+                _seeker.ui_state.trigger_activated("crow_" .. i .. "_knob_start_recording")
             end
-            _seeker.screen_ui.set_needs_redraw()
         end)
 
         params:add_binary("crow_" .. i .. "_knob_clear", "Clear", "trigger", 0)
         params:set_action("crow_" .. i .. "_knob_clear", function(value)
-            CrowOutput.clear_knob(i)
-            _seeker.screen_ui.set_needs_redraw()
+            if value == 1 then
+                CrowOutput.clear_knob(i)
+                _seeker.ui_state.trigger_activated("crow_" .. i .. "_knob_clear")
+            end
         end)
 
         -- Envelope parameters
@@ -1000,11 +1030,13 @@ local function create_params()
 
         params:add_number("crow_" .. i .. "_envelope_attack", "Attack", 1, 100, 20, function(param) return param.value .. "%" end)
         params:set_action("crow_" .. i .. "_envelope_attack", function(value)
+            clamp_envelope_if_needed(i, "crow_" .. i .. "_envelope_attack")
             CrowOutput.update_crow(i)
         end)
 
         params:add_number("crow_" .. i .. "_envelope_decay", "Decay", 1, 100, 20, function(param) return param.value .. "%" end)
         params:set_action("crow_" .. i .. "_envelope_decay", function(value)
+            clamp_envelope_if_needed(i, "crow_" .. i .. "_envelope_decay")
             CrowOutput.update_crow(i)
         end)
 
@@ -1015,6 +1047,7 @@ local function create_params()
 
         params:add_number("crow_" .. i .. "_envelope_release", "Release", 1, 100, 20, function(param) return param.value .. "%" end)
         params:set_action("crow_" .. i .. "_envelope_release", function(value)
+            clamp_envelope_if_needed(i, "crow_" .. i .. "_envelope_release")
             CrowOutput.update_crow(i)
         end)
 
@@ -1078,7 +1111,11 @@ function CrowOutput.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
-        sync = CrowOutput.sync
+        sync = CrowOutput.sync,
+        handle_encoder_input = CrowOutput.handle_encoder_input,
+        record_knob = CrowOutput.record_knob,
+        stop_recording_knob = CrowOutput.stop_recording_knob,
+        clear_knob = CrowOutput.clear_knob
     }
 
     return component

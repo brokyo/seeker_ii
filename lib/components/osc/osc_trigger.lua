@@ -15,13 +15,8 @@ local selected_trigger = 1
 -- Track active trigger clocks
 local active_trigger_clocks = {}
 
--- Flag to prevent recursive normalization
-local normalizing = false
-
--- Normalize envelope percentages if they exceed 100%
-local function normalize_envelope_if_needed(trigger_index)
-    if normalizing then return end
-
+-- Clamp envelope param if total exceeds 100%
+local function clamp_envelope_if_needed(trigger_index, changed_param)
     local attack = params:get("osc_trigger_" .. trigger_index .. "_attack")
     local decay = params:get("osc_trigger_" .. trigger_index .. "_decay")
     local min_sustain = params:get("osc_trigger_" .. trigger_index .. "_min_sustain")
@@ -30,15 +25,10 @@ local function normalize_envelope_if_needed(trigger_index)
     local total = attack + decay + min_sustain + release
 
     if total > 100 then
-        normalizing = true
-
-        local scale = 100 / total
-        params:set("osc_trigger_" .. trigger_index .. "_attack", attack * scale)
-        params:set("osc_trigger_" .. trigger_index .. "_decay", decay * scale)
-        params:set("osc_trigger_" .. trigger_index .. "_min_sustain", min_sustain * scale)
-        params:set("osc_trigger_" .. trigger_index .. "_release", release * scale)
-
-        normalizing = false
+        local excess = total - 100
+        local current_value = params:get(changed_param)
+        local clamped_value = math.max(0, current_value - excess)
+        params:set(changed_param, clamped_value)
     end
 end
 
@@ -116,6 +106,8 @@ local function update_trigger_clock(trigger_index)
 end
 
 local function create_params()
+    params:add_group("osc_trigger", "OSC TRIGGER", 36)
+
     for i = 1, 4 do
         params:add_option("osc_trigger_" .. i .. "_sync", "Trigger " .. i .. " Sync", OscUtils.sync_options, 1)
         params:set_action("osc_trigger_" .. i .. "_sync", function(value)
@@ -131,19 +123,19 @@ local function create_params()
 
         params:add_control("osc_trigger_" .. i .. "_attack", "Trigger " .. i .. " Attack", controlspec.new(0.0, 100.0, 'lin', 0.1, 25.0, "%"))
         params:set_action("osc_trigger_" .. i .. "_attack", function(value)
-            normalize_envelope_if_needed(i)
+            clamp_envelope_if_needed(i, "osc_trigger_" .. i .. "_attack")
             send_trigger_envelope(i)
         end)
 
         params:add_control("osc_trigger_" .. i .. "_decay", "Trigger " .. i .. " Decay", controlspec.new(0.0, 100.0, 'lin', 0.1, 25.0, "%"))
         params:set_action("osc_trigger_" .. i .. "_decay", function(value)
-            normalize_envelope_if_needed(i)
+            clamp_envelope_if_needed(i, "osc_trigger_" .. i .. "_decay")
             send_trigger_envelope(i)
         end)
 
         params:add_control("osc_trigger_" .. i .. "_min_sustain", "Trigger " .. i .. " Min Sustain", controlspec.new(0.0, 100.0, 'lin', 0.1, 25.0, "%"))
         params:set_action("osc_trigger_" .. i .. "_min_sustain", function(value)
-            normalize_envelope_if_needed(i)
+            clamp_envelope_if_needed(i, "osc_trigger_" .. i .. "_min_sustain")
             send_trigger_envelope(i)
         end)
 
@@ -159,7 +151,7 @@ local function create_params()
 
         params:add_control("osc_trigger_" .. i .. "_release", "Trigger " .. i .. " Release", controlspec.new(0.0, 100.0, 'lin', 0.1, 25.0, "%"))
         params:set_action("osc_trigger_" .. i .. "_release", function(value)
-            normalize_envelope_if_needed(i)
+            clamp_envelope_if_needed(i, "osc_trigger_" .. i .. "_release")
             send_trigger_envelope(i)
         end)
 

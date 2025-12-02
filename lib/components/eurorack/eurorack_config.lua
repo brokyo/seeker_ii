@@ -9,6 +9,8 @@ local EurorackConfig = {}
 EurorackConfig.__index = EurorackConfig
 
 local function create_params()
+    params:add_group("eurorack_config", "EURORACK CONFIG", 3)
+
     -- Selection params used by all eurorack output components
     params:add_option("eurorack_selected_type", "Type", {"Crow", "TXO TR", "TXO CV"}, 1)
     params:set_action("eurorack_selected_type", function(value)
@@ -41,6 +43,15 @@ local function create_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
+
+    -- Add sync trigger param
+    params:add_binary("sync_all_eurorack_clocks", "Synchronize All", "trigger", 0)
+    params:set_action("sync_all_eurorack_clocks", function(value)
+        if value == 1 then
+            EurorackConfig.sync_all_clocks()
+            _seeker.ui_state.trigger_activated("sync_all_eurorack_clocks")
+        end
+    end)
 end
 
 local function create_screen_ui()
@@ -70,7 +81,7 @@ function EurorackConfig.sync_all_clocks()
 end
 
 function EurorackConfig.init()
-    -- Create selection params first (before components that use them)
+    -- Create params first (before components that use them)
     create_params()
 
     local component = {
@@ -78,15 +89,6 @@ function EurorackConfig.init()
         grid = create_grid_ui(),
         sync_all_clocks = EurorackConfig.sync_all_clocks
     }
-
-    -- Add sync trigger param with action
-    params:add_binary("sync_all_eurorack_clocks", "Synchronize All", "trigger", 0)
-    params:set_action("sync_all_eurorack_clocks", function(value)
-        if value == 1 then
-            EurorackConfig.sync_all_clocks()
-            _seeker.ui_state.trigger_activated("sync_all_eurorack_clocks")
-        end
-    end)
 
     return component
 end
