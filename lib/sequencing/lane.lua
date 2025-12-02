@@ -266,12 +266,18 @@ function Lane:schedule_stage(stage_index, start_time)
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
   local first_event_time = nil
-  
-  -- Get quantization settings
+
+  -- Get quantization and swing settings
   local quantize_option = params:get("lane_" .. self.id .. "_quantize")
   local quantize_values = {0, 1/32, 1/16, 1/12, 1/11, 1/10, 1/9, 1/8, 1/7, 1/6, 1/5, 1/4, 1/3, 1/2, 1}
   local quantize_interval = quantize_values[quantize_option]
-  
+  local swing_amount = params:get("lane_" .. self.id .. "_swing") / 100
+
+  -- Track timing offsets per note to preserve durations
+  -- Use note+instance as key to handle polyphony
+  local note_trigger_counts = {}
+  local note_timing_offsets = {}
+
   -- Process all events in the motif
   for i, event in ipairs(self.motif.events) do
     local event_time = event.time
@@ -279,13 +285,37 @@ function Lane:schedule_stage(stage_index, start_time)
     if event.type == "note_on" then
       -- Only start notes that fall within the duration window
       if event_time <= base_duration then
-        local speed_adjusted_time = event_time / self.speed
-        
-        -- Apply quantization to note_on events only (before transforms are applied)
+        -- Track instance for polyphony support
+        note_trigger_counts[event.note] = (note_trigger_counts[event.note] or 0) + 1
+        local note_instance_id = event.note .. "_" .. note_trigger_counts[event.note]
+        local total_offset = 0
+
+        -- Apply quantization in musical time before speed scaling
         if quantize_interval > 0 then
-          speed_adjusted_time = quantize_to_interval(speed_adjusted_time, quantize_interval)
+          local quantized_time = quantize_to_interval(event_time, quantize_interval)
+          local quantize_offset = quantized_time - event_time
+          event_time = quantized_time
+          total_offset = total_offset + quantize_offset
+
+          -- Delay even subdivisions to create swing feel
+          if swing_amount > 0 then
+            local subdivision_position = event_time / quantize_interval
+            local subdivision_index = math.floor(subdivision_position + 0.5)
+
+            -- Even subdivisions get pushed later
+            if subdivision_index % 2 == 0 then
+              local swing_offset = quantize_interval * swing_amount * 0.5
+              event_time = event_time + swing_offset
+              total_offset = total_offset + swing_offset
+            end
+          end
         end
-        
+
+        -- Store offset for corresponding note_off
+        note_timing_offsets[note_instance_id] = total_offset
+
+        -- Scale timing by playback speed
+        local speed_adjusted_time = event_time / self.speed
         local absolute_time = start_time + speed_adjusted_time
         
         if not stage.mute then
@@ -322,13 +352,20 @@ function Lane:schedule_stage(stage_index, start_time)
     elseif event.type == "note_off" then
       -- Only process note-offs for notes we actually started
       if active_notes[event.note] then
-        local speed_adjusted_time = event_time / self.speed
-        
+        -- Find the most recent note_on for this note and apply same timing offset
+        local note_instance_id = event.note .. "_" .. (note_trigger_counts[event.note] or 1)
+        local offset = note_timing_offsets[note_instance_id] or 0
+
+        -- Apply same timing offset as note_on to preserve duration
+        event_time = event_time + offset
+
         -- If note would end after duration window, end it at window boundary
         if event_time > base_duration then
-          speed_adjusted_time = base_duration / self.speed
+          event_time = base_duration
         end
-        
+
+        -- Apply speed adjustment
+        local speed_adjusted_time = event_time / self.speed
         local absolute_time = start_time + speed_adjusted_time
         
         if not stage.mute then
@@ -489,7 +526,7 @@ function Lane:on_note_on(event)
   local note = event.note
   if event.is_playback then
     -- This is a playback event, apply offsets that come from motif_playback component
-    local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
+    local octave_offset = params:get("lane_" .. self.id .. "_octave_offset") * 12
     local scale_degree_offset = params:get("lane_" .. self.id .. "_scale_degree_offset")
     
     if scale_degree_offset ~= 0 then
@@ -801,7 +838,7 @@ function Lane:on_note_off(event)
   local note = event.note
   if event.is_playback then
     -- This is a playback event, apply offsets that come from motif_playback component
-    local octave_offset = params:get("lane_" .. self.id .. "_playback_offset") * 12
+    local octave_offset = params:get("lane_" .. self.id .. "_octave_offset") * 12
     local scale_degree_offset = params:get("lane_" .. self.id .. "_scale_degree_offset")
     
     if scale_degree_offset ~= 0 then

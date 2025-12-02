@@ -60,8 +60,8 @@ end
 -- TODO: These should be moved to @play_motif.lua when that component is refactored
 local function create_motif_playback_params(i)
     params:add_group("lane_" .. i .. "_motif_playback", "MOTIF PLAYBACK", 3)
-    -- Playback octave offset
-    params:add_number("lane_" .. i .. "_playback_offset", "Degree Offset", -8, 8, 0)
+    -- Octave offset for playback transposition
+    params:add_number("lane_" .. i .. "_octave_offset", "Octave Offset", -8, 8, 0)
 
     -- Speed control with musical ratios
     params:add_option("lane_" .. i .. "_speed", "Speed",
@@ -74,6 +74,10 @@ local function create_motif_playback_params(i)
     -- Quantize control
     params:add_option("lane_" .. i .. "_quantize", "Quantize",
         {"off", "1/32", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1"}, 3)
+
+    -- Swing control (0-100%, applied to even subdivisions when quantize is active)
+    params:add_control("lane_" .. i .. "_swing", "Swing",
+        controlspec.new(0, 100, 'lin', 1, 0, '%'))
 end
 
 -- Create basic lane parameters that lane.lua needs

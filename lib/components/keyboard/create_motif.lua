@@ -132,7 +132,7 @@ local function create_params()
     end)
 
     -- Expression preset selector for arpeggio mode
-    params:add_option("create_motif_expression_preset", "Expression Preset",
+    params:add_option("create_motif_expression_preset", "Preset",
         {"Mechanical", "Whisper", "Shimmer", "Percussive", "Custom"}, 1)
     params:set_action("create_motif_expression_preset", function(value)
         local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Custom"}

@@ -1,6 +1,6 @@
 -- motif_playback.lua
 -- Self-contained component for motif playback control
--- NOTE: This wraps existing lane params (playback_offset, scale_degree_offset, speed, quantize)
+-- NOTE: This wraps existing lane params (octave_offset, scale_degree_offset, speed, quantize, swing)
 -- ARCHITECTURAL DEBT: Playback config arguably belongs to Motif object, not Lane
 -- See roadmap.md for refactoring discussion
 
@@ -24,11 +24,13 @@ local function create_screen_ui()
     local lane_idx = _seeker.ui_state.get_focused_lane()
 
     self.params = {
-      { separator = true, title = "Playback Config" },
-      { id = "lane_" .. lane_idx .. "_playback_offset" },
-      { id = "lane_" .. lane_idx .. "_scale_degree_offset" },
+      { separator = true, title = "Pitch Offset" },
+      { id = "lane_" .. lane_idx .. "_octave_offset", name = "Octave Offset" },
+      { id = "lane_" .. lane_idx .. "_scale_degree_offset", name = "Degree Offset" },
+      { separator = true, title = "Rhythm" },
       { id = "lane_" .. lane_idx .. "_speed" },
-      { id = "lane_" .. lane_idx .. "_quantize" }
+      { id = "lane_" .. lane_idx .. "_quantize" },
+      { id = "lane_" .. lane_idx .. "_swing", arc_multi_float = {10, 5, 1} }
     }
   end
 
