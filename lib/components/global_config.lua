@@ -130,7 +130,7 @@ local function create_screen_ui()
         description = "Settings that affect all modes",
         params = {
             { separator = true, title = "Clock" },
-            { id = "seeker_clock_tempo" },
+            { id = "seeker_clock_tempo", arc_multi_float = {10, 5, 1} },
             { id = "tap_tempo", is_action = true },
             { id = "sync_all_clocks", is_action = true },
             { separator = true, title = "Visuals" },
