@@ -25,11 +25,6 @@ local MOTIF_TYPE_TAPE = 1
 local MOTIF_TYPE_COMPOSER = 2
 local MOTIF_TYPE_SAMPLER = 3
 
--- Track playback state per mode for each lane (persists until restart)
-local lane_playback_state = {}
--- Track the current mode to detect changes
-local current_mode = 1
-
 -- Configures sequence structure and performance parameters for all stages
 local function apply_expression_preset(lane_id, preset_name)
     local presets = {
@@ -178,7 +173,7 @@ local function create_params()
         fileselect.enter(audio_path, function(filepath)
             if filepath and filepath ~= "cancel" then
                 if _seeker and _seeker.sampler then
-                    _seeker.sampler.load_file(filepath)
+                    _seeker.sampler.load_file(_seeker.active_lane, filepath)
                     _seeker.screen_ui.set_needs_redraw()
                 end
             end
@@ -344,8 +339,8 @@ local function create_screen_ui()
                     tooltip = "⏺: hold [create]"
                 end
             elseif motif_type == MOTIF_TYPE_SAMPLER then
-                if _seeker.sampler and _seeker.sampler.has_buffer() then
-                    local duration = _seeker.sampler.sample_duration
+                if _seeker.sampler and _seeker.sampler.has_buffer(focused_lane_tooltip) then
+                    local duration = _seeker.sampler.get_sample_duration(focused_lane_tooltip)
                     tooltip = string.format("loaded: %.1fs", duration)
                 else
                     tooltip = "load file: K3"

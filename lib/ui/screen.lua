@@ -25,6 +25,7 @@ function ScreenUI.init()
     CREATE_MOTIF = _seeker.create_motif.screen,
     LANE_CONFIG = _seeker.lane_config.screen,
     TAPE_STAGE_CONFIG = _seeker.tape_stage_config.screen,
+    SAMPLER_PAD_CONFIG = _seeker.sampler_pad_config.screen,
     EXPRESSION_CONFIG = _seeker.expression_config.screen,
     HARMONIC_CONFIG = _seeker.harmonic_config.screen,
 

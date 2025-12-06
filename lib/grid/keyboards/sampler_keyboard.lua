@@ -1,6 +1,7 @@
 -- sampler_keyboard.lua
 -- 4x4 pad grid for sampler mode
 -- Each pad will trigger a sample segment
+-- Config button at (4,7) toggles pad configuration mode
 
 local GridConstants = include("lib/grid/constants")
 local GridLayers = include("lib/grid/layers")
@@ -25,7 +26,7 @@ function SamplerKeyboard.contains(x, y)
          y < SamplerKeyboard.layout.upper_left_y + SamplerKeyboard.layout.height
 end
 
--- Convert grid position to pad number (0-15)
+-- Convert grid position to pad number (1-16)
 function SamplerKeyboard.position_to_pad(x, y)
   if not SamplerKeyboard.contains(x, y) then
     return nil
@@ -34,17 +35,18 @@ function SamplerKeyboard.position_to_pad(x, y)
   local rel_x = x - SamplerKeyboard.layout.upper_left_x
   local rel_y = y - SamplerKeyboard.layout.upper_left_y
 
-  return rel_y * SamplerKeyboard.layout.width + rel_x
+  return rel_y * SamplerKeyboard.layout.width + rel_x + 1
 end
 
 -- Convert pad number to grid position
 function SamplerKeyboard.pad_to_position(pad)
-  if pad < 0 or pad >= (SamplerKeyboard.layout.width * SamplerKeyboard.layout.height) then
+  if pad < 1 or pad > (SamplerKeyboard.layout.width * SamplerKeyboard.layout.height) then
     return nil
   end
 
-  local rel_x = pad % SamplerKeyboard.layout.width
-  local rel_y = math.floor(pad / SamplerKeyboard.layout.width)
+  local pad_index = pad - 1
+  local rel_x = pad_index % SamplerKeyboard.layout.width
+  local rel_y = math.floor(pad_index / SamplerKeyboard.layout.width)
 
   return {
     x = SamplerKeyboard.layout.upper_left_x + rel_x,
@@ -64,9 +66,14 @@ function SamplerKeyboard.pad_on(x, y)
   local pad = SamplerKeyboard.position_to_pad(x, y)
   if not pad then return end
 
-  -- Trigger sample playback via sampler manager
+  -- Always select pad
+  if _seeker and _seeker.sampler_pad_config then
+    _seeker.sampler_pad_config.select_pad(pad)
+  end
+
+  -- Always trigger sample playback
   if _seeker and _seeker.sampler then
-    _seeker.sampler.trigger_pad(pad)
+    _seeker.sampler.trigger_pad(_seeker.active_lane, pad)
   end
 
   -- TODO: Record pad events if motif recorder is active
@@ -98,10 +105,24 @@ end
 function SamplerKeyboard.draw(layers)
   local layout = SamplerKeyboard.layout
 
-  -- Draw all pads at normal brightness
+  -- Draw all pads
   for y = layout.upper_left_y, layout.upper_left_y + layout.height - 1 do
     for x = layout.upper_left_x, layout.upper_left_x + layout.width - 1 do
-      GridLayers.set(layers.ui, x, y, GridConstants.BRIGHTNESS.UI.NORMAL)
+      local brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+
+      -- Highlight selected pad when in config section
+      local current_section = _seeker.ui_state.get_current_section()
+      if current_section == "SAMPLER_PAD_CONFIG" then
+        local pad = SamplerKeyboard.position_to_pad(x, y)
+        if _seeker and _seeker.sampler_pad_config then
+          local selected_pad = _seeker.sampler_pad_config.get_selected_pad()
+          if pad == selected_pad then
+            brightness = GridConstants.BRIGHTNESS.UI.BRIGHT
+          end
+        end
+      end
+
+      GridLayers.set(layers.ui, x, y, brightness)
     end
   end
 end

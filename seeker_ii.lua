@@ -30,6 +30,7 @@ local Tuning = include("lib/components/keyboard/tuning")
 local MotifPlayback = include("lib/components/keyboard/motif_playback")
 local CreateMotif = include("lib/components/keyboard/create_motif")
 local ClearMotif = include("lib/components/keyboard/clear_motif")
+local SamplerPadConfig = include("lib/components/keyboard/sampler_pad_config")
 local LaneConfig = include("lib/components/lanes/lane_config")
 local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
 local ExpressionConfig = include("lib/components/lanes/expression_config")
@@ -75,6 +76,7 @@ _seeker = {
   midi_input = nil,
   arc = nil,
   sampler = nil,
+  sampler_pad_config = nil,
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
   velocity = 3,
 
@@ -139,6 +141,7 @@ function init()
   _seeker.motif_playback = MotifPlayback.init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.clear_motif = ClearMotif.init()
+  _seeker.sampler_pad_config = SamplerPadConfig.init()
   -- NOTE: LaneConfig must be initialized before stage configs to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
   _seeker.tape_stage_config = TapeStageConfig.init()
