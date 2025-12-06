@@ -13,6 +13,7 @@
 
 local theory = include('lib/motif_core/theory')
 local transforms = include('lib/motif_core/transforms')
+local fileselect = require("fileselect")
 local lane_infrastructure = {}
 
 -- Create stage-related parameters that lane.lua needs for sequencing
@@ -93,11 +94,32 @@ local function create_basic_lane_params(i)
             _seeker.lanes[i]:stop()
         end
 
-        -- Rebuild UI if initialized
+        -- Rebuild screens (motif type affects Create Motif params and Lane Config voice routing)
+        -- Create Motif: tape shows duration, composer shows expression/structure
+        -- Lane Config: sampler shows sample loading, tape/composer show voice routing
         if _seeker and _seeker.create_motif and _seeker.create_motif.screen then
             _seeker.create_motif.screen:rebuild_params()
+        end
+        if _seeker and _seeker.lane_config and _seeker.lane_config.screen then
+            _seeker.lane_config.screen:rebuild_params()
+        end
+        if _seeker and _seeker.screen_ui then
             _seeker.screen_ui.set_needs_redraw()
         end
+    end)
+
+    -- File selector for loading audio samples into softcut buffers
+    params:add_binary("lane_" .. i .. "_sample_file", "Load Sample", "trigger", 0)
+    params:set_action("lane_" .. i .. "_sample_file", function()
+        local audio_path = _path.audio .. "seeker_ii"
+        fileselect.enter(audio_path, function(filepath)
+            if filepath and filepath ~= "cancel" then
+                if _seeker and _seeker.sampler then
+                    _seeker.sampler.load_file(i, filepath)
+                    _seeker.screen_ui.set_needs_redraw()
+                end
+            end
+        end)
     end)
 
     -- Per-Lane keyboard tuning

@@ -165,20 +165,6 @@ local function create_params()
             end
         end
     end)
-
-    -- File picker for sampler mode
-    params:add_binary("create_motif_load_file", "Load Audio File", "trigger", 0)
-    params:set_action("create_motif_load_file", function()
-        local audio_path = _path.audio .. "seeker_ii"
-        fileselect.enter(audio_path, function(filepath)
-            if filepath and filepath ~= "cancel" then
-                if _seeker and _seeker.sampler then
-                    _seeker.sampler.load_file(_seeker.active_lane, filepath)
-                    _seeker.screen_ui.set_needs_redraw()
-                end
-            end
-        end)
-    end)
 end
 
 local function create_screen_ui()
@@ -198,8 +184,7 @@ local function create_screen_ui()
         local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
 
         local param_table = {
-            { separator = true, title = "Create Motif" },
-            { id = "lane_" .. focused_lane .. "_motif_type" }
+            { separator = true, title = "Create Motif" }
         }
 
         -- Only show duration param when in tape mode AND there's an active motif
@@ -222,12 +207,6 @@ local function create_screen_ui()
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_step_length" })
         end
 
-        -- Show file picker when in sampler mode
-        if motif_type == MOTIF_TYPE_SAMPLER then
-            table.insert(param_table, { separator = true, title = "Sample" })
-            table.insert(param_table, { id = "create_motif_load_file", is_action = true })
-        end
-        
         -- Update the UI with the new parameter table
         self.params = param_table
     end

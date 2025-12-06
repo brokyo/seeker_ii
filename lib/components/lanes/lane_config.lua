@@ -5,6 +5,11 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
+-- Motif type constants
+local MOTIF_TYPE_TAPE = 1
+local MOTIF_TYPE_COMPOSER = 2
+local MOTIF_TYPE_SAMPLER = 3
+
 local LaneConfig = {}
 LaneConfig.__index = LaneConfig
 
@@ -624,21 +629,29 @@ local function create_screen_ui()
     -- Dynamic parameter rebuilding based on current focused lane
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
+        local motif_type = params:get("lane_" .. lane_idx .. "_motif_type")
         local visible_voice = params:get("lane_" .. lane_idx .. "_visible_voice")
-        
+
         -- Update section name with current lane
         self.name = string.format("Lane %d", lane_idx)
-        
-        -- Start with common params
+
+        -- Start with volume and motif type (always visible)
         local param_table = {
             { separator = true, title = string.format("Lane %d Config", lane_idx) },
             { id = "lane_" .. lane_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
-            { id = "lane_" .. lane_idx .. "_visible_voice" }
+            { id = "lane_" .. lane_idx .. "_motif_type" }
         }
-        
-        -- Add params based on visible voice selection
-        if visible_voice == 1 then -- MX Samples
-            table.insert(param_table, { separator = true, title = "Mx Samples" })
+
+        -- Sampler mode loads audio files directly (no voice routing needed)
+        if motif_type == MOTIF_TYPE_SAMPLER then
+            table.insert(param_table, { separator = true, title = "Sample Source" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sample_file", is_action = true })
+        else -- Tape/Composer modes require voice routing to play notes
+            table.insert(param_table, { separator = true, title = "Voice Routing" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
+
+            -- Add params based on visible voice selection
+            if visible_voice == 1 then -- MX Samples
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_samples_active" })
 
             -- Only show additional MX Samples params if active
@@ -665,7 +678,6 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send", arc_multi_float = {0.1, 0.05, 0.01} })
             end
         elseif visible_voice == 2 then -- MIDI
-            table.insert(param_table, { separator = true, title = "MIDI" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_active" })
 
             -- Only show additional MIDI params if active
@@ -675,7 +687,6 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_channel" })
             end
         elseif visible_voice == 3 then -- CV/Gate via i2c
-            table.insert(param_table, { separator = true, title = "CV/Gate" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_active" })
 
             -- Only show additional Crow/TXO params if active
@@ -686,7 +697,6 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_loop_start_trigger" })
             end
         elseif visible_voice == 4 then -- Just Friends
-            table.insert(param_table, { separator = true, title = "Just Friends" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_active" })
 
             -- Only show additional Just Friends params if active
@@ -695,7 +705,6 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_select" })
             end
         elseif visible_voice == 5 then -- w/syn
-            table.insert(param_table, { separator = true, title = "w/syn" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_active" })
 
             -- Only show additional w/syn params if active
@@ -716,10 +725,8 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_that" })
             end
         elseif visible_voice == 6 then -- OSC
-            table.insert(param_table, { separator = true, title = "OSC" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_osc_active" })
         elseif visible_voice == 7 then -- Disting
-            table.insert(param_table, { separator = true, title = "Disting" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_active" })
 
             -- Only show additional Disting params if active
@@ -783,7 +790,8 @@ local function create_screen_ui()
                 end
             end
         end
-        
+        end -- Close else block for tape/composer voice params
+
         -- Update the UI with the new parameter table
         self.params = param_table
     end
