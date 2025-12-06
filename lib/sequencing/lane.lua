@@ -656,8 +656,10 @@ function Lane:on_note_on(event)
   if motif_type == SAMPLER_MODE then
     if _seeker and _seeker.sampler then
       -- Note number IS the pad number for sampler mode (1-16)
-      -- Pass velocity to scale max_volume
-      _seeker.sampler.trigger_pad(self.id, note, event.velocity)
+      -- Apply lane volume to velocity before passing to sampler
+      local lane_volume = params:get("lane_" .. self.id .. "_volume")
+      local scaled_velocity = event.velocity * lane_volume
+      _seeker.sampler.trigger_pad(self.id, note, scaled_velocity)
     end
   end
 
