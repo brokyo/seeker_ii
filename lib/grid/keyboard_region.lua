@@ -43,7 +43,8 @@ function KeyboardRegion.get_active_keyboard()
   -- Lazy-load non-default keyboards using global cache
   if not _seeker.keyboards[motif_type] then
     local keyboard_files = {
-      [2] = "lib/grid/keyboards/arpeggio_keyboard"
+      [2] = "lib/grid/keyboards/arpeggio_keyboard",
+      [3] = "lib/grid/keyboards/sampler_keyboard"
     }
     _seeker.keyboards[motif_type] = include(keyboard_files[motif_type])
   end

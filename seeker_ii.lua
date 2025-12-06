@@ -17,6 +17,7 @@ local ui_state = include('/lib/ui/state')
 local MotifRecorder = include("lib/motif_core/recorder")
 local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
+local SamplerManager = include("lib/sampler/manager")
 
 -- Components: Global
 local Config = include("lib/components/global_config")
@@ -73,6 +74,7 @@ _seeker = {
   motif_recorder = nil,
   midi_input = nil,
   arc = nil,
+  sampler = nil,
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
   velocity = 3,
 
@@ -118,6 +120,8 @@ function init()
   -- Core audio setup
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
+  _seeker.sampler = SamplerManager
+  SamplerManager.init()
 
   _seeker.ui_state = ui_state.init()
 

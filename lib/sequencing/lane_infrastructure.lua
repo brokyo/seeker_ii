@@ -86,7 +86,7 @@ local function create_basic_lane_params(i)
     params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 5)
 
     -- Per-lane motif creation type
-    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer"}, 1)
+    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler"}, 1)
     params:set_action("lane_" .. i .. "_motif_type", function(value)
         -- Stop playback when switching modes
         if _seeker and _seeker.lanes and _seeker.lanes[i] then
@@ -101,8 +101,8 @@ local function create_basic_lane_params(i)
     end)
 
     -- Per-Lane keyboard tuning
-    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
-    params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -3)
+    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 2)
+    params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -4)
 
     -- Volume parameter that lane.lua expects
     params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))

@@ -15,9 +15,15 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
+local fileselect = require("fileselect")
 
 local CreateMotif = {}
 CreateMotif.__index = CreateMotif
+
+-- Motif type constants
+local MOTIF_TYPE_TAPE = 1
+local MOTIF_TYPE_COMPOSER = 2
+local MOTIF_TYPE_SAMPLER = 3
 
 -- Track playback state per mode for each lane (persists until restart)
 local lane_playback_state = {}
@@ -127,7 +133,7 @@ local function apply_expression_preset(lane_id, preset_name)
 end
 
 local function create_params()
-    params:add_group("create_motif_group", "CREATE MOTIF", 2)
+    params:add_group("create_motif_group", "CREATE MOTIF", 3)
 
     -- Duration parameter for tape mode
     params:add_control("create_motif_duration", "Duration", controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
@@ -164,6 +170,20 @@ local function create_params()
             end
         end
     end)
+
+    -- File picker for sampler mode
+    params:add_binary("create_motif_load_file", "Load Audio File", "trigger", 0)
+    params:set_action("create_motif_load_file", function()
+        local audio_path = _path.audio .. "seeker_ii"
+        fileselect.enter(audio_path, function(filepath)
+            if filepath and filepath ~= "cancel" then
+                if _seeker and _seeker.sampler then
+                    _seeker.sampler.load_file(filepath)
+                    _seeker.screen_ui.set_needs_redraw()
+                end
+            end
+        end)
+    end)
 end
 
 local function create_screen_ui()
@@ -188,7 +208,7 @@ local function create_screen_ui()
         }
 
         -- Only show duration param when in tape mode AND there's an active motif
-        if motif_type == 1 then
+        if motif_type == MOTIF_TYPE_TAPE then
             local focused_lane = _seeker.ui_state.get_focused_lane()
             local lane = _seeker.lanes[focused_lane]
             if lane and lane.motif and #lane.motif.events > 0 then
@@ -199,12 +219,18 @@ local function create_screen_ui()
 
         -- Only show composer sequence structure when in composer mode
         -- Musical params (chord, velocity, strum) are now configured in Stage Config
-        if motif_type == 2 then
+        if motif_type == MOTIF_TYPE_COMPOSER then
             table.insert(param_table, { separator = true, title = "Expression" })
             table.insert(param_table, { id = "create_motif_expression_preset" })
             table.insert(param_table, { separator = true, title = "Sequence Structure" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_num_steps" })
             table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_step_length" })
+        end
+
+        -- Show file picker when in sampler mode
+        if motif_type == MOTIF_TYPE_SAMPLER then
+            table.insert(param_table, { separator = true, title = "Sample" })
+            table.insert(param_table, { id = "create_motif_load_file", is_action = true })
         end
         
         -- Update the UI with the new parameter table
@@ -311,11 +337,18 @@ local function create_screen_ui()
             local motif_type = params:get("lane_" .. focused_lane_tooltip .. "_motif_type")
             local lane_tooltip = _seeker.lanes[focused_lane_tooltip]
 
-            if motif_type == 2 then -- Composer mode
+            if motif_type == MOTIF_TYPE_COMPOSER then
                 if lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                     tooltip = "stage cfg: edit"
                 else
                     tooltip = "⏺: hold [create]"
+                end
+            elseif motif_type == MOTIF_TYPE_SAMPLER then
+                if _seeker.sampler and _seeker.sampler.has_buffer() then
+                    local duration = _seeker.sampler.sample_duration
+                    tooltip = string.format("loaded: %.1fs", duration)
+                else
+                    tooltip = "load file: K3"
                 end
             elseif lane_tooltip and lane_tooltip.motif and #lane_tooltip.motif.events > 0 and lane_tooltip.playing then
                 tooltip = "⏺: hold [overdub]"
@@ -329,7 +362,7 @@ local function create_screen_ui()
         local focused_lane_vis = _seeker.ui_state.get_focused_lane()
         local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
         local show_piano_roll = false
-        if motif_type_vis == 1 and not self.state.showing_description then
+        if motif_type_vis == MOTIF_TYPE_TAPE and not self.state.showing_description then
             local lane_vis = _seeker.lanes[focused_lane_vis]
             local motif_vis = lane_vis.motif
 
@@ -765,16 +798,16 @@ local function create_grid_ui()
         else -- Key released
             -- Handle recording stop logic based on mode
             if _seeker.motif_recorder.is_recording then
-                if motif_type == 1 then -- Tape mode
+                if motif_type == MOTIF_TYPE_TAPE then
                     handle_tape_recording_stop(self)
-                elseif motif_type == 2 then -- Composer mode
+                elseif motif_type == MOTIF_TYPE_COMPOSER then
                     handle_arpeggio_recording_stop(self)
                 end
             -- Handle recording start logic for long press
             elseif self:is_long_press(key_id) then
-                if motif_type == 1 then -- Tape mode
+                if motif_type == MOTIF_TYPE_TAPE then
                     handle_tape_recording_start(self)
-                elseif motif_type == 2 then -- Composer mode
+                elseif motif_type == MOTIF_TYPE_COMPOSER then
                     handle_arpeggio_recording_start(self)
                 end
             end
