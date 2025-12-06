@@ -122,6 +122,20 @@ local function create_basic_lane_params(i)
         end)
     end)
 
+    -- Record audio input directly into sampler buffer
+    params:add_binary("lane_" .. i .. "_record_sample", "Record Sample", "trigger", 0)
+    params:set_action("lane_" .. i .. "_record_sample", function()
+        if _seeker and _seeker.sampler then
+            if _seeker.sampler.is_recording then
+                _seeker.sampler.stop_recording(i)
+            else
+                _seeker.sampler.start_recording(i)
+            end
+            _seeker.lane_config.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
+
     -- Per-Lane keyboard tuning
     params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 2)
     params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -4)

@@ -61,22 +61,48 @@ function SamplerKeyboard.note_to_positions(note)
   return pos and {pos} or nil
 end
 
+-- Create a standardized note event for sampler pads
+function SamplerKeyboard.create_note_event(x, y, pad, velocity)
+  local pos = SamplerKeyboard.pad_to_position(pad)
+
+  return {
+    note = pad,  -- Use pad number as note (1-16)
+    velocity = velocity or 127,
+    x = x,
+    y = y,
+    all_positions = pos and {pos} or nil
+  }
+end
+
 -- Handle pad press
 function SamplerKeyboard.pad_on(x, y)
   local pad = SamplerKeyboard.position_to_pad(x, y)
   if not pad then return end
 
-  -- Always select pad
-  if _seeker and _seeker.sampler_pad_config then
-    _seeker.sampler_pad_config.select_pad(pad)
+  -- During recording, trigger samples without changing screens
+  -- When not recording, navigate to pad configuration to show settings
+  local is_recording = _seeker and _seeker.motif_recorder and _seeker.motif_recorder.is_recording
+
+  if not is_recording then
+    -- Edit mode: navigate to pad config
+    if _seeker and _seeker.sampler_pad_config then
+      _seeker.sampler_pad_config.select_pad(pad)
+    end
   end
 
   -- Always trigger sample playback
   if _seeker and _seeker.sampler then
-    _seeker.sampler.trigger_pad(_seeker.active_lane, pad)
+    local lane = _seeker.ui_state.get_focused_lane()
+    local velocity = _seeker.velocity and _seeker.velocity.get_current_velocity() or 127
+    _seeker.sampler.trigger_pad(lane, pad, velocity)
   end
 
-  -- TODO: Record pad events if motif recorder is active
+  -- Record pad event if motif recorder is active
+  if is_recording then
+    local velocity = _seeker.velocity and _seeker.velocity.get_current_velocity() or 127
+    local event = SamplerKeyboard.create_note_event(x, y, pad, velocity)
+    _seeker.motif_recorder:on_note_on(event)
+  end
 end
 
 -- Handle pad release
@@ -84,8 +110,20 @@ function SamplerKeyboard.pad_off(x, y)
   local pad = SamplerKeyboard.position_to_pad(x, y)
   if not pad then return end
 
-  -- For now, pads loop continuously when triggered
-  -- Later: add one-shot mode that stops on release
+  -- Gate mode (mode 3): stop playback on release
+  if _seeker and _seeker.sampler then
+    local lane = _seeker.ui_state.get_focused_lane()
+    local segment = _seeker.sampler.get_segment(lane, pad)
+    if segment and segment.mode == 3 then
+      _seeker.sampler.stop_pad(lane, pad)
+    end
+  end
+
+  -- Record pad release if motif recorder is active
+  if _seeker and _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
+    local event = SamplerKeyboard.create_note_event(x, y, pad, 0)
+    _seeker.motif_recorder:on_note_off(event)
+  end
 end
 
 -- Handle key presses
@@ -117,7 +155,7 @@ function SamplerKeyboard.draw(layers)
         if _seeker and _seeker.sampler_pad_config then
           local selected_pad = _seeker.sampler_pad_config.get_selected_pad()
           if pad == selected_pad then
-            brightness = GridConstants.BRIGHTNESS.UI.BRIGHT
+            brightness = GridConstants.BRIGHTNESS.HIGH
           end
         end
       end

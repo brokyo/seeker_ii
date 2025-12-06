@@ -4,7 +4,6 @@
 --
 -- NOTE: Params are a VIEW into SamplerManager storage, not direct storage
 -- This means pad configs DO NOT persist with PSETs currently
--- TODO: If persistence needed, create per-lane-per-pad params (512 total) and refactor
 
 local NornsUI = include("lib/ui/base/norns_ui")
 
@@ -31,12 +30,16 @@ local function create_screen_ui()
     local pad = SamplerPadConfig.state.selected_pad
 
     self.params = {
-      {separator = true, title = string.format("Pad %d", pad)},
+      {separator = true, title = string.format("Pad %d Config", pad)},
+      {id = "spc_mode"},
+      {separator = true, title = string.format("Envelope")},
       {id = "spc_start_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {id = "spc_stop_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {id = "spc_attack", arc_multi_float = {0.1, 0.01, 0.001}},
       {id = "spc_release", arc_multi_float = {0.1, 0.01, 0.001}},
-      {id = "spc_loop"}
+      {separator = true, title = string.format("Tuning")},
+      {id = "spc_rate", arc_multi_float = {0.5, 0.1, 0.01}},
+      {id = "spc_max_volume", arc_multi_float = {0.1, 0.05, 0.01}}
     }
   end
 
@@ -58,7 +61,7 @@ function SamplerPadConfig.init()
   SamplerPadConfig.screen = create_screen_ui()
 
   -- Create parameter group for pad configuration UI
-  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 5)
+  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 7)
 
   params:add_control("spc_start_pos", "Start Position",
     controlspec.new(0, 10, 'lin', 0.001, 0, 's'))
@@ -84,11 +87,23 @@ function SamplerPadConfig.init()
     SamplerPadConfig.update_segment('release', value)
   end)
 
-  params:add_binary("spc_loop", "Loop", "toggle", 1)
-  params:set_action("spc_loop", function(value)
-    SamplerPadConfig.update_segment('loop', value == 1)
+  params:add_control("spc_rate", "Rate",
+    controlspec.new(-2, 2, 'lin', 0.01, 1.0, ''))
+  params:set_action("spc_rate", function(value)
+    SamplerPadConfig.update_segment('rate', value)
+  end)
 
-    -- Stop currently playing pad so new loop setting takes effect
+  params:add_control("spc_max_volume", "Max Volume",
+    controlspec.new(0, 1, 'lin', 0.01, 1.0, ''))
+  params:set_action("spc_max_volume", function(value)
+    SamplerPadConfig.update_segment('max_volume', value)
+  end)
+
+  params:add_option("spc_mode", "Mode", {"One-Shot", "Loop", "Gate"}, 3)
+  params:set_action("spc_mode", function(value)
+    SamplerPadConfig.update_segment('mode', value)
+
+    -- Stop currently playing pad so new mode setting takes effect
     local lane = SamplerPadConfig.state.current_lane
     local pad = SamplerPadConfig.state.selected_pad
     if _seeker and _seeker.sampler then
@@ -102,7 +117,7 @@ end
 -- Select a pad for editing
 function SamplerPadConfig.select_pad(pad)
   SamplerPadConfig.state.selected_pad = pad
-  SamplerPadConfig.state.current_lane = _seeker.active_lane
+  SamplerPadConfig.state.current_lane = _seeker.ui_state.get_focused_lane()
   SamplerPadConfig.load_pad_params()
 
   -- Navigate to config section
@@ -133,7 +148,9 @@ function SamplerPadConfig.load_pad_params()
   params:set("spc_stop_pos", segment.stop_pos, true)
   params:set("spc_attack", segment.attack, true)
   params:set("spc_release", segment.release, true)
-  params:set("spc_loop", segment.loop and 1 or 0, true)
+  params:set("spc_rate", segment.rate, true)
+  params:set("spc_max_volume", segment.max_volume, true)
+  params:set("spc_mode", segment.mode or 1, true)
 
   -- Update max values based on sample duration
   local duration = _seeker.sampler.get_sample_duration(lane)

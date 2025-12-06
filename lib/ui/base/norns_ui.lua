@@ -311,17 +311,17 @@ function NornsUI:draw_params(start_y)
     else
       -- Get param metadata using Norns paramset api
       local param_base = params:lookup_param(param.id)
-      local param_name = param.name or param_base.name
-      local param_value = params:string(param.id)
+      local param_name = param.custom_name or param.name or param_base.name
+      local param_value = param.custom_value or params:string(param.id)
 
-      -- Overwrite displayed param value if it's a toggle or trigger
-      if param_base.behavior == "toggle" then
+      -- Overwrite displayed param value if it's a toggle or trigger (unless custom_value provided)
+      if not param.custom_value and param_base.behavior == "toggle" then
         if param_value == 0 then
           param_value = "○"
-        else 
+        else
           param_value = "◆"
         end
-      elseif param_base.behavior == "trigger" then
+      elseif not param.custom_value and param_base.behavior == "trigger" then
         local recently_triggered = _seeker.ui_state.is_recently_triggered(param.id)
         
         if recently_triggered then

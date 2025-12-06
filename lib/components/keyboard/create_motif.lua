@@ -216,6 +216,16 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "create_motif_duration" })
             end
         end
+
+        -- Sampler mode params
+        if motif_type == MOTIF_TYPE_SAMPLER then
+            -- Duration param (only when there's an active motif)
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            local lane = _seeker.lanes[focused_lane]
+            if lane and lane.motif and #lane.motif.events > 0 then
+                table.insert(param_table, { id = "create_motif_duration" })
+            end
+        end
         
 
         -- Only show composer sequence structure when in composer mode
@@ -352,12 +362,12 @@ local function create_screen_ui()
             end
         end
 
-        -- Draw piano roll visualization when motif exists or recording in progress (tape mode only)
+        -- Draw motif visualization when recording or playing (tape: piano roll, sampler: duration blocks)
         -- Skip when showing description to avoid overlaying it
         local focused_lane_vis = _seeker.ui_state.get_focused_lane()
-        local motif_type_vis = params:get("lane_" .. focused_lane_vis .. "_motif_type")
+        local motif_type = params:get("lane_" .. focused_lane_vis .. "_motif_type")
         local show_piano_roll = false
-        if motif_type_vis == MOTIF_TYPE_TAPE and not self.state.showing_description then
+        if (motif_type == MOTIF_TYPE_TAPE or motif_type == MOTIF_TYPE_SAMPLER) and not self.state.showing_description then
             local lane_vis = _seeker.lanes[focused_lane_vis]
             local motif_vis = lane_vis.motif
 
@@ -458,29 +468,35 @@ local function create_screen_ui()
                     end
                 end
 
-                -- Draw note events as horizontal bars
-                for _, note_pair in ipairs(note_pairs) do
-                    local gen = note_pair.generation
+                -- Draw note events (tape: pitch-mapped bars, sampler: full-height duration blocks)
+                for _, event_pair in ipairs(note_pairs) do
+                    local gen = event_pair.generation
                     local brightness = 2 + math.floor((gen / max_gen) * 10)
                     screen.level(brightness)
 
-                    local x_start = VIS_X + (note_pair.start_time / loop_duration * VIS_WIDTH)
-                    local x_end = VIS_X + (note_pair.end_time / loop_duration * VIS_WIDTH)
+                    local x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
+                    local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
 
-                    -- Map note pitch to Y position within visualization
-                    if max_note > min_note then
-                        local note_range = max_note - min_note
-                        local note_y_offset = ((note_pair.note - min_note) / note_range) * (VIS_HEIGHT - 2)
-                        local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
-                        screen.move(x_start, note_y)
-                        screen.line(x_end, note_y)
-                        screen.stroke()
+                    if motif_type == MOTIF_TYPE_SAMPLER then
+                        -- Sampler mode: full-height duration blocks (sampler pads don't have pitch variation)
+                        screen.rect(x_start, VIS_Y, math.max(x_end - x_start, 1), VIS_HEIGHT)
+                        screen.fill()
                     else
-                        -- Single note - draw in center
-                        local note_y = VIS_Y + VIS_HEIGHT / 2
-                        screen.move(x_start, note_y)
-                        screen.line(x_end, note_y)
-                        screen.stroke()
+                        -- Tape mode: map note pitch to Y position within visualization
+                        if max_note > min_note then
+                            local note_range = max_note - min_note
+                            local note_y_offset = ((event_pair.note - min_note) / note_range) * (VIS_HEIGHT - 2)
+                            local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
+                            screen.move(x_start, note_y)
+                            screen.line(x_end, note_y)
+                            screen.stroke()
+                        else
+                            -- Single note - draw in center
+                            local note_y = VIS_Y + VIS_HEIGHT / 2
+                            screen.move(x_start, note_y)
+                            screen.line(x_end, note_y)
+                            screen.stroke()
+                        end
                     end
                 end
 
@@ -521,40 +537,54 @@ local function create_screen_ui()
                         end
                     end
 
-                    -- Draw recorder events as bars or marks
-                    for _, note_pair in ipairs(recorder_note_pairs) do
-                        local x_start = VIS_X + (note_pair.start_time / loop_duration * VIS_WIDTH)
+                    -- Draw live recording events (tape: pitch-mapped, sampler: full-height duration blocks)
+                    for _, event_pair in ipairs(recorder_note_pairs) do
+                        local x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
 
-                        -- Map note to Y position using expanded range
-                        if recorder_max > recorder_min then
-                            local note_range = recorder_max - recorder_min
-                            local note_y_offset = ((note_pair.note - recorder_min) / note_range) * (VIS_HEIGHT - 2)
-                            local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
-
-                            if note_pair.end_time then
-                                -- Draw horizontal bar for completed notes
-                                local x_end = VIS_X + (note_pair.end_time / loop_duration * VIS_WIDTH)
-                                screen.move(x_start, note_y)
-                                screen.line(x_end, note_y)
-                                screen.stroke()
+                        if motif_type == MOTIF_TYPE_SAMPLER then
+                            -- Sampler mode: full-height duration blocks
+                            if event_pair.end_time then
+                                local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
+                                screen.rect(x_start, VIS_Y, math.max(x_end - x_start, 1), VIS_HEIGHT)
+                                screen.fill()
                             else
-                                -- Draw vertical mark for notes still held
-                                screen.move(x_start, note_y - 1)
-                                screen.line(x_start, note_y + 1)
-                                screen.stroke()
-                            end
-                        else
-                            -- Single note - draw in center
-                            local note_y = VIS_Y + VIS_HEIGHT / 2
-                            if note_pair.end_time then
-                                local x_end = VIS_X + (note_pair.end_time / loop_duration * VIS_WIDTH)
-                                screen.move(x_start, note_y)
-                                screen.line(x_end, note_y)
-                                screen.stroke()
-                            else
+                                -- Draw full-height mark for pads still held
                                 screen.move(x_start, VIS_Y)
                                 screen.line(x_start, VIS_Y + VIS_HEIGHT)
                                 screen.stroke()
+                            end
+                        else
+                            -- Tape mode: map note to Y position using min/max range from active notes
+                            if recorder_max > recorder_min then
+                                local note_range = recorder_max - recorder_min
+                                local note_y_offset = ((event_pair.note - recorder_min) / note_range) * (VIS_HEIGHT - 2)
+                                local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
+
+                                if event_pair.end_time then
+                                    -- Draw horizontal bar for completed notes
+                                    local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
+                                    screen.move(x_start, note_y)
+                                    screen.line(x_end, note_y)
+                                    screen.stroke()
+                                else
+                                    -- Draw vertical mark for notes still held
+                                    screen.move(x_start, note_y - 1)
+                                    screen.line(x_start, note_y + 1)
+                                    screen.stroke()
+                                end
+                            else
+                                -- Single note - draw in center
+                                local note_y = VIS_Y + VIS_HEIGHT / 2
+                                if event_pair.end_time then
+                                    local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
+                                    screen.move(x_start, note_y)
+                                    screen.line(x_end, note_y)
+                                    screen.stroke()
+                                else
+                                    screen.move(x_start, VIS_Y)
+                                    screen.line(x_start, VIS_Y + VIS_HEIGHT)
+                                    screen.stroke()
+                                end
                             end
                         end
                     end
@@ -793,14 +823,14 @@ local function create_grid_ui()
         else -- Key released
             -- Handle recording stop logic based on mode
             if _seeker.motif_recorder.is_recording then
-                if motif_type == MOTIF_TYPE_TAPE then
+                if motif_type == MOTIF_TYPE_TAPE or motif_type == MOTIF_TYPE_SAMPLER then
                     handle_tape_recording_stop(self)
                 elseif motif_type == MOTIF_TYPE_COMPOSER then
                     handle_arpeggio_recording_stop(self)
                 end
             -- Handle recording start logic for long press
             elseif self:is_long_press(key_id) then
-                if motif_type == MOTIF_TYPE_TAPE then
+                if motif_type == MOTIF_TYPE_TAPE or motif_type == MOTIF_TYPE_SAMPLER then
                     handle_tape_recording_start(self)
                 elseif motif_type == MOTIF_TYPE_COMPOSER then
                     handle_arpeggio_recording_start(self)
