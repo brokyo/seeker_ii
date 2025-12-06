@@ -12,11 +12,7 @@ local GridLayers = include("lib/grid/layers")
 
 local KeyboardRegion = {}
 
--- Toggle button position (only visible in CREATE_MOTIF + tape mode)
-local TOGGLE_BUTTON_X = 16
-local TOGGLE_BUTTON_Y = 8
-
--- Get current active keyboard based on create_motif_type
+-- Get current active keyboard based on motif_type
 function KeyboardRegion.get_active_keyboard()
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
@@ -58,67 +54,20 @@ function KeyboardRegion.get_layout()
   return active_keyboard.layout
 end
 
--- Check if coordinates are within the active keyboard area or toggle button
+-- Check if coordinates are within the active keyboard area
 function KeyboardRegion.contains(x, y)
   local active_keyboard = KeyboardRegion.get_active_keyboard()
-  if active_keyboard.contains(x, y) then
-    return true
-  end
-
-  -- Check toggle button (only in CREATE_MOTIF + tape mode)
-  local current_section = _seeker.ui_state.get_current_section()
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-
-  if current_section == "CREATE_MOTIF" and motif_type == 1 and
-     x == TOGGLE_BUTTON_X and y == TOGGLE_BUTTON_Y then
-    return true
-  end
-
-  return false
+  return active_keyboard.contains(x, y)
 end
 
 -- Draw the current keyboard mode
 function KeyboardRegion.draw(layers)
   local active_keyboard = KeyboardRegion.get_active_keyboard()
   active_keyboard.draw(layers)
-
-  -- Draw toggle button (only in CREATE_MOTIF + tape mode)
-  local current_section = _seeker.ui_state.get_current_section()
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-
-  if current_section == "CREATE_MOTIF" and motif_type == 1 then
-    local is_dual_active = false
-    if _seeker.keyboards and _seeker.keyboards.dual_tape then
-      is_dual_active = _seeker.keyboards.dual_tape.is_active
-    end
-
-    local brightness = is_dual_active and GridConstants.BRIGHTNESS.HIGH or GridConstants.BRIGHTNESS.MEDIUM
-    GridLayers.set(layers.ui, TOGGLE_BUTTON_X, TOGGLE_BUTTON_Y, brightness)
-  end
 end
 
 -- Handle key presses for the current keyboard mode
 function KeyboardRegion.handle_key(x, y, z)
-  -- Check for toggle button (only in CREATE_MOTIF + tape mode)
-  local current_section = _seeker.ui_state.get_current_section()
-  local focused_lane = _seeker.ui_state.get_focused_lane()
-  local motif_type = params:get("lane_" .. focused_lane .. "_motif_type")
-
-  if current_section == "CREATE_MOTIF" and motif_type == 1 and
-     x == TOGGLE_BUTTON_X and y == TOGGLE_BUTTON_Y and z == 1 then
-    -- Lazy-load dual keyboard
-    if not _seeker.keyboards.dual_tape then
-      _seeker.keyboards.dual_tape = include("lib/grid/keyboards/dual_tape_keyboard")
-    end
-
-    -- Toggle the keyboard
-    _seeker.keyboards.dual_tape.toggle()
-    return
-  end
-
-  -- Handle keyboard input
   local active_keyboard = KeyboardRegion.get_active_keyboard()
   active_keyboard.handle_key(x, y, z)
 end

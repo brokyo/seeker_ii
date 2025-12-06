@@ -165,6 +165,23 @@ local function create_params()
             end
         end
     end)
+
+    -- Switches between single keyboard and dual keyboard display
+    params:add_option("tape_keyboard_layout", "Keyboard Layout", {"Single", "Dual"}, 1)
+    params:set_action("tape_keyboard_layout", function(value)
+        -- Lazy-load dual keyboard if needed
+        if not _seeker.keyboards.dual_tape then
+            _seeker.keyboards.dual_tape = include("lib/grid/keyboards/dual_tape_keyboard")
+        end
+
+        -- Show dual keyboard when parameter is set to Dual
+        _seeker.keyboards.dual_tape.is_active = (value == 2)
+
+        -- Redraw grid to display selected keyboard
+        if _seeker.grid_ui then
+            _seeker.grid_ui.redraw()
+        end
+    end)
 end
 
 local function create_screen_ui()
@@ -187,8 +204,12 @@ local function create_screen_ui()
             { separator = true, title = "Create Motif" }
         }
 
-        -- Only show duration param when in tape mode AND there's an active motif
+        -- Tape mode params
         if motif_type == MOTIF_TYPE_TAPE then
+            -- Keyboard layout selector
+            table.insert(param_table, { id = "tape_keyboard_layout" })
+
+            -- Duration param (only when there's an active motif)
             local focused_lane = _seeker.ui_state.get_focused_lane()
             local lane = _seeker.lanes[focused_lane]
             if lane and lane.motif and #lane.motif.events > 0 then
