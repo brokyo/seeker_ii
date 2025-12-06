@@ -39,7 +39,8 @@ local function create_screen_ui()
       {id = "spc_release", arc_multi_float = {0.1, 0.01, 0.001}},
       {separator = true, title = string.format("Tuning")},
       {id = "spc_rate", arc_multi_float = {0.5, 0.1, 0.01}},
-      {id = "spc_max_volume", arc_multi_float = {0.1, 0.05, 0.01}}
+      {id = "spc_max_volume", arc_multi_float = {0.1, 0.05, 0.01}},
+      {id = "spc_pan", arc_multi_float = {0.1, 0.05, 0.01}}
     }
   end
 
@@ -61,7 +62,7 @@ function SamplerPadConfig.init()
   SamplerPadConfig.screen = create_screen_ui()
 
   -- Create parameter group for pad configuration UI
-  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 7)
+  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 8)
 
   params:add_control("spc_start_pos", "Start Position",
     controlspec.new(0, 10, 'lin', 0.001, 0, 's'))
@@ -97,6 +98,12 @@ function SamplerPadConfig.init()
     controlspec.new(0, 1, 'lin', 0.01, 1.0, ''))
   params:set_action("spc_max_volume", function(value)
     SamplerPadConfig.update_segment('max_volume', value)
+  end)
+
+  params:add_control("spc_pan", "Pan",
+    controlspec.new(-1, 1, 'lin', 0.01, 0, ''))
+  params:set_action("spc_pan", function(value)
+    SamplerPadConfig.update_segment('pan', value)
   end)
 
   params:add_option("spc_mode", "Mode", {"One-Shot", "Loop", "Gate"}, 3)
@@ -150,6 +157,7 @@ function SamplerPadConfig.load_pad_params()
   params:set("spc_release", segment.release, true)
   params:set("spc_rate", segment.rate, true)
   params:set("spc_max_volume", segment.max_volume, true)
+  params:set("spc_pan", segment.pan or 0, true)
   params:set("spc_mode", segment.mode or 1, true)
 
   -- Update max values based on sample duration

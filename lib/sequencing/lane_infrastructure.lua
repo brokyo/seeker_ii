@@ -89,6 +89,28 @@ local function create_basic_lane_params(i)
     -- Per-lane motif creation type
     params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler"}, 1)
     params:set_action("lane_" .. i .. "_motif_type", function(value)
+        -- Sampler mode limited to 2 simultaneous lanes (softcut has 2 mono buffers)
+        -- Prevent switching to sampler if buffers are full
+        if value == 3 and _seeker and _seeker.sampler then
+            local has_buffer = _seeker.sampler.get_buffer_for_lane(i) ~= nil
+            if not has_buffer then
+                -- Check if we can allocate a new buffer
+                local available = false
+                for buffer_id = 1, 2 do
+                    if not _seeker.sampler.buffer_occupied[buffer_id] then
+                        available = true
+                        break
+                    end
+                end
+
+                if not available then
+                    -- Revert to previous value (Tape)
+                    params:set("lane_" .. i .. "_motif_type", 1, true)
+                    return
+                end
+            end
+        end
+
         -- Stop playback when switching modes
         if _seeker and _seeker.lanes and _seeker.lanes[i] then
             _seeker.lanes[i]:stop()

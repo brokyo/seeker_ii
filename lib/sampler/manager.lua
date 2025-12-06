@@ -7,6 +7,8 @@ local SamplerManager = {}
 -- Constants
 local NUM_PADS = 16
 local MAX_LANES = 2  -- Limit to 2 lanes (one per stereo buffer)
+local LEFT_CHANNEL = 1
+local MONO_MIX_LEVEL = 0.5  -- Equal power stereo-to-mono mix
 
 -- State
 SamplerManager.num_voices = 6  -- Configurable voice count
@@ -83,7 +85,8 @@ function SamplerManager.init()
         release = 0.1,
         mode = 3,          -- 1=One-Shot, 2=Loop, 3=Gate
         rate = 1.0,        -- Playback rate (negative for reverse)
-        max_volume = 1.0   -- Volume ceiling
+        max_volume = 1.0,  -- Volume ceiling
+        pan = 0            -- Stereo position (-1 left, 0 center, 1 right)
       }
     end
   end
@@ -126,6 +129,36 @@ function SamplerManager.get_buffer_for_lane(lane)
   return SamplerManager.lane_to_buffer[lane]
 end
 
+-- Clear all segment data and stop playback for a lane
+function SamplerManager.clear_lane_segments(lane)
+  -- Stop all voices playing from this lane
+  for v = 1, SamplerManager.num_voices do
+    if SamplerManager.voices[v].active and SamplerManager.voices[v].lane == lane then
+      softcut.play(v, 0)
+      SamplerManager.voices[v].active = false
+      SamplerManager.voices[v].lane = nil
+      SamplerManager.voices[v].pad = nil
+    end
+  end
+
+  -- Reset all segments to default empty state
+  for pad = 1, NUM_PADS do
+    SamplerManager.lane_segments[lane][pad] = {
+      start_pos = 0,
+      stop_pos = 0,
+      duration = 0,
+      attack = 0.1,
+      release = 0.1,
+      mode = 3,
+      rate = 1.0,
+      max_volume = 1.0,
+      pan = 0
+    }
+  end
+
+  SamplerManager.lane_durations[lane] = 0
+end
+
 -- Divide sample into equal segments across all pads for a specific lane
 function SamplerManager.set_fixed_segments(lane, sample_duration)
   SamplerManager.lane_durations[lane] = sample_duration
@@ -143,7 +176,8 @@ function SamplerManager.set_fixed_segments(lane, sample_duration)
       release = 0.1,
       mode = 3,
       rate = 1.0,
-      max_volume = 1.0
+      max_volume = 1.0,
+      pan = 0
     }
   end
 end
@@ -186,7 +220,8 @@ function SamplerManager.reset_segment_to_auto(lane, pad)
     release = 0.1,
     mode = 3,
     rate = 1.0,
-    max_volume = 1.0
+    max_volume = 1.0,
+    pan = 0
   }
 end
 
@@ -254,6 +289,9 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   velocity = velocity or 127
   local volume = segment.max_volume * (velocity / 127)
   softcut.level(voice, volume)
+
+  -- Set pan (-1 left, 0 center, 1 right)
+  softcut.pan(voice, segment.pan)
 
   -- Apply attack envelope
   softcut.fade_time(voice, segment.attack)
@@ -338,15 +376,10 @@ function SamplerManager.load_file(lane, filepath)
     return false
   end
 
-  -- Stop playback for this lane only
-  for v = 1, SamplerManager.num_voices do
-    if SamplerManager.voices[v].active and SamplerManager.voices[v].lane == lane then
-      softcut.play(v, 0)
-      SamplerManager.voices[v].active = false
-    end
-  end
+  -- Clear existing sample data for this lane (stops voices, resets segments)
+  SamplerManager.clear_lane_segments(lane)
 
-  -- Clear only this lane's buffer
+  -- Clear this lane's buffer
   softcut.buffer_clear_channel(buffer_id)
 
   -- Get file info to determine duration and channel count
@@ -354,12 +387,8 @@ function SamplerManager.load_file(lane, filepath)
 
   print(string.format("◎ Sampler: Loading %s into lane %d (buffer %d)", filepath, lane, buffer_id))
 
-  -- Load file into the assigned buffer (mono mix if stereo)
-  softcut.buffer_read_mono(filepath, 0, 0, -1, 1, buffer_id)
-  if ch == 2 then
-    -- Add second channel if stereo file (creates mono sum in destination buffer)
-    softcut.buffer_read_mono(filepath, 0, 0, -1, 2, buffer_id)
-  end
+  -- Load mono to lane's buffer (reads left channel from stereo files)
+  softcut.buffer_read_mono(filepath, 0, 0, -1, LEFT_CHANNEL, buffer_id)
 
   if samples and rate then
     local duration = samples / rate
@@ -393,10 +422,13 @@ function SamplerManager.start_recording(lane)
     return false
   end
 
-  -- Use buffer 1 for recording
-  local buffer_id = 1
+  -- Use lane's buffer for recording (lane 1 → buffer 1, lane 2 → buffer 2)
+  local buffer_id = lane
 
-  -- Clear the buffer
+  -- Clear existing sample data for this lane (stops voices, resets segments)
+  SamplerManager.clear_lane_segments(lane)
+
+  -- Clear this lane's buffer
   softcut.buffer_clear_channel(buffer_id)
 
   -- Use the last voice for recording
@@ -409,9 +441,9 @@ function SamplerManager.start_recording(lane)
   softcut.rec_level(rec_voice, 1.0)
   softcut.pre_level(rec_voice, 0)
 
-  -- Route stereo input to recording voice
-  softcut.level_input_cut(1, rec_voice, 1.0)
-  softcut.level_input_cut(2, rec_voice, 1.0)
+  -- Route stereo input to recording voice (mix to mono)
+  softcut.level_input_cut(1, rec_voice, MONO_MIX_LEVEL)
+  softcut.level_input_cut(2, rec_voice, MONO_MIX_LEVEL)
 
   -- Set position and disable looping
   softcut.position(rec_voice, 0)
@@ -461,7 +493,8 @@ function SamplerManager.stop_recording(lane)
 
   -- Save to disk
   print(string.format("◎ Sampler: Saving %.2fs recording to %s", duration, filename))
-  softcut.buffer_write_stereo(filepath, 0, duration)
+  local buffer_id = lane  -- Use lane's buffer channel
+  softcut.buffer_write_mono(filepath, 0, duration, buffer_id)
 
   -- Clear recording state immediately
   SamplerManager.is_recording = false
