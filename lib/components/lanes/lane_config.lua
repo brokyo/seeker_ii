@@ -163,8 +163,10 @@ local function create_just_friends_params(i)
     params:add_binary("lane_" .. i .. "_just_friends_active", "Just Friends Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_just_friends_active", function(value)
         if value == 1 then
+            _seeker.lanes[i].just_friends_active = true
             crow.ii.jf.mode(1)
         else
+            _seeker.lanes[i].just_friends_active = false
             crow.ii.jf.mode(0)
         end
 
