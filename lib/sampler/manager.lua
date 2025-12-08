@@ -27,6 +27,7 @@ local FILTER_NOTCH = 5
 -- State
 SamplerManager.num_voices = 6  -- Configurable voice count
 SamplerManager.voices = {}  -- voice[i] = {lane = lane_number, pad = pad_number, active = bool}
+SamplerManager.voice_generation = {}  -- Tracks assignment generation to prevent stale clock callbacks
 SamplerManager.lane_segments = {}  -- lane_segments[lane][pad] = {start_pos, end_pos, duration, fade_in, fade_out}
 SamplerManager.lane_durations = {}  -- lane_durations[lane] = sample_duration
 SamplerManager.lane_to_buffer = {}  -- lane_to_buffer[lane] = buffer_id (1 or 2)
@@ -41,7 +42,7 @@ SamplerManager.record_start_time = 0
 
 -- Initialize all softcut voices for sampler use
 function SamplerManager.init()
-  print("◎ Initializing Sampler Manager")
+  print("≋ Initializing Sampler Manager")
 
   -- Ensure audio folder exists
   local audio_path = _path.audio .. "seeker_ii"
@@ -82,6 +83,7 @@ function SamplerManager.init()
       pad = nil,
       active = false
     }
+    SamplerManager.voice_generation[v] = 0
   end
 
   -- Initialize per-lane storage
@@ -97,7 +99,7 @@ function SamplerManager.init()
         duration = 0,
         attack = 0.1,
         release = 0.1,
-        fade_time = 0.005, -- Crossfade at loop points (prevents clicks)
+        fade_time = 0.005, -- Crossfade duration at loop boundaries to prevent audio clicks
         mode = MODE_GATE,
         rate = 1.0,        -- Playback rate (negative for reverse)
         max_volume = 1.0,  -- Volume ceiling
@@ -111,7 +113,7 @@ function SamplerManager.init()
   end
 
   SamplerManager.initialized = true
-  print(string.format("◎ Sampler: %d voices initialized, 8 lanes prepared, 2 buffers available", SamplerManager.num_voices))
+  print(string.format("≋ Sampler: %d voices initialized, 8 lanes prepared, 2 buffers available", SamplerManager.num_voices))
 end
 
 -- Allocate a free buffer for a lane (returns buffer_id 1 or 2, or nil if none available)
@@ -252,7 +254,7 @@ function SamplerManager.reset_segment_to_auto(lane, pad)
     rate = 1.0,
     max_volume = 1.0,
     pan = 0,
-    filter_type = 1,
+    filter_type = FILTER_OFF,
     lpf = 20000,
     resonance = 0,
     hpf = 20
@@ -264,36 +266,85 @@ function SamplerManager.get_sample_duration(lane)
   return SamplerManager.lane_durations[lane] or 0
 end
 
--- Find a free voice or steal voice 1
+-- Configure post-filter for a voice based on segment settings
+local function apply_filter(voice, segment)
+  if segment.filter_type == FILTER_OFF then
+    softcut.post_filter_dry(voice, 1.0)
+    softcut.post_filter_lp(voice, 0.0)
+    softcut.post_filter_hp(voice, 0.0)
+    softcut.post_filter_bp(voice, 0.0)
+    softcut.post_filter_br(voice, 0.0)
+  else
+    -- All filtered modes disable dry signal
+    softcut.post_filter_dry(voice, 0.0)
+
+    -- Convert resonance to softcut's reciprocal Q format
+    local rq = segment.resonance > 0 and (1 / segment.resonance) or 2.0
+    softcut.post_filter_rq(voice, rq)
+
+    -- Set filter type outputs and frequency
+    if segment.filter_type == FILTER_LOWPASS then
+      softcut.post_filter_fc(voice, segment.lpf)
+      softcut.post_filter_lp(voice, 1.0)
+      softcut.post_filter_hp(voice, 0.0)
+      softcut.post_filter_bp(voice, 0.0)
+      softcut.post_filter_br(voice, 0.0)
+    elseif segment.filter_type == FILTER_HIGHPASS then
+      softcut.post_filter_fc(voice, segment.hpf)
+      softcut.post_filter_lp(voice, 0.0)
+      softcut.post_filter_hp(voice, 1.0)
+      softcut.post_filter_bp(voice, 0.0)
+      softcut.post_filter_br(voice, 0.0)
+    elseif segment.filter_type == FILTER_BANDPASS then
+      softcut.post_filter_fc(voice, segment.lpf)
+      softcut.post_filter_lp(voice, 0.0)
+      softcut.post_filter_hp(voice, 0.0)
+      softcut.post_filter_bp(voice, 1.0)
+      softcut.post_filter_br(voice, 0.0)
+    elseif segment.filter_type == FILTER_NOTCH then
+      softcut.post_filter_fc(voice, segment.lpf)
+      softcut.post_filter_lp(voice, 0.0)
+      softcut.post_filter_hp(voice, 0.0)
+      softcut.post_filter_bp(voice, 0.0)
+      softcut.post_filter_br(voice, 1.0)
+    end
+  end
+end
+
+-- Find a free voice or steal the first available playback voice
 function SamplerManager.allocate_voice(lane, pad)
-  -- First, look for a free voice
+  -- First, look for a free voice (exclude recording voice if recording)
   for v = 1, SamplerManager.num_voices do
-    if not SamplerManager.voices[v].active then
+    local is_recording_voice = (SamplerManager.is_recording and v == RECORDING_VOICE)
+    if not SamplerManager.voices[v].active and not is_recording_voice then
       return v
     end
   end
 
-  -- No free voices, always steal voice 1
+  -- No free voices, steal voice 1 (or voice 2 if voice 1 is recording)
+  if SamplerManager.is_recording and RECORDING_VOICE == 1 then
+    return 2
+  end
   return 1
 end
 
 -- Trigger a pad to play its segment
 function SamplerManager.trigger_pad(lane, pad, velocity)
   if not SamplerManager.initialized then
-    print("◎ Sampler: Not initialized")
+    print("≋ Sampler: Not initialized")
     return
   end
 
   -- Check if lane has a buffer assigned
   local buffer_id = SamplerManager.get_buffer_for_lane(lane)
   if not buffer_id then
-    print(string.format("◎ Sampler: Lane %d has no buffer assigned", lane))
+    print(string.format("≋ Sampler: Lane %d has no buffer assigned", lane))
     return
   end
 
   local segment = SamplerManager.get_segment(lane, pad)
   if not segment or segment.duration == 0 then
-    print(string.format("◎ Sampler: Lane %d pad %d has no segment data", lane, pad))
+    print(string.format("≋ Sampler: Lane %d pad %d has no segment data", lane, pad))
     return
   end
 
@@ -312,8 +363,8 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   softcut.position(voice, start_position)
 
   -- Set loop mode based on playback mode
-  -- Gate mode (1) enables looping for sustain, One-shot (2) disables
-  local loop_enabled = (segment.mode == 1) and 1 or 0
+  -- Enable looping for Gate mode, disable for One-shot mode
+  local loop_enabled = (segment.mode == MODE_GATE) and 1 or 0
   softcut.loop(voice, loop_enabled)
 
   -- Set crossfade time for smooth loop points (prevents clicks)
@@ -325,46 +376,8 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   -- Set pan (-1 left, 0 center, 1 right)
   softcut.pan(voice, segment.pan)
 
-  -- Configure post-filter (softcut uses reciprocal Q: rq = 1/resonance)
-  if segment.filter_type == FILTER_OFF then
-    softcut.post_filter_dry(voice, 1.0)
-    softcut.post_filter_lp(voice, 0.0)
-    softcut.post_filter_hp(voice, 0.0)
-    softcut.post_filter_bp(voice, 0.0)
-    softcut.post_filter_br(voice, 0.0)
-  elseif segment.filter_type == FILTER_LOWPASS then
-    softcut.post_filter_fc(voice, segment.lpf)
-    softcut.post_filter_rq(voice, segment.resonance > 0 and (1 / segment.resonance) or 2.0)
-    softcut.post_filter_lp(voice, 1.0)
-    softcut.post_filter_hp(voice, 0.0)
-    softcut.post_filter_bp(voice, 0.0)
-    softcut.post_filter_br(voice, 0.0)
-    softcut.post_filter_dry(voice, 0.0)
-  elseif segment.filter_type == FILTER_HIGHPASS then
-    softcut.post_filter_fc(voice, segment.hpf)
-    softcut.post_filter_rq(voice, segment.resonance > 0 and (1 / segment.resonance) or 2.0)
-    softcut.post_filter_lp(voice, 0.0)
-    softcut.post_filter_hp(voice, 1.0)
-    softcut.post_filter_bp(voice, 0.0)
-    softcut.post_filter_br(voice, 0.0)
-    softcut.post_filter_dry(voice, 0.0)
-  elseif segment.filter_type == FILTER_BANDPASS then
-    softcut.post_filter_fc(voice, segment.lpf)
-    softcut.post_filter_rq(voice, segment.resonance > 0 and (1 / segment.resonance) or 2.0)
-    softcut.post_filter_lp(voice, 0.0)
-    softcut.post_filter_hp(voice, 0.0)
-    softcut.post_filter_bp(voice, 1.0)
-    softcut.post_filter_br(voice, 0.0)
-    softcut.post_filter_dry(voice, 0.0)
-  elseif segment.filter_type == FILTER_NOTCH then
-    softcut.post_filter_fc(voice, segment.lpf)
-    softcut.post_filter_rq(voice, segment.resonance > 0 and (1 / segment.resonance) or 2.0)
-    softcut.post_filter_lp(voice, 0.0)
-    softcut.post_filter_hp(voice, 0.0)
-    softcut.post_filter_bp(voice, 0.0)
-    softcut.post_filter_br(voice, 1.0)
-    softcut.post_filter_dry(voice, 0.0)
-  end
+  -- Configure post-filter
+  apply_filter(voice, segment)
 
   -- Calculate target volume (scale max_volume by velocity)
   velocity = velocity or 127
@@ -372,32 +385,30 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
 
   -- Attack envelope: Ramp volume from 0 to target over attack time
   -- First set level to 0 instantly, then enable slew and ramp to target volume
-  -- Must start playback BEFORE ramping or audio won't be heard during attack
+  -- Playback starts immediately so audio is heard during envelope ramp
   softcut.level_slew_time(voice, 0)
   softcut.level(voice, 0)
   softcut.play(voice, 1)
   softcut.level_slew_time(voice, segment.attack)
   softcut.level(voice, volume)
 
-  -- Track voice state
+  -- Track voice state and increment generation counter for this assignment
   SamplerManager.voices[voice].lane = lane
   SamplerManager.voices[voice].pad = pad
   SamplerManager.voices[voice].active = true
+  SamplerManager.voice_generation[voice] = SamplerManager.voice_generation[voice] + 1
+  local trigger_generation = SamplerManager.voice_generation[voice]
 
-  -- For one-shot mode only, schedule release envelope and cleanup after playback finishes
-  -- (Gate mode frees on pad_off via stop_pad)
-  if segment.mode == 2 then  -- MODE_ONE_SHOT
+  -- For one-shot mode, apply release envelope and cleanup after playback finishes
+  if segment.mode == MODE_ONE_SHOT then
     local playback_time = segment.duration / math.abs(segment.rate)
 
     clock.run(function()
       -- Wait for playback to finish (attack happens automatically at start)
       clock.sleep(playback_time)
 
-      -- Only apply release if this voice is still playing this same lane/pad
-      if SamplerManager.voices[voice].active and
-         SamplerManager.voices[voice].lane == lane and
-         SamplerManager.voices[voice].pad == pad then
-
+      -- Only apply release if voice hasn't been reassigned
+      if SamplerManager.voice_generation[voice] == trigger_generation then
         -- Apply release envelope by ramping level to 0
         softcut.level_slew_time(voice, segment.release)
         softcut.level(voice, 0)
@@ -405,17 +416,19 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
         -- Wait for release to complete
         clock.sleep(segment.release)
 
-        -- Stop playback and free voice
-        softcut.play(voice, 0)
-        SamplerManager.voices[voice].active = false
-        SamplerManager.voices[voice].lane = nil
-        SamplerManager.voices[voice].pad = nil
+        -- Stop playback and free voice if still assigned to this trigger
+        if SamplerManager.voice_generation[voice] == trigger_generation then
+          softcut.play(voice, 0)
+          SamplerManager.voices[voice].active = false
+          SamplerManager.voices[voice].lane = nil
+          SamplerManager.voices[voice].pad = nil
+        end
       end
     end)
   end
 end
 
--- Stop a specific pad (find which voice is playing it and apply release envelope)
+-- Stop a specific pad (stops all voices playing it and applies release envelope)
 function SamplerManager.stop_pad(lane, pad)
   for v = 1, SamplerManager.num_voices do
     if SamplerManager.voices[v].active and
@@ -425,16 +438,22 @@ function SamplerManager.stop_pad(lane, pad)
       local segment = SamplerManager.get_segment(lane, pad)
       if segment and segment.release > 0 then
         -- Release envelope: Ramp volume to 0 over release time, then stop playback
-        -- Set slew time and target level to 0, then schedule cleanup after release completes
+        -- Cleanup scheduled after envelope completes
         softcut.level_slew_time(v, segment.release)
         softcut.level(v, 0)
 
+        -- Capture generation counter for this release
+        local release_generation = SamplerManager.voice_generation[v]
         clock.run(function()
           clock.sleep(segment.release)
-          softcut.play(v, 0)
-          SamplerManager.voices[v].active = false
-          SamplerManager.voices[v].lane = nil
-          SamplerManager.voices[v].pad = nil
+
+          -- Only cleanup if voice hasn't been reassigned
+          if SamplerManager.voice_generation[v] == release_generation then
+            softcut.play(v, 0)
+            SamplerManager.voices[v].active = false
+            SamplerManager.voices[v].lane = nil
+            SamplerManager.voices[v].pad = nil
+          end
         end)
       else
         -- No release time, stop immediately
@@ -443,7 +462,7 @@ function SamplerManager.stop_pad(lane, pad)
         SamplerManager.voices[v].lane = nil
         SamplerManager.voices[v].pad = nil
       end
-      return
+      -- Don't return - continue checking for other voices playing this pad
     end
   end
 end
@@ -473,15 +492,15 @@ end
 -- Load an audio file into the buffer and auto-chop for a specific lane
 function SamplerManager.load_file(lane, filepath)
   if not SamplerManager.initialized then
-    print("◎ Sampler: Not initialized")
+    print("≋ Sampler: Not initialized")
     return false
   end
 
   -- Try to allocate a buffer for this lane
   local buffer_id = SamplerManager.allocate_buffer(lane)
   if not buffer_id then
-    print(string.format("◎ Sampler: Cannot load - maximum %d lanes supported, buffers full", MAX_LANES))
-    print("◎ Sampler: Clear an existing lane first")
+    print(string.format("≋ Sampler: Cannot load - maximum %d lanes supported, buffers full", MAX_LANES))
+    print("≋ Sampler: Clear an existing lane first")
     return false
   end
 
@@ -494,20 +513,20 @@ function SamplerManager.load_file(lane, filepath)
   -- Get file info to determine duration and channel count
   local ch, samples, rate = audio.file_info(filepath)
 
-  print(string.format("◎ Sampler: Loading %s into lane %d (buffer %d)", filepath, lane, buffer_id))
+  print(string.format("≋ Sampler: Loading %s into lane %d (buffer %d)", filepath, lane, buffer_id))
 
   -- Load mono to lane's buffer (reads left channel from stereo files)
   softcut.buffer_read_mono(filepath, 0, 0, -1, LEFT_CHANNEL, buffer_id)
 
   if samples and rate then
     local duration = samples / rate
-    print(string.format("◎ Sampler: File loaded - %.2fs, %dHz, %d channels", duration, rate, ch))
+    print(string.format("≋ Sampler: File loaded - %.2fs, %dHz, %d channels", duration, rate, ch))
 
     -- Auto-chop into fixed segments
     SamplerManager.set_fixed_segments(lane, duration)
     return true
   else
-    print("◎ Sampler: Failed to load file")
+    print("≋ Sampler: Failed to load file")
     -- Free the buffer since load failed
     SamplerManager.free_buffer(lane)
     return false
@@ -522,20 +541,20 @@ end
 -- Start recording audio input to buffer
 function SamplerManager.start_recording(lane)
   if not SamplerManager.initialized then
-    print("◎ Sampler: Not initialized")
+    print("≋ Sampler: Not initialized")
     return false
   end
 
   if SamplerManager.is_recording then
-    print("◎ Sampler: Already recording")
+    print("≋ Sampler: Already recording")
     return false
   end
 
   -- Allocate a buffer for this lane using the allocation system
   local buffer_id = SamplerManager.allocate_buffer(lane)
   if not buffer_id then
-    print(string.format("◎ Sampler: Cannot record - maximum %d lanes supported, buffers full", MAX_LANES))
-    print("◎ Sampler: Clear an existing lane first")
+    print(string.format("≋ Sampler: Cannot record - maximum %d lanes supported, buffers full", MAX_LANES))
+    print("≋ Sampler: Clear an existing lane first")
     return false
   end
 
@@ -581,14 +600,14 @@ function SamplerManager.start_recording(lane)
     _seeker.screen_ui.set_needs_redraw()
   end
 
-  print(string.format("◎ Sampler: Recording started for lane %d (buffer %d, voice %d)", lane, buffer_id, rec_voice))
+  print(string.format("≋ Sampler: Recording started for lane %d (buffer %d, voice %d)", lane, buffer_id, rec_voice))
   return true
 end
 
 -- Stop recording and save to disk
 function SamplerManager.stop_recording(lane)
   if not SamplerManager.is_recording then
-    print("◎ Sampler: Not recording")
+    print("≋ Sampler: Not recording")
     return false
   end
 
@@ -619,7 +638,7 @@ function SamplerManager.stop_recording(lane)
   end
 
   -- Save to disk
-  print(string.format("◎ Sampler: Saving %.2fs recording to %s", duration, filename))
+  print(string.format("≋ Sampler: Saving %.2fs recording to %s", duration, filename))
   local buffer_id = SamplerManager.recording_buffer
   softcut.buffer_write_mono(filepath, 0, duration, buffer_id)
 
@@ -634,7 +653,7 @@ function SamplerManager.stop_recording(lane)
   clock.run(function()
     clock.sleep(1.0)  -- Wait for write to complete
     SamplerManager.load_file(lane, filepath)
-    print(string.format("◎ Sampler: Recording loaded into lane %d", lane))
+    print(string.format("≋ Sampler: Recording loaded into lane %d", lane))
 
     -- Clear recording state to hide overlay
     SamplerManager.recording_state = nil
