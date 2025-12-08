@@ -40,6 +40,7 @@ GridModeRegistry.MODES = {
       "TUNING",
       "LANE_CONFIG",
       "TAPE_STAGE_CONFIG",
+      "SAMPLER_PAD_CONFIG",
       "EXPRESSION_CONFIG",
       "HARMONIC_CONFIG",
       "CLEAR_MOTIF"

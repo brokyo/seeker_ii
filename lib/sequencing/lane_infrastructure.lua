@@ -13,6 +13,7 @@
 
 local theory = include('lib/motif_core/theory')
 local transforms = include('lib/motif_core/transforms')
+local fileselect = require("fileselect")
 local lane_infrastructure = {}
 
 -- Create stage-related parameters that lane.lua needs for sequencing
@@ -86,23 +87,80 @@ local function create_basic_lane_params(i)
     params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 5)
 
     -- Per-lane motif creation type
-    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer"}, 1)
+    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler"}, 1)
     params:set_action("lane_" .. i .. "_motif_type", function(value)
+        -- Sampler mode limited to 2 simultaneous lanes (softcut has 2 mono buffers)
+        -- Prevent switching to sampler if buffers are full
+        if value == 3 and _seeker and _seeker.sampler then
+            local has_buffer = _seeker.sampler.get_buffer_for_lane(i) ~= nil
+            if not has_buffer then
+                -- Check if we can allocate a new buffer
+                local available = false
+                for buffer_id = 1, 2 do
+                    if not _seeker.sampler.buffer_occupied[buffer_id] then
+                        available = true
+                        break
+                    end
+                end
+
+                if not available then
+                    -- Revert to previous value (Tape)
+                    params:set("lane_" .. i .. "_motif_type", 1, true)
+                    return
+                end
+            end
+        end
+
         -- Stop playback when switching modes
         if _seeker and _seeker.lanes and _seeker.lanes[i] then
             _seeker.lanes[i]:stop()
         end
 
-        -- Rebuild UI if initialized
+        -- Rebuild screens (motif type affects Create Motif params and Lane Config voice routing)
+        -- Create Motif: tape shows duration, composer shows expression/structure
+        -- Lane Config: sampler shows sample loading, tape/composer show voice routing
         if _seeker and _seeker.create_motif and _seeker.create_motif.screen then
             _seeker.create_motif.screen:rebuild_params()
+        end
+        if _seeker and _seeker.lane_config and _seeker.lane_config.screen then
+            _seeker.lane_config.screen:rebuild_params()
+        end
+        if _seeker and _seeker.screen_ui then
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
+
+    -- File selector for loading audio samples into softcut buffers
+    params:add_binary("lane_" .. i .. "_sample_file", "Load Sample", "trigger", 0)
+    params:set_action("lane_" .. i .. "_sample_file", function()
+        local audio_path = _path.audio .. "seeker_ii"
+        fileselect.enter(audio_path, function(filepath)
+            if filepath and filepath ~= "cancel" then
+                if _seeker and _seeker.sampler then
+                    _seeker.sampler.load_file(i, filepath)
+                    _seeker.screen_ui.set_needs_redraw()
+                end
+            end
+        end)
+    end)
+
+    -- Record audio input directly into sampler buffer
+    params:add_binary("lane_" .. i .. "_record_sample", "Record Sample", "trigger", 0)
+    params:set_action("lane_" .. i .. "_record_sample", function()
+        if _seeker and _seeker.sampler then
+            if _seeker.sampler.is_recording then
+                _seeker.sampler.stop_recording(i)
+            else
+                _seeker.sampler.start_recording(i)
+            end
+            _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
 
     -- Per-Lane keyboard tuning
-    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
-    params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -3)
+    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 2)
+    params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -4)
 
     -- Volume parameter that lane.lua expects
     params:add_control("lane_" .. i .. "_volume", "Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))

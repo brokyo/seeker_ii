@@ -5,6 +5,11 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
+-- Motif type constants
+local MOTIF_TYPE_TAPE = 1
+local MOTIF_TYPE_COMPOSER = 2
+local MOTIF_TYPE_SAMPLER = 3
+
 local LaneConfig = {}
 LaneConfig.__index = LaneConfig
 
@@ -158,8 +163,10 @@ local function create_just_friends_params(i)
     params:add_binary("lane_" .. i .. "_just_friends_active", "Just Friends Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_just_friends_active", function(value)
         if value == 1 then
+            _seeker.lanes[i].just_friends_active = true
             crow.ii.jf.mode(1)
         else
+            _seeker.lanes[i].just_friends_active = false
             crow.ii.jf.mode(0)
         end
 
@@ -582,12 +589,21 @@ local function create_disting_params(i)
 end
 
 local function create_params()
+    -- Global sampler voice count (shared across all lanes)
+    params:add_number("sampler_voice_count", "Sampler Voices", 1, 6, 6)
+    params:set_action("sampler_voice_count", function(value)
+        if _seeker and _seeker.sampler then
+            _seeker.sampler.num_voices = value
+            print(string.format("◎ Sampler: Voice count set to %d", value))
+        end
+    end)
+
     -- Create parameters for all lanes
     for i = 1, 8 do
         params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 81)
-        
+
         -- Config Voice selector
-        params:add_option("lane_" .. i .. "_visible_voice", "Config Voice", 
+        params:add_option("lane_" .. i .. "_visible_voice", "Config Voice",
             {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC", "Disting"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
@@ -624,25 +640,48 @@ local function create_screen_ui()
     -- Dynamic parameter rebuilding based on current focused lane
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
+        local motif_type = params:get("lane_" .. lane_idx .. "_motif_type")
         local visible_voice = params:get("lane_" .. lane_idx .. "_visible_voice")
-        
+
         -- Update section name with current lane
         self.name = string.format("Lane %d", lane_idx)
-        
-        -- Start with common params
+
+        -- Start with volume and motif type (always visible)
         local param_table = {
             { separator = true, title = string.format("Lane %d Config", lane_idx) },
             { id = "lane_" .. lane_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
-            { id = "lane_" .. lane_idx .. "_visible_voice" }
+            { id = "lane_" .. lane_idx .. "_motif_type" }
         }
-        
-        -- Add params based on visible voice selection
-        if visible_voice == 1 then -- MX Samples
-            table.insert(param_table, { separator = true, title = "Mx Samples" })
+
+        -- Sampler mode loads audio files directly (no voice routing needed)
+        if motif_type == MOTIF_TYPE_SAMPLER then
+            table.insert(param_table, { separator = true, title = "Sampler Settings" })
+            table.insert(param_table, { id = "sampler_voice_count" })
+            table.insert(param_table, { separator = true, title = "Sample Source" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sample_file", is_action = true })
+
+            -- Show recording state in param name and icon
+            if _seeker.sampler and _seeker.sampler.is_recording then
+                table.insert(param_table, {
+                    id = "lane_" .. lane_idx .. "_record_sample",
+                    is_action = true,
+                    custom_name = "Recording Sample",
+                    custom_value = "●"
+                })
+            else
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_record_sample", is_action = true })
+            end
+        else -- Tape/Composer modes require voice routing to play notes
+            table.insert(param_table, { separator = true, title = "Voice Routing" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
+
+            -- Add params based on visible voice selection
+            if visible_voice == 1 then -- MX Samples
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_samples_active" })
 
             -- Only show additional MX Samples params if active
             if params:get("lane_" .. lane_idx .. "_mx_samples_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
                 table.insert(param_table, { separator = true, title = "Individual Event" })
@@ -665,41 +704,41 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send", arc_multi_float = {0.1, 0.05, 0.01} })
             end
         elseif visible_voice == 2 then -- MIDI
-            table.insert(param_table, { separator = true, title = "MIDI" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_active" })
 
             -- Only show additional MIDI params if active
             if params:get("lane_" .. lane_idx .. "_midi_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_device" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_channel" })
             end
         elseif visible_voice == 3 then -- CV/Gate via i2c
-            table.insert(param_table, { separator = true, title = "CV/Gate" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_active" })
 
             -- Only show additional Crow/TXO params if active
             if params:get("lane_" .. lane_idx .. "_eurorack_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_euro_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_gate_out" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_cv_out" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_loop_start_trigger" })
             end
         elseif visible_voice == 4 then -- Just Friends
-            table.insert(param_table, { separator = true, title = "Just Friends" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_active" })
 
             -- Only show additional Just Friends params if active
             if params:get("lane_" .. lane_idx .. "_just_friends_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_select" })
             end
         elseif visible_voice == 5 then -- w/syn
-            table.insert(param_table, { separator = true, title = "w/syn" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_active" })
 
             -- Only show additional w/syn params if active
             if params:get("lane_" .. lane_idx .. "_wsyn_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_select" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
@@ -716,14 +755,13 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_that" })
             end
         elseif visible_voice == 6 then -- OSC
-            table.insert(param_table, { separator = true, title = "OSC" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_osc_active" })
         elseif visible_voice == 7 then -- Disting
-            table.insert(param_table, { separator = true, title = "Disting" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_active" })
 
             -- Only show additional Disting params if active
             if params:get("lane_" .. lane_idx .. "_disting_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_algorithm" })
 
@@ -783,11 +821,54 @@ local function create_screen_ui()
                 end
             end
         end
-        
+        end -- Close else block for tape/composer voice params
+
         -- Update the UI with the new parameter table
         self.params = param_table
+        self:filter_active_params()
     end
-    
+
+    -- Override draw to show recording overlay
+    norns_ui.draw = function(self)
+        -- Draw standard UI
+        self:draw_default()
+
+        -- Check if recording and draw overlay
+        if _seeker.sampler and _seeker.sampler.recording_state then
+            local message = _seeker.sampler.recording_state == "recording" and "RECORDING" or "SAVING"
+
+            -- Dark background
+            screen.level(1)
+            screen.rect(0, 0, 128, 64)
+            screen.fill()
+
+            -- Border box
+            screen.level(15)
+            screen.rect(10, 20, 108, 24)
+            screen.stroke()
+
+            -- Main message (large, centered)
+            screen.level(15)
+            screen.move(64, 32)
+            screen.font_face(1)
+            screen.font_size(16)
+            screen.text_center(message)
+
+            -- Instruction (smaller, centered below)
+            if _seeker.sampler.recording_state == "recording" then
+                screen.font_size(8)
+                screen.move(64, 42)
+                screen.text_center("k3 to stop")
+            end
+
+            -- Reset font size
+            screen.font_size(8)
+
+            -- Push overlay to display
+            screen.update()
+        end
+    end
+
     return norns_ui
 end
 

@@ -55,14 +55,6 @@ function GridLayers.composite(layers)
   for x = 1, GridLayers.GRID_WIDTH do
     for y = 1, GridLayers.GRID_HEIGHT do
       -- Start with background (lowest priority)
-      if layers.ui[x][y] == nil then
-        print(string.format("Found nil at ui[%d,%d]", x, y))
-        -- Also check the table itself
-        if layers.ui[x] == nil then
-          print(string.format("  ui[%d] table is nil", x))
-        end
-      end
-      
       local final = layers.background[x][y] or 0
       
       -- UI layer takes precedence if it has any value

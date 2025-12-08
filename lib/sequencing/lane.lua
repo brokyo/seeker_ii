@@ -9,6 +9,7 @@ local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_seq
 -- Motif type constants
 local TAPE_MODE = 1
 local ARPEGGIO_MODE = 2
+local SAMPLER_MODE = 3
 local GridConstants = include('lib/grid/constants')
 local theory = include('lib/motif_core/theory')
 local KeyboardRegion = include('lib/grid/keyboard_region')
@@ -648,6 +649,21 @@ function Lane:on_note_on(event)
   end
 
   --------------------------------
+  -- Sampler Output
+  --------------------------------
+
+  -- If in sampler mode, trigger the sampler pad
+  if motif_type == SAMPLER_MODE then
+    if _seeker and _seeker.sampler then
+      -- Note number IS the pad number for sampler mode (1-16)
+      -- Apply lane volume to velocity before passing to sampler
+      local lane_volume = params:get("lane_" .. self.id .. "_volume")
+      local scaled_velocity = event.velocity * lane_volume
+      _seeker.sampler.trigger_pad(self.id, note, scaled_velocity)
+    end
+  end
+
+  --------------------------------
   -- CV/Gate Output
   --------------------------------
 
@@ -922,12 +938,31 @@ function Lane:on_note_off(event)
     end
   end
 
+  --------------------------------
+  -- Sampler Output
+  --------------------------------
+
+  -- Handle sampler note_off events according to pad mode settings (Gate/Loop/One-Shot)
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  if motif_type == SAMPLER_MODE then
+    if _seeker and _seeker.sampler then
+      local segment = _seeker.sampler.get_segment(self.id, note)
+      if segment then
+        -- Gate mode: stop playback on note_off
+        if segment.mode == 1 then  -- MODE_GATE from sampler/manager.lua
+          _seeker.sampler.stop_pad(self.id, note)
+        end
+        -- Loop mode: ignore note_off, let it loop continuously
+        -- One-shot mode: already auto-stops after playback, ignore note_off
+      end
+    end
+  end
+
   -- Stop hardware output if enabled
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
   
   -- Remove this note from active notes and get its positions
   -- Use same key logic as on_note_on for arpeggio mode
-  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   local note_key
   if motif_type == 2 and event.step then
     -- Arpeggio mode: use step number as key to match on_note_on
