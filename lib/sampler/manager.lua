@@ -24,6 +24,32 @@ local FILTER_HIGHPASS = 3
 local FILTER_BANDPASS = 4
 local FILTER_NOTCH = 5
 
+-- Create a segment with default values
+local function create_default_segment(start_pos, stop_pos, overrides)
+  local segment = {
+    start_pos = start_pos or 0,
+    stop_pos = stop_pos or 0,
+    duration = (stop_pos or 0) - (start_pos or 0),
+    attack = 0.1,
+    release = 0.1,
+    fade_time = 0.005,
+    mode = MODE_GATE,
+    rate = 1.0,
+    max_volume = 1.0,
+    pan = 0,
+    filter_type = FILTER_OFF,
+    lpf = 20000,
+    resonance = 0,
+    hpf = 20
+  }
+  if overrides then
+    for k, v in pairs(overrides) do
+      segment[k] = v
+    end
+  end
+  return segment
+end
+
 -- State
 SamplerManager.num_voices = 6  -- Configurable voice count
 SamplerManager.voices = {}  -- voice[i] = {lane = lane_number, pad = pad_number, active = bool}
@@ -101,22 +127,7 @@ function SamplerManager.init()
 
     -- Initialize empty segments (16 pads per lane)
     for pad = 1, NUM_PADS do
-      SamplerManager.lane_segments[lane][pad] = {
-        start_pos = 0,
-        stop_pos = 0,
-        duration = 0,
-        attack = 0.1,
-        release = 0.1,
-        fade_time = 0.005, -- Crossfade duration at loop boundaries to prevent audio clicks
-        mode = MODE_GATE,
-        rate = 1.0,        -- Playback rate (negative for reverse)
-        max_volume = 1.0,  -- Volume ceiling
-        pan = 0,           -- Stereo position (-1 left, 0 center, 1 right)
-        filter_type = FILTER_OFF,
-        lpf = 20000,       -- Lowpass cutoff (Hz)
-        resonance = 0,     -- Filter Q
-        hpf = 20           -- Highpass cutoff (Hz)
-      }
+      SamplerManager.lane_segments[lane][pad] = create_default_segment()
     end
   end
 
@@ -172,22 +183,7 @@ function SamplerManager.clear_lane_segments(lane)
 
   -- Reset all segments to default empty state
   for pad = 1, NUM_PADS do
-    SamplerManager.lane_segments[lane][pad] = {
-      start_pos = 0,
-      stop_pos = 0,
-      duration = 0,
-      attack = 0.1,
-      release = 0.1,
-      fade_time = 0.005,
-      mode = MODE_GATE,
-      rate = 1.0,
-      max_volume = 1.0,
-      pan = 0,
-      filter_type = FILTER_OFF,
-      lpf = 20000,
-      resonance = 0,
-      hpf = 20
-    }
+    SamplerManager.lane_segments[lane][pad] = create_default_segment()
   end
 
   SamplerManager.lane_durations[lane] = 0
@@ -201,23 +197,7 @@ function SamplerManager.set_fixed_segments(lane, sample_duration)
   for pad = 1, NUM_PADS do
     local start_pos = (pad - 1) * segment_duration
     local stop_pos = start_pos + segment_duration
-
-    SamplerManager.lane_segments[lane][pad] = {
-      start_pos = start_pos,
-      stop_pos = stop_pos,
-      duration = segment_duration,
-      attack = 0.1,
-      release = 0.1,
-      fade_time = 0.005,
-      mode = MODE_GATE,
-      rate = 1.0,
-      max_volume = 1.0,
-      pan = 0,
-      filter_type = FILTER_OFF,
-      lpf = 20000,
-      resonance = 0,
-      hpf = 20
-    }
+    SamplerManager.lane_segments[lane][pad] = create_default_segment(start_pos, stop_pos)
   end
 end
 
@@ -250,23 +230,7 @@ function SamplerManager.reset_segment_to_auto(lane, pad)
   local segment_duration = sample_duration / NUM_PADS
   local start_pos = (pad - 1) * segment_duration
   local stop_pos = start_pos + segment_duration
-
-  SamplerManager.lane_segments[lane][pad] = {
-    start_pos = start_pos,
-    stop_pos = stop_pos,
-    duration = segment_duration,
-    attack = 0.01,
-    release = 0.01,
-    fade_time = 0.005,
-    mode = MODE_GATE,
-    rate = 1.0,
-    max_volume = 1.0,
-    pan = 0,
-    filter_type = FILTER_OFF,
-    lpf = 20000,
-    resonance = 0,
-    hpf = 20
-  }
+  SamplerManager.lane_segments[lane][pad] = create_default_segment(start_pos, stop_pos, {attack = 0.01, release = 0.01})
 end
 
 -- Get sample duration for a lane
