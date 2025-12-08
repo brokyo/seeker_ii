@@ -39,6 +39,7 @@ SamplerManager.recording_voice = nil
 SamplerManager.recording_buffer = nil
 SamplerManager.recording_state = nil  -- nil, "recording", or "saving"
 SamplerManager.record_start_time = 0
+SamplerManager.file_select_active = false  -- true while norns fileselect is open
 
 -- Initialize all softcut voices for sampler use
 function SamplerManager.init()
@@ -73,6 +74,13 @@ function SamplerManager.init()
     -- Initialize loop points (will be updated per segment)
     softcut.loop_start(v, 0)
     softcut.loop_end(v, 1)
+
+    -- Reset post-filter to bypass (prevents stale filter settings from previous scripts)
+    softcut.post_filter_dry(v, 1.0)
+    softcut.post_filter_lp(v, 0.0)
+    softcut.post_filter_hp(v, 0.0)
+    softcut.post_filter_bp(v, 0.0)
+    softcut.post_filter_br(v, 0.0)
 
     -- Start disabled
     softcut.play(v, 0)
@@ -279,7 +287,8 @@ local function apply_filter(voice, segment)
     softcut.post_filter_dry(voice, 0.0)
 
     -- Convert resonance to softcut's reciprocal Q format
-    local rq = segment.resonance > 0 and (1 / segment.resonance) or 2.0
+    -- When resonance=0, use Butterworth response (rq=√2) for maximally flat passband
+    local rq = segment.resonance > 0 and (1 / segment.resonance) or 1.414
     softcut.post_filter_rq(voice, rq)
 
     -- Set filter type outputs and frequency
@@ -569,7 +578,7 @@ function SamplerManager.start_recording(lane)
 
   -- Configure voice for recording
   softcut.buffer(rec_voice, buffer_id)
-  softcut.level(rec_voice, 1.0)
+  softcut.level(rec_voice, 0)  -- Silent output during recording (input monitoring is separate)
   softcut.rec(rec_voice, 1)
   softcut.rec_level(rec_voice, 1.0)
   softcut.pre_level(rec_voice, 0)
@@ -583,6 +592,9 @@ function SamplerManager.start_recording(lane)
   softcut.loop(rec_voice, 0)
   softcut.loop_start(rec_voice, 0)
   softcut.loop_end(rec_voice, softcut.BUFFER_SIZE)
+
+  -- Ensure recording happens at normal speed
+  softcut.rate(rec_voice, 1.0)
 
   -- Start recording
   softcut.play(rec_voice, 1)

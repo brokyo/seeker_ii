@@ -828,7 +828,7 @@ local function create_screen_ui()
         self:filter_active_params()
     end
 
-    -- Override draw to show recording overlay
+    -- Override draw to show recording/fileselect overlays
     norns_ui.draw = function(self)
         -- Draw standard UI
         self:draw_default()
@@ -860,6 +860,36 @@ local function create_screen_ui()
                 screen.move(64, 42)
                 screen.text_center("k3 to stop")
             end
+
+            -- Reset font size
+            screen.font_size(8)
+
+            -- Push overlay to display
+            screen.update()
+
+        -- Check if fileselect is active and draw overlay
+        elseif _seeker.sampler and _seeker.sampler.file_select_active then
+            -- Dark background
+            screen.level(1)
+            screen.rect(0, 0, 128, 64)
+            screen.fill()
+
+            -- Border box
+            screen.level(15)
+            screen.rect(10, 16, 108, 32)
+            screen.stroke()
+
+            -- Main message (large, centered)
+            screen.level(15)
+            screen.move(64, 30)
+            screen.font_face(1)
+            screen.font_size(12)
+            screen.text_center("FILE SELECT")
+
+            -- Instruction (smaller, centered below)
+            screen.font_size(8)
+            screen.move(64, 42)
+            screen.text_center("use norns e2/e3/k3")
 
             -- Reset font size
             screen.font_size(8)

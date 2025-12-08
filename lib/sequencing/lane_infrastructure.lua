@@ -134,12 +134,27 @@ local function create_basic_lane_params(i)
     params:add_binary("lane_" .. i .. "_sample_file", "Load Sample", "trigger", 0)
     params:set_action("lane_" .. i .. "_sample_file", function()
         local audio_path = _path.audio .. "seeker_ii"
+
+        -- Show overlay while fileselect is active
+        if _seeker and _seeker.sampler then
+            _seeker.sampler.file_select_active = true
+            _seeker.screen_ui.set_needs_redraw()
+        end
+
         fileselect.enter(audio_path, function(filepath)
+            -- Clear overlay state
+            if _seeker and _seeker.sampler then
+                _seeker.sampler.file_select_active = false
+            end
+
             if filepath and filepath ~= "cancel" then
                 if _seeker and _seeker.sampler then
                     _seeker.sampler.load_file(i, filepath)
-                    _seeker.screen_ui.set_needs_redraw()
                 end
+            end
+
+            if _seeker and _seeker.screen_ui then
+                _seeker.screen_ui.set_needs_redraw()
             end
         end)
     end)
