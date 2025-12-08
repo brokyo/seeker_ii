@@ -105,6 +105,13 @@ end
 function UIState.set_current_section(section_id)
   if section_id == UIState.state.current_section then return end
 
+  -- Stop active recording when leaving lane config section
+  if UIState.state.current_section == "LANE_CONFIG" and _seeker.sampler and _seeker.sampler.is_recording then
+    local lane = UIState.get_focused_lane()
+    _seeker.sampler.stop_recording(lane)
+    print("≋ Sampler: Recording stopped (navigation)")
+  end
+
   -- Validate and auto-switch mode if needed
   if _seeker.current_mode then
     local required_mode = GridModeRegistry.get_mode_for_section(section_id)

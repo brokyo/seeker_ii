@@ -8,6 +8,9 @@ local GridLayers = include("lib/grid/layers")
 
 local SamplerKeyboard = {}
 
+-- Playback mode constants for sampler behavior
+local MODE_GATE = 1
+
 -- Layout definition - 4x4 grid centered in the keyboard area
 -- Tape keyboard uses 6x6 starting at (6,2)
 -- Center a 4x4 grid within that space
@@ -79,12 +82,11 @@ function SamplerKeyboard.pad_on(x, y)
   local pad = SamplerKeyboard.position_to_pad(x, y)
   if not pad then return end
 
-  -- During recording, trigger samples without changing screens
-  -- When not recording, navigate to pad configuration to show settings
+  -- Trigger samples during recording, navigate to pad config otherwise
   local is_recording = _seeker and _seeker.motif_recorder and _seeker.motif_recorder.is_recording
 
   if not is_recording then
-    -- Edit mode: navigate to pad config
+    -- Navigate to pad configuration screen
     if _seeker and _seeker.sampler_pad_config then
       _seeker.sampler_pad_config.select_pad(pad)
     end
@@ -110,11 +112,11 @@ function SamplerKeyboard.pad_off(x, y)
   local pad = SamplerKeyboard.position_to_pad(x, y)
   if not pad then return end
 
-  -- Gate mode (mode 1): stop playback on release
+  -- Gate mode: stop playback on release
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
     local segment = _seeker.sampler.get_segment(lane, pad)
-    if segment and segment.mode == 1 then
+    if segment and segment.mode == MODE_GATE then
       _seeker.sampler.stop_pad(lane, pad)
     end
   end
