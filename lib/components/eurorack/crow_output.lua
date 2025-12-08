@@ -802,6 +802,16 @@ local function create_grid_ui()
       local x = self.layout.x + i
       local output_num = i + 1
       local is_selected = (selected_type == 1 and output_num == selected_number)
+
+      -- Check if output is enabled based on type
+      local type = params:string("crow_" .. output_num .. "_type")
+      local is_enabled = false
+      if type == "Clocked Random" then
+        is_enabled = params:get("crow_" .. output_num .. "_clocked_random_trigger") > 0
+      elseif type ~= "Knob Recorder" then
+        is_enabled = params:string("crow_" .. output_num .. "_clock_interval") ~= "Off"
+      end
+
       local brightness
 
       if is_selected then
@@ -810,6 +820,8 @@ local function create_grid_ui()
         else
           brightness = GridConstants.BRIGHTNESS.MEDIUM
         end
+      elseif is_enabled then
+        brightness = GridConstants.BRIGHTNESS.UI.UNFOCUSED
       else
         brightness = GridConstants.BRIGHTNESS.UI.NORMAL
       end

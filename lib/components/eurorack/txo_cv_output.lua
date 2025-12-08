@@ -363,6 +363,7 @@ local function create_grid_ui()
       local x = self.layout.x + i
       local output_num = i + 1
       local is_selected = (selected_type == 3 and output_num == selected_number)
+      local is_enabled = params:string("txo_cv_" .. output_num .. "_clock_interval") ~= "Off"
       local brightness
 
       if is_selected then
@@ -371,6 +372,8 @@ local function create_grid_ui()
         else
           brightness = GridConstants.BRIGHTNESS.MEDIUM
         end
+      elseif is_enabled then
+        brightness = GridConstants.BRIGHTNESS.UI.UNFOCUSED
       else
         brightness = GridConstants.BRIGHTNESS.UI.NORMAL
       end
