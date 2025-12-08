@@ -114,6 +114,7 @@ function ScreenUI.redraw()
     if section.state.is_active then
       section:draw()
     end
+
     ScreenUI.state.needs_redraw = false
   end
 end

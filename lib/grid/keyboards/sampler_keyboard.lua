@@ -110,11 +110,11 @@ function SamplerKeyboard.pad_off(x, y)
   local pad = SamplerKeyboard.position_to_pad(x, y)
   if not pad then return end
 
-  -- Gate mode (mode 3): stop playback on release
+  -- Gate mode (mode 1): stop playback on release
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
     local segment = _seeker.sampler.get_segment(lane, pad)
-    if segment and segment.mode == 3 then
+    if segment and segment.mode == 1 then
       _seeker.sampler.stop_pad(lane, pad)
     end
   end

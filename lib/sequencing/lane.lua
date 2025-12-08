@@ -948,12 +948,12 @@ function Lane:on_note_off(event)
     if _seeker and _seeker.sampler then
       local segment = _seeker.sampler.get_segment(self.id, note)
       if segment then
-        -- Gate mode (3): stop playback on note_off
-        if segment.mode == 3 then
+        -- Gate mode: stop playback on note_off
+        if segment.mode == 1 then  -- MODE_GATE from sampler/manager.lua
           _seeker.sampler.stop_pad(self.id, note)
         end
-        -- Loop mode (2): ignore note_off, let it loop continuously
-        -- One-Shot mode (1): already auto-stops after playback, ignore note_off
+        -- Loop mode: ignore note_off, let it loop continuously
+        -- One-shot mode: already auto-stops after playback, ignore note_off
       end
     end
   end

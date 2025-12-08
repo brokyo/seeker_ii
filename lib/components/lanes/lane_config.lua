@@ -827,7 +827,48 @@ local function create_screen_ui()
         self.params = param_table
         self:filter_active_params()
     end
-    
+
+    -- Override draw to show recording overlay
+    norns_ui.draw = function(self)
+        -- Draw standard UI
+        self:draw_default()
+
+        -- Check if recording and draw overlay
+        if _seeker.sampler and _seeker.sampler.recording_state then
+            local message = _seeker.sampler.recording_state == "recording" and "RECORDING" or "SAVING"
+
+            -- Dark background
+            screen.level(1)
+            screen.rect(0, 0, 128, 64)
+            screen.fill()
+
+            -- Border box
+            screen.level(15)
+            screen.rect(10, 20, 108, 24)
+            screen.stroke()
+
+            -- Main message (large, centered)
+            screen.level(15)
+            screen.move(64, 32)
+            screen.font_face(1)
+            screen.font_size(16)
+            screen.text_center(message)
+
+            -- Instruction (smaller, centered below)
+            if _seeker.sampler.recording_state == "recording" then
+                screen.font_size(8)
+                screen.move(64, 42)
+                screen.text_center("k3 to stop")
+            end
+
+            -- Reset font size
+            screen.font_size(8)
+
+            -- Push overlay to display
+            screen.update()
+        end
+    end
+
     return norns_ui
 end
 
