@@ -28,20 +28,39 @@ local function create_params()
         theory.print_keyboard_layout()
     end)
 
-    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 5)
+    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 4)
     params:set_action("keyboard_row_steps", function(value)
         local theory = include('lib/motif_core/theory')
         theory.print_keyboard_layout()
     end)
 
     -- Global tuning (moved from config)
+    -- Tuning presets: curated root/scale combinations for emotional palettes
+    -- Format: {root_note_index, scale_index} where root 1=C, scale per musicutil.SCALES
     params:add_option("tuning_preset", "Preset",
-        {"Custom", "Ethereal", "Mysterious", "Melancholic", "Hopeful", "Contemplative", "Triumphant", "Dreamy",
-         "Ancient", "Floating", "Pastoral", "Nocturne", "Ritual", "Celestial", "Distant"}, 1)
+        {"Custom", "Ethereal", "Mysterious", "Melancholic", "Hopeful", "Contemplative", "Triumphant",
+         "Dreamy", "Ancient", "Pastoral", "Nocturne", "Ritual", "Celestial",
+         "Moss", "Temple", "Overworld", "Save Point"}, 17)
     params:set_action("tuning_preset", function(value)
         if value > 1 then
-            local presets = {{6, 7}, {3, 5}, {10, 2}, {8, 1}, {5, 2}, {1, 1}, {2, 1}, {3, 6},
-                            {1, 10}, {8, 11}, {7, 12}, {5, 6}, {7, 7}, {11, 10}}
+            local presets = {
+                {6, 7},   -- Ethereal: F Lydian
+                {2, 3},   -- Mysterious: C# Harmonic Minor
+                {10, 2},  -- Melancholic: A Natural Minor
+                {8, 1},   -- Hopeful: G Major
+                {5, 5},   -- Contemplative: E Dorian
+                {1, 1},   -- Triumphant: C Major
+                {9, 7},   -- Dreamy: Ab Lydian
+                {3, 6},   -- Ancient: D Phrygian
+                {8, 11},  -- Pastoral: G Major Pentatonic
+                {4, 3},   -- Nocturne: Eb Harmonic Minor
+                {5, 6},   -- Ritual: E Phrygian
+                {7, 7},   -- Celestial: F# Lydian
+                {3, 44},  -- Moss: D In Sen Pou (Japanese ambient)
+                {10, 42}, -- Temple: A Gagaku Ryo Sen Pou (Japanese court)
+                {8, 8},   -- Overworld: G Mixolydian (adventure game)
+                {4, 7},   -- Save Point: Eb Lydian (RPG rest moment)
+            }
             local preset = presets[value - 1]
             params:set("root_note", preset[1], true)
             params:set("scale_type", preset[2], true)
