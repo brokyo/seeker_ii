@@ -10,6 +10,7 @@ local KeyboardMode = {}
 -- Motif type constants
 local TAPE_MODE = 1
 local ARPEGGIO_MODE = 2
+local SAMPLER_MODE = 3
 
 -- Determine which regions should be visible based on current motif type
 -- NOTE: This duplicates logic from stage_types/tape_transform and arpeggio_sequence
@@ -24,6 +25,9 @@ local function should_draw_region(region_name)
   elseif motif_type == ARPEGGIO_MODE then
     -- Arpeggio mode hides velocity and tuning regions
     return not (region_name == "velocity" or region_name == "tuning")
+  elseif motif_type == SAMPLER_MODE then
+    -- Sampler mode hides tuning (no pitch transpose implemented)
+    return region_name ~= "tuning"
   end
 
   return true
@@ -75,6 +79,11 @@ function KeyboardMode.handle_full_page_key(x, y, z)
   -- Check if in keyboard region
   if KeyboardRegion.contains(x, y) then
     KeyboardRegion.handle_key(x, y, z)
+    return true
+  end
+
+  -- Block non-keyboard input during sampler recording
+  if _seeker.sampler and _seeker.sampler.is_recording then
     return true
   end
 
