@@ -1,122 +1,138 @@
 # Seeker II
 
-Seeker II is a compositional interface for Monome Norns. 
+Seeker II is a compositional interface for creating and procedurally manipulating phasing music and visuals. Record phrases, layer overdubs, chop samples, sequence changes, distort video, open the next.
 
-It allows you to:
-- Record, overdub, and transform musical motifs on an emulated tape
-- Configure and control time-synchronized modulation in Eurorack (via i2c) and TouchDesigner (via OSC)
+Eight musical lanes can be run in parallel with each performing its own motif with sequencable changes. Motifs can be written with a tape-loope, a heavily parameterized chord sequencer, or chopped samples.
 
-Using these voices:
-- MX Samples (https://norns.community/mxsamples)
-- Whimsical Raps i2c devices (W/Syn, Just Friends)
-- I2C connectors (Crow, TXO)
-- MIDI
+Seeker is the center of my studio and connects to the things I regularly use. If you're reading this, you likely use them too. Eurorack via i2c (Crow, TXO, Just Friends, W/, Disting EX), OSC for visual apps like TouchDesigner, and MIDI for external equipment. 
+
+It's intended to travel with you and scale to what you have on hand. I've been relentless about the user-experience and I hope that it's easy to pick up despite but deep enough to always surprise.
+
+## Requirements
+
+**Required**
+- Norns
+- Grid (128)
+
+**Recommended**
+- Arc — Seeker has a lot of configurability. The Arc makes that configurability pleasant. Encoders mapped to different significant figures for high-resolution control and realtime performability.
+- [Seeker TouchDesigner tox](lib/etc/seeker.tox) — Seeker connects fairly naturally to TouchDesigner and enables a kind of visual painting that I think is a lot of fun. This tox handles all the connections. More on this further down.
+
+**Optional**
+- Crow — Lots of CV and gate output patterns. Clock-synced modulation with some unusual approaches.
+- TXO — More CV and trigger outputs. TXO forever.
+- i2c modules — Control the playback and settings of Just Friends, W/Syn, and Disting EX
+- MIDI — external synths and DAWs
 
 ## Installation
-In Maiden: ;install https://github.com/brokyo/seeker_ii
 
+In Maiden:
+```
+;install https://github.com/brokyo/seeker_ii
+```
 
 ## Layout
+
 ![Seeker II Layout](https://github.com/brokyo/seeker_ii/raw/main/layout.png)
 
 ## Quickstart
-### To Begin
-1. **Configure Lane** (4A): Select your output voice (MX Samples, W/Syn, etc.)
-2. **Record motif** (5B): Hold grid key to start recording on the keyboard (2A)
-3. **Stop recording** (5B): Press grid key again when recording is complete
-4. **Change playback parameters** (5A): Adjust octave, degree, and speed
+
+When you first boot the app you will be on Lane 1 in Tape mode.
+
+1. **Select a voice** — Open lane config (4A) to choose an output (MX Samples, Just Friends, MIDI, etc) and configure its timbre.
+
+2. **Play notes** — The 6x6 keyboard (2A) is ready. Bright keys are root notes. Vertical = 4 scale degrees, horizontal = 1.
+
+3. **Record a motif** — Hold the record button (5B). A metronome appears above the keyboard. Play a phrase. Press again to stop—it loops automatically.
+
+4. **Overdub** — Hold record again while the motif plays. New notes layer onto existing ones.
+
+5. **Add a transform stage** — A phrase can be manpiulated after an arbitary number of loops. Open stage config (5D). Turn on a new stage and a transform (Harmonize is my favorite) to evolve the composition. Your motif evolves each loop but can always be reset to the start.
+
+6. **Try another lane** — Select a new lane (4A). Record a variation. Now two voices phase against each other.
 
 ### Next Steps
-1. **Overdub motif** (5B): Hold grid key again in tape mode to layer new material
-2. **Transform motif** (5D): Configure time-synchronized changes to motif
-3. **New Lane** (4A): Create additional voices for phasing compositions
-4. **Synchronize modulation** (3A/3C): Configure OSC and Eurorack patterns to accompany loops
 
-## Layout Details
-### 1 | Keyboard Config
-- A: Octave Tuning 
-  - Left key drops the keyboard octave by one; right key increases it by one
-- B: Offset Tuning 
-  - Left key drops the keyboard note by one; right key increases it by one
-- C: Velocity Tuning 
-  - Left-to-right increases key velocity
+- **Composer mode** — Switch a lane to Composer and built an evolving arpeggio with timing (##) and expression (##) stages. Connect it to Eurorack and create unorthodox patterns, timing, and velocity curves.
+- **Sampler mode** — Built on Softcut. Load an audio file or record from input, then trigger chopped segments from the grid. Each pad has a configurable envelope and filter.
+- **Eurorack integration** — Configure Crow outputs (3C) for clock-synced modulation—LFOs, bursts, random walks, or knob recorders that capture Arc movements.
 
-### 2 | Keyboard
-- A: Tonnetz-Style Keyboard 
-  - Tuned to global set in (3D) 
-  - Covers two octaves
-  - Illuminated keys are root
-  - Vertical keys move by one degree. Horizontal keys move by two degree
+## Motify | Mode
 
-### 3  | Integrations
-- A: OSC Configuration
-  - Configure time-synchronized LFOs and clocks
-  - Set to TouchDesigner default but configurable at bottom of menu
-- B: W/Tape Configuration
-  - Record, overdub, and navigate tape
-  - NB: Requires manual button combination on W/ Module to enter tape mode
-- C: Eurorack Configuration
-  - Configure time-synchronized voltage patterns
-  - Crow: Choose from Gate, Burst, LFO, Envelope, Knob Recorder, and Structured Random
-  - TXO: Choose from Gate, Burst, LFO, and Stepped Random
-- D: Global Configuration
-  - Tuning, clock, and MIDI control affecting entire app.
+The main performance space. Eight lanes run in parallel, each playing one of three motif types. Each type has its own keyboard and stage system.
 
-### 4 | Lane Management
-- A: Lane Selection
-  - Select lane outputs among supported voices
-  - 1 -> 8 lanes available. Each stores its own tuning information
+### Tape | Motif Type
+Record motifs on a 6x6 Tonnetz/interval keyboard (2A). After recording, motifs can be overdubbed by holding the button Create Motif (5B) key. After a configurable number of loops, motifs move to the next "Stage" (5D). Stages manipulate the event table enabling straightforward transformations (Reverse, Rotate, Ratchet) or more unique ones (Harmonize, Generation Filter). Scale and intervals can be set in Keyboard Config (##)
 
-### 5 | Motif Management
-- A: Playback Configuration
-  - Control playback of recorded motif
-  - Shift playback octave, degree, and speed
-- B: Create Motif
-  - Select between emulated tape and arpeggio
-  - Hold grid key (5B) to start recording (Keyboard will blink)
-  - Press grid key (5B) again to stop
-  - Holding grid key (5B) in tape mode will overdub
-- C: Clear Motif
-  - Hold grid key (5C) to clear recording. Grid will blink on confirmation
-- D: Stage Configuration
-  - Stages allow for structured changes to motifs
-  - Pick from Harmonize, Ratchet, Transpose, Overdub Filter, and Reverse
+- Create Motif (5B) — Hold to record, press again to stop.
+- Stage Config (5D) — Configure transforms and loop counts.
+
+### Composer | Motif Type
+An algorithmic chord sequencer is represented by an interval keyboard (2A). Hold Create Motif (5B) to begin a sequence. Optionally, select from expression presets to give it character. Arpeggios move through stages (##) with configurable chord voicings and performance characteristics.
+
+- Create Motif (##) — Select expression preset and generate.
+- Harmonic Config (##) — Per-stage chord root, type, length, inversion, octave.
+- Expression Config (##) — Per-stage velocity curves, strum timing/shape, note duration, pattern filtering.
+
+### Sampler | Motif Type
+Load a sample or record from the Norns input (4A). Via softcut, the sample will be chopped and distributed across a 4x4 pad grid (2A). Each pad has its own envelope, filter, rate, and chop points. Good for percussion and textural sound mangling. 
+
+- Create Motif (##) — Load file or record from input.
+- Pad Config (##) — Per-pad envelope, filter, rate, start/end points.
+
+
+### All | Motif Type
+All motifs share the same basic selection and playback controls. 
+- **Lane Select** (4A) — Choose lane and configure the voices it controls. Multiple voices can be active per-lane. Lots of cool tonal stuff in Eurorack becomes possible. 
+- **Motif Playback** (5A) — Control the motif's playback characteristics. Ofset pitch, change speed, quantize events, or swing timing. Hold to play/stop.
+- **Clear Motif** (5C) — Hold to erase the current motif. You'll see a confirmation flash on grid when it happens.
+
+## Eurorack | Mode (3C)
+I find Seeker most interesting when it's directly communicating with Eurorack rather than just being played through it. Accordingly, I've included a bunch of Crow and TXO output options that stay true to the music and its timing. 
+
+Every output combines can be played on a beat interval, a multiplier, and a phase offset. You can make modules doing some really unusual things.
+
+**Crow Outputs:**
+- **Gate** — Clock or pattern-driven. Patterns can be Euclidean or random, rerollable on demand.
+- **Burst** — Rapid pulses with configurable distribution (linear, accelerating, decelerating, random).
+- **LFO** — Tempo-synced shapes (sine, linear, rebound, etc.) with voltage range.
+- **Envelope** — ADSR or AR with configurable shape curves.
+- **Knob Recorder** — Capture Arc movements as looping CV. Gestural sampling.
+- **Random Walk** — Stochastic movement within configurable ranges.
+- **Clocked Random** — External trigger (Crow input) generates random voltages, optionally quantized to scale.
+
+**TXO TR:** Gate and Burst. Both support burst shaping (linear, accelerating, decelerating, random).
+
+**TXO CV:**
+- **LFO** — Wave morphing LFO (Sine→Triangle→Saw→Pulse→Noise).
+- **Envelope** — ADSR or AR with clock-synced timing.
+- **Random Walk** — Same as Crow.
+
+## OSC | Mode (3A)
+Built with the Seeker_II TOX in mind, this mode enables you to control TOP values in TouchDesigner in sequence with the Seeker clock and events. Set the IP in the config menu (3A) and values should automatically show up in TD. 
+
+**Float** — Direct value + multiplier. Useful for tuning images.
+
+**LFO** — Tempo-synced oscillation using stock TouchDesigner shapes.
+
+**Trigger** — Clock-driven pulses with envelope parameters (attack, decay, sustain, release)
+
+## W/Tape | Mode (3B)
+
+Transport control for the Whimsical Raps W/ module in tape mode. Play, record, fast-forward, rewind, loop points, reverse. I think this is such an interesting module (the W/Synth used in Motif mode is amazing) and I believe it becomes much more performable with grid control. 
+
+## Settings | Mode (3D)
+
+Global configuration: BPM, root note, scale, and MIDI clock settings. Tap tempo available. "Sync All" restarts all lanes and outputs simultaneously.
 
 ## Etc
-### Known Bugs
-- When the app has the Screensaver or Create Motif active K1 doesn't work.
-- After powering on the Norns sometimes the Arc isn't recognized. Unplug/replug and it should work.
+### Disting EX Setup
+**Triggerable Polyphonic Voice:**
+1. Select Disting Voice > All on Norns
+2. Navigate to Macro Osc 2 Settings (P encoder)
+3. Set all voices to trigger on I2C: Instance n > I2C trigger 1
+4. Set all voices to share params: Instance n > Share Params 1
 
-### TODO
-- See roadmap.md
-
-### Disting Poly Plaits
-- Distings Plaits mode in Poly requires a bit of configuration on the module itself. There are a huge number of permutations but I regularly use:
-#### Triggerable Polyphonic Voice
-- Select Disting Voice > All on Norns
-- Navigate to Macro Osc 2 Settings using P encoder
-- Set all voices to trigger on I2C [Instance n > I2C trigger 1]
-- Set all voices to share params from Norns [Instances n > Share Params 1]
-#### Drone Voice
-
-## Code Structure
-```
-lib/
-├── motif_core/        Musical data structures and transformations
-├── sequencing/        Timing and playback engine
-├── ui/                Screen interface and state management
-│   └── base/          Base UI classes (norns_ui, grid_ui)
-├── controllers/       Hardware input handlers
-├── grid/              Grid UI infrastructure
-│   ├── keyboards/     Keyboard layout implementations
-│   └── selector/      UI selector components
-├── components/        Feature modules with screen/grid/params
-│   ├── global_config/ Global app configuration
-│   ├── keyboard/      Keyboard configuration and motif creation
-│   ├── lanes/         Lane management and stage transforms
-│   │   └── stage_types/ Mode-specific stage configurations
-│   ├── eurorack/      Eurorack CV/gate output (Crow, TXO)
-│   ├── osc/           OSC output for TouchDesigner
-│   └── wtape/         W/Tape integration
-└── etc/               Miscellaneous utilities and resources
-```
+### W/ Setup
+**W/ Mode Change**
+Requires physical controls.
