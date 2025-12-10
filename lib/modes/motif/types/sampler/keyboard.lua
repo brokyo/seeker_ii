@@ -1,7 +1,7 @@
--- sampler_keyboard.lua
--- 4x4 pad grid for sampler mode
--- Each pad will trigger a sample segment
--- Config button at (4,7) toggles pad configuration mode
+-- keyboard.lua
+-- Sampler type keyboard: 4x4 pad grid
+-- Each pad triggers a sample chop
+-- Part of lib/modes/motif/types/sampler/
 
 local GridConstants = include("lib/grid/constants")
 local GridLayers = include("lib/grid/layers")
@@ -95,13 +95,13 @@ function SamplerKeyboard.pad_on(x, y)
   -- Always trigger sample playback
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
-    local velocity = _seeker.velocity and _seeker.velocity.get_current_velocity() or 127
+    local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
     _seeker.sampler.trigger_pad(lane, pad, velocity)
   end
 
   -- Record pad event if motif recorder is active
   if is_recording then
-    local velocity = _seeker.velocity and _seeker.velocity.get_current_velocity() or 127
+    local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
     local event = SamplerKeyboard.create_note_event(x, y, pad, velocity)
     _seeker.motif_recorder:on_note_on(event)
   end

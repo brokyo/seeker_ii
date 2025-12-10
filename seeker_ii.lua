@@ -30,7 +30,12 @@ local Tuning = include("lib/components/keyboard/tuning")
 local MotifPlayback = include("lib/components/keyboard/motif_playback")
 local CreateMotif = include("lib/components/keyboard/create_motif")
 local ClearMotif = include("lib/components/keyboard/clear_motif")
-local SamplerPadConfig = include("lib/components/keyboard/sampler_pad_config")
+local SamplerPadConfig = include("lib/modes/motif/types/sampler/pad_config")
+local SamplerCreator = include("lib/modes/motif/types/sampler/creator")
+local SamplerStageConfig = include("lib/modes/motif/types/sampler/stage_config")
+local SamplerPlayback = include("lib/modes/motif/types/sampler/playback")
+local SamplerClear = include("lib/modes/motif/types/sampler/clear")
+local SamplerVelocity = include("lib/modes/motif/types/sampler/velocity")
 local LaneConfig = include("lib/components/lanes/lane_config")
 local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
 local ExpressionConfig = include("lib/components/lanes/expression_config")
@@ -77,6 +82,11 @@ _seeker = {
   arc = nil,
   sampler = nil,
   sampler_pad_config = nil,
+  sampler_creator = nil,
+  sampler_stage_config = nil,
+  sampler_playback = nil,
+  sampler_clear = nil,
+  sampler_velocity = nil,
   -- This one is a hack to get the velocity section to work. There's got to be a better way.
   velocity = 3,
 
@@ -142,6 +152,11 @@ function init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.clear_motif = ClearMotif.init()
   _seeker.sampler_pad_config = SamplerPadConfig.init()
+  _seeker.sampler_creator = SamplerCreator.init()
+  _seeker.sampler_stage_config = SamplerStageConfig.init()
+  _seeker.sampler_playback = SamplerPlayback.init()
+  _seeker.sampler_clear = SamplerClear.init()
+  _seeker.sampler_velocity = SamplerVelocity.init()
   -- NOTE: LaneConfig must be initialized before stage configs to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
   _seeker.tape_stage_config = TapeStageConfig.init()

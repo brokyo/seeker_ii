@@ -26,6 +26,11 @@ function ScreenUI.init()
     LANE_CONFIG = _seeker.lane_config.screen,
     TAPE_STAGE_CONFIG = _seeker.tape_stage_config.screen,
     SAMPLER_PAD_CONFIG = _seeker.sampler_pad_config.screen,
+    SAMPLER_CREATOR = _seeker.sampler_creator.screen,
+    SAMPLER_STAGE_CONFIG = _seeker.sampler_stage_config.screen,
+    SAMPLER_PLAYBACK = _seeker.sampler_playback.screen,
+    SAMPLER_CLEAR = _seeker.sampler_clear.screen,
+    SAMPLER_VELOCITY = _seeker.sampler_velocity.screen,
     EXPRESSION_CONFIG = _seeker.expression_config.screen,
     HARMONIC_CONFIG = _seeker.harmonic_config.screen,
 
@@ -60,13 +65,13 @@ function ScreenUI.init()
       if ScreenSaver.check_timeout() then
         redraw()
       else
-        -- Hardcode views that should be constantly updating
-        -- TODO: I may not stand behind this. Review.
-
-        -- When we have a motif or are overdubbing
+        -- Refresh visualization-heavy sections during playback
+        -- Sections opt-in via needs_playback_refresh property
+        local current_section = _seeker.ui_state.get_current_section()
+        local section = ScreenUI.sections[current_section]
+        local lane_playing = _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing
         if _seeker.motif_recorder.is_recording or
-          (_seeker.ui_state.get_current_section() == "CREATE_MOTIF" and
-           _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing) then
+           (section and section.needs_playback_refresh and lane_playing) then
           ScreenUI.set_needs_redraw()
         end
 

@@ -325,6 +325,9 @@ local function create_screen_ui()
         end
     end
     
+    -- Enable continuous refresh during playback (for visualization)
+    norns_ui.needs_playback_refresh = true
+
     -- Override screen draw method
     norns_ui.draw_default = function(self)
         screen.clear() -- Clear once at the beginning

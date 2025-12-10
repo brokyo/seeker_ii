@@ -1,6 +1,6 @@
 -- manager.lua
 -- Manages softcut voices, sample chops, and voice allocation for sampler mode
--- NOTE: Chop data stored internally per-lane, params in sampler_pad_config are just a UI view
+-- NOTE: Chop data stored internally per-lane, params in pad_config are just a UI view
 
 local SamplerManager = {}
 

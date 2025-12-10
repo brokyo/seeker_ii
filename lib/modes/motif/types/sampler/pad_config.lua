@@ -1,6 +1,7 @@
--- sampler_pad_config.lua
--- Dedicated UI for configuring sample chop points and envelopes per-pad
--- Pressing pads selects which to edit (when in this section)
+-- pad_config.lua
+-- Sampler type: per-pad chop configuration (start/stop, envelope, filter, rate)
+-- Pressing pads selects which to edit
+-- Part of lib/modes/motif/types/sampler/
 --
 -- NOTE: Params are a VIEW into SamplerManager storage, not direct storage
 -- This means pad configs DO NOT persist with PSETs currently
