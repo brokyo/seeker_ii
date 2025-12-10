@@ -128,6 +128,12 @@ function NornsUI:filter_active_params()
       end
     end
   end
+
+  -- Ensure selection points to a selectable param (not a separator)
+  local current = self.active_params[self.state.selected_index]
+  if not current or current.separator then
+    self.state.selected_index = self:find_first_selectable()
+  end
 end
 
 
@@ -280,13 +286,6 @@ function NornsUI:draw_params(start_y)
  
   -- Filter active_params table to only show params that pass the conditional check
   self:filter_active_params()
-
-  -- Ensure selected_index is valid after filtering
-  -- NB: This is defensive and I'm not sure we need it.
-  if self.state.selected_index > #self.active_params then
-    print("Out of bounds selected index: " .. self.state.selected_index)
-    self.state.selected_index = self:find_first_selectable()
-  end
 
   -- Ensure scroll offset stays in valid range
   local max_scroll = math.max(0, #self.active_params - max_visible_items)

@@ -425,7 +425,8 @@ local function create_screen_ui()
                     screen.text(tooltip)
                 end
 
-                -- Find max generation and note range from existing motif
+                -- Find max generation and note range from existing motif AND recorder
+                -- Include recorder events so range stays consistent when new notes expand it
                 local max_gen = 1
                 local min_note = 127
                 local max_note = 0
@@ -435,6 +436,16 @@ local function create_screen_ui()
                         if event.generation and event.generation > max_gen then
                             max_gen = event.generation
                         end
+                        if event.type == "note_on" then
+                            if event.note < min_note then min_note = event.note end
+                            if event.note > max_note then max_note = event.note end
+                        end
+                    end
+                end
+
+                -- Expand range with recorder events during recording
+                if _seeker.motif_recorder.is_recording then
+                    for _, event in ipairs(_seeker.motif_recorder.events) do
                         if event.type == "note_on" then
                             if event.note < min_note then min_note = event.note end
                             if event.note > max_note then max_note = event.note end
@@ -475,11 +486,17 @@ local function create_screen_ui()
                     screen.level(brightness)
 
                     local x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
-                    local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
+                    -- Clamp end time to loop duration (notes can extend past in overdub mode)
+                    local clamped_end = math.min(event_pair.end_time, loop_duration)
+                    local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
 
                     if motif_type == MOTIF_TYPE_SAMPLER then
-                        -- Sampler mode: full-height duration blocks (sampler pads don't have pitch variation)
-                        screen.rect(x_start, VIS_Y, math.max(x_end - x_start, 1), VIS_HEIGHT)
+                        -- Sampler mode: 4 rows grouped by pad number (1-4, 5-8, 9-12, 13-16)
+                        local pad = event_pair.note
+                        local row = math.floor((pad - 1) / 4)  -- 0-3
+                        local row_height = VIS_HEIGHT / 4
+                        local row_y = VIS_Y + (row * row_height)
+                        screen.rect(x_start, row_y, math.max(x_end - x_start, 1), row_height - 1)
                         screen.fill()
                     else
                         -- Tape mode: map note pitch to Y position within visualization
@@ -504,20 +521,14 @@ local function create_screen_ui()
                 if _seeker.motif_recorder.is_recording then
                     screen.level(15)
 
-                    -- Find note range including recorder events
-                    local recorder_min = min_note
-                    local recorder_max = max_note
-                    for _, event in ipairs(_seeker.motif_recorder.events) do
-                        if event.type == "note_on" then
-                            if event.note < recorder_min then recorder_min = event.note end
-                            if event.note > recorder_max then recorder_max = event.note end
-                        end
-                    end
-
-                    -- Match note pairs from recorder events
+                    -- Match note pairs from recorder events (only current generation during overdub)
                     local recorder_note_pairs = {}
+                    local current_gen = _seeker.motif_recorder.current_generation
                     for _, event in ipairs(_seeker.motif_recorder.events) do
-                        if event.type == "note_on" then
+                        -- During overdub, only show newly recorded events (current generation)
+                        -- Previous generations are already drawn in the existing motif section
+                        local event_gen = event.generation or current_gen
+                        if event.type == "note_on" and event_gen == current_gen then
                             local note_off_time = nil
                             for _, off_event in ipairs(_seeker.motif_recorder.events) do
                                 if off_event.type == "note_off" and
@@ -532,37 +543,44 @@ local function create_screen_ui()
                                 note = event.note,
                                 start_time = event.time,
                                 end_time = note_off_time,
-                                generation = event.generation or _seeker.motif_recorder.current_generation
+                                generation = event_gen
                             })
                         end
                     end
 
-                    -- Draw live recording events (tape: pitch-mapped, sampler: full-height duration blocks)
+                    -- Draw live recording events (tape: pitch-mapped, sampler: grouped rows)
                     for _, event_pair in ipairs(recorder_note_pairs) do
                         local x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
 
                         if motif_type == MOTIF_TYPE_SAMPLER then
-                            -- Sampler mode: full-height duration blocks
+                            -- Sampler mode: 4 rows grouped by pad number (1-4, 5-8, 9-12, 13-16)
+                            local pad = event_pair.note
+                            local row = math.floor((pad - 1) / 4)  -- 0-3
+                            local row_height = VIS_HEIGHT / 4
+                            local row_y = VIS_Y + (row * row_height)
                             if event_pair.end_time then
-                                local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
-                                screen.rect(x_start, VIS_Y, math.max(x_end - x_start, 1), VIS_HEIGHT)
+                                -- Clamp end time to loop duration (notes can extend past in overdub mode)
+                                local clamped_end = math.min(event_pair.end_time, loop_duration)
+                                local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
+                                screen.rect(x_start, row_y, math.max(x_end - x_start, 1), row_height - 1)
                                 screen.fill()
                             else
-                                -- Draw full-height mark for pads still held
-                                screen.move(x_start, VIS_Y)
-                                screen.line(x_start, VIS_Y + VIS_HEIGHT)
+                                -- Draw row-height mark for pads still held
+                                screen.move(x_start, row_y)
+                                screen.line(x_start, row_y + row_height - 1)
                                 screen.stroke()
                             end
                         else
-                            -- Tape mode: map note to Y position using min/max range from active notes
-                            if recorder_max > recorder_min then
-                                local note_range = recorder_max - recorder_min
-                                local note_y_offset = ((event_pair.note - recorder_min) / note_range) * (VIS_HEIGHT - 2)
+                            -- Tape mode: map note to Y position within calculated note range
+                            if max_note > min_note then
+                                local note_range = max_note - min_note
+                                local note_y_offset = ((event_pair.note - min_note) / note_range) * (VIS_HEIGHT - 2)
                                 local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
 
                                 if event_pair.end_time then
                                     -- Draw horizontal bar for completed notes
-                                    local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
+                                    local clamped_end = math.min(event_pair.end_time, loop_duration)
+                                    local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
                                     screen.move(x_start, note_y)
                                     screen.line(x_end, note_y)
                                     screen.stroke()
@@ -576,7 +594,8 @@ local function create_screen_ui()
                                 -- Single note - draw in center
                                 local note_y = VIS_Y + VIS_HEIGHT / 2
                                 if event_pair.end_time then
-                                    local x_end = VIS_X + (event_pair.end_time / loop_duration * VIS_WIDTH)
+                                    local clamped_end = math.min(event_pair.end_time, loop_duration)
+                                    local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
                                     screen.move(x_start, note_y)
                                     screen.line(x_end, note_y)
                                     screen.stroke()

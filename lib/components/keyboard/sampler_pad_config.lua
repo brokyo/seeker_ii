@@ -83,8 +83,6 @@ end
 
 -- Initialize params
 function SamplerPadConfig.init()
-  print("◎ Initializing Sampler Pad Config")
-
   -- Create screen UI
   SamplerPadConfig.screen = create_screen_ui()
 
