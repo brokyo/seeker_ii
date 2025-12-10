@@ -1,6 +1,6 @@
 -- manager.lua
--- Manages softcut voices, sample segments, and voice allocation for sampler mode
--- NOTE: Segment data stored internally per-lane, params in sampler_pad_config are just a UI view
+-- Manages softcut voices, sample chops, and voice allocation for sampler mode
+-- NOTE: Chop data stored internally per-lane, params in sampler_pad_config are just a UI view
 
 local SamplerManager = {}
 
@@ -24,9 +24,9 @@ local FILTER_HIGHPASS = 3
 local FILTER_BANDPASS = 4
 local FILTER_NOTCH = 5
 
--- Create a segment with default values
-local function create_default_segment(start_pos, stop_pos, overrides)
-  local segment = {
+-- Create a chop with default values
+local function create_default_chop(start_pos, stop_pos, overrides)
+  local chop = {
     start_pos = start_pos or 0,
     stop_pos = stop_pos or 0,
     duration = (stop_pos or 0) - (start_pos or 0),
@@ -44,17 +44,18 @@ local function create_default_segment(start_pos, stop_pos, overrides)
   }
   if overrides then
     for k, v in pairs(overrides) do
-      segment[k] = v
+      chop[k] = v
     end
   end
-  return segment
+  return chop
 end
 
 -- State
 SamplerManager.num_voices = 6  -- Configurable voice count
 SamplerManager.voices = {}  -- voice[i] = {lane = lane_number, pad = pad_number, active = bool}
 SamplerManager.voice_generation = {}  -- Tracks assignment generation to prevent stale clock callbacks
-SamplerManager.lane_segments = {}  -- lane_segments[lane][pad] = {start_pos, end_pos, duration, fade_in, fade_out}
+SamplerManager.lane_chops = {}  -- lane_chops[lane][pad] = working chops (what transforms mutate)
+SamplerManager.lane_genesis_chops = {}  -- lane_genesis_chops[lane][pad] = original chops (captured on load/record)
 SamplerManager.lane_durations = {}  -- lane_durations[lane] = sample_duration
 SamplerManager.lane_to_buffer = {}  -- lane_to_buffer[lane] = buffer_id (1 or 2)
 SamplerManager.buffer_occupied = {false, false}  -- tracks which buffers are in use
@@ -97,7 +98,7 @@ function SamplerManager.init()
     -- Set loop mode
     softcut.loop(v, 1)  -- Enable looping
 
-    -- Initialize loop points (will be updated per segment)
+    -- Initialize loop points (will be updated per chop)
     softcut.loop_start(v, 0)
     softcut.loop_end(v, 1)
 
@@ -123,11 +124,13 @@ function SamplerManager.init()
   -- Initialize per-lane storage
   for lane = 1, 8 do
     SamplerManager.lane_durations[lane] = 0
-    SamplerManager.lane_segments[lane] = {}
+    SamplerManager.lane_chops[lane] = {}
+    SamplerManager.lane_genesis_chops[lane] = {}
 
-    -- Initialize empty segments (16 pads per lane)
+    -- Initialize empty chops (16 pads per lane)
     for pad = 1, NUM_PADS do
-      SamplerManager.lane_segments[lane][pad] = create_default_segment()
+      SamplerManager.lane_chops[lane][pad] = create_default_chop()
+      SamplerManager.lane_genesis_chops[lane][pad] = create_default_chop()
     end
   end
 
@@ -169,8 +172,8 @@ function SamplerManager.get_buffer_for_lane(lane)
   return SamplerManager.lane_to_buffer[lane]
 end
 
--- Clear all segment data and stop playback for a lane
-function SamplerManager.clear_lane_segments(lane)
+-- Clear all chop data and stop playback for a lane
+function SamplerManager.clear_lane_chops(lane)
   -- Stop all voices playing from this lane
   for v = 1, SamplerManager.num_voices do
     if SamplerManager.voices[v].active and SamplerManager.voices[v].lane == lane then
@@ -181,56 +184,85 @@ function SamplerManager.clear_lane_segments(lane)
     end
   end
 
-  -- Reset all segments to default empty state
+  -- Reset all chops to default empty state
   for pad = 1, NUM_PADS do
-    SamplerManager.lane_segments[lane][pad] = create_default_segment()
+    SamplerManager.lane_chops[lane][pad] = create_default_chop()
+    SamplerManager.lane_genesis_chops[lane][pad] = create_default_chop()
   end
 
   SamplerManager.lane_durations[lane] = 0
 end
 
--- Divide sample into equal segments across all pads for a specific lane
-function SamplerManager.set_fixed_segments(lane, sample_duration)
+-- Divide sample into equal chops across all pads for a specific lane
+-- Captures to both genesis (original) and working chops
+function SamplerManager.set_fixed_chops(lane, sample_duration)
   SamplerManager.lane_durations[lane] = sample_duration
-  local segment_duration = sample_duration / NUM_PADS
+  local chop_duration = sample_duration / NUM_PADS
 
   for pad = 1, NUM_PADS do
-    local start_pos = (pad - 1) * segment_duration
-    local stop_pos = start_pos + segment_duration
-    SamplerManager.lane_segments[lane][pad] = create_default_segment(start_pos, stop_pos)
+    local start_pos = (pad - 1) * chop_duration
+    local stop_pos = start_pos + chop_duration
+    local chop = create_default_chop(start_pos, stop_pos)
+    -- Deep copy to genesis (original state)
+    SamplerManager.lane_genesis_chops[lane][pad] = create_default_chop(start_pos, stop_pos)
+    -- Working copy for transforms to mutate
+    SamplerManager.lane_chops[lane][pad] = chop
   end
 end
 
--- Get segment data for a specific lane and pad
-function SamplerManager.get_segment(lane, pad)
-  if not SamplerManager.lane_segments[lane] then return nil end
-  return SamplerManager.lane_segments[lane][pad]
+-- Get working chop data for a specific lane and pad
+function SamplerManager.get_chop(lane, pad)
+  if not SamplerManager.lane_chops[lane] then return nil end
+  return SamplerManager.lane_chops[lane][pad]
 end
 
--- Update a specific property of a segment
-function SamplerManager.update_segment(lane, pad, key, value)
-  if not SamplerManager.lane_segments[lane] or not SamplerManager.lane_segments[lane][pad] then
+-- Get genesis (original) chop data for a specific lane and pad
+function SamplerManager.get_genesis_chop(lane, pad)
+  if not SamplerManager.lane_genesis_chops[lane] then return nil end
+  return SamplerManager.lane_genesis_chops[lane][pad]
+end
+
+-- Update a specific property of a working chop
+function SamplerManager.update_chop(lane, pad, key, value)
+  if not SamplerManager.lane_chops[lane] or not SamplerManager.lane_chops[lane][pad] then
     return
   end
 
-  SamplerManager.lane_segments[lane][pad][key] = value
+  SamplerManager.lane_chops[lane][pad][key] = value
 
   -- Recalculate duration if start or stop changed
   if key == "start_pos" or key == "stop_pos" then
-    local segment = SamplerManager.lane_segments[lane][pad]
-    segment.duration = segment.stop_pos - segment.start_pos
+    local chop = SamplerManager.lane_chops[lane][pad]
+    chop.duration = chop.stop_pos - chop.start_pos
   end
 end
 
--- Reset a pad to its auto-divided position
-function SamplerManager.reset_segment_to_auto(lane, pad)
-  local sample_duration = SamplerManager.lane_durations[lane]
-  if sample_duration == 0 then return end
+-- Reset a pad's working chop to its genesis state
+function SamplerManager.reset_chop_to_genesis(lane, pad)
+  local genesis = SamplerManager.lane_genesis_chops[lane][pad]
+  if not genesis then return end
 
-  local segment_duration = sample_duration / NUM_PADS
-  local start_pos = (pad - 1) * segment_duration
-  local stop_pos = start_pos + segment_duration
-  SamplerManager.lane_segments[lane][pad] = create_default_segment(start_pos, stop_pos, {attack = 0.01, release = 0.01})
+  -- Deep copy genesis to working
+  SamplerManager.lane_chops[lane][pad] = create_default_chop(genesis.start_pos, genesis.stop_pos, {
+    attack = genesis.attack,
+    release = genesis.release,
+    fade_time = genesis.fade_time,
+    mode = genesis.mode,
+    rate = genesis.rate,
+    max_volume = genesis.max_volume,
+    pan = genesis.pan,
+    filter_type = genesis.filter_type,
+    lpf = genesis.lpf,
+    resonance = genesis.resonance,
+    hpf = genesis.hpf
+  })
+end
+
+-- Reset all working chops to genesis state for a lane
+function SamplerManager.reset_lane_to_genesis(lane)
+  for pad = 1, NUM_PADS do
+    SamplerManager.reset_chop_to_genesis(lane, pad)
+  end
 end
 
 -- Get sample duration for a lane
@@ -238,9 +270,9 @@ function SamplerManager.get_sample_duration(lane)
   return SamplerManager.lane_durations[lane] or 0
 end
 
--- Configure post-filter for a voice based on segment settings
-local function apply_filter(voice, segment)
-  if segment.filter_type == FILTER_OFF then
+-- Configure post-filter for a voice based on chop settings
+local function apply_filter(voice, chop)
+  if chop.filter_type == FILTER_OFF then
     softcut.post_filter_dry(voice, 1.0)
     softcut.post_filter_lp(voice, 0.0)
     softcut.post_filter_hp(voice, 0.0)
@@ -252,30 +284,30 @@ local function apply_filter(voice, segment)
 
     -- Convert resonance to softcut's reciprocal Q format
     -- When resonance=0, use Butterworth response (rq=√2) for maximally flat passband
-    local rq = segment.resonance > 0 and (1 / segment.resonance) or 1.414
+    local rq = chop.resonance > 0 and (1 / chop.resonance) or 1.414
     softcut.post_filter_rq(voice, rq)
 
     -- Set filter type outputs and frequency
-    if segment.filter_type == FILTER_LOWPASS then
-      softcut.post_filter_fc(voice, segment.lpf)
+    if chop.filter_type == FILTER_LOWPASS then
+      softcut.post_filter_fc(voice, chop.lpf)
       softcut.post_filter_lp(voice, 1.0)
       softcut.post_filter_hp(voice, 0.0)
       softcut.post_filter_bp(voice, 0.0)
       softcut.post_filter_br(voice, 0.0)
-    elseif segment.filter_type == FILTER_HIGHPASS then
-      softcut.post_filter_fc(voice, segment.hpf)
+    elseif chop.filter_type == FILTER_HIGHPASS then
+      softcut.post_filter_fc(voice, chop.hpf)
       softcut.post_filter_lp(voice, 0.0)
       softcut.post_filter_hp(voice, 1.0)
       softcut.post_filter_bp(voice, 0.0)
       softcut.post_filter_br(voice, 0.0)
-    elseif segment.filter_type == FILTER_BANDPASS then
-      softcut.post_filter_fc(voice, segment.lpf)
+    elseif chop.filter_type == FILTER_BANDPASS then
+      softcut.post_filter_fc(voice, chop.lpf)
       softcut.post_filter_lp(voice, 0.0)
       softcut.post_filter_hp(voice, 0.0)
       softcut.post_filter_bp(voice, 1.0)
       softcut.post_filter_br(voice, 0.0)
-    elseif segment.filter_type == FILTER_NOTCH then
-      softcut.post_filter_fc(voice, segment.lpf)
+    elseif chop.filter_type == FILTER_NOTCH then
+      softcut.post_filter_fc(voice, chop.lpf)
       softcut.post_filter_lp(voice, 0.0)
       softcut.post_filter_hp(voice, 0.0)
       softcut.post_filter_bp(voice, 0.0)
@@ -301,7 +333,7 @@ function SamplerManager.allocate_voice(lane, pad)
   return 1
 end
 
--- Trigger a pad to play its segment
+-- Trigger a pad to play its chop
 function SamplerManager.trigger_pad(lane, pad, velocity)
   if not SamplerManager.initialized then
     print("≋ Sampler: Not initialized")
@@ -315,9 +347,9 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
     return
   end
 
-  local segment = SamplerManager.get_segment(lane, pad)
-  if not segment or segment.duration == 0 then
-    print(string.format("≋ Sampler: Lane %d pad %d has no segment data", lane, pad))
+  local chop = SamplerManager.get_chop(lane, pad)
+  if not chop or chop.duration == 0 then
+    print(string.format("≋ Sampler: Lane %d pad %d has no chop data", lane, pad))
     return
   end
 
@@ -327,34 +359,34 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   -- Assign voice to lane's buffer
   softcut.buffer(voice, buffer_id)
 
-  -- Configure voice for this segment
-  softcut.loop_start(voice, segment.start_pos)
-  softcut.loop_end(voice, segment.stop_pos)
+  -- Configure voice for this chop
+  softcut.loop_start(voice, chop.start_pos)
+  softcut.loop_end(voice, chop.stop_pos)
 
   -- Position at end for reverse playback, start for forward
-  local start_position = segment.rate < 0 and segment.stop_pos or segment.start_pos
+  local start_position = chop.rate < 0 and chop.stop_pos or chop.start_pos
   softcut.position(voice, start_position)
 
   -- Set loop mode based on playback mode
   -- Enable looping for Gate mode, disable for One-shot mode
-  local loop_enabled = (segment.mode == MODE_GATE) and 1 or 0
+  local loop_enabled = (chop.mode == MODE_GATE) and 1 or 0
   softcut.loop(voice, loop_enabled)
 
   -- Set crossfade time for smooth loop points (prevents clicks)
-  softcut.fade_time(voice, segment.fade_time or 0.005)
+  softcut.fade_time(voice, chop.fade_time or 0.005)
 
   -- Set playback rate (supports reverse with negative values)
-  softcut.rate(voice, segment.rate)
+  softcut.rate(voice, chop.rate)
 
   -- Set pan (-1 left, 0 center, 1 right)
-  softcut.pan(voice, segment.pan)
+  softcut.pan(voice, chop.pan)
 
   -- Configure post-filter
-  apply_filter(voice, segment)
+  apply_filter(voice, chop)
 
   -- Calculate target volume (scale max_volume by velocity)
   velocity = velocity or 127
-  local volume = segment.max_volume * (velocity / 127)
+  local volume = chop.max_volume * (velocity / 127)
 
   -- Attack envelope: Ramp volume from 0 to target over attack time
   -- First set level to 0 instantly, then enable slew and ramp to target volume
@@ -362,7 +394,7 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   softcut.level_slew_time(voice, 0)
   softcut.level(voice, 0)
   softcut.play(voice, 1)
-  softcut.level_slew_time(voice, segment.attack)
+  softcut.level_slew_time(voice, chop.attack)
   softcut.level(voice, volume)
 
   -- Track voice state and increment generation counter for this assignment
@@ -373,8 +405,8 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   local trigger_generation = SamplerManager.voice_generation[voice]
 
   -- For one-shot mode, apply release envelope and cleanup after playback finishes
-  if segment.mode == MODE_ONE_SHOT then
-    local playback_time = segment.duration / math.abs(segment.rate)
+  if chop.mode == MODE_ONE_SHOT then
+    local playback_time = chop.duration / math.abs(chop.rate)
 
     clock.run(function()
       -- Wait for playback to finish (attack happens automatically at start)
@@ -383,11 +415,11 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
       -- Only apply release if voice hasn't been reassigned
       if SamplerManager.voice_generation[voice] == trigger_generation then
         -- Apply release envelope by ramping level to 0
-        softcut.level_slew_time(voice, segment.release)
+        softcut.level_slew_time(voice, chop.release)
         softcut.level(voice, 0)
 
         -- Wait for release to complete
-        clock.sleep(segment.release)
+        clock.sleep(chop.release)
 
         -- Stop playback and free voice if still assigned to this trigger
         if SamplerManager.voice_generation[voice] == trigger_generation then
@@ -408,17 +440,17 @@ function SamplerManager.stop_pad(lane, pad)
        SamplerManager.voices[v].lane == lane and
        SamplerManager.voices[v].pad == pad then
 
-      local segment = SamplerManager.get_segment(lane, pad)
-      if segment and segment.release > 0 then
+      local chop = SamplerManager.get_chop(lane, pad)
+      if chop and chop.release > 0 then
         -- Release envelope: Ramp volume to 0 over release time, then stop playback
         -- Cleanup scheduled after envelope completes
-        softcut.level_slew_time(v, segment.release)
+        softcut.level_slew_time(v, chop.release)
         softcut.level(v, 0)
 
         -- Capture generation counter for this release
         local release_generation = SamplerManager.voice_generation[v]
         clock.run(function()
-          clock.sleep(segment.release)
+          clock.sleep(chop.release)
 
           -- Only cleanup if voice hasn't been reassigned
           if SamplerManager.voice_generation[v] == release_generation then
@@ -477,8 +509,8 @@ function SamplerManager.load_file(lane, filepath)
     return false
   end
 
-  -- Clear existing sample data for this lane (stops voices, resets segments)
-  SamplerManager.clear_lane_segments(lane)
+  -- Clear existing sample data for this lane (stops voices, resets chops)
+  SamplerManager.clear_lane_chops(lane)
 
   -- Clear this lane's buffer
   softcut.buffer_clear_channel(buffer_id)
@@ -495,8 +527,8 @@ function SamplerManager.load_file(lane, filepath)
     local duration = samples / rate
     print(string.format("≋ Sampler: File loaded - %.2fs, %dHz, %d channels", duration, rate, ch))
 
-    -- Auto-chop into fixed segments
-    SamplerManager.set_fixed_segments(lane, duration)
+    -- Auto-chop into fixed chops
+    SamplerManager.set_fixed_chops(lane, duration)
     return true
   else
     print("≋ Sampler: Failed to load file")
@@ -531,8 +563,8 @@ function SamplerManager.start_recording(lane)
     return false
   end
 
-  -- Clear existing sample data for this lane (stops voices, resets segments)
-  SamplerManager.clear_lane_segments(lane)
+  -- Clear existing sample data for this lane (stops voices, resets chops)
+  SamplerManager.clear_lane_chops(lane)
 
   -- Clear this lane's buffer
   softcut.buffer_clear_channel(buffer_id)

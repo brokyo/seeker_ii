@@ -946,10 +946,10 @@ function Lane:on_note_off(event)
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   if motif_type == SAMPLER_MODE then
     if _seeker and _seeker.sampler then
-      local segment = _seeker.sampler.get_segment(self.id, note)
-      if segment then
+      local chop = _seeker.sampler.get_chop(self.id, note)
+      if chop then
         -- Gate mode: stop playback on note_off
-        if segment.mode == 1 then  -- MODE_GATE from sampler/manager.lua
+        if chop.mode == 1 then  -- MODE_GATE from sampler/manager.lua
           _seeker.sampler.stop_pad(self.id, note)
         end
         -- Loop mode: ignore note_off, let it loop continuously

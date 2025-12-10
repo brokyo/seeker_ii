@@ -115,8 +115,8 @@ function SamplerKeyboard.pad_off(x, y)
   -- Gate mode: stop playback on release
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
-    local segment = _seeker.sampler.get_segment(lane, pad)
-    if segment and segment.mode == MODE_GATE then
+    local chop = _seeker.sampler.get_chop(lane, pad)
+    if chop and chop.mode == MODE_GATE then
       _seeker.sampler.stop_pad(lane, pad)
     end
   end

@@ -92,54 +92,54 @@ function SamplerPadConfig.init()
   params:add_control("spc_start_pos", "Start Position",
     controlspec.new(0, 10, 'lin', 0.001, 0, 's'))
   params:set_action("spc_start_pos", function(value)
-    SamplerPadConfig.update_segment('start_pos', value)
+    SamplerPadConfig.update_chop('start_pos', value)
   end)
 
   params:add_control("spc_stop_pos", "Stop Position",
     controlspec.new(0, 10, 'lin', 0.001, 0.1, 's'))
   params:set_action("spc_stop_pos", function(value)
-    SamplerPadConfig.update_segment('stop_pos', value)
+    SamplerPadConfig.update_chop('stop_pos', value)
   end)
 
   params:add_control("spc_attack", "Attack",
     controlspec.new(0.001, 5.0, 'lin', 0.001, 0.01, 's'))
   params:set_action("spc_attack", function(value)
-    SamplerPadConfig.update_segment('attack', value)
+    SamplerPadConfig.update_chop('attack', value)
   end)
 
   params:add_control("spc_release", "Release",
     controlspec.new(0.001, 5.0, 'lin', 0.001, 0.01, 's'))
   params:set_action("spc_release", function(value)
-    SamplerPadConfig.update_segment('release', value)
+    SamplerPadConfig.update_chop('release', value)
   end)
 
   params:add_control("spc_fade_time", "Crossfade",
     controlspec.new(0.0001, 5.0, 'lin', 0.0001, 0.005, 's'))
   params:set_action("spc_fade_time", function(value)
-    SamplerPadConfig.update_segment('fade_time', value)
+    SamplerPadConfig.update_chop('fade_time', value)
   end)
 
   params:add_control("spc_rate", "Rate",
     controlspec.new(-2, 2, 'lin', 0.01, 1.0, ''))
   params:set_action("spc_rate", function(value)
-    SamplerPadConfig.update_segment('rate', value)
+    SamplerPadConfig.update_chop('rate', value)
   end)
 
   params:add_control("spc_max_volume", "Max Volume",
     controlspec.new(0, 1, 'lin', 0.01, 1.0, ''))
   params:set_action("spc_max_volume", function(value)
-    SamplerPadConfig.update_segment('max_volume', value)
+    SamplerPadConfig.update_chop('max_volume', value)
   end)
 
   params:add_control("spc_pan", "Pan",
     controlspec.new(-1, 1, 'lin', 0.01, 0, ''))
   params:set_action("spc_pan", function(value)
-    SamplerPadConfig.update_segment('pan', value)
+    SamplerPadConfig.update_chop('pan', value)
   end)
 
   params:add_option("spc_mode", "Mode", {"Gate", "One-Shot"}, 1)
   params:set_action("spc_mode", function(value)
-    SamplerPadConfig.update_segment('mode', value)
+    SamplerPadConfig.update_chop('mode', value)
 
     -- Stop currently playing pad so new mode setting takes effect
     local lane = SamplerPadConfig.state.current_lane
@@ -152,7 +152,7 @@ function SamplerPadConfig.init()
   -- Filter controls
   params:add_option("spc_filter_type", "Filter Type", {"Off", "Lowpass", "Highpass", "Bandpass", "Notch"}, 1)
   params:set_action("spc_filter_type", function(value)
-    SamplerPadConfig.update_segment('filter_type', value)
+    SamplerPadConfig.update_chop('filter_type', value)
     -- Rebuild UI to show appropriate filter params
     if SamplerPadConfig.screen then
       SamplerPadConfig.screen:rebuild_params()
@@ -163,18 +163,18 @@ function SamplerPadConfig.init()
   end)
   params:add_taper("spc_lpf", "LPF Cutoff", 20, 20000, 20000, 3, "Hz")
   params:set_action("spc_lpf", function(value)
-    SamplerPadConfig.update_segment('lpf', value)
+    SamplerPadConfig.update_chop('lpf', value)
   end)
 
   params:add_control("spc_resonance", "Resonance",
     controlspec.new(0, 4, 'lin', 0.01, 0, ""))
   params:set_action("spc_resonance", function(value)
-    SamplerPadConfig.update_segment('resonance', value)
+    SamplerPadConfig.update_chop('resonance', value)
   end)
 
   params:add_taper("spc_hpf", "HPF Cutoff", 20, 20000, 20, 3, "Hz")
   params:set_action("spc_hpf", function(value)
-    SamplerPadConfig.update_segment('hpf', value)
+    SamplerPadConfig.update_chop('hpf', value)
   end)
 
   return SamplerPadConfig
@@ -199,30 +199,30 @@ function SamplerPadConfig.select_pad(pad)
   end
 end
 
--- Load current pad's segment data into params
+-- Load current pad's chop data into params
 function SamplerPadConfig.load_pad_params()
   local lane = SamplerPadConfig.state.current_lane
   local pad = SamplerPadConfig.state.selected_pad
 
   if not _seeker or not _seeker.sampler then return end
 
-  local segment = _seeker.sampler.get_segment(lane, pad)
-  if not segment then return end
+  local chop = _seeker.sampler.get_chop(lane, pad)
+  if not chop then return end
 
   -- Update params without triggering actions
-  params:set("spc_start_pos", segment.start_pos, true)
-  params:set("spc_stop_pos", segment.stop_pos, true)
-  params:set("spc_attack", segment.attack, true)
-  params:set("spc_release", segment.release, true)
-  params:set("spc_fade_time", segment.fade_time or 0.005, true)
-  params:set("spc_rate", segment.rate, true)
-  params:set("spc_max_volume", segment.max_volume, true)
-  params:set("spc_pan", segment.pan or 0, true)
-  params:set("spc_mode", segment.mode or 1, true)
-  params:set("spc_filter_type", segment.filter_type or 1, true)
-  params:set("spc_lpf", segment.lpf or 20000, true)
-  params:set("spc_resonance", segment.resonance or 0, true)
-  params:set("spc_hpf", segment.hpf or 20, true)
+  params:set("spc_start_pos", chop.start_pos, true)
+  params:set("spc_stop_pos", chop.stop_pos, true)
+  params:set("spc_attack", chop.attack, true)
+  params:set("spc_release", chop.release, true)
+  params:set("spc_fade_time", chop.fade_time or 0.005, true)
+  params:set("spc_rate", chop.rate, true)
+  params:set("spc_max_volume", chop.max_volume, true)
+  params:set("spc_pan", chop.pan or 0, true)
+  params:set("spc_mode", chop.mode or 1, true)
+  params:set("spc_filter_type", chop.filter_type or 1, true)
+  params:set("spc_lpf", chop.lpf or 20000, true)
+  params:set("spc_resonance", chop.resonance or 0, true)
+  params:set("spc_hpf", chop.hpf or 20, true)
 
   -- Update max values based on sample duration
   local duration = _seeker.sampler.get_sample_duration(lane)
@@ -232,19 +232,19 @@ function SamplerPadConfig.load_pad_params()
   end
 end
 
--- Update a segment property for current pad
-function SamplerPadConfig.update_segment(key, value)
+-- Update a chop property for current pad
+function SamplerPadConfig.update_chop(key, value)
   local lane = SamplerPadConfig.state.current_lane
   local pad = SamplerPadConfig.state.selected_pad
 
   if not _seeker or not _seeker.sampler then return end
 
-  _seeker.sampler.update_segment(lane, pad, key, value)
+  _seeker.sampler.update_chop(lane, pad, key, value)
 
   -- Auto-adjust stop if start moves past it
   if key == "start_pos" then
-    local segment = _seeker.sampler.get_segment(lane, pad)
-    if segment and value >= segment.stop_pos then
+    local chop = _seeker.sampler.get_chop(lane, pad)
+    if chop and value >= chop.stop_pos then
       local new_stop = math.min(value + 0.1, _seeker.sampler.get_sample_duration(lane))
       params:set("spc_stop_pos", new_stop)
     end
@@ -252,8 +252,8 @@ function SamplerPadConfig.update_segment(key, value)
 
   -- Auto-adjust start if stop moves before it
   if key == "stop_pos" then
-    local segment = _seeker.sampler.get_segment(lane, pad)
-    if segment and value <= segment.start_pos then
+    local chop = _seeker.sampler.get_chop(lane, pad)
+    if chop and value <= chop.start_pos then
       local new_start = math.max(value - 0.1, 0)
       params:set("spc_start_pos", new_start)
     end
