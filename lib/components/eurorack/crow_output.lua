@@ -103,6 +103,43 @@ local function get_clock_timing(interval, modifier, offset)
     }
 end
 
+-- Calculate burst timing intervals based on shape
+local function get_burst_intervals(count, total_time, shape)
+    local intervals = {}
+
+    if shape == "Linear" then
+        local interval = total_time / count
+        for i = 1, count do
+            intervals[i] = interval
+        end
+    elseif shape == "Accelerating" then
+        -- Bursts get faster: longer gaps at start, shorter at end
+        local sum = 0
+        for i = 1, count do sum = sum + i end
+        for i = 1, count do
+            intervals[i] = total_time * (count - i + 1) / sum
+        end
+    elseif shape == "Decelerating" then
+        -- Bursts get slower: shorter gaps at start, longer at end
+        local sum = 0
+        for i = 1, count do sum = sum + i end
+        for i = 1, count do
+            intervals[i] = total_time * i / sum
+        end
+    elseif shape == "Random" then
+        -- Random distribution
+        local remaining = total_time
+        for i = 1, count - 1 do
+            local max_for_this = remaining - (count - i) * 0.01
+            intervals[i] = math.random() * max_for_this * 0.5 + 0.01
+            remaining = remaining - intervals[i]
+        end
+        intervals[count] = remaining
+    end
+
+    return intervals
+end
+
 -- Setup clock helper
 local function setup_clock(output_id, clock_fn)
     if active_clocks[output_id] then
@@ -413,12 +450,15 @@ function CrowOutput.update_crow(output_num)
                 local burst_voltage = params:get("crow_" .. output_num .. "_burst_voltage")
                 local burst_count = params:get("crow_" .. output_num .. "_burst_count")
                 local burst_time = params:get("crow_" .. output_num .. "_burst_time")
+                local burst_shape = params:string("crow_" .. output_num .. "_burst_shape")
+
+                local intervals = get_burst_intervals(burst_count, burst_time, burst_shape)
 
                 for i = 1, burst_count do
                     crow.output[output_num].volts = burst_voltage
-                    clock.sleep(burst_time / burst_count)
+                    clock.sleep(intervals[i] / 2)
                     crow.output[output_num].volts = 0
-                    clock.sleep(burst_time / burst_count)
+                    clock.sleep(intervals[i] / 2)
                 end
 
                 clock.sync(timing.beats, timing.offset)
@@ -705,6 +745,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_count" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_time", arc_multi_float = {0.1, 0.05, 0.01} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_burst_shape" })
         elseif type == "Gate" then
             table.insert(param_table, { separator = true, title = "Gate" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_gate_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
@@ -740,7 +781,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_max", arc_multi_float = {1.0, 0.1, 0.01} })
         elseif type == "Knob Recorder" then
             table.insert(param_table, { separator = true, title = "Knob Recorder" })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity", arc_multi_float = {0.1, 0.05, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_start_recording", is_action = true })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_clear", is_action = true })
         elseif type == "Envelope" then
@@ -848,7 +889,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("crow_output", "CROW OUTPUT", 180)
+    params:add_group("crow_output", "CROW OUTPUT", 184)
 
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -922,6 +963,11 @@ local function create_params()
 
         params:add_control("crow_" .. i .. "_burst_time", "Burst Window", controlspec.new(0, 1, 'lin', 0.01, 0.1), function(param) return string.format("%.0f", params:get(param.id) * 100) .. "%" end)
         params:set_action("crow_" .. i .. "_burst_time", function(value)
+            CrowOutput.update_crow(i)
+        end)
+
+        params:add_option("crow_" .. i .. "_burst_shape", "Burst Shape", {"Linear", "Accelerating", "Decelerating", "Random"}, 1)
+        params:set_action("crow_" .. i .. "_burst_shape", function(value)
             CrowOutput.update_crow(i)
         end)
 

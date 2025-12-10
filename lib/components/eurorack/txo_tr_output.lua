@@ -48,6 +48,43 @@ local function setup_clock(output_id, clock_fn)
     end
 end
 
+-- Calculate burst timing intervals based on shape
+local function get_burst_intervals(count, total_time, shape)
+    local intervals = {}
+
+    if shape == "Linear" then
+        local interval = total_time / count
+        for i = 1, count do
+            intervals[i] = interval
+        end
+    elseif shape == "Accelerating" then
+        -- Bursts get faster: longer gaps at start, shorter at end
+        local sum = 0
+        for i = 1, count do sum = sum + i end
+        for i = 1, count do
+            intervals[i] = total_time * (count - i + 1) / sum
+        end
+    elseif shape == "Decelerating" then
+        -- Bursts get slower: shorter gaps at start, longer at end
+        local sum = 0
+        for i = 1, count do sum = sum + i end
+        for i = 1, count do
+            intervals[i] = total_time * i / sum
+        end
+    elseif shape == "Random" then
+        -- Random distribution
+        local remaining = total_time
+        for i = 1, count - 1 do
+            local max_for_this = remaining - (count - i) * 0.01
+            intervals[i] = math.random() * max_for_this * 0.5 + 0.01
+            remaining = remaining - intervals[i]
+        end
+        intervals[count] = remaining
+    end
+
+    return intervals
+end
+
 -- Pattern generation and management
 
 function TxoTrOutput.generate_txo_pattern(output_num)
@@ -99,7 +136,7 @@ function TxoTrOutput.update_txo_tr(output_num)
     end
 
     local type = params:string("txo_tr_" .. output_num .. "_type")
-    if type ~= "Burst" and type ~= "Gate" then return end
+    if type ~= "Burst" and type ~= "Gate" and type ~= "Pattern" then return end
 
     local clock_interval = params:string("txo_tr_" .. output_num .. "_clock_interval")
     local clock_modifier = params:string("txo_tr_" .. output_num .. "_clock_modifier")
@@ -118,47 +155,47 @@ function TxoTrOutput.update_txo_tr(output_num)
             if type == "Burst" then
                 local burst_count = params:get("txo_tr_" .. output_num .. "_burst_count")
                 local burst_time = params:get("txo_tr_" .. output_num .. "_burst_time") / 100
+                local burst_shape = params:string("txo_tr_" .. output_num .. "_burst_shape")
+
+                local intervals = get_burst_intervals(burst_count, burst_time, burst_shape)
 
                 for i = 1, burst_count do
                     crow.ii.txo.tr(output_num, 1)
-                    clock.sleep(burst_time / burst_count)
+                    clock.sleep(intervals[i] / 2)
                     crow.ii.txo.tr(output_num, 0)
-                    clock.sleep(burst_time / burst_count)
+                    clock.sleep(intervals[i] / 2)
                 end
-            else
-                local gate_mode = params:string("txo_tr_" .. output_num .. "_gate_mode")
+            elseif type == "Pattern" then
+                if not pattern_states["txo_" .. output_num] or not pattern_states["txo_" .. output_num].pattern then
+                    TxoTrOutput.generate_txo_pattern(output_num)
+                end
 
-                if gate_mode == "Clock" then
-                    local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
-                    local beat_sec = clock.get_beat_sec()
-                    local gate_time = beat_sec * beats * gate_length
+                local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
+                local beat_sec = clock.get_beat_sec()
+                local gate_time = beat_sec * beats * gate_length
+                local pattern = pattern_states["txo_" .. output_num].pattern
+                local current_step = pattern_states["txo_" .. output_num].current_step
 
+                if pattern[current_step] then
                     crow.ii.txo.tr(output_num, 1)
                     clock.sleep(gate_time)
                     crow.ii.txo.tr(output_num, 0)
-                else
-                    if not pattern_states["txo_" .. output_num] or not pattern_states["txo_" .. output_num].pattern then
-                        TxoTrOutput.generate_txo_pattern(output_num)
-                    end
-
-                    local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
-                    local beat_sec = clock.get_beat_sec()
-                    local gate_time = beat_sec * beats * gate_length
-                    local pattern = pattern_states["txo_" .. output_num].pattern
-                    local current_step = pattern_states["txo_" .. output_num].current_step
-
-                    if pattern[current_step] then
-                        crow.ii.txo.tr(output_num, 1)
-                        clock.sleep(gate_time)
-                        crow.ii.txo.tr(output_num, 0)
-                    end
-
-                    current_step = current_step + 1
-                    if current_step > #pattern then
-                        current_step = 1
-                    end
-                    pattern_states["txo_" .. output_num].current_step = current_step
                 end
+
+                current_step = current_step + 1
+                if current_step > #pattern then
+                    current_step = 1
+                end
+                pattern_states["txo_" .. output_num].current_step = current_step
+            else
+                -- Gate type
+                local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
+                local beat_sec = clock.get_beat_sec()
+                local gate_time = beat_sec * beats * gate_length
+
+                crow.ii.txo.tr(output_num, 1)
+                clock.sleep(gate_time)
+                crow.ii.txo.tr(output_num, 0)
             end
 
             clock.sync(beats, tonumber(clock_offset) or 0)
@@ -204,19 +241,17 @@ local function create_screen_ui()
         if type == "Burst" then
             table.insert(param_table, { separator = true, title = "Burst" })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_count" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_time" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_time", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_shape" })
         elseif type == "Gate" then
             table.insert(param_table, { separator = true, title = "Gate" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_mode" })
-
-            local gate_mode = params:string("txo_tr_" .. output_num .. "_gate_mode")
-            if gate_mode == "Pattern" then
-                table.insert(param_table, { separator = true, title = "Pattern" })
-                table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_length" })
-                table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_hits" })
-                table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_reroll", is_action = true })
-            end
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
+        elseif type == "Pattern" then
+            table.insert(param_table, { separator = true, title = "Pattern" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_length" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_hits" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_reroll", is_action = true })
         end
 
         self.params = param_table
@@ -305,7 +340,7 @@ local function create_params()
             TxoTrOutput.update_txo_tr(i)
         end)
 
-        params:add_option("txo_tr_" .. i .. "_type", "Type", {"Gate", "Burst"}, 1)
+        params:add_option("txo_tr_" .. i .. "_type", "Type", {"Gate", "Burst", "Pattern"}, 1)
         params:set_action("txo_tr_" .. i .. "_type", function(value)
             TxoTrOutput.update_txo_tr(i)
             if _seeker and _seeker.txo_tr_output then
@@ -324,19 +359,16 @@ local function create_params()
             TxoTrOutput.update_txo_tr(i)
         end)
 
+        params:add_option("txo_tr_" .. i .. "_burst_shape", "Burst Shape", {"Linear", "Accelerating", "Decelerating", "Random"}, 1)
+        params:set_action("txo_tr_" .. i .. "_burst_shape", function(value)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+
         params:add_number("txo_tr_" .. i .. "_gate_length", "Gate Length", 1, 100, 50, function(param) return param.value .. "%" end)
         params:set_action("txo_tr_" .. i .. "_gate_length", function(value)
             TxoTrOutput.update_txo_tr(i)
         end)
 
-        params:add_option("txo_tr_" .. i .. "_gate_mode", "Gate Mode", {"Clock", "Pattern"}, 1)
-        params:set_action("txo_tr_" .. i .. "_gate_mode", function(value)
-            TxoTrOutput.update_txo_tr(i)
-            if _seeker and _seeker.txo_tr_output then
-                _seeker.txo_tr_output.screen:rebuild_params()
-                _seeker.screen_ui.set_needs_redraw()
-            end
-        end)
 
         params:add_number("txo_tr_" .. i .. "_gate_pattern_length", "Pattern Length", 1, 32, 8)
         params:set_action("txo_tr_" .. i .. "_gate_pattern_length", function(value)
