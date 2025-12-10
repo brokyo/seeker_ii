@@ -128,7 +128,9 @@ local function create_grid_ui()
         if lane and lane.motif and #lane.motif.events > 0 then
           -- Stop any playing samples
           if _seeker.sampler then
-            _seeker.sampler.stop_all(focused_lane)
+            for pad = 1, 16 do
+              _seeker.sampler.stop_pad(focused_lane, pad)
+            end
             -- Reset chops to genesis on clear
             _seeker.sampler.reset_lane_to_genesis(focused_lane)
           end

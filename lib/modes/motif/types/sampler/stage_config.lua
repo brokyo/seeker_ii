@@ -13,8 +13,8 @@ SamplerStageConfig.__index = SamplerStageConfig
 -- Motif type constants
 local SAMPLER_MODE = 3
 
--- Transform types for sampler (starts simple, can expand)
-local transform_types = {"None", "Scatter"}
+-- Transform types for sampler
+local transform_types = {"None", "Scatter", "Reverse", "Pan Spread", "Filter Sweep"}
 
 -- Local state for stage configuration
 local config_state = {
@@ -23,7 +23,8 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 17)
+        -- 1 config_stage + 4 stages * 8 params per stage = 33
+        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 33)
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)
             config_state.config_stage = value
@@ -44,6 +45,21 @@ local function create_params()
             -- Scatter Transform Params
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount", "Scatter Amount",
                 controlspec.new(0, 100, "lin", 1, 10, "%"))
+
+            -- Reverse Transform Params
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob", "Reverse Probability",
+                controlspec.new(0, 100, "lin", 1, 50, "%"))
+
+            -- Pan Spread Transform Params
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_prob", "Pan Probability",
+                controlspec.new(0, 100, "lin", 1, 50, "%"))
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range", "Pan Range",
+                controlspec.new(0, 100, "lin", 1, 100, "%"))
+
+            -- Filter Sweep Transform Params
+            params:add_option("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_direction", "Filter Direction", {"Down", "Up"}, 1)
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_amount", "Filter Amount",
+                controlspec.new(0, 100, "lin", 1, 25, "%"))
         end
     end
 end
@@ -94,6 +110,31 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Scatter Config" })
             table.insert(param_table, {
                 id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount",
+                arc_multi_float = {10, 5, 1}
+            })
+        elseif transform_type == "Reverse" then
+            table.insert(param_table, { separator = true, title = "Reverse Config" })
+            table.insert(param_table, {
+                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob",
+                arc_multi_float = {10, 5, 1}
+            })
+        elseif transform_type == "Pan Spread" then
+            table.insert(param_table, { separator = true, title = "Pan Spread Config" })
+            table.insert(param_table, {
+                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_prob",
+                arc_multi_float = {10, 5, 1}
+            })
+            table.insert(param_table, {
+                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range",
+                arc_multi_float = {10, 5, 1}
+            })
+        elseif transform_type == "Filter Sweep" then
+            table.insert(param_table, { separator = true, title = "Filter Sweep Config" })
+            table.insert(param_table, {
+                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_direction"
+            })
+            table.insert(param_table, {
+                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_amount",
                 arc_multi_float = {10, 5, 1}
             })
         end

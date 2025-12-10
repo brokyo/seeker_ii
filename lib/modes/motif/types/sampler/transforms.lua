@@ -61,6 +61,94 @@ transforms.available = {
         end
       end
     end
+  },
+
+  reverse = {
+    name = "Reverse",
+    ui_name = "Reverse",
+    ui_order = 3,
+    description = "Flip playback direction with probability per pad",
+    fn = function(lane_id, stage_id)
+      local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_reverse_prob") / 100
+
+      if probability == 0 then return end
+      if not _seeker.sampler then return end
+
+      for pad = 1, 16 do
+        if math.random() < probability then
+          local chop = _seeker.sampler.get_chop(lane_id, pad)
+          if chop then
+            -- Flip the rate sign
+            local new_rate = -chop.rate
+            _seeker.sampler.update_chop(lane_id, pad, 'rate', new_rate)
+          end
+        end
+      end
+    end
+  },
+
+  pan_spread = {
+    name = "Pan Spread",
+    ui_name = "Pan Spread",
+    ui_order = 4,
+    description = "Randomly distribute pads across stereo field",
+    fn = function(lane_id, stage_id)
+      local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_prob") / 100
+      local range = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_range") / 100
+
+      if probability == 0 or range == 0 then return end
+      if not _seeker.sampler then return end
+
+      for pad = 1, 16 do
+        if math.random() < probability then
+          local chop = _seeker.sampler.get_chop(lane_id, pad)
+          if chop then
+            -- Random pan within range (-range to +range)
+            local new_pan = (math.random() * 2 - 1) * range
+            _seeker.sampler.update_chop(lane_id, pad, 'pan', new_pan)
+          end
+        end
+      end
+    end
+  },
+
+  filter_sweep = {
+    name = "Filter Sweep",
+    ui_name = "Filter Sweep",
+    ui_order = 5,
+    description = "Progressive lowpass filter movement across stages",
+    fn = function(lane_id, stage_id)
+      local direction = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_direction")
+      local amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_amount") / 100
+
+      if amount == 0 then return end
+      if not _seeker.sampler then return end
+
+      for pad = 1, 16 do
+        local chop = _seeker.sampler.get_chop(lane_id, pad)
+        if chop then
+          -- Enable lowpass filter if not already set
+          if not chop.filter_type or chop.filter_type == 1 then
+            _seeker.sampler.update_chop(lane_id, pad, 'filter_type', 2) -- Lowpass
+          end
+
+          local current_lpf = chop.lpf or 20000
+          local new_lpf
+
+          if direction == 1 then -- Down (close filter)
+            -- Multiply by (1 - amount) to reduce
+            new_lpf = current_lpf * (1 - amount)
+            new_lpf = math.max(100, new_lpf) -- Floor at 100Hz
+          else -- Up (open filter)
+            -- Multiply by (1 + amount) to increase
+            new_lpf = current_lpf * (1 + amount)
+            new_lpf = math.min(20000, new_lpf) -- Ceiling at 20kHz
+          end
+
+          _seeker.sampler.update_chop(lane_id, pad, 'lpf', new_lpf)
+        end
+      end
+    end
   }
 }
 

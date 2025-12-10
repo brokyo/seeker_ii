@@ -132,7 +132,9 @@ local function create_grid_ui()
             -- Stop playback and stop any playing samples
             lane:stop()
             if _seeker.sampler then
-              _seeker.sampler.stop_all(lane.id)
+              for pad = 1, 16 do
+                _seeker.sampler.stop_pad(lane.id, pad)
+              end
             end
           else
             lane:play()

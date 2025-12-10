@@ -1,9 +1,10 @@
 -- keyboard_mode.lua
 -- Full-page grid mode for keyboard/performance interface
--- Orchestrates keyboard, velocity, tuning, motif, and lane control components
+-- Orchestrates type-specific components via registry, plus shared infrastructure
 
 local KeyboardRegion = include("lib/grid/keyboard_region")
 local GridAnimations = include("lib/grid/animations")
+local type_registry = include("lib/modes/motif/type_registry")
 
 local KeyboardMode = {}
 
@@ -12,102 +13,48 @@ local TAPE_MODE = 1
 local ARPEGGIO_MODE = 2
 local SAMPLER_MODE = 3
 
--- Determine which regions should be visible based on current motif type
--- NOTE: This duplicates logic from stage_types/tape_transform and arpeggio_sequence
--- See roadmap.md - Mode System Grid Component Registration debt
-local function should_draw_region(region_name)
-  local focused_lane_id = _seeker.ui_state.get_focused_lane()
-  local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
-
-  if motif_type == TAPE_MODE then
-    -- Tape mode shows all regions
-    return true
-  elseif motif_type == ARPEGGIO_MODE then
-    -- Arpeggio mode hides velocity and tuning regions
-    return not (region_name == "velocity" or region_name == "tuning")
-  elseif motif_type == SAMPLER_MODE then
-    -- Sampler mode hides tuning (no pitch transpose implemented)
-    return region_name ~= "tuning"
-  end
-
-  return true
-end
-
 -- Draw all keyboard mode elements
 function KeyboardMode.draw_full_page(layers)
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-  -- Draw velocity for current type
-  if motif_type == TAPE_MODE then
-    _seeker.velocity.grid:draw(layers)
-  elseif motif_type == SAMPLER_MODE then
-    _seeker.sampler_velocity.grid:draw(layers)
+  -- Try registry-based type first
+  local current_type = type_registry.get_current()
+  if current_type then
+    current_type.draw(layers)
+  else
+    -- Fallback for types not yet in registry (Tape, Composer)
+    if motif_type == TAPE_MODE then
+      _seeker.velocity.grid:draw(layers)
+      _seeker.motif_playback.grid:draw(layers)
+      _seeker.tuning.grid:draw(layers)
+      _seeker.clear_motif.grid:draw(layers)
+      _seeker.create_motif.grid:draw(layers)
+      _seeker.tape_stage_config.grid:draw(layers)
+      KeyboardRegion.draw(layers)
+    elseif motif_type == ARPEGGIO_MODE then
+      _seeker.motif_playback.grid:draw(layers)
+      _seeker.clear_motif.grid:draw(layers)
+      _seeker.create_motif.grid:draw(layers)
+      KeyboardRegion.draw(layers)
+    end
+
+    -- Shared components for legacy types
+    _seeker.harmonic_config.grid:draw(layers)
+    _seeker.expression_config.grid:draw(layers)
   end
 
-  -- Draw playback for current type
-  if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-    _seeker.motif_playback.grid:draw(layers)
-  elseif motif_type == SAMPLER_MODE then
-    _seeker.sampler_playback.grid:draw(layers)
-  end
-
-  if should_draw_region("tuning") then
-    _seeker.tuning.grid:draw(layers)
-  end
-
-  -- Draw harmonic config (row 2, arpeggio mode only)
-  _seeker.harmonic_config.grid:draw(layers)
-
-  -- Draw expression config (row 3, shares row position with tuning in tape mode)
-  _seeker.expression_config.grid:draw(layers)
-
-  -- Draw keyboard
-  KeyboardRegion.draw(layers)
-
-  -- Draw clear for current type
-  if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-    _seeker.clear_motif.grid:draw(layers)
-  elseif motif_type == SAMPLER_MODE then
-    _seeker.sampler_clear.grid:draw(layers)
-  end
-
-  -- Draw creator for current type
-  if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-    _seeker.create_motif.grid:draw(layers)
-  elseif motif_type == SAMPLER_MODE then
-    _seeker.sampler_creator.grid:draw(layers)
-  end
-
-  -- Draw stage config for current type
-  if motif_type == TAPE_MODE then
-    _seeker.tape_stage_config.grid:draw(layers)
-  elseif motif_type == SAMPLER_MODE then
-    _seeker.sampler_stage_config.grid:draw(layers)
-  end
-
-  -- Draw lane config (8-button grid)
+  -- Shared infrastructure (all types)
   _seeker.lane_config.grid:draw(layers)
 
-  -- Draw response layer elements
-  KeyboardRegion.draw_motif_events(layers)
-
-  -- Get trails from focused lane
-  local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  -- Response layer elements
+  local focused_lane = _seeker.lanes[focused_lane_id]
   GridAnimations.update_trails(layers.response, focused_lane.trails)
-
-  -- Draw keyboard outline when recording
   GridAnimations.update_keyboard_outline(layers.response, { fps = 30 }, _seeker.motif_recorder)
 end
 
 -- Handle all keyboard mode input
 function KeyboardMode.handle_full_page_key(x, y, z)
-  -- Check if in keyboard region
-  if KeyboardRegion.contains(x, y) then
-    KeyboardRegion.handle_key(x, y, z)
-    return true
-  end
-
   -- Block non-keyboard input during sampler recording
   if _seeker.sampler and _seeker.sampler.is_recording then
     return true
@@ -116,59 +63,61 @@ function KeyboardMode.handle_full_page_key(x, y, z)
   -- Register activity for non-keyboard interactions
   _seeker.ui_state.register_activity()
 
-  -- Get motif type for routing
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-  -- Route to appropriate component
+  -- Shared infrastructure first (lane config)
   if _seeker.lane_config.grid:contains(x, y) then
     _seeker.lane_config.grid:handle_key(x, y, z)
+    return true
+  end
 
-  -- Playback button (position 1,7)
-  elseif _seeker.motif_playback.grid:contains(x, y) then
-    if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-      _seeker.motif_playback.grid:handle_key(x, y, z)
-    elseif motif_type == SAMPLER_MODE then
-      _seeker.sampler_playback.grid:handle_key(x, y, z)
+  -- Try registry-based type
+  local current_type = type_registry.get_current()
+  if current_type then
+    if current_type.handle_key(x, y, z) then
+      return true
+    end
+  else
+    -- Fallback for types not yet in registry (Tape, Composer)
+    if KeyboardRegion.contains(x, y) then
+      KeyboardRegion.handle_key(x, y, z)
+      return true
     end
 
-  -- Velocity buttons (position 1-4,3)
-  elseif _seeker.velocity.grid:contains(x, y) then
     if motif_type == TAPE_MODE then
-      _seeker.velocity.grid:handle_key(x, y, z)
-    elseif motif_type == SAMPLER_MODE then
-      _seeker.sampler_velocity.grid:handle_key(x, y, z)
+      if _seeker.velocity.grid:contains(x, y) then
+        _seeker.velocity.grid:handle_key(x, y, z)
+        return true
+      elseif _seeker.tuning.grid:contains(x, y) then
+        _seeker.tuning.grid:handle_key(x, y, z)
+        return true
+      elseif _seeker.tape_stage_config.grid:contains(x, y) then
+        _seeker.tape_stage_config.grid:handle_key(x, y, z)
+        return true
+      end
     end
 
-  elseif _seeker.tuning.grid:contains(x, y) and should_draw_region("tuning") then
-    _seeker.tuning.grid:handle_key(x, y, z)
-  elseif _seeker.harmonic_config.grid:contains(x, y) then
-    _seeker.harmonic_config.grid:handle_key(x, y, z)
-  elseif _seeker.expression_config.grid:contains(x, y) then
-    _seeker.expression_config.grid:handle_key(x, y, z)
-
-  -- Clear button (position 3,7)
-  elseif _seeker.clear_motif.grid:contains(x, y) then
     if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-      _seeker.clear_motif.grid:handle_key(x, y, z)
-    elseif motif_type == SAMPLER_MODE then
-      _seeker.sampler_clear.grid:handle_key(x, y, z)
+      if _seeker.motif_playback.grid:contains(x, y) then
+        _seeker.motif_playback.grid:handle_key(x, y, z)
+        return true
+      elseif _seeker.clear_motif.grid:contains(x, y) then
+        _seeker.clear_motif.grid:handle_key(x, y, z)
+        return true
+      elseif _seeker.create_motif.grid:contains(x, y) then
+        _seeker.create_motif.grid:handle_key(x, y, z)
+        return true
+      end
     end
 
-  -- Creator button (position 2,7)
-  elseif _seeker.create_motif.grid:contains(x, y) then
-    if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-      _seeker.create_motif.grid:handle_key(x, y, z)
-    elseif motif_type == SAMPLER_MODE then
-      _seeker.sampler_creator.grid:handle_key(x, y, z)
-    end
-
-  -- Stage config button (position 4,7)
-  elseif _seeker.tape_stage_config.grid:contains(x, y) then
-    if motif_type == TAPE_MODE then
-      _seeker.tape_stage_config.grid:handle_key(x, y, z)
-    elseif motif_type == SAMPLER_MODE then
-      _seeker.sampler_stage_config.grid:handle_key(x, y, z)
+    -- Shared components for legacy types
+    if _seeker.harmonic_config.grid:contains(x, y) then
+      _seeker.harmonic_config.grid:handle_key(x, y, z)
+      return true
+    elseif _seeker.expression_config.grid:contains(x, y) then
+      _seeker.expression_config.grid:handle_key(x, y, z)
+      return true
     end
   end
 
