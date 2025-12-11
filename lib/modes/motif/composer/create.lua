@@ -123,7 +123,7 @@ local function create_params()
         local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Pluck", "Custom"}
         local preset_name = preset_names[value]
 
-        -- Don't apply Custom preset
+        -- Custom preset is display-only, no parameter changes needed
         if preset_name ~= "Custom" then
             local focused_lane = _seeker.ui_state.get_focused_lane()
             apply_expression_preset(focused_lane, preset_name)
@@ -140,7 +140,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "COMPOSER_CREATE",
         name = "Create",
-        description = "Generate a motif from current parameters. Hold grid button to generate.",
+        description = "Generate a motif from current parameters. Hold grid button to generate. Presets change rhythmic structure in realtime.",
         params = {}
     })
 
@@ -157,7 +157,7 @@ local function create_screen_ui()
         }
     end
 
-    -- Override enter to rebuild params for current lane
+    -- Rebuild parameter list when entering the screen
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
         self:rebuild_params()
@@ -235,7 +235,7 @@ local function create_grid_ui()
         -- Always clear the current motif (no overdubbing in composer mode)
         current_lane:clear()
 
-        -- Rebuild parameters to hide duration since motif was cleared
+        -- Update parameter visibility based on motif state
         if _seeker.composer_create and _seeker.composer_create.screen then
             _seeker.composer_create.screen:rebuild_params()
         end
@@ -249,7 +249,7 @@ local function create_grid_ui()
             current_lane:play()
         end
 
-        -- Rebuild parameters to show duration based on new motif state
+        -- Update parameter visibility based on motif state
         if _seeker.composer_create and _seeker.composer_create.screen then
             _seeker.composer_create.screen:rebuild_params()
         end

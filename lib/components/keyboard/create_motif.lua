@@ -154,7 +154,7 @@ local function create_params()
         local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Pluck", "Custom"}
         local preset_name = preset_names[value]
 
-        -- Don't apply Custom preset
+        -- Custom preset is display-only, no parameter changes needed
         if preset_name ~= "Custom" then
             local focused_lane = _seeker.ui_state.get_focused_lane()
             apply_expression_preset(focused_lane, preset_name)
@@ -722,8 +722,8 @@ local function create_grid_ui()
         else
             -- Clear the current motif and start new recording
             current_lane:clear()  -- Clear current motif
-            
-            -- Rebuild parameters to hide duration since motif was cleared
+
+            -- Update parameter visibility based on motif state
             if _seeker.create_motif and _seeker.create_motif.screen then
                 _seeker.create_motif.screen:rebuild_params()
             end
@@ -745,7 +745,7 @@ local function create_grid_ui()
         -- Always clear the current motif (no overdubbing in composer mode)
         current_lane:clear()
 
-        -- Rebuild parameters to hide duration since motif was cleared
+        -- Update parameter visibility based on motif state
         if _seeker.create_motif and _seeker.create_motif.screen then
             _seeker.create_motif.screen:rebuild_params()
         end

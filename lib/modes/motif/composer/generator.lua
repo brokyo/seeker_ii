@@ -7,9 +7,6 @@
 local chord_generator = include('lib/motif_core/chord_generator')
 local ComposerGenerator = {}
 
--- Composer keyboard is always index 2 in keyboards array
-local COMPOSER_KEYBOARD_INDEX = 2
-
 -- Helper: Convert interval string to beats
 local function interval_to_beats(interval_str)
   if tonumber(interval_str) then
@@ -24,8 +21,8 @@ end
 
 -- Maps step index to chord voice index
 -- Phase offset rotates which chord voice plays on each loop
-local function calculate_chord_position(active_step_index, chord_length, chord_rotation_offset)
-  return ((active_step_index - 1 + chord_rotation_offset) % chord_length) + 1
+local function map_step_to_chord_voice(active_step_index, chord_length, phase_offset)
+  return ((active_step_index - 1 + phase_offset) % chord_length) + 1
 end
 
 -- Returns MIDI velocity value (1-127) based on curve shape and position in sequence
@@ -113,8 +110,8 @@ local function calculate_strum_position(note_index, total_steps, curve_type, amo
   return position_in_window
 end
 
--- Remove events based on step patterns (e.g., 'Odds' keeps only odd-numbered steps)
-local function apply_pattern_preset(events, preset_name, num_steps)
+-- Filter events by step pattern (e.g., 'Odds' keeps only odd-numbered steps)
+local function filter_events_by_pattern(events, preset_name, num_steps)
   local step_filter = {}
 
   if preset_name == "All" then
@@ -197,12 +194,12 @@ local function generate_motif(lane_id, stage_id)
   end
 
   -- Get composer keyboard to read step states
-  local ComposerKeyboard = _seeker.keyboards[COMPOSER_KEYBOARD_INDEX]
+  local composer_keyboard = _seeker.composer_keyboard.grid
 
   -- Collect active steps
   local active_steps = {}
   for step = 1, num_steps do
-    if ComposerKeyboard.is_step_active(lane_id, step) then
+    if composer_keyboard.is_step_active(lane_id, step) then
       table.insert(active_steps, step)
     end
   end
@@ -217,13 +214,13 @@ local function generate_motif(lane_id, stage_id)
   local events = {}
   for active_index, step in ipairs(active_steps) do
     local step_time = calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_shape, sequence_duration)
-    local chord_position = calculate_chord_position(active_index, #effective_chord, phase_offset)
-    local chord_note = effective_chord[chord_position]
+    local chord_voice = map_step_to_chord_voice(active_index, #effective_chord, phase_offset)
+    local chord_note = effective_chord[chord_voice]
     -- Octave param is 1-indexed, MIDI calculation needs 0-indexed
     local final_note = chord_note + ((octave + 1) * 12)
     local step_velocity = calculate_velocity(active_index, #active_steps, velocity_curve, velocity_min, velocity_max)
 
-    local step_pos = ComposerKeyboard.step_to_grid(step)
+    local step_pos = composer_keyboard.step_to_grid(step)
     local step_x = step_pos and step_pos.x or 0
     local step_y = step_pos and step_pos.y or 0
 
@@ -319,7 +316,7 @@ function ComposerGenerator.prepare_stage(lane_id, stage_id, motif)
     local pattern_preset = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_pattern")
     if pattern_preset and pattern_preset ~= "All" then
       local num_steps = params:get("lane_" .. lane_id .. "_composer_num_steps")
-      regenerated.events = apply_pattern_preset(regenerated.events, pattern_preset, num_steps)
+      regenerated.events = filter_events_by_pattern(regenerated.events, pattern_preset, num_steps)
     end
 
     -- Update motif in place

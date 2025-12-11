@@ -1,7 +1,7 @@
 -- keyboard.lua
--- Composer type keyboard: scale interval visualization
+-- Composer type keyboard: scale position visualization
 -- 8 rows x 6 columns (2 blocks of 3 columns each)
--- Shows first 16 scale intervals with block illumination and tonnetz-style tail
+-- Shows first 16 scale positions with block illumination and tonnetz-style decay
 -- Part of lib/modes/motif/composer/
 
 local GridUI = include("lib/ui/base/grid_ui")
@@ -20,9 +20,9 @@ local layout = {
   height = 8
 }
 
--- Map MIDI note to scale interval (1-16)
--- Returns interval number or nil if outside range
-local function note_to_interval(note)
+-- Map MIDI note to scale position (1-16)
+-- Returns position number or nil if outside range
+local function note_to_scale_position(note)
   local root_note = params:get("root_note")
   local scale_type_index = params:get("scale_type")
   local scale = musicutil.SCALES[scale_type_index]
@@ -35,26 +35,26 @@ local function note_to_interval(note)
   local root_midi = root_note - 1
   local semitone_offset = (note - root_midi) % 12
 
-  -- Find which scale interval this matches (allowing octaves)
+  -- Find which scale position this matches (allowing octaves)
   local octave = math.floor((note - root_midi) / 12)
 
-  for i, interval in ipairs(scale.intervals) do
-    if interval == semitone_offset then
-      local scale_interval = i + (octave * #scale.intervals)
+  for i, semitones in ipairs(scale.intervals) do
+    if semitones == semitone_offset then
+      local scale_position = i + (octave * #scale.intervals)
 
       -- Wrap to 1-16 display range (handles negative octaves)
-      scale_interval = ((scale_interval - 1) % 16) + 1
+      scale_position = ((scale_position - 1) % 16) + 1
 
-      return scale_interval
+      return scale_position
     end
   end
 
   return nil
 end
 
--- Map grid position to scale interval (1-16)
--- Returns interval number or nil if outside keyboard area
-local function grid_to_interval(x, y)
+-- Map grid position to scale position (1-16)
+-- Returns position number or nil if outside keyboard area
+local function grid_to_scale_position(x, y)
   if x < layout.x or x >= layout.x + layout.width or
      y < layout.y or y >= layout.y + layout.height then
     return nil
@@ -67,16 +67,16 @@ local function grid_to_interval(x, y)
   local col_offset = x - layout.x
   local is_left_block = col_offset < 3
 
-  -- Calculate interval: each row has 2 intervals (left=odd, right=even)
-  local interval = (row - 1) * 2 + (is_left_block and 1 or 2)
+  -- Calculate position: each row has 2 positions (left=odd, right=even)
+  local position = (row - 1) * 2 + (is_left_block and 1 or 2)
 
-  return interval
+  return position
 end
 
--- Map scale interval (1-16) to MIDI note
--- Returns MIDI note number or nil if invalid interval
-local function interval_to_note(interval)
-  if interval < 1 or interval > 16 then
+-- Map scale position (1-16) to MIDI note
+-- Returns MIDI note number or nil if invalid position
+local function scale_position_to_note(position)
+  if position < 1 or position > 16 then
     return nil
   end
 
@@ -89,9 +89,9 @@ local function interval_to_note(interval)
   end
 
   -- Calculate which octave and scale degree within that octave
-  local scale_intervals = #scale.intervals
-  local octave = math.floor((interval - 1) / scale_intervals)
-  local scale_degree = ((interval - 1) % scale_intervals) + 1
+  local scale_length = #scale.intervals
+  local octave = math.floor((position - 1) / scale_length)
+  local scale_degree = ((position - 1) % scale_length) + 1
 
   -- Get the semitone offset for this scale degree
   local semitone_offset = scale.intervals[scale_degree]
@@ -103,16 +103,16 @@ local function interval_to_note(interval)
   return note
 end
 
--- Map scale interval (1-16) to block columns
+-- Map scale position (1-16) to block columns
 -- Returns table of 3 column positions for the block
-local function interval_to_block_columns(interval)
-  if interval < 1 or interval > 16 then
+local function scale_position_to_block_columns(position)
+  if position < 1 or position > 16 then
     return nil
   end
 
   -- Determine which block (left=1-2, right=4-6) and which row
-  local is_left_block = (interval % 2) == 1  -- Odd intervals go left
-  local row = math.ceil(interval / 2)  -- Two intervals per row
+  local is_left_block = (position % 2) == 1  -- Odd positions go left
+  local row = math.ceil(position / 2)  -- Two positions per row
 
   -- Calculate y position (row 1 at bottom = y=8, row 8 at top = y=1)
   local y = layout.y + (layout.height - row)
@@ -146,9 +146,9 @@ end
 
 -- Find all grid positions for a given note
 local function note_to_positions(note)
-  local interval = note_to_interval(note)
-  if interval then
-    return interval_to_block_columns(interval)
+  local position = note_to_scale_position(note)
+  if position then
+    return scale_position_to_block_columns(position)
   end
   return nil
 end
@@ -160,7 +160,7 @@ local function create_grid_ui()
   })
 
   -- Tail state for tonnetz-style decay
-  grid_ui.note_tails = {}  -- {[interval] = {brightness, timestamp}}
+  grid_ui.note_tails = {}  -- {[scale_position] = {brightness, timestamp}}
 
   -- Track held notes for live playback
   grid_ui.held_notes = {}  -- {[x_y] = note}
@@ -195,9 +195,9 @@ local function create_grid_ui()
 
     -- Draw live playback pressed blocks
     for key, block in pairs(self.pressed_blocks) do
-      local interval = grid_to_interval(block.x, block.y)
-      if interval then
-        local block_cols = interval_to_block_columns(interval)
+      local position = grid_to_scale_position(block.x, block.y)
+      if position then
+        local block_cols = scale_position_to_block_columns(position)
         if block_cols then
           for _, col in ipairs(block_cols) do
             GridLayers.set(layers.response, col.x, col.y, GridConstants.BRIGHTNESS.FULL)
@@ -209,24 +209,24 @@ local function create_grid_ui()
     -- Get active positions from lane (algorithmic playback only)
     local active_positions = focused_lane:get_active_positions()
 
-    -- Track which intervals are currently active
-    local active_intervals = {}
+    -- Track which scale positions are currently active
+    local active_scale_positions = {}
 
     -- Process active notes from algorithmic playback
     for _, pos in ipairs(active_positions) do
       if pos.note then
-        local interval = note_to_interval(pos.note)
-        if interval then
-          active_intervals[interval] = true
+        local scale_pos = note_to_scale_position(pos.note)
+        if scale_pos then
+          active_scale_positions[scale_pos] = true
 
           -- Update tail timestamp for active notes
-          self.note_tails[interval] = {
+          self.note_tails[scale_pos] = {
             brightness = GridConstants.BRIGHTNESS.FULL,
             timestamp = util.time()
           }
 
           -- Illuminate block at FULL brightness
-          local block_cols = interval_to_block_columns(interval)
+          local block_cols = scale_position_to_block_columns(scale_pos)
           if block_cols then
             for _, col in ipairs(block_cols) do
               GridLayers.set(layers.response, col.x, col.y, GridConstants.BRIGHTNESS.FULL)
@@ -240,8 +240,8 @@ local function create_grid_ui()
     local current_time = util.time()
     local decay_duration = 0.5  -- Total decay time in seconds
 
-    for interval, tail in pairs(self.note_tails) do
-      if not active_intervals[interval] then
+    for scale_pos, tail in pairs(self.note_tails) do
+      if not active_scale_positions[scale_pos] then
         local elapsed = current_time - tail.timestamp
         local brightness = GridConstants.BRIGHTNESS.LOW
 
@@ -255,7 +255,7 @@ local function create_grid_ui()
           end
 
           -- Draw tail
-          local block_cols = interval_to_block_columns(interval)
+          local block_cols = scale_position_to_block_columns(scale_pos)
           if block_cols then
             for _, col in ipairs(block_cols) do
               GridLayers.set(layers.response, col.x, col.y, brightness)
@@ -263,7 +263,7 @@ local function create_grid_ui()
           end
         else
           -- Remove old tail
-          self.note_tails[interval] = nil
+          self.note_tails[scale_pos] = nil
         end
       end
     end
@@ -272,12 +272,12 @@ local function create_grid_ui()
   -- Handle grid key press for live playback
   grid_ui.handle_key = function(self, x, y, z)
     -- Handle keyboard note playback
-    local interval = grid_to_interval(x, y)
-    if not interval then
+    local position = grid_to_scale_position(x, y)
+    if not position then
       return
     end
 
-    local note = interval_to_note(interval)
+    local note = scale_position_to_note(position)
     if not note then
       return
     end
@@ -323,10 +323,10 @@ local function create_grid_ui()
   end
 
   -- Expose helper functions for external use (keyboard interface)
-  grid_ui.note_to_interval = note_to_interval
-  grid_ui.grid_to_interval = grid_to_interval
-  grid_ui.interval_to_note = interval_to_note
-  grid_ui.interval_to_block_columns = interval_to_block_columns
+  grid_ui.note_to_scale_position = note_to_scale_position
+  grid_ui.grid_to_scale_position = grid_to_scale_position
+  grid_ui.scale_position_to_note = scale_position_to_note
+  grid_ui.scale_position_to_block_columns = scale_position_to_block_columns
   grid_ui.is_step_active = is_step_active
   grid_ui.get_step_velocity = get_step_velocity
   grid_ui.step_to_grid = step_to_grid

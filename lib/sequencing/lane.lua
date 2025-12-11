@@ -1177,9 +1177,9 @@ function Lane:get_active_positions()
       return positions
     end
 
-    local ComposerKeyboard = _seeker.keyboards[2]
+    local composer_keyboard = _seeker.composer_keyboard.grid
     for key, note in pairs(self.active_notes) do
-      local current_positions = ComposerKeyboard.note_to_positions(note.note)
+      local current_positions = composer_keyboard.note_to_positions(note.note)
       if current_positions then
         for _, pos in ipairs(current_positions) do
           table.insert(positions, {x = pos.x, y = pos.y, note = note.note})

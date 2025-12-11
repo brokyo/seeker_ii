@@ -16,7 +16,7 @@ local COMPOSER_MODE = 2
 
 -- Module-level state tracks which stage is being edited (shared across UI components)
 local editing_state = {
-    config_stage = 1
+    selected_stage_index = 1
 }
 
 -- Create all composer parameters for a single lane
@@ -33,7 +33,7 @@ local function create_composer_params(lane_id)
     for stage_idx = 1, 4 do
         -- Chord Definition
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_root", "Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_type", "Type", {"Diatonic", "Major", "Minor", "Sus2", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_type", "Type", {"Diatonic", "Major", "Minor", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
         params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_length", "Length", 1, 12, 3)
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_inversion", "Inversion", {"Root", "1st", "2nd"}, 1)
         params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_octave", "Octave", 1, 7, 3)
@@ -71,7 +71,7 @@ local function create_params()
         params:add_group("lane_" .. lane_idx .. "_expression_stages", "LANE " .. lane_idx .. " EXPRESSION STAGE", 1)
         params:add_number("lane_" .. lane_idx .. "_expression_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_expression_stage", function(value)
-            editing_state.config_stage = value
+            editing_state.selected_stage_index = value
             _seeker.composer_expression_stages.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
@@ -82,7 +82,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "COMPOSER_EXPRESSION_STAGES",
         name = "Expression",
-        description = "Configure performance and articulation for each stage.",
+        description = "Configure pattern and timing for each stage. Phasing is very cool if you have more unequal step (create) and length (harmonic). ",
         params = {
             { separator = true, title = "Expression" },
         }
@@ -92,7 +92,7 @@ local function create_screen_ui()
 
     norns_ui.enter = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = editing_state.config_stage
+        local stage_idx = editing_state.selected_stage_index
 
         -- Display current stage number to user
         self.name = "Stage " .. stage_idx .. " Expression"
@@ -100,8 +100,8 @@ local function create_screen_ui()
         -- Populate params using composer generator module
         composer_generator.populate_params(self, lane_idx, stage_idx)
 
-        -- Sync the config stage param with local state
-        params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.config_stage)
+        -- Sync the stage param with local state
+        params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.selected_stage_index)
 
         original_enter(self)
         self:rebuild_params()
@@ -109,7 +109,7 @@ local function create_screen_ui()
 
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = editing_state.config_stage
+        local stage_idx = editing_state.selected_stage_index
 
         -- Display current stage number to user
         self.name = "Stage " .. stage_idx .. " Expression"
@@ -149,7 +149,7 @@ local function create_grid_ui()
 
         local current_stage_index = focused_lane.current_stage_index or 1
         local is_stage_config_section = (_seeker.ui_state.get_current_section() == "COMPOSER_EXPRESSION_STAGES")
-        local selected_stage = editing_state.config_stage
+        local selected_stage = editing_state.selected_stage_index
 
         for i = 0, self.layout.width - 1 do
             local x = self.layout.x + i
@@ -205,13 +205,13 @@ end
 function ExpressionStages.enter(component)
     component.screen:enter()
 
-    -- Initialize local config stage with current global focused stage
+    -- Sync local editing state with global focused stage
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local current_global_stage = _seeker.ui_state.get_focused_stage()
-    editing_state.config_stage = current_global_stage
+    editing_state.selected_stage_index = current_global_stage
 
-    -- Sync the config stage param with local state
-    params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.config_stage)
+    -- Sync the stage param with local state
+    params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.selected_stage_index)
 end
 
 function ExpressionStages.init()

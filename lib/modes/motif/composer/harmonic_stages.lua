@@ -15,7 +15,7 @@ local COMPOSER_MODE = 2
 
 -- Module-level state tracks which stage is being edited
 local editing_state = {
-    config_stage = 1
+    selected_stage_index = 1
 }
 
 -- Create stage selection param for each lane
@@ -24,7 +24,7 @@ local function create_params()
         params:add_group("lane_" .. lane_idx .. "_harmonic_stages", "LANE " .. lane_idx .. " CHORD STAGE", 1)
         params:add_number("lane_" .. lane_idx .. "_harmonic_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_harmonic_stage", function(value)
-            editing_state.config_stage = value
+            editing_state.selected_stage_index = value
             _seeker.composer_harmonic_stages.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
@@ -45,7 +45,7 @@ local function create_screen_ui()
 
     norns_ui.enter = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = editing_state.config_stage
+        local stage_idx = editing_state.selected_stage_index
 
         -- Update name to show current stage in footer
         self.name = "Stage " .. stage_idx .. " Harmonic"
@@ -70,7 +70,7 @@ local function create_screen_ui()
 
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = editing_state.config_stage
+        local stage_idx = editing_state.selected_stage_index
 
         -- Update name to show current stage in footer
         self.name = "Stage " .. stage_idx .. " Harmonic"
@@ -121,7 +121,7 @@ local function create_grid_ui()
 
         local current_stage_index = focused_lane.current_stage_index or 1
         local is_harmonic_section = (_seeker.ui_state.get_current_section() == "COMPOSER_HARMONIC_STAGES")
-        local selected_stage = editing_state.config_stage
+        local selected_stage = editing_state.selected_stage_index
 
         for i = 0, self.layout.width - 1 do
             local x = self.layout.x + i
@@ -177,9 +177,9 @@ end
 function HarmonicStages.enter(component)
     component.screen:enter()
 
-    -- Initialize local config stage with current global focused stage
+    -- Sync local editing state with global focused stage
     local current_global_stage = _seeker.ui_state.get_focused_stage()
-    editing_state.config_stage = current_global_stage
+    editing_state.selected_stage_index = current_global_stage
 end
 
 function HarmonicStages.init()

@@ -28,22 +28,21 @@ function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_leng
   -- Map "Diatonic" to the appropriate chord quality based on scale degree
   if chord_type == "Diatonic" then
     -- Standard diatonic chord qualities (works for major and most modal scales)
-    local diatonic_qualities = {"major", "minor", "minor", "major", "major", "minor", "diminished"}
+    local diatonic_qualities = {"Major", "Minor", "Minor", "Major", "Major", "Minor", "Diminished"}
     local quality_index = ((chord_root_degree - 1) % 7) + 1
     chord_type = diatonic_qualities[quality_index]
   end
 
-  -- Normalize chord type names to lowercase for musicutil compatibility
+  -- Map display names to musicutil chord type names
   local chord_type_map = {
-    ["Major"] = "major",
-    ["Minor"] = "minor",
-    ["Sus2"] = "sus2",
-    ["Sus4"] = "sus4",
-    ["Maj7"] = "major 7",
-    ["Min7"] = "minor 7",
-    ["Dom7"] = "dom 7",
-    ["Dim"] = "diminished",
-    ["Aug"] = "augmented"
+    ["Major"] = "Major",
+    ["Minor"] = "Minor",
+    ["Sus4"] = "Sus4",
+    ["Maj7"] = "Major 7",
+    ["Min7"] = "Minor 7",
+    ["Dom7"] = "Dominant 7",
+    ["Dim"] = "Diminished",
+    ["Aug"] = "Augmented"
   }
   chord_type = chord_type_map[chord_type] or chord_type
 

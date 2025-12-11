@@ -72,7 +72,7 @@ local function create_grid_ui()
     -- Store original draw method
     local original_grid_draw = grid_ui.draw
 
-    -- Override draw to add visual feedback during press
+    -- Draw visual feedback animation during button press
     grid_ui.draw = function(self, layers)
         -- Call original draw method
         original_grid_draw(self, layers)
@@ -144,7 +144,7 @@ local function create_grid_ui()
                 if lane and lane.motif and #lane.motif.events > 0 then
                     lane:clear()
 
-                    -- Rebuild create parameters to hide duration since motif was cleared
+                    -- Update create screen parameter visibility based on motif state
                     if _seeker.composer_create and _seeker.composer_create.screen then
                         _seeker.composer_create.screen:rebuild_params()
                     end
