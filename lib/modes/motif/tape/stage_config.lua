@@ -5,7 +5,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local tape_transforms = include("lib/motif_core/transforms")
-local tape_transform = include("lib/components/lanes/stage_types/tape_transform")
+local tape_transform = include("lib/modes/motif/tape/transform")
 
 local TapeStageConfig = {}
 

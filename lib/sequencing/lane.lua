@@ -3,7 +3,7 @@ local params_manager = include('lib/ui/params')
 local Motif = include('lib/motif_core/motif')
 local forms = include('lib/motif_core/forms')
 -- Stage type modules for mode-specific preparation
-local tape_transform = include('lib/components/lanes/stage_types/tape_transform')
+local tape_transform = include('lib/modes/motif/tape/transform')
 local composer_generator = include('lib/modes/motif/composer/generator')
 local sampler_transforms = include('lib/modes/motif/sampler/transforms')
 -- Note: Performance state is accessed via _seeker.{type}.perform at runtime
@@ -14,7 +14,6 @@ local COMPOSER_MODE = 2
 local SAMPLER_MODE = 3
 local GridConstants = include('lib/grid/constants')
 local theory = include('lib/motif_core/theory')
-local KeyboardRegion = include('lib/grid/keyboard_region')
 local musicutil = require('musicutil')
 local Lane = {}
 Lane.__index = Lane
@@ -606,7 +605,7 @@ function Lane:on_note_on(event)
     -- Tape mode: notes may appear at multiple grid positions (same pitch on different rows)
     -- Composer/Sampler: each note has a single grid position from the event
     if motif_type == TAPE_MODE then
-      positions = KeyboardRegion.note_to_positions(note) or {{x = event.x, y = event.y}}
+      positions = _seeker.tape.keyboard.grid.note_to_positions(note) or {{x = event.x, y = event.y}}
     else
       positions = {{x = event.x, y = event.y}}
     end
@@ -1211,7 +1210,7 @@ function Lane:get_active_positions()
 
   -- Tape mode: illuminate all grid positions where this note appears
   for key, note in pairs(self.active_notes) do
-    local current_positions = KeyboardRegion.note_to_positions(note.note)
+    local current_positions = _seeker.tape.keyboard.grid.note_to_positions(note.note)
     if current_positions then
       for _, pos in ipairs(current_positions) do
         table.insert(positions, {x = pos.x, y = pos.y})

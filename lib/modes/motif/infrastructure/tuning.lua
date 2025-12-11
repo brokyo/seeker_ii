@@ -100,7 +100,7 @@ local MOTIF_TYPE_TAPE = 1
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "KEYBOARD",
-        name = "Keyboard Config",
+        name = "Motif Keys Config",
         description = "Select the scale. Set keyboard intervals. Connect MIDI. Tape mode shows lane tuning.",
         params = {}
     })

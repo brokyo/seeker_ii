@@ -22,13 +22,13 @@ local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
 local SamplerManager = include("lib/sampler/manager")
 
--- Components: Global
-local Config = include("lib/components/global_config")
+-- Global Config Mode
+local Config = include("lib/modes/config/init")
 local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
 
--- Components: Keyboard Mode
-local Keyboard = include("lib/components/keyboard/keyboard_config")
-local LaneConfig = include("lib/components/lanes/lane_config")
+-- Motif Infrastructure
+local Keyboard = include("lib/modes/motif/infrastructure/tuning")
+local LaneConfig = include("lib/modes/motif/infrastructure/lane_config")
 
 -- Motif Types
 local Tape = include("lib/modes/motif/tape/init")
@@ -51,7 +51,6 @@ _seeker = {
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
-  keyboard_region = nil,
   keyboards = {}, -- Cache for keyboard instances
   motif_recorder = nil,
   midi_input = nil,
@@ -130,8 +129,7 @@ function init()
 
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
-  _seeker.keyboard_region = include("lib/grid/keyboard_region")
-  
+
   -- Initialize MIDI input
   _seeker.midi_input = MidiInput.init()
   

@@ -6,13 +6,13 @@ local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
 -- Voice parameter modules
-local voice_mx_samples = include("lib/components/lanes/voices/mx_samples")
-local voice_midi = include("lib/components/lanes/voices/midi")
-local voice_crow_txo = include("lib/components/lanes/voices/crow_txo")
-local voice_just_friends = include("lib/components/lanes/voices/just_friends")
-local voice_wsyn = include("lib/components/lanes/voices/wsyn")
-local voice_osc = include("lib/components/lanes/voices/osc")
-local voice_disting = include("lib/components/lanes/voices/disting")
+local voice_mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
+local voice_midi = include("lib/modes/motif/infrastructure/voices/midi")
+local voice_crow_txo = include("lib/modes/motif/infrastructure/voices/crow_txo")
+local voice_just_friends = include("lib/modes/motif/infrastructure/voices/just_friends")
+local voice_wsyn = include("lib/modes/motif/infrastructure/voices/wsyn")
+local voice_osc = include("lib/modes/motif/infrastructure/voices/osc")
+local voice_disting = include("lib/modes/motif/infrastructure/voices/disting")
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
