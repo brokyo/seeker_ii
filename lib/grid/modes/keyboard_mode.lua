@@ -10,7 +10,7 @@ local KeyboardMode = {}
 
 -- Motif type constants
 local TAPE_MODE = 1
-local ARPEGGIO_MODE = 2
+local COMPOSER_MODE = 2
 local SAMPLER_MODE = 3
 
 -- Draw all keyboard mode elements
@@ -18,12 +18,12 @@ function KeyboardMode.draw_full_page(layers)
   local focused_lane_id = _seeker.ui_state.get_focused_lane()
   local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-  -- Try registry-based type first
+  -- Try registry-based type first (Composer, Sampler)
   local current_type = type_registry.get_current()
   if current_type then
     current_type.draw(layers)
   else
-    -- Fallback for types not yet in registry (Tape, Composer)
+    -- Fallback for types not yet in registry (Tape)
     if motif_type == TAPE_MODE then
       _seeker.velocity.grid:draw(layers)
       _seeker.motif_playback.grid:draw(layers)
@@ -33,17 +33,7 @@ function KeyboardMode.draw_full_page(layers)
       _seeker.tape_stage_config.grid:draw(layers)
       KeyboardRegion.draw(layers)
       KeyboardRegion.draw_motif_events(layers)
-    elseif motif_type == ARPEGGIO_MODE then
-      _seeker.motif_playback.grid:draw(layers)
-      _seeker.clear_motif.grid:draw(layers)
-      _seeker.create_motif.grid:draw(layers)
-      KeyboardRegion.draw(layers)
-      KeyboardRegion.draw_motif_events(layers)
     end
-
-    -- Shared components for legacy types
-    _seeker.harmonic_config.grid:draw(layers)
-    _seeker.expression_config.grid:draw(layers)
   end
 
   -- Shared infrastructure (all types)
@@ -74,14 +64,14 @@ function KeyboardMode.handle_full_page_key(x, y, z)
     return true
   end
 
-  -- Try registry-based type
+  -- Try registry-based type (Composer, Sampler)
   local current_type = type_registry.get_current()
   if current_type then
     if current_type.handle_key(x, y, z) then
       return true
     end
   else
-    -- Fallback for types not yet in registry (Tape, Composer)
+    -- Fallback for types not yet in registry (Tape)
     if KeyboardRegion.contains(x, y) then
       KeyboardRegion.handle_key(x, y, z)
       return true
@@ -97,11 +87,7 @@ function KeyboardMode.handle_full_page_key(x, y, z)
       elseif _seeker.tape_stage_config.grid:contains(x, y) then
         _seeker.tape_stage_config.grid:handle_key(x, y, z)
         return true
-      end
-    end
-
-    if motif_type == TAPE_MODE or motif_type == ARPEGGIO_MODE then
-      if _seeker.motif_playback.grid:contains(x, y) then
+      elseif _seeker.motif_playback.grid:contains(x, y) then
         _seeker.motif_playback.grid:handle_key(x, y, z)
         return true
       elseif _seeker.clear_motif.grid:contains(x, y) then
@@ -111,15 +97,6 @@ function KeyboardMode.handle_full_page_key(x, y, z)
         _seeker.create_motif.grid:handle_key(x, y, z)
         return true
       end
-    end
-
-    -- Shared components for legacy types
-    if _seeker.harmonic_config.grid:contains(x, y) then
-      _seeker.harmonic_config.grid:handle_key(x, y, z)
-      return true
-    elseif _seeker.expression_config.grid:contains(x, y) then
-      _seeker.expression_config.grid:handle_key(x, y, z)
-      return true
     end
   end
 

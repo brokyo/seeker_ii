@@ -32,8 +32,13 @@ function ScreenUI.init()
     SAMPLER_CLEAR = _seeker.sampler_clear.screen,
     SAMPLER_VELOCITY = _seeker.sampler_velocity.screen,
     SAMPLER_PERFORM = _seeker.sampler_perform.screen,
-    EXPRESSION_CONFIG = _seeker.expression_config.screen,
-    HARMONIC_CONFIG = _seeker.harmonic_config.screen,
+    -- Composer type screens
+    COMPOSER_EXPRESSION_STAGES = _seeker.composer_expression_stages.screen,
+    COMPOSER_HARMONIC_STAGES = _seeker.composer_harmonic_stages.screen,
+    COMPOSER_PLAYBACK = _seeker.composer_playback.screen,
+    COMPOSER_CREATE = _seeker.composer_create.screen,
+    COMPOSER_CLEAR = _seeker.composer_clear.screen,
+    COMPOSER_PERFORM = _seeker.composer_perform.screen,
 
     -- WTape Mode
     WTAPE = _seeker.w_tape.screen,

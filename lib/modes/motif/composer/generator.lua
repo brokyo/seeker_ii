@@ -1,13 +1,14 @@
--- arpeggio_sequence.lua
+-- generator.lua
 -- Generates note sequences from chord and rhythm parameters
 -- Each stage defines a complete chord pattern that plays when active
 -- Contains all generation logic (chord, velocity, strum, pattern filtering)
+-- Part of lib/modes/motif/composer/
 
 local chord_generator = include('lib/motif_core/chord_generator')
-local ArpeggioSequence = {}
+local ComposerGenerator = {}
 
--- Arpeggio keyboard is always index 2 in keyboards array
-local ARPEGGIO_KEYBOARD_INDEX = 2
+-- Composer keyboard is always index 2 in keyboards array
+local COMPOSER_KEYBOARD_INDEX = 2
 
 -- Helper: Convert interval string to beats
 local function interval_to_beats(interval_str)
@@ -162,46 +163,46 @@ end
 -- Build complete note sequence for one stage using chord, velocity, and strum parameters
 local function generate_motif(lane_id, stage_id)
   -- Get sequence structure (stays on lane)
-  local step_length_str = params:string("lane_" .. lane_id .. "_arpeggio_step_length")
+  local step_length_str = params:string("lane_" .. lane_id .. "_composer_step_length")
   local step_length = interval_to_beats(step_length_str)
-  local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
+  local num_steps = params:get("lane_" .. lane_id .. "_composer_num_steps")
 
   -- Get musical parameters from specified stage
-  local octave = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_octave")
-  local chord_root = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_chord_root")
-  local chord_type = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_chord_type")
-  local chord_length = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_chord_length")
-  local chord_inversion = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_chord_inversion") - 1
-  local note_duration_percent = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_note_duration")
+  local octave = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_octave")
+  local chord_root = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_root")
+  local chord_type = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_type")
+  local chord_length = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_length")
+  local chord_inversion = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_inversion") - 1
+  local note_duration_percent = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_note_duration")
 
   -- Get velocity curve parameters
-  local velocity_curve = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_velocity_curve")
-  local velocity_min = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_velocity_min")
-  local velocity_max = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_velocity_max")
+  local velocity_curve = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_velocity_curve")
+  local velocity_min = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_velocity_min")
+  local velocity_max = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_velocity_max")
 
   -- Get strum parameters
-  local strum_curve = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_strum_curve")
-  local strum_amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_strum_amount")
-  local strum_shape = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_strum_shape")
+  local strum_curve = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_curve")
+  local strum_amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_amount")
+  local strum_shape = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_shape")
 
   -- Get phasing parameter
-  local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_chord_phasing") == 2
+  local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_phasing") == 2
 
   -- Generate chord
   local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, chord_inversion)
 
   if not effective_chord or #effective_chord == 0 then
-    print("ERROR: Failed to generate chord for arpeggio")
+    print("ERROR: Failed to generate chord for composer")
     return {events = {}, duration = num_steps * step_length}
   end
 
-  -- Get arpeggio keyboard to read step states
-  local ArpeggioKeyboard = _seeker.keyboards[ARPEGGIO_KEYBOARD_INDEX]
+  -- Get composer keyboard to read step states
+  local ComposerKeyboard = _seeker.keyboards[COMPOSER_KEYBOARD_INDEX]
 
   -- Collect active steps
   local active_steps = {}
   for step = 1, num_steps do
-    if ArpeggioKeyboard.is_step_active(lane_id, step) then
+    if ComposerKeyboard.is_step_active(lane_id, step) then
       table.insert(active_steps, step)
     end
   end
@@ -222,7 +223,7 @@ local function generate_motif(lane_id, stage_id)
     local final_note = chord_note + ((octave + 1) * 12)
     local step_velocity = calculate_velocity(active_index, #active_steps, velocity_curve, velocity_min, velocity_max)
 
-    local step_pos = ArpeggioKeyboard.step_to_grid(step)
+    local step_pos = ComposerKeyboard.step_to_grid(step)
     local step_x = step_pos and step_pos.x or 0
     local step_y = step_pos and step_pos.y or 0
 
@@ -272,52 +273,52 @@ end
 local function build_param_list(lane_idx, stage_idx)
   return {
     { separator = true, title = "Pattern" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_pattern" },
     { separator = true, title = "Strum" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount", arc_multi_float = {10, 5, 1} },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_note_duration", arc_multi_float = {10, 5, 1} },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_amount", arc_multi_float = {10, 5, 1} },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_shape" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_note_duration", arc_multi_float = {10, 5, 1} },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_phasing" },
     { separator = true, title = "Velocity" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min", arc_multi_float = {10, 5, 1} },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max", arc_multi_float = {10, 5, 1} }
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_curve" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_min", arc_multi_float = {10, 5, 1} },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_max", arc_multi_float = {10, 5, 1} }
   }
 end
 
 -- Populate initial parameters when entering stage config
-function ArpeggioSequence.populate_params(ui, lane_idx, stage_idx)
+function ComposerGenerator.populate_params(ui, lane_idx, stage_idx)
   ui.params = build_param_list(lane_idx, stage_idx)
 end
 
--- Rebuild parameters (arpeggio mode has fixed parameter set)
-function ArpeggioSequence.rebuild_params(ui, lane_idx, stage_idx)
+-- Rebuild parameters (composer mode has fixed parameter set)
+function ComposerGenerator.rebuild_params(ui, lane_idx, stage_idx)
   ui.params = build_param_list(lane_idx, stage_idx)
 end
 
 -- Draw grid UI (uses standard grid_ui draw from stage_config)
-function ArpeggioSequence.draw_grid(layers, grid_ui)
+function ComposerGenerator.draw_grid(layers, grid_ui)
   -- Delegate to standard grid_ui draw method
   grid_ui:draw(layers)
 end
 
--- Region visibility for arpeggio mode
-function ArpeggioSequence.should_draw_region(region_name)
-  -- Arpeggio mode hides velocity and tuning regions
+-- Region visibility for composer mode
+function ComposerGenerator.should_draw_region(region_name)
+  -- Composer mode hides velocity and tuning regions
   return not (region_name == "velocity" or region_name == "tuning")
 end
 
--- Prepare stage: Regenerate arpeggio from parameters
-function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
+-- Prepare stage: Regenerate composer motif from parameters
+function ComposerGenerator.prepare_stage(lane_id, stage_id, motif)
   local success, err = pcall(function()
     -- Generate core motif
     local regenerated = generate_motif(lane_id, stage_id)
 
     -- Apply pattern preset filter
-    local pattern_preset = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_arpeggio_pattern")
+    local pattern_preset = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_pattern")
     if pattern_preset and pattern_preset ~= "All" then
-      local num_steps = params:get("lane_" .. lane_id .. "_arpeggio_num_steps")
+      local num_steps = params:get("lane_" .. lane_id .. "_composer_num_steps")
       regenerated.events = apply_pattern_preset(regenerated.events, pattern_preset, num_steps)
     end
 
@@ -327,12 +328,12 @@ function ArpeggioSequence.prepare_stage(lane_id, stage_id, motif)
   end)
 
   if not success then
-    print("ERROR: Arpeggio regeneration failed for lane " .. lane_id .. " stage " .. stage_id .. ": " .. tostring(err))
+    print("ERROR: Composer regeneration failed for lane " .. lane_id .. " stage " .. stage_id .. ": " .. tostring(err))
     -- Keep existing motif events on error
   end
 end
 
--- Expose generate_motif for use by create_motif component
-ArpeggioSequence.generate_motif = generate_motif
+-- Expose generate_motif for use by create component
+ComposerGenerator.generate_motif = generate_motif
 
-return ArpeggioSequence
+return ComposerGenerator

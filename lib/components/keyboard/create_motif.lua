@@ -14,7 +14,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
+local composer_generator = include('lib/modes/motif/composer/generator')
 local fileselect = require("fileselect")
 
 local CreateMotif = {}
@@ -109,10 +109,10 @@ local function apply_expression_preset(lane_id, preset_name)
     if preset then
         -- Apply structure params (lane-level)
         if preset.num_steps then
-            params:set("lane_" .. lane_id .. "_arpeggio_num_steps", preset.num_steps)
+            params:set("lane_" .. lane_id .. "_composer_num_steps", preset.num_steps)
         end
         if preset.step_length then
-            params:set("lane_" .. lane_id .. "_arpeggio_step_length", preset.step_length)
+            params:set("lane_" .. lane_id .. "_composer_step_length", preset.step_length)
         end
 
         -- Apply performance params to all 4 stages
@@ -120,7 +120,7 @@ local function apply_expression_preset(lane_id, preset_name)
             for param_name, value in pairs(preset) do
                 -- Skip structure params (already set above)
                 if param_name ~= "num_steps" and param_name ~= "step_length" then
-                    params:set("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_" .. param_name, value)
+                    params:set("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_" .. param_name, value)
                 end
             end
         end
@@ -234,8 +234,8 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Expression" })
             table.insert(param_table, { id = "create_motif_expression_preset" })
             table.insert(param_table, { separator = true, title = "Sequence Structure" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_num_steps" })
-            table.insert(param_table, { id = "lane_" .. focused_lane .. "_arpeggio_step_length" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_composer_num_steps" })
+            table.insert(param_table, { id = "lane_" .. focused_lane .. "_composer_step_length" })
         end
 
         -- Update the UI with the new parameter table
@@ -738,7 +738,7 @@ local function create_grid_ui()
     
     -- Helper function for composer mode - instant snapshot of current pattern
     -- Note: Composer mode never supports overdubbing - always starts fresh
-    local function handle_arpeggio_recording_start(self)
+    local function handle_composer_recording_start(self)
         local focused_lane_idx = _seeker.ui_state.get_focused_lane()
         local current_lane = _seeker.lanes[focused_lane_idx]
 
@@ -753,11 +753,11 @@ local function create_grid_ui()
         -- Generate composer sequence from current step pattern using Stage 1 parameters
         -- ARCHITECTURE NOTE: Composer uses generator pattern (params → motif)
         -- not recorder pattern (real-time input → motif)
-        local arpeggio_motif = arpeggio_sequence.generate_motif(focused_lane_idx, 1)
+        local composer_motif = composer_generator.generate_motif(focused_lane_idx, 1)
 
-        if arpeggio_motif and arpeggio_motif.events and #arpeggio_motif.events > 0 then
+        if composer_motif and composer_motif.events and #composer_motif.events > 0 then
             -- Set the motif and start playback
-            current_lane:set_motif(arpeggio_motif)
+            current_lane:set_motif(composer_motif)
             current_lane:play()
         end
 
@@ -769,7 +769,7 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
 
-    local function handle_arpeggio_recording_stop(self)
+    local function handle_composer_recording_stop(self)
         -- Composer mode completes immediately in start function - nothing to do here
     end
     
@@ -848,14 +848,14 @@ local function create_grid_ui()
                 if motif_type == MOTIF_TYPE_TAPE or motif_type == MOTIF_TYPE_SAMPLER then
                     handle_tape_recording_stop(self)
                 elseif motif_type == MOTIF_TYPE_COMPOSER then
-                    handle_arpeggio_recording_stop(self)
+                    handle_composer_recording_stop(self)
                 end
             -- Handle recording start logic for long press
             elseif self:is_long_press(key_id) then
                 if motif_type == MOTIF_TYPE_TAPE or motif_type == MOTIF_TYPE_SAMPLER then
                     handle_tape_recording_start(self)
                 elseif motif_type == MOTIF_TYPE_COMPOSER then
-                    handle_arpeggio_recording_start(self)
+                    handle_composer_recording_start(self)
                 end
             end
             

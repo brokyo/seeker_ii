@@ -4,14 +4,14 @@ local Motif = include('lib/motif_core/motif')
 local forms = include('lib/motif_core/forms')
 -- Stage type modules for mode-specific preparation
 local tape_transform = include('lib/components/lanes/stage_types/tape_transform')
-local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
+local composer_generator = include('lib/modes/motif/composer/generator')
 local sampler_transforms = include('lib/modes/motif/sampler/transforms')
--- Note: Performance state is accessed via _seeker.sampler_perform at runtime
--- to ensure we use the single initialized instance
+-- Note: Performance state is accessed via _seeker.sampler_perform and _seeker.composer_perform
+-- at runtime to ensure we use the single initialized instances
 
 -- Motif type constants
 local TAPE_MODE = 1
-local ARPEGGIO_MODE = 2
+local COMPOSER_MODE = 2
 local SAMPLER_MODE = 3
 local GridConstants = include('lib/grid/constants')
 local theory = include('lib/motif_core/theory')
@@ -220,8 +220,8 @@ function Lane:prepare_stage(stage)
 
   if motif_type == TAPE_MODE then
     tape_transform.prepare_stage(self.id, stage.id, self.motif)
-  elseif motif_type == ARPEGGIO_MODE then
-    arpeggio_sequence.prepare_stage(self.id, stage.id, self.motif)
+  elseif motif_type == COMPOSER_MODE then
+    composer_generator.prepare_stage(self.id, stage.id, self.motif)
   elseif motif_type == SAMPLER_MODE then
     -- Reset chops to genesis if configured
     local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
@@ -540,16 +540,26 @@ end
 --   Send MIDI or engine note_on
 ---------------------------------------------------------
 function Lane:on_note_on(event)
-  -- Check sampler performance mute (only applies in sampler mode)
+  -- Check performance mute (sampler and composer modes)
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-  local perf = _seeker and _seeker.sampler_perform
-  if motif_type == SAMPLER_MODE and perf and perf.is_muted(self.id) then
+
+  -- Sampler performance
+  local sampler_perf = _seeker and _seeker.sampler_perform
+  if motif_type == SAMPLER_MODE and sampler_perf and sampler_perf.is_muted(self.id) then
     return
   end
 
-  -- Apply sampler performance velocity multiplier (only in sampler mode)
-  if motif_type == SAMPLER_MODE and perf then
-    event.velocity = event.velocity * perf.get_velocity_multiplier(self.id)
+  -- Composer performance
+  local composer_perf = _seeker and _seeker.composer_perform
+  if motif_type == COMPOSER_MODE and composer_perf and composer_perf.is_muted(self.id) then
+    return
+  end
+
+  -- Apply performance velocity multiplier (sampler and composer modes)
+  if motif_type == SAMPLER_MODE and sampler_perf then
+    event.velocity = event.velocity * sampler_perf.get_velocity_multiplier(self.id)
+  elseif motif_type == COMPOSER_MODE and composer_perf then
+    event.velocity = event.velocity * composer_perf.get_velocity_multiplier(self.id)
   end
 
   -- Get the note, applying playback offset if this is a playback event
@@ -587,7 +597,7 @@ function Lane:on_note_on(event)
     positions = event.positions
   elseif event.x and event.y then
     -- Tape mode: notes may appear at multiple grid positions (same pitch on different rows)
-    -- Arpeggio/Sampler: each note has a single grid position from the event
+    -- Composer/Sampler: each note has a single grid position from the event
     if motif_type == TAPE_MODE then
       positions = KeyboardRegion.note_to_positions(note) or {{x = event.x, y = event.y}}
     else
@@ -597,14 +607,14 @@ function Lane:on_note_on(event)
 
   -- Store note with all its positions
   if positions then
-    -- For arpeggio keyboard mode, use step-based key to allow multiple simultaneous steps
+    -- For composer keyboard mode, use step-based key to allow multiple simultaneous steps
     local motif_type = params:get("lane_" .. self.id .. "_motif_type")
     local note_key
     if motif_type == 2 and event.step then
-      -- Arpeggio mode: use step number as key to allow multiple active steps
+      -- Composer mode: use step number as key to allow multiple active steps
       note_key = "step_" .. event.step
     else
-      -- Tape/arpeggio modes: use note number as key (existing behavior)
+      -- Tape mode: use note number as key (existing behavior)
       note_key = note
     end
 
@@ -840,10 +850,10 @@ function Lane:on_note_on(event)
 
   -- Add trails for all positions with keyboard-specific behavior
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-  local is_arpeggio_mode = (motif_type == 2)
+  local is_composer_mode = (motif_type == 2)
 
-  -- Arpeggio mode uses built-in keyboard tail decay, skip trail system
-  if is_arpeggio_mode then
+  -- Composer mode uses built-in keyboard tail decay, skip trail system
+  if is_composer_mode then
     return
   end
 
@@ -990,13 +1000,13 @@ function Lane:on_note_off(event)
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
   
   -- Remove this note from active notes and get its positions
-  -- Use same key logic as on_note_on for arpeggio mode
+  -- Use same key logic as on_note_on for composer mode
   local note_key
   if motif_type == 2 and event.step then
-    -- Arpeggio mode: use step number as key to match on_note_on
+    -- Composer mode: use step number as key to match on_note_on
     note_key = "step_" .. event.step
   else
-    -- Tape/arpeggio modes: use note number as key (existing behavior)
+    -- Tape mode: use note number as key (existing behavior)
     note_key = note
   end
 
@@ -1023,10 +1033,10 @@ function Lane:on_note_off(event)
 
   -- Handle trails based on keyboard mode
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-  local is_arpeggio_mode = (motif_type == 2)
+  local is_composer_mode = (motif_type == 2)
 
-  if is_arpeggio_mode then
-    -- Arpeggio mode: remove trails immediately for on/off behavior
+  if is_composer_mode then
+    -- Composer mode: remove trails immediately for on/off behavior
     if note_data and note_data.positions then
       for _, pos in ipairs(note_data.positions) do
         local key = trail_key(pos.x, pos.y)
@@ -1037,7 +1047,7 @@ function Lane:on_note_off(event)
       self.trails[key] = nil  -- Remove trail immediately
     end
   else
-    -- Tape/arpeggio modes: create fading trails (existing behavior)
+    -- Tape mode: create fading trails (existing behavior)
     if note_data and note_data.positions then
       for _, pos in ipairs(note_data.positions) do
         local key = trail_key(pos.x, pos.y)
@@ -1161,15 +1171,15 @@ function Lane:get_active_positions()
   local positions = {}
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
-  -- For arpeggio mode, use note-based illumination
+  -- For composer mode, use note-based illumination
   if motif_type == 2 then
     if not self.playing then
       return positions
     end
 
-    local ArpeggioKeyboard = _seeker.keyboards[2]
+    local ComposerKeyboard = _seeker.keyboards[2]
     for key, note in pairs(self.active_notes) do
-      local current_positions = ArpeggioKeyboard.note_to_positions(note.note)
+      local current_positions = ComposerKeyboard.note_to_positions(note.note)
       if current_positions then
         for _, pos in ipairs(current_positions) do
           table.insert(positions, {x = pos.x, y = pos.y, note = note.note})

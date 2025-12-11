@@ -10,7 +10,7 @@ function Motif.new()
   local m = setmetatable({}, Motif)
 
   -- Initialize genesis state (never modified)
-  -- NOTE: Used by tape mode (original recording). Unused by arpeggio mode (parameter-driven).
+  -- NOTE: Used by tape mode (original recording). Unused by composer mode (parameter-driven).
   m.genesis = {
     events = {},  -- Array of {time, type, note, velocity, pos} events
     duration = 0  -- Total duration of pattern
@@ -60,7 +60,7 @@ function Motif:store_events(recorded_data)
 end
 
 -- Reset working state to genesis
--- NOTE: Tape mode uses this to restore original recording. Arpeggio mode regenerates from params instead.
+-- NOTE: Tape mode uses this to restore original recording. Composer mode regenerates from params instead.
 function Motif:reset_to_genesis()
   self.events = {}
   for _, evt in ipairs(self.genesis.events) do

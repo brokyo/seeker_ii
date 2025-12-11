@@ -1,6 +1,6 @@
 -- chord_generator.lua
 -- Shared utility for generating chord notes with octave cycling
--- Used by arpeggio mode and future algorithmic generators
+-- Used by composer mode and future algorithmic generators
 
 local musicutil = require('musicutil')
 

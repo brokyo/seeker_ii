@@ -148,7 +148,7 @@ local function create_grid_ui()
         local focused_lane_id = _seeker.ui_state.get_focused_lane()
         local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-        -- Only draw in tape mode (arp_stage_config handles arpeggio mode)
+        -- Only draw in tape mode (composer type handles composer mode)
         if motif_type ~= TAPE_MODE then
             return
         end

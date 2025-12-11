@@ -36,15 +36,8 @@ function KeyboardRegion.get_active_keyboard()
     end
   end
 
-  -- Lazy-load non-default keyboards using global cache
-  if not _seeker.keyboards[motif_type] then
-    local keyboard_files = {
-      [2] = "lib/grid/keyboards/arpeggio_keyboard",
-      [3] = "lib/modes/motif/sampler/keyboard"
-    }
-    _seeker.keyboards[motif_type] = include(keyboard_files[motif_type])
-  end
-
+  -- Note: Composer (type 2) and Sampler (type 3) are handled by type_registry,
+  -- not by KeyboardRegion. Only Tape mode (type 1) uses KeyboardRegion.
   return _seeker.keyboards[motif_type]
 end
 

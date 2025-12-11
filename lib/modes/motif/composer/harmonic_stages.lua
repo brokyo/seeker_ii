@@ -1,16 +1,17 @@
--- harmonic_config.lua
+-- harmonic_stages.lua
 -- Configure chord progression per stage (harmonic/melodic content only)
 -- Owns chord parameters and provides screen/grid UI
+-- Part of lib/modes/motif/composer/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
-local HarmonicConfig = {}
-HarmonicConfig.__index = HarmonicConfig
+local HarmonicStages = {}
+HarmonicStages.__index = HarmonicStages
 
--- Arpeggio mode identifier value
-local ARPEGGIO_MODE = 2
+-- Composer mode identifier value
+local COMPOSER_MODE = 2
 
 -- Module-level state tracks which stage is being edited
 local editing_state = {
@@ -20,11 +21,11 @@ local editing_state = {
 -- Create stage selection param for each lane
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_harmonic", "LANE " .. lane_idx .. " CHORD STAGE", 1)
+        params:add_group("lane_" .. lane_idx .. "_harmonic_stages", "LANE " .. lane_idx .. " CHORD STAGE", 1)
         params:add_number("lane_" .. lane_idx .. "_harmonic_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_harmonic_stage", function(value)
             editing_state.config_stage = value
-            _seeker.harmonic_config.screen:rebuild_params()
+            _seeker.composer_harmonic_stages.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
     end
@@ -32,7 +33,7 @@ end
 
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
-        id = "HARMONIC_CONFIG",
+        id = "COMPOSER_HARMONIC_STAGES",
         name = "Harmonic",
         description = "Configure pitch and harmonic content for each stage.",
         params = {
@@ -52,11 +53,11 @@ local function create_screen_ui()
         -- Populate harmonic params and stage controls for this stage
         self.params = {
             { separator = true, title = "Chord Base" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_octave" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_root" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_type" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_length" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_inversion" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave" },
             { separator = true, title = "Stage Control" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
@@ -77,11 +78,11 @@ local function create_screen_ui()
         -- Rebuild harmonic params and stage controls for this stage
         self.params = {
             { separator = true, title = "Chord Definition" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_root" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_type" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_length" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_octave" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_root" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_type" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_length" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_inversion" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave" },
             { separator = true, title = "Control" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
@@ -94,7 +95,7 @@ end
 
 local function create_grid_ui()
     local grid_ui = GridUI.new({
-        id = "HARMONIC_CONFIG",
+        id = "COMPOSER_HARMONIC_STAGES",
         layout = {
             x = 1,
             y = 2,
@@ -108,8 +109,8 @@ local function create_grid_ui()
         local focused_lane_id = _seeker.ui_state.get_focused_lane()
         local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-        -- Stage buttons only exist in arpeggio mode
-        if motif_type ~= ARPEGGIO_MODE then
+        -- Stage buttons only exist in composer mode
+        if motif_type ~= COMPOSER_MODE then
             return
         end
 
@@ -119,7 +120,7 @@ local function create_grid_ui()
         end
 
         local current_stage_index = focused_lane.current_stage_index or 1
-        local is_harmonic_section = (_seeker.ui_state.get_current_section() == "HARMONIC_CONFIG")
+        local is_harmonic_section = (_seeker.ui_state.get_current_section() == "COMPOSER_HARMONIC_STAGES")
         local selected_stage = editing_state.config_stage
 
         for i = 0, self.layout.width - 1 do
@@ -157,8 +158,8 @@ local function create_grid_ui()
             local focused_lane_id = _seeker.ui_state.get_focused_lane()
             local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-            -- Only active in arpeggio mode
-            if motif_type ~= ARPEGGIO_MODE then
+            -- Only active in composer mode
+            if motif_type ~= COMPOSER_MODE then
                 return
             end
 
@@ -166,14 +167,14 @@ local function create_grid_ui()
 
             -- Set stage and navigate to section
             params:set("lane_" .. focused_lane_id .. "_harmonic_stage", stage_index)
-            _seeker.ui_state.set_current_section("HARMONIC_CONFIG")
+            _seeker.ui_state.set_current_section("COMPOSER_HARMONIC_STAGES")
         end
     end
 
     return grid_ui
 end
 
-function HarmonicConfig.enter(component)
+function HarmonicStages.enter(component)
     component.screen:enter()
 
     -- Initialize local config stage with current global focused stage
@@ -181,7 +182,7 @@ function HarmonicConfig.enter(component)
     editing_state.config_stage = current_global_stage
 end
 
-function HarmonicConfig.init()
+function HarmonicStages.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui()
@@ -191,4 +192,4 @@ function HarmonicConfig.init()
     return component
 end
 
-return HarmonicConfig
+return HarmonicStages

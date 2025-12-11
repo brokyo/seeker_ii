@@ -8,7 +8,7 @@
 --
 -- DOES NOT create:
 --   - Instrument, MIDI device, sends (created in @lane_config)
---   - Arpeggio params (created in @arpeggio_params)
+--   - Composer params (created in @composer_expression_stages)
 --   - Transform params (created in @stage_config)
 
 local theory = include('lib/motif_core/theory')

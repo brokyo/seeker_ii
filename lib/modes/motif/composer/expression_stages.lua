@@ -1,77 +1,78 @@
--- expression_config.lua
+-- expression_stages.lua
 -- Configure expression/performance parameters per stage
--- Creates all arpeggio params (sequence structure + musical content per stage) and provides screen/grid UI
+-- Creates all composer params (sequence structure + musical content per stage) and provides screen/grid UI
+-- Part of lib/modes/motif/composer/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local arpeggio_sequence = include("lib/components/lanes/stage_types/arpeggio_sequence")
+local composer_generator = include("lib/modes/motif/composer/generator")
 
-local ExpressionConfig = {}
-ExpressionConfig.__index = ExpressionConfig
+local ExpressionStages = {}
+ExpressionStages.__index = ExpressionStages
 
--- Arpeggio mode identifier value
-local ARPEGGIO_MODE = 2
+-- Composer mode identifier value
+local COMPOSER_MODE = 2
 
 -- Module-level state tracks which stage is being edited (shared across UI components)
 local editing_state = {
     config_stage = 1
 }
 
--- Create all arpeggio parameters for a single lane
-local function create_arpeggio_params(lane_id)
-    -- 58 params total: 2 lane-level (sequence structure) + (14 per stage × 4 stages)
-    params:add_group("lane_" .. lane_id .. "_arpeggio", "ARPEGGIO", 58)
+-- Create all composer parameters for a single lane
+local function create_composer_params(lane_id)
+    -- 58 params total: 2 lane-level (sequence structure) + (14 per stage x 4 stages)
+    params:add_group("lane_" .. lane_id .. "_composer", "COMPOSER", 58)
 
     -- Lane-level params (sequence structure)
-    params:add_number("lane_" .. lane_id .. "_arpeggio_num_steps", "Number of Steps", 4, 24, 4)
-    params:add_option("lane_" .. lane_id .. "_arpeggio_step_length", "Step Length",
+    params:add_number("lane_" .. lane_id .. "_composer_num_steps", "Number of Steps", 4, 24, 4)
+    params:add_option("lane_" .. lane_id .. "_composer_step_length", "Step Length",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 14)
 
     -- Stage-level params (musical parameters per stage)
     for stage_idx = 1, 4 do
         -- Chord Definition
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_chord_root", "Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_chord_type", "Type", {"Diatonic", "Major", "Minor", "Sus2", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_chord_length", "Length", 1, 12, 3)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_chord_inversion", "Inversion", {"Root", "1st", "2nd"}, 1)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_octave", "Octave", 1, 7, 3)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_root", "Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_type", "Type", {"Diatonic", "Major", "Minor", "Sus2", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_length", "Length", 1, 12, 3)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_inversion", "Inversion", {"Root", "1st", "2nd"}, 1)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_octave", "Octave", 1, 7, 3)
 
         -- Pattern
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_pattern", "Pattern", {"All", "Odds", "Evens", "Downbeats", "Upbeats", "Sparse"}, 1)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_pattern", "Pattern", {"All", "Odds", "Evens", "Downbeats", "Upbeats", "Sparse"}, 1)
 
         -- Performance Parameters
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_note_duration", "Note Duration", 1, 300, 100, function(param) return param.value .. "%" end)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_note_duration", "Note Duration", 1, 300, 100, function(param) return param.value .. "%" end)
 
         -- Velocity Curve
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_velocity_curve", "Curve",
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_velocity_curve", "Curve",
             {"Flat", "Crescendo", "Decrescendo", "Wave", "Alternating", "Accent First", "Accent Last", "Random"}, 1)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_velocity_min", "Min", 1, 127, 60)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_velocity_max", "Max", 1, 127, 100)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_velocity_min", "Min", 1, 127, 60)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_velocity_max", "Max", 1, 127, 100)
 
         -- Strum Parameters
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_strum_amount", "Amount", 0, 100, 0, function(param) return param.value .. "%" end)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_chord_phasing", "Chord Phasing", {"Off", "On"}, 1)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_strum_curve", "Curve",
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_strum_amount", "Amount", 0, 100, 0, function(param) return param.value .. "%" end)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_phasing", "Chord Phasing", {"Off", "On"}, 1)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_strum_curve", "Curve",
             {"None", "Linear", "Accelerating", "Decelerating", "Sweep"}, 1)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_arpeggio_strum_shape", "Shape",
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_strum_shape", "Shape",
             {"Forward", "Reverse", "Center Out", "Edges In", "Alternating", "Random"}, 1)
     end
 end
 
 local function create_params()
-    -- Create arpeggio params for all lanes
+    -- Create composer params for all lanes
     for i = 1, _seeker.num_lanes do
-        create_arpeggio_params(i)
+        create_composer_params(i)
     end
 
     -- Create stage config params for all lanes
     for lane_idx = 1, _seeker.num_lanes do
-        params:add_group("lane_" .. lane_idx .. "_expression", "LANE " .. lane_idx .. " ARP STAGE", 1)
+        params:add_group("lane_" .. lane_idx .. "_expression_stages", "LANE " .. lane_idx .. " EXPRESSION STAGE", 1)
         params:add_number("lane_" .. lane_idx .. "_expression_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_expression_stage", function(value)
             editing_state.config_stage = value
-            _seeker.expression_config.screen:rebuild_params()
+            _seeker.composer_expression_stages.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
     end
@@ -79,7 +80,7 @@ end
 
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
-        id = "EXPRESSION_CONFIG",
+        id = "COMPOSER_EXPRESSION_STAGES",
         name = "Expression",
         description = "Configure performance and articulation for each stage.",
         params = {
@@ -96,8 +97,8 @@ local function create_screen_ui()
         -- Display current stage number to user
         self.name = "Stage " .. stage_idx .. " Expression"
 
-        -- Populate params using arpeggio sequence module
-        arpeggio_sequence.populate_params(self, lane_idx, stage_idx)
+        -- Populate params using composer generator module
+        composer_generator.populate_params(self, lane_idx, stage_idx)
 
         -- Sync the config stage param with local state
         params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.config_stage)
@@ -113,8 +114,8 @@ local function create_screen_ui()
         -- Display current stage number to user
         self.name = "Stage " .. stage_idx .. " Expression"
 
-        -- Rebuild params using arpeggio sequence module
-        arpeggio_sequence.rebuild_params(self, lane_idx, stage_idx)
+        -- Rebuild params using composer generator module
+        composer_generator.rebuild_params(self, lane_idx, stage_idx)
     end
 
     return norns_ui
@@ -122,7 +123,7 @@ end
 
 local function create_grid_ui()
     local grid_ui = GridUI.new({
-        id = "EXPRESSION_CONFIG",
+        id = "COMPOSER_EXPRESSION_STAGES",
         layout = {
             x = 1,
             y = 3,
@@ -136,8 +137,8 @@ local function create_grid_ui()
         local focused_lane_id = _seeker.ui_state.get_focused_lane()
         local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-        -- Stage buttons only exist in arpeggio mode; tape mode uses this grid space for tuning controls
-        if motif_type ~= ARPEGGIO_MODE then
+        -- Stage buttons only exist in composer mode
+        if motif_type ~= COMPOSER_MODE then
             return
         end
 
@@ -147,7 +148,7 @@ local function create_grid_ui()
         end
 
         local current_stage_index = focused_lane.current_stage_index or 1
-        local is_stage_config_section = (_seeker.ui_state.get_current_section() == "EXPRESSION_CONFIG")
+        local is_stage_config_section = (_seeker.ui_state.get_current_section() == "COMPOSER_EXPRESSION_STAGES")
         local selected_stage = editing_state.config_stage
 
         for i = 0, self.layout.width - 1 do
@@ -185,8 +186,8 @@ local function create_grid_ui()
             local focused_lane_id = _seeker.ui_state.get_focused_lane()
             local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
 
-            -- Only active in arpeggio mode
-            if motif_type ~= ARPEGGIO_MODE then
+            -- Only active in composer mode
+            if motif_type ~= COMPOSER_MODE then
                 return
             end
 
@@ -194,14 +195,14 @@ local function create_grid_ui()
 
             -- Set stage and navigate to section
             params:set("lane_" .. focused_lane_id .. "_expression_stage", stage_index)
-            _seeker.ui_state.set_current_section("EXPRESSION_CONFIG")
+            _seeker.ui_state.set_current_section("COMPOSER_EXPRESSION_STAGES")
         end
     end
 
     return grid_ui
 end
 
-function ExpressionConfig.enter(component)
+function ExpressionStages.enter(component)
     component.screen:enter()
 
     -- Initialize local config stage with current global focused stage
@@ -213,7 +214,7 @@ function ExpressionConfig.enter(component)
     params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.config_stage)
 end
 
-function ExpressionConfig.init()
+function ExpressionStages.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui()
@@ -223,4 +224,4 @@ function ExpressionConfig.init()
     return component
 end
 
-return ExpressionConfig
+return ExpressionStages

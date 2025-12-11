@@ -165,12 +165,12 @@ local function get_scale_chord_roots()
     return note_names
 end
 
--- Update all arpeggio chord root parameters with current scale
+-- Update all composer chord root parameters with current scale
 function theory.update_chord_root_options()
     local chord_roots = get_scale_chord_roots()
 
     for i = 1, 8 do
-        local param_id = "lane_" .. i .. "_arpeggio_chord_root"
+        local param_id = "lane_" .. i .. "_composer_chord_root"
         local param = params:lookup_param(param_id)
         if param then
             -- Update parameter options directly

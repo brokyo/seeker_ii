@@ -38,11 +38,17 @@ local SamplerStageNav = include("lib/modes/motif/sampler/stage_nav")
 local SamplerPlayback = include("lib/modes/motif/sampler/playback")
 local SamplerClear = include("lib/modes/motif/sampler/clear")
 local SamplerVelocity = include("lib/modes/motif/sampler/velocity")
+local SamplerPerform = include("lib/modes/motif/sampler/perform")
+local ComposerKeyboard = include("lib/modes/motif/composer/keyboard")
+local ComposerGenerator = include("lib/modes/motif/composer/generator")
+local ComposerExpressionStages = include("lib/modes/motif/composer/expression_stages")
+local ComposerHarmonicStages = include("lib/modes/motif/composer/harmonic_stages")
+local ComposerPlayback = include("lib/modes/motif/composer/playback")
+local ComposerCreate = include("lib/modes/motif/composer/create")
+local ComposerClear = include("lib/modes/motif/composer/clear")
+local ComposerPerform = include("lib/modes/motif/composer/perform")
 local LaneConfig = include("lib/components/lanes/lane_config")
 local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
-local ExpressionConfig = include("lib/components/lanes/expression_config")
-local HarmonicConfig = include("lib/components/lanes/harmonic_config")
-local SamplerPerform = include("lib/modes/motif/sampler/perform")
 
 -- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
@@ -102,8 +108,6 @@ _seeker = {
   create_motif = nil,
   w_tape = nil,
   tape_stage_config = nil,
-  expression_config = nil,
-  harmonic_config = nil,
   eurorack_config = nil,
   crow_output = nil,
   txo_tr_output = nil,
@@ -111,6 +115,14 @@ _seeker = {
   osc_config = nil,
   lane_config = nil,
   sampler_perform = nil,
+  -- Composer type components
+  composer_keyboard = nil,
+  composer_expression_stages = nil,
+  composer_harmonic_stages = nil,
+  composer_playback = nil,
+  composer_create = nil,
+  composer_clear = nil,
+  composer_perform = nil,
 }
 
 --------------------------------------------------
@@ -168,9 +180,15 @@ function init()
   -- NOTE: LaneConfig must be initialized before stage configs to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
   _seeker.tape_stage_config = TapeStageConfig.init()
-  _seeker.expression_config = ExpressionConfig.init()
-  _seeker.harmonic_config = HarmonicConfig.init()
   _seeker.sampler_perform = SamplerPerform.init()
+  -- Composer type components
+  _seeker.composer_keyboard = ComposerKeyboard.init()
+  _seeker.composer_expression_stages = ComposerExpressionStages.init()
+  _seeker.composer_harmonic_stages = ComposerHarmonicStages.init()
+  _seeker.composer_playback = ComposerPlayback.init()
+  _seeker.composer_create = ComposerCreate.init()
+  _seeker.composer_clear = ComposerClear.init()
+  _seeker.composer_perform = ComposerPerform.init()
 
   -- WTape Mode
   _seeker.w_tape = WTape.init()

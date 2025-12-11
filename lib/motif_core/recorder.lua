@@ -3,7 +3,7 @@
 --
 -- ARCHITECTURE NOTE: This recorder is for TAPE MODE only (real-time capture)
 -- Other motif creation modes use generators, not recording:
--- - Arpeggio mode: arpeggio_generator.lua (params → motif)
+-- - Composer mode: composer/generator.lua (params → motif)
 -- - Future generators (Foundations, Pulsar, etc): lib/_to_assess/generators/ pattern
 --
 -- Supports two recording modes:
@@ -12,7 +12,7 @@
 --
 -- The separation is:
 -- - recorder.lua: Real-time input → events (this file)
--- - generators: Parameters → events (arpeggio_generator.lua, future generators)
+-- - generators: Parameters → events (composer/generator.lua, future generators)
 
 local musicutil = require('musicutil')
 
