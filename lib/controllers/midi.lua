@@ -2,8 +2,7 @@
 -- Handles MIDI input for playing and recording motifs
 
 local MidiInput = {}
-local theory = include("lib/motif_core/theory")
-local KeyboardRegion = include("lib/grid/keyboard_region")
+local theory = include("lib/modes/motif/core/theory")
 local musicutil = require("musicutil")
 
 -- Main MIDI device
@@ -13,20 +12,49 @@ MidiInput.enabled = true
 -- Store active notes for visualization
 MidiInput.active_notes = {}
 
+-- Add MIDI input device selection param
+local function add_params()
+  params:add_group("midi_input", "MIDI INPUT", 1)
+
+  local midi_devices = {"None"}
+  for i = 1, #midi.vports do
+    local name = midi.vports[i].name or string.format("Port %d", i)
+    table.insert(midi_devices, name)
+  end
+
+  params:add{
+    type = "option",
+    id = "midi_input_device",
+    name = "MIDI Input Device",
+    options = midi_devices,
+    default = 2,
+    action = function(value)
+      if value > 1 then
+        MidiInput.set_enabled(true)
+        MidiInput.set_device(value - 1)
+      else
+        MidiInput.set_enabled(false)
+      end
+    end
+  }
+end
+
 -- Initialize MIDI input
 function MidiInput.init()
   print("⌇ MIDI Input initializing")
-  
+
+  add_params()
+
   -- Connect to the default MIDI device (port 1)
   MidiInput.device = midi.connect(1)
-  
+
   -- Set up event handler for incoming MIDI data
   MidiInput.device.event = function(data)
     MidiInput.process_midi_event(data)
   end
-  
+
   print("⌇ MIDI device connected: " .. (MidiInput.device.name or "unknown"))
-  
+
   return MidiInput
 end
 
@@ -133,8 +161,8 @@ function MidiInput.handle_note_on(msg)
     note = musicutil.snap_note_to_array(note, scale_notes)
   end
   
-  -- Map MIDI note to all grid positions
-  local grid_positions = KeyboardRegion.note_to_positions(note)
+  -- Map MIDI note to all grid positions (tape keyboard handles tonnetz mapping)
+  local grid_positions = _seeker.tape.keyboard.grid.note_to_positions(note)
     
   -- Create standardized note event
   local event = MidiInput.create_note_event(note, velocity, grid_positions)
@@ -169,7 +197,7 @@ function MidiInput.handle_note_off(msg)
   
   -- If we don't have a stored position, try to calculate it
   if not grid_positions then
-    grid_positions = KeyboardRegion.note_to_positions(note)
+    grid_positions = _seeker.tape.keyboard.grid.note_to_positions(note)
   end
   
   -- Create standardized note event

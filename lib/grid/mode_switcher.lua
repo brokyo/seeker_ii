@@ -5,7 +5,7 @@
 -- ModeSwitcher owns the physical buttons and delegates navigation to modes
 
 local GridConstants = include("lib/grid/constants")
-local GridModeRegistry = include("lib/grid/modes")
+local GridModeRegistry = include("lib/grid/mode_registry")
 
 local ModeSwitcher = {}
 

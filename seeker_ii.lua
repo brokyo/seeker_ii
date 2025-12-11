@@ -10,30 +10,29 @@ engine.name = "MxSamples"
 
 -- Libraries
 local mxsamples = include("mx.samples/lib/mx.samples")
-local Lane = include("lib/sequencing/lane")
-local conductor = include("lib/sequencing/conductor")
-local lane_archetype = include("lib/sequencing/lane_archetype")
+local Lane = include("lib/modes/motif/sequencing/lane")
+local conductor = include("lib/modes/motif/sequencing/conductor")
+local lane_archetype = include("lib/modes/motif/sequencing/lane_archetype")
 local grid = include("lib/controllers/grid")
-local screen_ui = include("/lib/ui/screen")
-local params_manager = include('/lib/ui/params')
+local screen_ui = include("/lib/ui/screen_router")
 local ui_state = include('/lib/ui/state')
-local MotifRecorder = include("lib/motif_core/recorder")
+local MotifRecorder = include("lib/modes/motif/core/recorder")
 local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
-local SamplerManager = include("lib/sampler/manager")
+local SamplerEngine = include("lib/modes/motif/types/sampler/engine")
 
 -- Global Config Mode
 local Config = include("lib/modes/config/init")
-local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
+local lane_infrastructure = include("lib/modes/motif/sequencing/lane_infrastructure")
 
 -- Motif Infrastructure
 local Keyboard = include("lib/modes/motif/infrastructure/tuning")
 local LaneConfig = include("lib/modes/motif/infrastructure/lane_config")
 
 -- Motif Types
-local Tape = include("lib/modes/motif/tape/init")
-local Sampler = include("lib/modes/motif/sampler/init")
-local Composer = include("lib/modes/motif/composer/init")
+local Tape = include("lib/modes/motif/types/tape/init")
+local Sampler = include("lib/modes/motif/types/sampler/init")
+local Composer = include("lib/modes/motif/types/composer/init")
 
 -- Mode Types
 local WTape = include("lib/modes/wtape/init")
@@ -47,11 +46,9 @@ _seeker = {
   lanes = {},
   active_lane = 1,
   num_lanes = 8,
-  debug_lane = nil,
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
-  keyboards = {}, -- Cache for keyboard instances
   motif_recorder = nil,
   midi_input = nil,
   arc = nil,
@@ -79,26 +76,11 @@ _seeker = {
 function init()
   print('◎ Open The Next')
 
-  -- Add tempo change handler for debugging
-  clock.tempo_change_handler = function(bpm)
-    local current_beat = clock.get_beats()
-    print(string.format("⏱ TEMPO CHANGED TO: %.2f BPM", bpm))
-    print(string.format("   clock.get_tempo() = %.2f", clock.get_tempo()))
-    print(string.format("   clock.get_beat_sec() = %.4f", clock.get_beat_sec()))
-    print(string.format("   clock.get_beats() = %.2f", current_beat))
-
-    -- Debug: show next scheduled event
-    if #_seeker.conductor.events > 0 then
-      local next_event = _seeker.conductor.events[1]
-      print(string.format("   Next event at beat %.2f (%.2f beats away)", next_event.time, next_event.time - current_beat))
-    end
-  end
-
   -- Core audio setup
   _seeker.skeys = mxsamples:new()
   _seeker.motif_recorder = MotifRecorder.new()
-  _seeker.sampler = SamplerManager
-  SamplerManager.init()
+  _seeker.sampler = SamplerEngine
+  SamplerEngine.init()
 
   _seeker.ui_state = ui_state.init()
 
@@ -124,9 +106,7 @@ function init()
   _seeker.eurorack = Eurorack.init()
   _seeker.osc = Osc.init()
   
-  -- UI Setup and global access
-  params_manager.init_params()
-
+  -- UI Setup
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
 

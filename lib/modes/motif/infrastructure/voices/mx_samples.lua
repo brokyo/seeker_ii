@@ -3,7 +3,7 @@
 
 local mx_samples = {}
 
-local function get_instrument_list()
+function mx_samples.get_instrument_list()
     local instruments = {}
     for k, v in pairs(_seeker.skeys.instrument) do
         table.insert(instruments, k)
@@ -29,7 +29,7 @@ function mx_samples.create_params(i)
         _seeker.lanes[i].mx_voice_volume = value
     end)
 
-    local instruments = get_instrument_list()
+    local instruments = mx_samples.get_instrument_list()
     params:add_option("lane_" .. i .. "_instrument", "Instrument", instruments, 1)
 
     -- ADSR envelope controls

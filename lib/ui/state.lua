@@ -1,5 +1,5 @@
 -- state.lua
-local GridModeRegistry = include("lib/grid/modes")
+local GridModeRegistry = include("lib/grid/mode_registry")
 
 local UIState = {}
 

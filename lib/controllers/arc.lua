@@ -20,8 +20,17 @@ function Arc.init()
     device.movement_count = {0, 0, 0, 0}  -- Track movements since last trigger for consistent sensitivity
     device.current_section_param_count = 0
 
+    -- Custom display function - components provide their own arc rendering when active
+    device.display_override = nil
+
     -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
     device.new_section = function(params)
+      -- Use custom display if a component has registered one
+      if device.display_override then
+        device.display_override()
+        return
+      end
+
       -- Update the number of params
       device.current_section_param_count = #params
 
@@ -138,17 +147,18 @@ function Arc.init()
         local current_section_id = _seeker.ui_state.get_current_section()
 
         -- Check if dual keyboard is active and handle velocity encoders
-        -- ONLY when in CREATE_MOTIF section to avoid stealing encoders from other sections
-        local dual_keyboard_active = _seeker.keyboards and _seeker.keyboards.dual_tape and _seeker.keyboards.dual_tape.is_active
-        if current_section_id == "CREATE_MOTIF" and dual_keyboard_active and (n == 3 or n == 4) then
+        -- Dual keyboard takes over encoders 3/4 for velocity regardless of section
+        local dual_state = _seeker.dual_keyboard_state
+        local dual_keyboard_active = dual_state and dual_state.is_active
+        if dual_keyboard_active and (n == 3 or n == 4) then
           -- Encoder 3: Left keyboard velocity
           -- Encoder 4: Right keyboard velocity
           local velocity_delta = direction * 3
 
           if n == 3 then
-            _seeker.keyboards.dual_tape.left_velocity = util.clamp(_seeker.keyboards.dual_tape.left_velocity + velocity_delta, 0, 127)
+            dual_state.left_velocity = util.clamp(dual_state.left_velocity + velocity_delta, 0, 127)
           elseif n == 4 then
-            _seeker.keyboards.dual_tape.right_velocity = util.clamp(_seeker.keyboards.dual_tape.right_velocity + velocity_delta, 0, 127)
+            dual_state.right_velocity = util.clamp(dual_state.right_velocity + velocity_delta, 0, 127)
           end
 
           device.update_dual_keyboard_velocity_display()
@@ -509,9 +519,9 @@ function Arc.init()
       local current_section_id = _seeker.ui_state.get_current_section()
 
       -- Check if dual keyboard is active - if so, use dual keyboard velocity display
-      -- ONLY when in CREATE_MOTIF section
-      local dual_keyboard_active = _seeker.keyboards and _seeker.keyboards.dual_tape and _seeker.keyboards.dual_tape.is_active
-      if current_section_id == "CREATE_MOTIF" and dual_keyboard_active then
+      local dual_state = _seeker.dual_keyboard_state
+      local dual_keyboard_active = dual_state and dual_state.is_active
+      if dual_keyboard_active then
         device.update_dual_keyboard_velocity_display()
         return
       end
@@ -632,32 +642,10 @@ function Arc.init()
 
     -- Update Arc display for dual keyboard velocity control
     device.update_dual_keyboard_velocity_display = function()
-      if not _seeker.keyboards or not _seeker.keyboards.dual_tape or not _seeker.keyboards.dual_tape.is_active then
-        return
+      -- Use display override if registered (component-driven)
+      if device.display_override then
+        device.display_override()
       end
-
-      -- Clear rings 3 and 4
-      for ring = 3, 4 do
-        for i = 1, 64 do
-          device:led(ring, i, 1) -- Dim base
-        end
-      end
-
-      -- Ring 3: Left keyboard velocity (0-127)
-      local left_vel = _seeker.keyboards.dual_tape.left_velocity
-      local left_leds = math.floor((left_vel / 127) * 64)
-      for i = 1, left_leds do
-        device:led(3, i, 10)
-      end
-
-      -- Ring 4: Right keyboard velocity (0-127)
-      local right_vel = _seeker.keyboards.dual_tape.right_velocity
-      local right_leds = math.floor((right_vel / 127) * 64)
-      for i = 1, right_leds do
-        device:led(4, i, 10)
-      end
-
-      device:refresh()
     end
 
 

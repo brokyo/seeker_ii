@@ -4,7 +4,7 @@ local GridAnimations = include("lib/grid/animations")
 local GridLayers = include("lib/grid/layers")
 
 -- Grid modes
-local GridModeRegistry = include("lib/grid/modes")
+local GridModeRegistry = include("lib/grid/mode_registry")
 local ModeSwitcher = include("lib/grid/mode_switcher")
 
 -- Lazy-loaded mode implementations
