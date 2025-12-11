@@ -1,20 +1,15 @@
 -- stage_config.lua
 -- Configure sampler mode stage transformations
--- Provides screen UI, grid button, and parameters for sampler transform stages
+-- Provides screen UI and parameters for sampler transform stages
+-- Accessed via stage_nav buttons (no dedicated grid button)
 -- Part of lib/modes/motif/types/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
-local GridUI = include("lib/ui/base/grid_ui")
-local GridConstants = include("lib/grid/constants")
 
 local SamplerStageConfig = {}
-SamplerStageConfig.__index = SamplerStageConfig
-
--- Motif type constants
-local SAMPLER_MODE = 3
 
 -- Transform types for sampler
-local transform_types = {"None", "Scatter", "Reverse", "Pan Spread", "Filter Sweep"}
+local transform_types = {"None", "Scatter", "Slide", "Reverse", "Pan Spread", "Filter Sweep"}
 
 -- Local state for stage configuration
 local config_state = {
@@ -23,8 +18,8 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        -- 1 config_stage + 4 stages * 7 params per stage = 29
-        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 29)
+        -- 1 config_stage + 4 stages * 10 params per stage = 41
+        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 41)
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)
             config_state.config_stage = value
@@ -43,7 +38,14 @@ local function create_params()
 
             -- Scatter Transform Params
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount", "Scatter Amount",
-                controlspec.new(0, 100, "lin", 1, 10, "%"))
+                controlspec.new(0, 100, "lin", 1, 50, "%"))
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_size", "Scatter Size",
+                controlspec.new(1, 100, "lin", 1, 100, "%"))
+
+            -- Slide Transform Params
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_amount", "Slide Amount",
+                controlspec.new(0, 100, "lin", 1, 25, "%"))
+            params:add_option("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_wrap", "Slide Wrap", {"Off", "On"}, 1)
 
             -- Reverse Transform Params
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob", "Reverse Probability",
@@ -107,6 +109,10 @@ local function create_screen_ui()
         -- Add transform-specific parameters
         if transform_type == "Scatter" then
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_size", arc_multi_float = {10, 5, 1} })
+        elseif transform_type == "Slide" then
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_amount", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_wrap" })
         elseif transform_type == "Reverse" then
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob", arc_multi_float = {10, 5, 1} })
         elseif transform_type == "Pan Spread" then
@@ -129,102 +135,6 @@ local function create_screen_ui()
     return norns_ui
 end
 
-local function create_grid_ui()
-    local grid_ui = GridUI.new({
-        id = "SAMPLER_STAGE_CONFIG",
-        layout = {
-            x = 4,
-            y = 7,
-            width = 1,
-            height = 1
-        }
-    })
-
-    -- Add blink state tracking
-    grid_ui.blink_state = {
-        blink_until = nil,
-        stage_number = nil
-    }
-
-    -- Blink timing configuration
-    grid_ui.blink_config = {
-        on_duration = 0.1,
-        off_duration = 0.1,
-        inter_blink_pause = 0.1
-    }
-
-    -- Trigger blink from outside (called from lane loop starts)
-    function grid_ui:trigger_stage_blink(stage_idx)
-        local cycle_duration = self.blink_config.on_duration + self.blink_config.off_duration + self.blink_config.inter_blink_pause
-        local total_duration = (stage_idx * cycle_duration) - self.blink_config.inter_blink_pause
-
-        self.blink_state.blink_until = util.time() + total_duration
-        self.blink_state.stage_number = stage_idx
-        self.blink_state.start_time = util.time()
-    end
-
-    -- Draw method with blinking animation
-    function grid_ui:draw(layers)
-        local focused_lane_id = _seeker.ui_state.get_focused_lane()
-        local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
-
-        -- Only draw in sampler mode
-        if motif_type ~= SAMPLER_MODE then
-            return
-        end
-
-        local x = self.layout.x
-        local y = self.layout.y
-        local brightness = GridConstants.BRIGHTNESS.LOW
-
-        -- Check if we should blink
-        if self.blink_state.blink_until and util.time() < self.blink_state.blink_until then
-            local elapsed = util.time() - self.blink_state.start_time
-            local stage_number = self.blink_state.stage_number or 1
-
-            local blink_on_duration = self.blink_config.on_duration
-            local blink_off_duration = self.blink_config.off_duration
-            local inter_blink_pause = self.blink_config.inter_blink_pause
-            local cycle_duration = blink_on_duration + blink_off_duration + inter_blink_pause
-
-            local current_blink = math.floor(elapsed / cycle_duration) + 1
-
-            if current_blink <= stage_number then
-                local blink_position = elapsed % cycle_duration
-
-                if blink_position < blink_on_duration then
-                    brightness = GridConstants.BRIGHTNESS.MEDIUM
-                else
-                    brightness = GridConstants.BRIGHTNESS.LOW
-                end
-            else
-                brightness = GridConstants.BRIGHTNESS.LOW
-            end
-        else
-            brightness = GridConstants.BRIGHTNESS.LOW
-        end
-
-        layers.ui[x][y] = brightness
-    end
-
-    -- Navigate to sampler stage config screen
-    function grid_ui:handle_key(x, y, z)
-        if z == 1 then
-            local focused_lane_id = _seeker.ui_state.get_focused_lane()
-            local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
-
-            -- Only active in sampler mode
-            if motif_type ~= SAMPLER_MODE then
-                return
-            end
-
-            _seeker.ui_state.set_current_section("SAMPLER_STAGE_CONFIG")
-        end
-    end
-
-    return grid_ui
-end
-
 function SamplerStageConfig.enter(component)
     component.screen:enter()
 
@@ -239,8 +149,8 @@ end
 
 function SamplerStageConfig.init()
     local component = {
-        screen = create_screen_ui(),
-        grid = create_grid_ui()
+        screen = create_screen_ui()
+        -- No grid button - stage config accessed via stage_nav buttons
     }
     create_params()
 
