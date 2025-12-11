@@ -10,7 +10,7 @@ local types = {}
 local function get_type(motif_type)
   if not types[motif_type] then
     local type_paths = {
-      [1] = nil,  -- TAPE: not yet extracted
+      [1] = "lib/modes/motif/tape/type",      -- TAPE
       [2] = "lib/modes/motif/composer/type",  -- COMPOSER
       [3] = "lib/modes/motif/sampler/type"    -- SAMPLER
     }

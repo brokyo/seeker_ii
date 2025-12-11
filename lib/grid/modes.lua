@@ -39,7 +39,15 @@ GridModeRegistry.MODES = {
       "VELOCITY",
       "TUNING",
       "LANE_CONFIG",
+      -- Tape type sections
+      "TAPE_VELOCITY",
+      "TAPE_STAGE_NAV",
+      "TAPE_PLAYBACK",
+      "TAPE_CREATE",
+      "TAPE_CLEAR",
+      "TAPE_PERFORM",
       "TAPE_STAGE_CONFIG",
+      -- Sampler type sections
       "SAMPLER_CHOP_CONFIG",
       "SAMPLER_CREATE",
       "SAMPLER_STAGE_CONFIG",
@@ -47,6 +55,7 @@ GridModeRegistry.MODES = {
       "SAMPLER_CLEAR",
       "SAMPLER_VELOCITY",
       "SAMPLER_PERFORM",
+      -- Composer type sections
       "COMPOSER_CREATE",
       "COMPOSER_CLEAR",
       "COMPOSER_PLAYBACK",

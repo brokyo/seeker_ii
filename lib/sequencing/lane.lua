@@ -540,26 +540,34 @@ end
 --   Send MIDI or engine note_on
 ---------------------------------------------------------
 function Lane:on_note_on(event)
-  -- Check performance mute (sampler and composer modes)
+  -- Check performance mute by motif type
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
+  -- Tape performance
+  local tape_performance = _seeker and _seeker.tape_perform
+  if motif_type == TAPE_MODE and tape_performance and tape_performance.is_muted(self.id) then
+    return
+  end
+
   -- Sampler performance
-  local sampler_perf = _seeker and _seeker.sampler_perform
-  if motif_type == SAMPLER_MODE and sampler_perf and sampler_perf.is_muted(self.id) then
+  local sampler_performance = _seeker and _seeker.sampler_perform
+  if motif_type == SAMPLER_MODE and sampler_performance and sampler_performance.is_muted(self.id) then
     return
   end
 
   -- Composer performance
-  local composer_perf = _seeker and _seeker.composer_perform
-  if motif_type == COMPOSER_MODE and composer_perf and composer_perf.is_muted(self.id) then
+  local composer_performance = _seeker and _seeker.composer_perform
+  if motif_type == COMPOSER_MODE and composer_performance and composer_performance.is_muted(self.id) then
     return
   end
 
-  -- Apply performance velocity multiplier (sampler and composer modes)
-  if motif_type == SAMPLER_MODE and sampler_perf then
-    event.velocity = event.velocity * sampler_perf.get_velocity_multiplier(self.id)
-  elseif motif_type == COMPOSER_MODE and composer_perf then
-    event.velocity = event.velocity * composer_perf.get_velocity_multiplier(self.id)
+  -- Apply performance velocity multiplier by motif type
+  if motif_type == TAPE_MODE and tape_performance then
+    event.velocity = event.velocity * tape_performance.get_velocity_multiplier(self.id)
+  elseif motif_type == SAMPLER_MODE and sampler_performance then
+    event.velocity = event.velocity * sampler_performance.get_velocity_multiplier(self.id)
+  elseif motif_type == COMPOSER_MODE and composer_performance then
+    event.velocity = event.velocity * composer_performance.get_velocity_multiplier(self.id)
   end
 
   -- Get the note, applying playback offset if this is a playback event

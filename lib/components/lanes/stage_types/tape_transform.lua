@@ -24,15 +24,13 @@ end
 
 -- Populate initial parameters when entering stage config
 function TapeTransform.populate_params(ui, lane_idx, stage_idx)
+  -- Initial params - rebuild_params will add transform-specific and config sections
   local param_table = {
     { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-    { id = "lane_" .. lane_idx .. "_tape_config_stage" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
     { separator = true, title = "Transform" },
     { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" }
   }
 
   ui.params = param_table
@@ -58,13 +56,10 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
 
   local param_table = {
     { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-    { id = "lane_" .. lane_idx .. "_tape_config_stage" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
     { separator = true, title = "Transform" },
     { id = "lane_" .. lane_idx .. "_transform_stage_" .. stage_idx },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" }
   }
 
   -- Add transform-specific parameters
@@ -153,6 +148,11 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_inversion"
     })
   end
+
+  -- Config section with reset and loop count
+  table.insert(param_table, { separator = true, title = "Config" })
+  table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" })
+  table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" })
 
   -- Update the UI with the new parameter table
   ui.params = param_table

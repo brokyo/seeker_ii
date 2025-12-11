@@ -19,10 +19,12 @@ local lane_infrastructure = {}
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
 
-    params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 20)
+    params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 24)
     -- Create four stages per lane with their defaults
-    -- NB: Many of these params are not (yet?) available on the front end. Most notably: loop count and trigger
     for stage_idx = 1, 4 do
+        -- Stage volume (used by all motif types)
+        params:add_control("lane_" .. i .. "_stage_" .. stage_idx .. "_volume", "Stage " .. stage_idx .. " Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
+
         params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", "Loops", 1, 10, 2)
         params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)

@@ -94,27 +94,56 @@ local function create_params()
     params:add_number("overdub_midi_note", "Overdub Toggle Note", 0, 127, 0)
 end
 
+-- Motif type constants
+local MOTIF_TYPE_TAPE = 1
+
 local function create_screen_ui()
-    return NornsUI.new({
+    local norns_ui = NornsUI.new({
         id = "KEYBOARD",
         name = "Keyboard Config",
-        description = "Select the scale. Set keyboard intervals. Connect MIDI.",
-        params = {
+        description = "Select the scale. Set keyboard intervals. Connect MIDI. Tape mode shows lane tuning.",
+        params = {}
+    })
+
+    -- Dynamic parameter rebuilding based on motif type
+    norns_ui.rebuild_params = function(self)
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        local motif_type = params:get("lane_" .. lane_idx .. "_motif_type")
+
+        local param_table = {
             { separator = true, title = "Actions" },
             { id = "keyboard_sync_all_clocks", is_action = true },
             { separator = true, title = "Tuning" },
             { id = "tuning_preset" },
             { id = "root_note" },
-            { id = "scale_type" },
-            { separator = true, title = "Layout" },
-            { id = "keyboard_column_steps" },
-            { id = "keyboard_row_steps" },
-            { separator = true, title = "MIDI" },
-            { id = "snap_midi_to_scale" },
-            { id = "record_midi_note" },
-            { id = "overdub_midi_note" }
+            { id = "scale_type" }
         }
-    })
+
+        -- Tape mode: show lane-specific keyboard tuning (octave, grid offset)
+        if motif_type == MOTIF_TYPE_TAPE then
+            table.insert(param_table, { separator = true, title = "Lane " .. lane_idx .. " Tuning" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_keyboard_octave" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_grid_offset" })
+        end
+
+        table.insert(param_table, { separator = true, title = "Layout" })
+        table.insert(param_table, { id = "keyboard_column_steps" })
+        table.insert(param_table, { id = "keyboard_row_steps" })
+        table.insert(param_table, { separator = true, title = "MIDI" })
+        table.insert(param_table, { id = "snap_midi_to_scale" })
+        table.insert(param_table, { id = "record_midi_note" })
+        table.insert(param_table, { id = "overdub_midi_note" })
+
+        self.params = param_table
+    end
+
+    local original_enter = norns_ui.enter
+    norns_ui.enter = function(self)
+        self:rebuild_params()
+        original_enter(self)
+    end
+
+    return norns_ui
 end
 
 local function create_grid_ui()

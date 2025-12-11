@@ -47,8 +47,15 @@ local ComposerPlayback = include("lib/modes/motif/composer/playback")
 local ComposerCreate = include("lib/modes/motif/composer/create")
 local ComposerClear = include("lib/modes/motif/composer/clear")
 local ComposerPerform = include("lib/modes/motif/composer/perform")
+local TapeKeyboard = include("lib/modes/motif/tape/keyboard")
+local TapeVelocity = include("lib/modes/motif/tape/velocity")
+local TapeStageNav = include("lib/modes/motif/tape/stage_nav")
+local TapePlayback = include("lib/modes/motif/tape/playback")
+local TapeCreate = include("lib/modes/motif/tape/create")
+local TapeClear = include("lib/modes/motif/tape/clear")
+local TapePerform = include("lib/modes/motif/tape/perform")
+local TapeStageConfig = include("lib/modes/motif/tape/stage_config")
 local LaneConfig = include("lib/components/lanes/lane_config")
-local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
 
 -- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
@@ -123,6 +130,15 @@ _seeker = {
   composer_create = nil,
   composer_clear = nil,
   composer_perform = nil,
+  -- Tape type components
+  tape_keyboard = nil,
+  tape_velocity = nil,
+  tape_stage_nav = nil,
+  tape_playback = nil,
+  tape_create = nil,
+  tape_clear = nil,
+  tape_perform = nil,
+  tape_stage_config = nil,
 }
 
 --------------------------------------------------
@@ -179,7 +195,6 @@ function init()
   _seeker.sampler_velocity = SamplerVelocity.init()
   -- NOTE: LaneConfig must be initialized before stage configs to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
-  _seeker.tape_stage_config = TapeStageConfig.init()
   _seeker.sampler_perform = SamplerPerform.init()
   -- Composer type components
   _seeker.composer_keyboard = ComposerKeyboard.init()
@@ -189,6 +204,15 @@ function init()
   _seeker.composer_create = ComposerCreate.init()
   _seeker.composer_clear = ComposerClear.init()
   _seeker.composer_perform = ComposerPerform.init()
+  -- Tape type components
+  _seeker.tape_keyboard = TapeKeyboard.init()
+  _seeker.tape_velocity = TapeVelocity.init()
+  _seeker.tape_stage_nav = TapeStageNav.init()
+  _seeker.tape_playback = TapePlayback.init()
+  _seeker.tape_create = TapeCreate.init()
+  _seeker.tape_clear = TapeClear.init()
+  _seeker.tape_perform = TapePerform.init()
+  _seeker.tape_stage_config = TapeStageConfig.init()
 
   -- WTape Mode
   _seeker.w_tape = WTape.init()
