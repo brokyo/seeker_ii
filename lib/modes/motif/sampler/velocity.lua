@@ -22,8 +22,8 @@ local function create_params()
 
   params:add_number("sampler_velocity_selected", "Selected", 1, 4, 3)
   params:set_action("sampler_velocity_selected", function(value)
-    if _seeker and _seeker.sampler_velocity and _seeker.sampler_velocity.screen then
-      _seeker.sampler_velocity.screen:rebuild_params()
+    if _seeker and _seeker.sampler_type and _seeker.sampler_type.velocity and _seeker.sampler_type.velocity.screen then
+      _seeker.sampler_type.velocity.screen:rebuild_params()
     end
     if _seeker and _seeker.screen_ui then
       _seeker.screen_ui.set_needs_redraw()

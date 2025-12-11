@@ -236,8 +236,8 @@ local function create_grid_ui()
         current_lane:clear()
 
         -- Update parameter visibility based on motif state
-        if _seeker.composer_create and _seeker.composer_create.screen then
-            _seeker.composer_create.screen:rebuild_params()
+        if _seeker.composer and _seeker.composer.create and _seeker.composer.create.screen then
+            _seeker.composer.create.screen:rebuild_params()
         end
 
         -- Generate composer sequence from current step pattern using Stage 1 parameters
@@ -250,8 +250,8 @@ local function create_grid_ui()
         end
 
         -- Update parameter visibility based on motif state
-        if _seeker.composer_create and _seeker.composer_create.screen then
-            _seeker.composer_create.screen:rebuild_params()
+        if _seeker.composer and _seeker.composer.create and _seeker.composer.create.screen then
+            _seeker.composer.create.screen:rebuild_params()
         end
 
         _seeker.screen_ui.set_needs_redraw()

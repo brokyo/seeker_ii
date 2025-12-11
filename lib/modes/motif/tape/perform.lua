@@ -87,8 +87,8 @@ local function create_params()
 
     params:add_option("lane_" .. i .. "_tape_performance_mode", "Mode", mode_names, MODE_MUTE)
     params:set_action("lane_" .. i .. "_tape_performance_mode", function(value)
-      if _seeker and _seeker.tape_perform and _seeker.tape_perform.screen then
-        _seeker.tape_perform.screen:rebuild_params()
+      if _seeker and _seeker.tape and _seeker.tape.perform and _seeker.tape.perform.screen then
+        _seeker.tape.perform.screen:rebuild_params()
       end
       if _seeker and _seeker.screen_ui then
         _seeker.screen_ui.set_needs_redraw()

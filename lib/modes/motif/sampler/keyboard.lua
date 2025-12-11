@@ -9,8 +9,7 @@ local GridLayers = include("lib/grid/layers")
 
 local SamplerKeyboard = {}
 
--- Note: Perform state is accessed via _seeker.sampler_perform
--- to ensure we use the single initialized instance
+-- Note: Perform state is accessed via _seeker.sampler_type.perform
 
 -- Playback mode constants for sampler behavior
 local MODE_GATE = 1
@@ -76,17 +75,17 @@ local function pad_on(x, y)
 
   if not is_recording then
     -- Navigate to chop configuration screen
-    if _seeker and _seeker.sampler_chop_config then
-      _seeker.sampler_chop_config.select_pad(pad)
+    if _seeker and _seeker.sampler_type and _seeker.sampler_type.chop_config then
+      _seeker.sampler_type.chop_config.select_pad(pad)
     end
   end
 
   -- Trigger sample playback (unless muted by perform button)
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
-    local perf = _seeker.sampler_perform
+    local perf = _seeker.sampler_type and _seeker.sampler_type.perform
     if not perf or not perf.is_muted(lane) then
-      local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
+      local velocity = _seeker.sampler_type and _seeker.sampler_type.velocity and _seeker.sampler_type.velocity.get_current_velocity() or 127
       if perf then
         velocity = velocity * perf.get_velocity_multiplier(lane)
       end
@@ -96,7 +95,7 @@ local function pad_on(x, y)
 
   -- Record pad event if motif recorder is active
   if is_recording then
-    local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
+    local velocity = _seeker.sampler_type and _seeker.sampler_type.velocity and _seeker.sampler_type.velocity.get_current_velocity() or 127
     local event = create_note_event(x, y, pad, velocity)
     _seeker.motif_recorder:on_note_on(event)
   end
@@ -139,8 +138,8 @@ local function create_grid_ui()
         local current_section = _seeker.ui_state.get_current_section()
         if current_section == "SAMPLER_CHOP_CONFIG" then
           local pad = position_to_pad(x, y)
-          if _seeker and _seeker.sampler_chop_config then
-            local selected_pad = _seeker.sampler_chop_config.get_selected_pad()
+          if _seeker and _seeker.sampler_type and _seeker.sampler_type.chop_config then
+            local selected_pad = _seeker.sampler_type.chop_config.get_selected_pad()
             if pad == selected_pad then
               brightness = GridConstants.BRIGHTNESS.HIGH
             end

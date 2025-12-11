@@ -6,8 +6,7 @@ local forms = include('lib/motif_core/forms')
 local tape_transform = include('lib/components/lanes/stage_types/tape_transform')
 local composer_generator = include('lib/modes/motif/composer/generator')
 local sampler_transforms = include('lib/modes/motif/sampler/transforms')
--- Note: Performance state is accessed via _seeker.sampler_perform and _seeker.composer_perform
--- at runtime to ensure we use the single initialized instances
+-- Note: Performance state is accessed via _seeker.{type}.perform at runtime
 
 -- Motif type constants
 local TAPE_MODE = 1
@@ -470,10 +469,10 @@ function Lane:schedule_stage(stage_index, start_time)
     local motif_type = params:get("lane_" .. self.id .. "_motif_type")
     local stage_config = nil
 
-    if motif_type == 1 and _seeker.tape_stage_config then
-      stage_config = _seeker.tape_stage_config
-    elseif motif_type == 3 and _seeker.sampler_stage_config then
-      stage_config = _seeker.sampler_stage_config
+    if motif_type == 1 and _seeker.tape and _seeker.tape.stage_config then
+      stage_config = _seeker.tape.stage_config
+    elseif motif_type == 3 and _seeker.sampler_type and _seeker.sampler_type.stage_config then
+      stage_config = _seeker.sampler_type.stage_config
     end
 
     if stage_config and stage_config.grid then
@@ -544,19 +543,19 @@ function Lane:on_note_on(event)
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
   -- Tape performance
-  local tape_performance = _seeker and _seeker.tape_perform
+  local tape_performance = _seeker and _seeker.tape and _seeker.tape.perform
   if motif_type == TAPE_MODE and tape_performance and tape_performance.is_muted(self.id) then
     return
   end
 
   -- Sampler performance
-  local sampler_performance = _seeker and _seeker.sampler_perform
+  local sampler_performance = _seeker and _seeker.sampler_type and _seeker.sampler_type.perform
   if motif_type == SAMPLER_MODE and sampler_performance and sampler_performance.is_muted(self.id) then
     return
   end
 
   -- Composer performance
-  local composer_performance = _seeker and _seeker.composer_perform
+  local composer_performance = _seeker and _seeker.composer and _seeker.composer.perform
   if motif_type == COMPOSER_MODE and composer_performance and composer_performance.is_muted(self.id) then
     return
   end
@@ -1185,7 +1184,7 @@ function Lane:get_active_positions()
       return positions
     end
 
-    local composer_keyboard = _seeker.composer_keyboard.grid
+    local composer_keyboard = _seeker.composer.keyboard.grid
     for key, note in pairs(self.active_notes) do
       local current_positions = composer_keyboard.note_to_positions(note.note)
       if current_positions then

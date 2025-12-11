@@ -72,7 +72,7 @@ local function create_params()
         params:add_number("lane_" .. lane_idx .. "_expression_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_expression_stage", function(value)
             editing_state.selected_stage_index = value
-            _seeker.composer_expression_stages.screen:rebuild_params()
+            _seeker.composer.expression_stages.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
     end

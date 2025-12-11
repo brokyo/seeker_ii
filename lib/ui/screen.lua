@@ -11,7 +11,7 @@ ScreenUI.state = {
 
 ScreenUI.sections = {}
 
-function ScreenUI.init()  
+function ScreenUI.init()
   ScreenUI.sections = {
     -- Global
     CONFIG = _seeker.config.screen,
@@ -19,28 +19,6 @@ function ScreenUI.init()
     -- Keyboard Mode
     KEYBOARD = _seeker.keyboard.screen,
     LANE_CONFIG = _seeker.lane_config.screen,
-    TAPE_STAGE_CONFIG = _seeker.tape_stage_config.screen,
-    SAMPLER_CHOP_CONFIG = _seeker.sampler_chop_config.screen,
-    SAMPLER_CREATE = _seeker.sampler_create.screen,
-    SAMPLER_STAGE_CONFIG = _seeker.sampler_stage_config.screen,
-    SAMPLER_PLAYBACK = _seeker.sampler_playback.screen,
-    SAMPLER_CLEAR = _seeker.sampler_clear.screen,
-    SAMPLER_VELOCITY = _seeker.sampler_velocity.screen,
-    SAMPLER_PERFORM = _seeker.sampler_perform.screen,
-    -- Tape type screens
-    TAPE_VELOCITY = _seeker.tape_velocity.screen,
-    TAPE_STAGE_NAV = _seeker.tape_stage_nav.screen,
-    TAPE_PLAYBACK = _seeker.tape_playback.screen,
-    TAPE_CREATE = _seeker.tape_create.screen,
-    TAPE_CLEAR = _seeker.tape_clear.screen,
-    TAPE_PERFORM = _seeker.tape_perform.screen,
-    -- Composer type screens
-    COMPOSER_EXPRESSION_STAGES = _seeker.composer_expression_stages.screen,
-    COMPOSER_HARMONIC_STAGES = _seeker.composer_harmonic_stages.screen,
-    COMPOSER_PLAYBACK = _seeker.composer_playback.screen,
-    COMPOSER_CREATE = _seeker.composer_create.screen,
-    COMPOSER_CLEAR = _seeker.composer_clear.screen,
-    COMPOSER_PERFORM = _seeker.composer_perform.screen,
 
     -- WTape Mode
     WTAPE = _seeker.w_tape.screen,
@@ -65,6 +43,13 @@ function ScreenUI.init()
     OSC_LFO = _seeker.osc_lfo.screen,
     OSC_TRIGGER = _seeker.osc_trigger.screen,
   }
+
+  -- Auto-register motif type sections
+  for _, type_module in ipairs({_seeker.tape, _seeker.sampler_type, _seeker.composer}) do
+    for section_id, screen in pairs(type_module.sections) do
+      ScreenUI.sections[section_id] = screen
+    end
+  end
   
   ScreenSaver.init()
   

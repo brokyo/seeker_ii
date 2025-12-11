@@ -140,8 +140,8 @@ local function create_grid_ui()
           lane:clear()
 
           -- Rebuild sampler create params
-          if _seeker.sampler_create and _seeker.sampler_create.screen then
-            _seeker.sampler_create.screen:rebuild_params()
+          if _seeker.sampler_type and _seeker.sampler_type.create and _seeker.sampler_type.create.screen then
+            _seeker.sampler_type.create.screen:rebuild_params()
           end
         end
 

@@ -63,7 +63,7 @@ function TapeKeyboard.note_on(x, y)
   local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local keyboard_octave = params:get("lane_" .. _seeker.ui_state.get_focused_lane() .. "_keyboard_octave")
   local note = theory.grid_to_note(x, y, keyboard_octave)
-  local velocity = _seeker.tape_velocity.get_current_velocity()
+  local velocity = _seeker.tape.velocity.get_current_velocity()
 
   -- Print the note being played for debugging
   if note then

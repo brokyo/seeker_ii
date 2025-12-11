@@ -23,14 +23,14 @@ local function create_params()
         params:add_number("lane_" .. lane_idx .. "_tape_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_tape_config_stage", function(value)
             config_state.selected_stage = value
-            _seeker.tape_stage_config.screen:rebuild_params()
+            _seeker.tape.stage_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
 
         for stage_idx = 1, 4 do
             params:add_option("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, "Transform", transform_types, 1)
             params:set_action("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx, function(value)
-                _seeker.tape_stage_config.screen:rebuild_params()
+                _seeker.tape.stage_config.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end)
 

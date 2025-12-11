@@ -2,6 +2,9 @@
 -- awakening.systems
 --
 -- **P*ho**sph*en*e***sn*ap***
+--
+-- k2 for descriptions
+
 
 engine.name = "MxSamples"
 
@@ -25,32 +28,12 @@ local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
 
 -- Components: Keyboard Mode
 local Keyboard = include("lib/components/keyboard/keyboard_config")
-local SamplerKeyboard = include("lib/modes/motif/sampler/keyboard")
-local SamplerChopConfig = include("lib/modes/motif/sampler/chop_config")
-local SamplerCreate = include("lib/modes/motif/sampler/create")
-local SamplerStageConfig = include("lib/modes/motif/sampler/stage_config")
-local SamplerStageNav = include("lib/modes/motif/sampler/stage_nav")
-local SamplerPlayback = include("lib/modes/motif/sampler/playback")
-local SamplerClear = include("lib/modes/motif/sampler/clear")
-local SamplerVelocity = include("lib/modes/motif/sampler/velocity")
-local SamplerPerform = include("lib/modes/motif/sampler/perform")
-local ComposerKeyboard = include("lib/modes/motif/composer/keyboard")
-local ComposerGenerator = include("lib/modes/motif/composer/generator")
-local ComposerExpressionStages = include("lib/modes/motif/composer/expression_stages")
-local ComposerHarmonicStages = include("lib/modes/motif/composer/harmonic_stages")
-local ComposerPlayback = include("lib/modes/motif/composer/playback")
-local ComposerCreate = include("lib/modes/motif/composer/create")
-local ComposerClear = include("lib/modes/motif/composer/clear")
-local ComposerPerform = include("lib/modes/motif/composer/perform")
-local TapeKeyboard = include("lib/modes/motif/tape/keyboard")
-local TapeVelocity = include("lib/modes/motif/tape/velocity")
-local TapeStageNav = include("lib/modes/motif/tape/stage_nav")
-local TapePlayback = include("lib/modes/motif/tape/playback")
-local TapeCreate = include("lib/modes/motif/tape/create")
-local TapeClear = include("lib/modes/motif/tape/clear")
-local TapePerform = include("lib/modes/motif/tape/perform")
-local TapeStageConfig = include("lib/modes/motif/tape/stage_config")
 local LaneConfig = include("lib/components/lanes/lane_config")
+
+-- Motif Types
+local Tape = include("lib/modes/motif/tape/init")
+local Sampler = include("lib/modes/motif/sampler/init")
+local Composer = include("lib/modes/motif/composer/init")
 
 -- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
@@ -92,45 +75,23 @@ _seeker = {
   midi_input = nil,
   arc = nil,
   sampler = nil,
-  sampler_keyboard = nil,
-  sampler_chop_config = nil,
-  sampler_create = nil,
-  sampler_stage_config = nil,
-  sampler_stage_nav = nil,
-  sampler_playback = nil,
-  sampler_clear = nil,
-  sampler_velocity = nil,
 
   current_mode = nil,
 
   -- Component Approach
   config = nil,
   w_tape = nil,
-  tape_stage_config = nil,
   eurorack_config = nil,
   crow_output = nil,
   txo_tr_output = nil,
   txo_cv_output = nil,
   osc_config = nil,
   lane_config = nil,
-  sampler_perform = nil,
-  -- Composer type components
-  composer_keyboard = nil,
-  composer_expression_stages = nil,
-  composer_harmonic_stages = nil,
-  composer_playback = nil,
-  composer_create = nil,
-  composer_clear = nil,
-  composer_perform = nil,
-  -- Tape type components
-  tape_keyboard = nil,
-  tape_velocity = nil,
-  tape_stage_nav = nil,
-  tape_playback = nil,
-  tape_create = nil,
-  tape_clear = nil,
-  tape_perform = nil,
-  tape_stage_config = nil,
+
+  -- Motif Types (initialized via type/init.lua)
+  tape = nil,
+  sampler_type = nil,
+  composer = nil,
 }
 
 --------------------------------------------------
@@ -172,34 +133,13 @@ function init()
 
   -- Keyboard Mode
   _seeker.keyboard = Keyboard.init()
-  _seeker.sampler_keyboard = SamplerKeyboard.init()
-  _seeker.sampler_chop_config = SamplerChopConfig.init()
-  _seeker.sampler_create = SamplerCreate.init()
-  _seeker.sampler_stage_config = SamplerStageConfig.init()
-  _seeker.sampler_stage_nav = SamplerStageNav.init()
-  _seeker.sampler_playback = SamplerPlayback.init()
-  _seeker.sampler_clear = SamplerClear.init()
-  _seeker.sampler_velocity = SamplerVelocity.init()
-  -- NOTE: LaneConfig must be initialized before stage configs to avoid race conditions
+  -- NOTE: LaneConfig must be initialized before type modules to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
-  _seeker.sampler_perform = SamplerPerform.init()
-  -- Composer type components
-  _seeker.composer_keyboard = ComposerKeyboard.init()
-  _seeker.composer_expression_stages = ComposerExpressionStages.init()
-  _seeker.composer_harmonic_stages = ComposerHarmonicStages.init()
-  _seeker.composer_playback = ComposerPlayback.init()
-  _seeker.composer_create = ComposerCreate.init()
-  _seeker.composer_clear = ComposerClear.init()
-  _seeker.composer_perform = ComposerPerform.init()
-  -- Tape type components
-  _seeker.tape_keyboard = TapeKeyboard.init()
-  _seeker.tape_velocity = TapeVelocity.init()
-  _seeker.tape_stage_nav = TapeStageNav.init()
-  _seeker.tape_playback = TapePlayback.init()
-  _seeker.tape_create = TapeCreate.init()
-  _seeker.tape_clear = TapeClear.init()
-  _seeker.tape_perform = TapePerform.init()
-  _seeker.tape_stage_config = TapeStageConfig.init()
+
+  -- Motif Types
+  _seeker.tape = Tape.init()
+  _seeker.sampler_type = Sampler.init()
+  _seeker.composer = Composer.init()
 
   -- WTape Mode
   _seeker.w_tape = WTape.init()

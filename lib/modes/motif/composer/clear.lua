@@ -145,8 +145,8 @@ local function create_grid_ui()
                     lane:clear()
 
                     -- Update create screen parameter visibility based on motif state
-                    if _seeker.composer_create and _seeker.composer_create.screen then
-                        _seeker.composer_create.screen:rebuild_params()
+                    if _seeker.composer and _seeker.composer.create and _seeker.composer.create.screen then
+                        _seeker.composer.create.screen:rebuild_params()
                     end
                 end
 

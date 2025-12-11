@@ -406,8 +406,8 @@ local function create_grid_ui()
             current_lane:play()
         end
 
-        if _seeker.tape_create and _seeker.tape_create.screen then
-            _seeker.tape_create.screen:rebuild_params()
+        if _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
+            _seeker.tape.create.screen:rebuild_params()
         end
 
         _seeker.screen_ui.set_needs_redraw()
@@ -424,8 +424,8 @@ local function create_grid_ui()
         else
             current_lane:clear()
 
-            if _seeker.tape_create and _seeker.tape_create.screen then
-                _seeker.tape_create.screen:rebuild_params()
+            if _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
+                _seeker.tape.create.screen:rebuild_params()
             end
 
             _seeker.motif_recorder:set_recording_mode(1)

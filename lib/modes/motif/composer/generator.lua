@@ -194,7 +194,7 @@ local function generate_motif(lane_id, stage_id)
   end
 
   -- Get composer keyboard to read step states
-  local composer_keyboard = _seeker.composer_keyboard.grid
+  local composer_keyboard = _seeker.composer.keyboard.grid
 
   -- Collect active steps
   local active_steps = {}

@@ -20,8 +20,8 @@ local function create_params()
 
   params:add_number("tape_velocity_selected", "Selected", 1, 4, 3)
   params:set_action("tape_velocity_selected", function(value)
-    if _seeker and _seeker.tape_velocity and _seeker.tape_velocity.screen then
-      _seeker.tape_velocity.screen:rebuild_params()
+    if _seeker and _seeker.tape and _seeker.tape.velocity and _seeker.tape.velocity.screen then
+      _seeker.tape.velocity.screen:rebuild_params()
     end
     if _seeker and _seeker.screen_ui then
       _seeker.screen_ui.set_needs_redraw()

@@ -25,7 +25,7 @@ local function create_params()
         params:add_number("lane_" .. lane_idx .. "_harmonic_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_harmonic_stage", function(value)
             editing_state.selected_stage_index = value
-            _seeker.composer_harmonic_stages.screen:rebuild_params()
+            _seeker.composer.harmonic_stages.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
     end

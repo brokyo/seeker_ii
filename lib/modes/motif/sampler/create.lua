@@ -336,8 +336,8 @@ local function create_grid_ui()
             -- Start new recording
             current_lane:clear()
 
-            if _seeker.sampler_create and _seeker.sampler_create.screen then
-                _seeker.sampler_create.screen:rebuild_params()
+            if _seeker.sampler_type and _seeker.sampler_type.create and _seeker.sampler_type.create.screen then
+                _seeker.sampler_type.create.screen:rebuild_params()
             end
 
             _seeker.motif_recorder:set_recording_mode(1)
@@ -367,8 +367,8 @@ local function create_grid_ui()
             current_lane:play()
         end
 
-        if _seeker.sampler_create and _seeker.sampler_create.screen then
-            _seeker.sampler_create.screen:rebuild_params()
+        if _seeker.sampler_type and _seeker.sampler_type.create and _seeker.sampler_type.create.screen then
+            _seeker.sampler_type.create.screen:rebuild_params()
         end
 
         _seeker.screen_ui.set_needs_redraw()

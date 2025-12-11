@@ -128,8 +128,8 @@ local function create_grid_ui()
           lane:clear()
 
           -- Update create screen parameter visibility
-          if _seeker.tape_create and _seeker.tape_create.screen then
-            _seeker.tape_create.screen:rebuild_params()
+          if _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
+            _seeker.tape.create.screen:rebuild_params()
           end
         end
 

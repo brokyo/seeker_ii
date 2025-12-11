@@ -77,8 +77,8 @@ function UIState.set_focused_lane(lane_idx)
   end
 
   -- Rebuild tape_create screen to show/hide duration based on new lane's motif state
-  if _seeker.tape_create and _seeker.tape_create.screen then
-    _seeker.tape_create.screen:rebuild_params()
+  if _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
+    _seeker.tape.create.screen:rebuild_params()
   end
   
   _seeker.screen_ui.set_needs_redraw()

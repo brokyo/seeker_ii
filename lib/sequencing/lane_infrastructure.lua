@@ -138,8 +138,8 @@ local function create_basic_lane_params(i)
         end
 
         -- Rebuild screens (motif type affects tape_create params and Lane Config voice routing)
-        if _seeker and _seeker.tape_create and _seeker.tape_create.screen then
-            _seeker.tape_create.screen:rebuild_params()
+        if _seeker and _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
+            _seeker.tape.create.screen:rebuild_params()
         end
         if _seeker and _seeker.lane_config and _seeker.lane_config.screen then
             _seeker.lane_config.screen:rebuild_params()
