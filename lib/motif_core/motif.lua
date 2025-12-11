@@ -45,18 +45,15 @@ function Motif:store_events(recorded_data)
   -- Clear existing
   self.genesis.events = {}
   self.events = {}
-  
-  -- Clear custom duration since we're storing new events
-  self.custom_duration = nil
-  
+
   -- Deep copy events to genesis
   for _, evt in ipairs(recorded_data.events) do
     table.insert(self.genesis.events, self:_copy_event(evt))
   end
-  
-  -- Store provided duration (critical for maintaining silence at end of pattern)
+
+  -- Store duration - this becomes the permanent tape length
   self.genesis.duration = recorded_data.duration
-  
+
   -- Initialize working state from genesis
   self:reset_to_genesis()
   print("∞ Motif stored")

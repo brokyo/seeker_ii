@@ -1,14 +1,14 @@
--- creator.lua
+-- create.lua
 -- Sampler type: motif creation via recording pad triggers
 -- Handles the Create Motif button, screen UI, and recording flow
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
-local SamplerCreator = {}
-SamplerCreator.__index = SamplerCreator
+local SamplerCreate = {}
+SamplerCreate.__index = SamplerCreate
 
 local function create_params()
     params:add_group("sampler_creator", "SAMPLER CREATOR", 1)
@@ -17,12 +17,11 @@ local function create_params()
         controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
     params:set_action("sampler_creator_duration", function(value)
         local focused_lane = _seeker.ui_state.get_focused_lane()
-        if _seeker.lanes[focused_lane] and _seeker.lanes[focused_lane].motif then
-            if value == 0 then
-                _seeker.lanes[focused_lane].motif.custom_duration = nil
-            else
-                _seeker.lanes[focused_lane].motif.custom_duration = value
-            end
+        local motif = _seeker.lanes[focused_lane] and _seeker.lanes[focused_lane].motif
+        if motif then
+            -- Directly update genesis duration - treat as permanent tape length change
+            motif.genesis.duration = value
+            motif.duration = value
             if _seeker.screen_ui then
                 _seeker.screen_ui.set_needs_redraw()
             end
@@ -32,9 +31,9 @@ end
 
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
-        id = "SAMPLER_CREATOR",
+        id = "SAMPLER_CREATE",
         name = "Create",
-        description = "Record pad triggers as a looping motif. Load samples via Lane Config.",
+        description = "Record pad triggers as a looping motif. Load samples in Lane Config.",
         params = {
             { separator = true, title = "Sampler" }
         }
@@ -69,8 +68,7 @@ local function create_screen_ui()
             local focused_lane = _seeker.ui_state.get_focused_lane()
             local lane = _seeker.lanes[focused_lane]
             if lane and lane.motif then
-                local duration = lane.motif.custom_duration or lane.motif.genesis.duration
-                return string.format("%.2f", duration)
+                return string.format("%.2f", lane.motif.genesis.duration)
             end
             return "4.00"
         end
@@ -84,43 +82,14 @@ local function create_screen_ui()
             local focused_lane = _seeker.ui_state.get_focused_lane()
             local lane = _seeker.lanes[focused_lane]
             if lane and lane.motif then
-                local current = lane.motif.custom_duration or lane.motif.genesis.duration
-                if not lane.motif.custom_duration then
-                    current = math.floor(current * 4 + 0.5) / 4
-                end
+                local current = lane.motif.genesis.duration
+                -- Snap to quarter beats for clean increments
+                current = math.floor(current * 4 + 0.5) / 4
                 local new_value = util.clamp(current + (delta * 0.25), 0.25, 128)
-                lane.motif.custom_duration = new_value
                 params:set("sampler_creator_duration", new_value)
-                if _seeker.screen_ui then
-                    _seeker.screen_ui.set_needs_redraw()
-                end
             end
         else
             original_modify_param(self, param, delta)
-        end
-    end
-
-    -- Override handle_key for K3 duration reset
-    local original_handle_key = norns_ui.handle_key
-    norns_ui.handle_key = function(self, n, z)
-        if n == 3 and z == 1 and self.state.selected_index > 0 then
-            local param = self.params[self.state.selected_index]
-            if param.id == "sampler_creator_duration" then
-                local focused_lane = _seeker.ui_state.get_focused_lane()
-                local lane = _seeker.lanes[focused_lane]
-                if lane and lane.motif then
-                    lane.motif.custom_duration = nil
-                    local genesis_duration = lane.motif.genesis.duration
-                    params:set("sampler_creator_duration", genesis_duration)
-                    if _seeker.screen_ui then
-                        _seeker.screen_ui.set_needs_redraw()
-                    end
-                end
-            else
-                original_handle_key(self, n, z)
-            end
-        else
-            original_handle_key(self, n, z)
         end
     end
 
@@ -140,10 +109,9 @@ local function create_screen_ui()
         if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
             tooltip = "stop: tap"
         elseif _seeker.sampler and _seeker.sampler.has_buffer(focused_lane) then
-            local duration = _seeker.sampler.get_sample_duration(focused_lane)
-            tooltip = string.format("loaded: %.1fs", duration)
+            tooltip = "hold to record"
         else
-            tooltip = "load file: K3"
+            tooltip = "load samples in Lane Config"
         end
 
         -- Draw visualization when we have a motif or are recording
@@ -339,7 +307,7 @@ end
 
 local function create_grid_ui()
     local grid_ui = GridUI.new({
-        id = "SAMPLER_CREATOR",
+        id = "SAMPLER_CREATE",
         layout = {
             x = 2,
             y = 7,
@@ -348,9 +316,15 @@ local function create_grid_ui()
         }
     })
 
-    -- Recording start helper
+    -- Recording start helper (only works when sample is loaded)
     local function handle_recording_start(self)
         local focused_lane_idx = _seeker.ui_state.get_focused_lane()
+
+        -- Only allow recording if sample is loaded
+        if not _seeker.sampler or not _seeker.sampler.has_buffer(focused_lane_idx) then
+            return
+        end
+
         local current_lane = _seeker.lanes[focused_lane_idx]
         local existing_motif = current_lane.motif
 
@@ -362,8 +336,8 @@ local function create_grid_ui()
             -- Start new recording
             current_lane:clear()
 
-            if _seeker.sampler_creator and _seeker.sampler_creator.screen then
-                _seeker.sampler_creator.screen:rebuild_params()
+            if _seeker.sampler_create and _seeker.sampler_create.screen then
+                _seeker.sampler_create.screen:rebuild_params()
             end
 
             _seeker.motif_recorder:set_recording_mode(1)
@@ -382,12 +356,19 @@ local function create_grid_ui()
         local recorded_motif = _seeker.motif_recorder:stop_recording()
         current_lane:set_motif(recorded_motif)
 
-        if not was_overdubbing then
+        if was_overdubbing then
+            -- Overdub: param is source of truth, restore it
+            local param_duration = params:get("sampler_creator_duration")
+            current_lane.motif.genesis.duration = param_duration
+            current_lane.motif.duration = param_duration
+        else
+            -- New recording: set param from recorded duration
+            params:set("sampler_creator_duration", recorded_motif.duration, true)
             current_lane:play()
         end
 
-        if _seeker.sampler_creator and _seeker.sampler_creator.screen then
-            _seeker.sampler_creator.screen:rebuild_params()
+        if _seeker.sampler_create and _seeker.sampler_create.screen then
+            _seeker.sampler_create.screen:rebuild_params()
         end
 
         _seeker.screen_ui.set_needs_redraw()
@@ -448,8 +429,8 @@ local function create_grid_ui()
 
         if z == 1 then
             self:key_down(key_id)
-            _seeker.ui_state.set_current_section("SAMPLER_CREATOR")
-            _seeker.ui_state.set_long_press_state(true, "SAMPLER_CREATOR")
+            _seeker.ui_state.set_current_section("SAMPLER_CREATE")
+            _seeker.ui_state.set_long_press_state(true, "SAMPLER_CREATE")
             _seeker.screen_ui.set_needs_redraw()
         else
             if _seeker.motif_recorder.is_recording then
@@ -467,7 +448,7 @@ local function create_grid_ui()
     return grid_ui
 end
 
-function SamplerCreator.init()
+function SamplerCreate.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui()
@@ -477,4 +458,4 @@ function SamplerCreator.init()
     return component
 end
 
-return SamplerCreator
+return SamplerCreate

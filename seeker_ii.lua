@@ -30,19 +30,19 @@ local Tuning = include("lib/components/keyboard/tuning")
 local MotifPlayback = include("lib/components/keyboard/motif_playback")
 local CreateMotif = include("lib/components/keyboard/create_motif")
 local ClearMotif = include("lib/components/keyboard/clear_motif")
-local SamplerKeyboard = include("lib/modes/motif/types/sampler/keyboard")
-local SamplerPadConfig = include("lib/modes/motif/types/sampler/pad_config")
-local SamplerCreator = include("lib/modes/motif/types/sampler/creator")
-local SamplerStageConfig = include("lib/modes/motif/types/sampler/stage_config")
-local SamplerStageNav = include("lib/modes/motif/types/sampler/stage_nav")
-local SamplerPlayback = include("lib/modes/motif/types/sampler/playback")
-local SamplerClear = include("lib/modes/motif/types/sampler/clear")
-local SamplerVelocity = include("lib/modes/motif/types/sampler/velocity")
+local SamplerKeyboard = include("lib/modes/motif/sampler/keyboard")
+local SamplerChopConfig = include("lib/modes/motif/sampler/chop_config")
+local SamplerCreate = include("lib/modes/motif/sampler/create")
+local SamplerStageConfig = include("lib/modes/motif/sampler/stage_config")
+local SamplerStageNav = include("lib/modes/motif/sampler/stage_nav")
+local SamplerPlayback = include("lib/modes/motif/sampler/playback")
+local SamplerClear = include("lib/modes/motif/sampler/clear")
+local SamplerVelocity = include("lib/modes/motif/sampler/velocity")
 local LaneConfig = include("lib/components/lanes/lane_config")
 local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
 local ExpressionConfig = include("lib/components/lanes/expression_config")
 local HarmonicConfig = include("lib/components/lanes/harmonic_config")
-local SamplerPerformance = include("lib/modes/motif/types/sampler/performance")
+local SamplerPerform = include("lib/modes/motif/sampler/perform")
 
 -- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
@@ -85,8 +85,8 @@ _seeker = {
   arc = nil,
   sampler = nil,
   sampler_keyboard = nil,
-  sampler_pad_config = nil,
-  sampler_creator = nil,
+  sampler_chop_config = nil,
+  sampler_create = nil,
   sampler_stage_config = nil,
   sampler_stage_nav = nil,
   sampler_playback = nil,
@@ -110,7 +110,7 @@ _seeker = {
   txo_cv_output = nil,
   osc_config = nil,
   lane_config = nil,
-  sampler_performance = nil,
+  sampler_perform = nil,
 }
 
 --------------------------------------------------
@@ -158,8 +158,8 @@ function init()
   _seeker.create_motif = CreateMotif.init()
   _seeker.clear_motif = ClearMotif.init()
   _seeker.sampler_keyboard = SamplerKeyboard.init()
-  _seeker.sampler_pad_config = SamplerPadConfig.init()
-  _seeker.sampler_creator = SamplerCreator.init()
+  _seeker.sampler_chop_config = SamplerChopConfig.init()
+  _seeker.sampler_create = SamplerCreate.init()
   _seeker.sampler_stage_config = SamplerStageConfig.init()
   _seeker.sampler_stage_nav = SamplerStageNav.init()
   _seeker.sampler_playback = SamplerPlayback.init()
@@ -170,7 +170,7 @@ function init()
   _seeker.tape_stage_config = TapeStageConfig.init()
   _seeker.expression_config = ExpressionConfig.init()
   _seeker.harmonic_config = HarmonicConfig.init()
-  _seeker.sampler_performance = SamplerPerformance.init()
+  _seeker.sampler_perform = SamplerPerform.init()
 
   -- WTape Mode
   _seeker.w_tape = WTape.init()

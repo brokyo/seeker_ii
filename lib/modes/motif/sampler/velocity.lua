@@ -1,6 +1,6 @@
 -- velocity.lua
 -- Sampler type: velocity/amplitude control for pad triggers
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")

@@ -1,7 +1,7 @@
 -- transforms.lua
 -- Sampler mode transforms (chop parameter modifications)
 -- Called by Lane:prepare_stage() for sampler mode stages
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local transforms = {}
 
@@ -172,44 +172,6 @@ transforms.available = {
     end
   },
 
-  filter_sweep = {
-    name = "Filter Sweep",
-    ui_name = "Filter Sweep",
-    ui_order = 6,
-    description = "Progressive lowpass filter movement across stages",
-    fn = function(lane_id, stage_id)
-      local direction = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_direction")
-      local amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_amount") / 100
-
-      if amount == 0 then return end
-      if not _seeker.sampler then return end
-
-      for pad = 1, 16 do
-        local chop = _seeker.sampler.get_chop(lane_id, pad)
-        if chop then
-          -- Enable lowpass filter if not already set
-          if not chop.filter_type or chop.filter_type == 1 then
-            _seeker.sampler.update_chop(lane_id, pad, 'filter_type', 2) -- Lowpass
-          end
-
-          local current_lpf = chop.lpf or 20000
-          local new_lpf
-
-          if direction == 1 then -- Down (close filter)
-            -- Multiply by (1 - amount) to reduce
-            new_lpf = current_lpf * (1 - amount)
-            new_lpf = math.max(100, new_lpf) -- Floor at 100Hz
-          else -- Up (open filter)
-            -- Multiply by (1 + amount) to increase
-            new_lpf = current_lpf * (1 + amount)
-            new_lpf = math.min(20000, new_lpf) -- Ceiling at 20kHz
-          end
-
-          _seeker.sampler.update_chop(lane_id, pad, 'lpf', new_lpf)
-        end
-      end
-    end
-  }
 }
 
 -- Build ordered list of transform UI names

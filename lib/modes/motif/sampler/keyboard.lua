@@ -1,7 +1,7 @@
 -- keyboard.lua
 -- Sampler type keyboard: 4x4 pad grid
 -- Each pad triggers a sample chop
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
@@ -9,7 +9,7 @@ local GridLayers = include("lib/grid/layers")
 
 local SamplerKeyboard = {}
 
--- Note: Performance state is accessed via _seeker.sampler_performance
+-- Note: Perform state is accessed via _seeker.sampler_perform
 -- to ensure we use the single initialized instance
 
 -- Playback mode constants for sampler behavior
@@ -75,16 +75,16 @@ local function pad_on(x, y)
   local is_recording = _seeker and _seeker.motif_recorder and _seeker.motif_recorder.is_recording
 
   if not is_recording then
-    -- Navigate to pad configuration screen
-    if _seeker and _seeker.sampler_pad_config then
-      _seeker.sampler_pad_config.select_pad(pad)
+    -- Navigate to chop configuration screen
+    if _seeker and _seeker.sampler_chop_config then
+      _seeker.sampler_chop_config.select_pad(pad)
     end
   end
 
-  -- Trigger sample playback (unless muted by performance button)
+  -- Trigger sample playback (unless muted by perform button)
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
-    local perf = _seeker.sampler_performance
+    local perf = _seeker.sampler_perform
     if not perf or not perf.is_muted(lane) then
       local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
       if perf then
@@ -137,10 +137,10 @@ local function create_grid_ui()
 
         -- Highlight selected pad when in config section
         local current_section = _seeker.ui_state.get_current_section()
-        if current_section == "SAMPLER_PAD_CONFIG" then
+        if current_section == "SAMPLER_CHOP_CONFIG" then
           local pad = position_to_pad(x, y)
-          if _seeker and _seeker.sampler_pad_config then
-            local selected_pad = _seeker.sampler_pad_config.get_selected_pad()
+          if _seeker and _seeker.sampler_chop_config then
+            local selected_pad = _seeker.sampler_chop_config.get_selected_pad()
             if pad == selected_pad then
               brightness = GridConstants.BRIGHTNESS.HIGH
             end

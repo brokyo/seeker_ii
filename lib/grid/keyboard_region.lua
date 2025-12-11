@@ -40,7 +40,7 @@ function KeyboardRegion.get_active_keyboard()
   if not _seeker.keyboards[motif_type] then
     local keyboard_files = {
       [2] = "lib/grid/keyboards/arpeggio_keyboard",
-      [3] = "lib/modes/motif/types/sampler/keyboard"
+      [3] = "lib/modes/motif/sampler/keyboard"
     }
     _seeker.keyboards[motif_type] = include(keyboard_files[motif_type])
   end

@@ -1,7 +1,7 @@
--- pad_config.lua
+-- chop_config.lua
 -- Sampler type: per-pad chop configuration (start/stop, envelope, filter, rate)
 -- Pressing pads selects which to edit
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 --
 -- NOTE: Params are a VIEW into SamplerManager storage, not direct storage
 -- This means pad configs DO NOT persist with PSETs currently
@@ -16,7 +16,7 @@ local FILTER_HIGHPASS = 3
 local FILTER_BANDPASS = 4
 local FILTER_NOTCH = 5
 
-local SamplerPadConfig = {
+local SamplerChopConfig = {
   screen = nil,
   state = {
     selected_pad = 1,
@@ -27,7 +27,7 @@ local SamplerPadConfig = {
 -- Create screen UI
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
-    id = "SAMPLER_PAD_CONFIG",
+    id = "SAMPLER_CHOP_CONFIG",
     name = "Chop Config",
     description = "Configure individual chop points and envelopes. Each pad controls one chop. Pitch and Speed combine.",
     params = {}
@@ -35,8 +35,8 @@ local function create_screen_ui()
 
   -- Build params for current selected pad
   function norns_ui:rebuild_params()
-    local lane = SamplerPadConfig.state.current_lane
-    local pad = SamplerPadConfig.state.selected_pad
+    local lane = SamplerChopConfig.state.current_lane
+    local pad = SamplerChopConfig.state.selected_pad
     local filter_type = params:get("spc_filter_type")
 
     local param_list = {
@@ -85,9 +85,9 @@ local function create_screen_ui()
 end
 
 -- Initialize params
-function SamplerPadConfig.init()
+function SamplerChopConfig.init()
   -- Create screen UI
-  SamplerPadConfig.screen = create_screen_ui()
+  SamplerChopConfig.screen = create_screen_ui()
 
   -- Create parameter group for pad configuration UI
   params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 14)
@@ -95,37 +95,37 @@ function SamplerPadConfig.init()
   params:add_control("spc_start_pos", "Start Position",
     controlspec.new(0, 10, 'lin', 0.001, 0, 's'))
   params:set_action("spc_start_pos", function(value)
-    SamplerPadConfig.update_chop('start_pos', value)
+    SamplerChopConfig.update_chop('start_pos', value)
   end)
 
   params:add_control("spc_stop_pos", "Stop Position",
     controlspec.new(0, 10, 'lin', 0.001, 0.1, 's'))
   params:set_action("spc_stop_pos", function(value)
-    SamplerPadConfig.update_chop('stop_pos', value)
+    SamplerChopConfig.update_chop('stop_pos', value)
   end)
 
   params:add_control("spc_attack", "Attack",
     controlspec.new(0.001, 5.0, 'lin', 0.001, 0.01, 's'))
   params:set_action("spc_attack", function(value)
-    SamplerPadConfig.update_chop('attack', value)
+    SamplerChopConfig.update_chop('attack', value)
   end)
 
   params:add_control("spc_release", "Release",
     controlspec.new(0.001, 5.0, 'lin', 0.001, 0.01, 's'))
   params:set_action("spc_release", function(value)
-    SamplerPadConfig.update_chop('release', value)
+    SamplerChopConfig.update_chop('release', value)
   end)
 
   params:add_control("spc_fade_time", "Crossfade",
     controlspec.new(0.0001, 5.0, 'lin', 0.0001, 0.005, 's'))
   params:set_action("spc_fade_time", function(value)
-    SamplerPadConfig.update_chop('fade_time', value)
+    SamplerChopConfig.update_chop('fade_time', value)
   end)
 
   params:add_control("spc_rate", "Speed",
     controlspec.new(-2, 2, 'lin', 0.01, 1.0, ''))
   params:set_action("spc_rate", function(value)
-    SamplerPadConfig.update_chop('rate', value)
+    SamplerChopConfig.update_chop('rate', value)
   end)
 
   -- Pitch transposition in semitones (-12 to +12, 0 = original)
@@ -136,28 +136,28 @@ function SamplerPadConfig.init()
   params:add_option("spc_pitch", "Pitch", pitch_names, 13)  -- Index 13 = 0 semitones
   params:set_action("spc_pitch", function(idx)
     local semitones = idx - 13  -- Convert index to semitone offset
-    SamplerPadConfig.update_chop('pitch_offset', semitones)
+    SamplerChopConfig.update_chop('pitch_offset', semitones)
   end)
 
   params:add_control("spc_max_volume", "Max Volume",
     controlspec.new(0, 1, 'lin', 0.01, 1.0, ''))
   params:set_action("spc_max_volume", function(value)
-    SamplerPadConfig.update_chop('max_volume', value)
+    SamplerChopConfig.update_chop('max_volume', value)
   end)
 
   params:add_control("spc_pan", "Pan",
     controlspec.new(-1, 1, 'lin', 0.01, 0, ''))
   params:set_action("spc_pan", function(value)
-    SamplerPadConfig.update_chop('pan', value)
+    SamplerChopConfig.update_chop('pan', value)
   end)
 
   params:add_option("spc_mode", "Mode", {"Gate", "One-Shot"}, 1)
   params:set_action("spc_mode", function(value)
-    SamplerPadConfig.update_chop('mode', value)
+    SamplerChopConfig.update_chop('mode', value)
 
     -- Stop currently playing pad so new mode setting takes effect
-    local lane = SamplerPadConfig.state.current_lane
-    local pad = SamplerPadConfig.state.selected_pad
+    local lane = SamplerChopConfig.state.current_lane
+    local pad = SamplerChopConfig.state.selected_pad
     if _seeker and _seeker.sampler then
       _seeker.sampler.stop_pad(lane, pad)
     end
@@ -166,10 +166,10 @@ function SamplerPadConfig.init()
   -- Filter controls
   params:add_option("spc_filter_type", "Filter Type", {"Off", "Lowpass", "Highpass", "Bandpass", "Notch"}, 1)
   params:set_action("spc_filter_type", function(value)
-    SamplerPadConfig.update_chop('filter_type', value)
+    SamplerChopConfig.update_chop('filter_type', value)
     -- Rebuild UI to show appropriate filter params
-    if SamplerPadConfig.screen then
-      SamplerPadConfig.screen:rebuild_params()
+    if SamplerChopConfig.screen then
+      SamplerChopConfig.screen:rebuild_params()
     end
     if _seeker and _seeker.screen_ui then
       _seeker.screen_ui.set_needs_redraw()
@@ -177,35 +177,35 @@ function SamplerPadConfig.init()
   end)
   params:add_taper("spc_lpf", "LPF Cutoff", 20, 20000, 20000, 3, "Hz")
   params:set_action("spc_lpf", function(value)
-    SamplerPadConfig.update_chop('lpf', value)
+    SamplerChopConfig.update_chop('lpf', value)
   end)
 
   params:add_control("spc_resonance", "Resonance",
     controlspec.new(0, 4, 'lin', 0.01, 0, ""))
   params:set_action("spc_resonance", function(value)
-    SamplerPadConfig.update_chop('resonance', value)
+    SamplerChopConfig.update_chop('resonance', value)
   end)
 
   params:add_taper("spc_hpf", "HPF Cutoff", 20, 20000, 20, 3, "Hz")
   params:set_action("spc_hpf", function(value)
-    SamplerPadConfig.update_chop('hpf', value)
+    SamplerChopConfig.update_chop('hpf', value)
   end)
 
-  return SamplerPadConfig
+  return SamplerChopConfig
 end
 
 -- Select a pad for editing
-function SamplerPadConfig.select_pad(pad)
-  SamplerPadConfig.state.selected_pad = pad
-  SamplerPadConfig.state.current_lane = _seeker.ui_state.get_focused_lane()
-  SamplerPadConfig.load_pad_params()
+function SamplerChopConfig.select_pad(pad)
+  SamplerChopConfig.state.selected_pad = pad
+  SamplerChopConfig.state.current_lane = _seeker.ui_state.get_focused_lane()
+  SamplerChopConfig.load_pad_params()
 
   -- Navigate to config section
-  _seeker.ui_state.set_current_section("SAMPLER_PAD_CONFIG")
+  _seeker.ui_state.set_current_section("SAMPLER_CHOP_CONFIG")
 
   -- Rebuild screen to show new pad's config
-  if SamplerPadConfig.screen then
-    SamplerPadConfig.screen:rebuild_params()
+  if SamplerChopConfig.screen then
+    SamplerChopConfig.screen:rebuild_params()
   end
 
   if _seeker and _seeker.screen_ui then
@@ -214,9 +214,9 @@ function SamplerPadConfig.select_pad(pad)
 end
 
 -- Load current pad's chop data into params
-function SamplerPadConfig.load_pad_params()
-  local lane = SamplerPadConfig.state.current_lane
-  local pad = SamplerPadConfig.state.selected_pad
+function SamplerChopConfig.load_pad_params()
+  local lane = SamplerChopConfig.state.current_lane
+  local pad = SamplerChopConfig.state.selected_pad
 
   if not _seeker or not _seeker.sampler then return end
 
@@ -252,9 +252,9 @@ function SamplerPadConfig.load_pad_params()
 end
 
 -- Update a chop property for current pad
-function SamplerPadConfig.update_chop(key, value)
-  local lane = SamplerPadConfig.state.current_lane
-  local pad = SamplerPadConfig.state.selected_pad
+function SamplerChopConfig.update_chop(key, value)
+  local lane = SamplerChopConfig.state.current_lane
+  local pad = SamplerChopConfig.state.selected_pad
 
   if not _seeker or not _seeker.sampler then return end
 
@@ -280,8 +280,8 @@ function SamplerPadConfig.update_chop(key, value)
 end
 
 -- Get current selected pad (for grid visualization)
-function SamplerPadConfig.get_selected_pad()
-  return SamplerPadConfig.state.selected_pad
+function SamplerChopConfig.get_selected_pad()
+  return SamplerChopConfig.state.selected_pad
 end
 
-return SamplerPadConfig
+return SamplerChopConfig

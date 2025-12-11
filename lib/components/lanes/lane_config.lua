@@ -322,7 +322,7 @@ local function create_screen_ui()
             -- Instruction (smaller, centered below)
             screen.font_size(8)
             screen.move(64, 42)
-            screen.text_center("use norns e2/e3/k3")
+            screen.text_center("use norns e2/k3")
 
             -- Reset font size
             screen.font_size(8)

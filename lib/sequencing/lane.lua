@@ -5,8 +5,8 @@ local forms = include('lib/motif_core/forms')
 -- Stage type modules for mode-specific preparation
 local tape_transform = include('lib/components/lanes/stage_types/tape_transform')
 local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
-local sampler_transforms = include('lib/modes/motif/types/sampler/transforms')
--- Note: Performance state is accessed via _seeker.sampler_performance at runtime
+local sampler_transforms = include('lib/modes/motif/sampler/transforms')
+-- Note: Performance state is accessed via _seeker.sampler_perform at runtime
 -- to ensure we use the single initialized instance
 
 -- Motif type constants
@@ -542,7 +542,7 @@ end
 function Lane:on_note_on(event)
   -- Check sampler performance mute (only applies in sampler mode)
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-  local perf = _seeker and _seeker.sampler_performance
+  local perf = _seeker and _seeker.sampler_perform
   if motif_type == SAMPLER_MODE and perf and perf.is_muted(self.id) then
     return
   end
@@ -1075,14 +1075,7 @@ end
 
 -- Set motif data after recording
 function Lane:set_motif(recorded_data)
-  -- Add debug to verify events have positions
-  for _, evt in ipairs(recorded_data.events) do
-  end
   self.motif:store_events(recorded_data)
-
-  -- Update duration param to reflect new motif's actual duration
-  params:set("create_motif_duration", recorded_data.duration)
-
   return self.motif
 end
 

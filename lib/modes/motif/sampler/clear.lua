@@ -1,6 +1,6 @@
 -- clear.lua
 -- Sampler type: clear motif functionality
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -13,7 +13,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_CLEAR",
     name = "Clear",
-    description = "Hold to clear the sampler motif and reset chops to genesis",
+    description = "Hold to clear the recorded motif and reset to a blank canvas.",
     params = {
       { separator = true, title = "Clear Motif" }
     }
@@ -22,26 +22,28 @@ local function create_screen_ui()
   norns_ui.draw_default = function(self)
     NornsUI.draw_default(self)
 
-    local tooltip
-    local focused_lane = _seeker.ui_state.get_focused_lane()
-    local lane = _seeker.lanes[focused_lane]
+    if not self.state.showing_description then
+      local tooltip
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local lane = _seeker.lanes[focused_lane]
 
-    if lane and lane.motif and #lane.motif.events > 0 then
-      tooltip = "x: hold [clear]"
-    else
-      tooltip = "No motif to clear"
+      if lane and lane.motif and #lane.motif.events > 0 then
+        tooltip = "x: hold [clear]"
+      else
+        tooltip = "No motif to clear"
+      end
+
+      local width = screen.text_extents(tooltip)
+
+      if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_CLEAR" then
+        screen.level(15)
+      else
+        screen.level(2)
+      end
+
+      screen.move(64 - width/2, 46)
+      screen.text(tooltip)
     end
-
-    local width = screen.text_extents(tooltip)
-
-    if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_CLEAR" then
-      screen.level(15)
-    else
-      screen.level(2)
-    end
-
-    screen.move(64 - width/2, 46)
-    screen.text(tooltip)
 
     screen.update()
   end
@@ -137,9 +139,9 @@ local function create_grid_ui()
 
           lane:clear()
 
-          -- Rebuild sampler creator params
-          if _seeker.sampler_creator and _seeker.sampler_creator.screen then
-            _seeker.sampler_creator.screen:rebuild_params()
+          -- Rebuild sampler create params
+          if _seeker.sampler_create and _seeker.sampler_create.screen then
+            _seeker.sampler_create.screen:rebuild_params()
           end
         end
 

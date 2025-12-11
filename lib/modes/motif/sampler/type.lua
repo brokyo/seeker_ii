@@ -1,6 +1,6 @@
 -- type.lua
 -- Sampler type definition: declares components and draw/handle behavior
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local SamplerType = {}
 
@@ -9,8 +9,8 @@ function SamplerType.draw(layers)
   _seeker.sampler_stage_nav.grid:draw(layers)
   _seeker.sampler_playback.grid:draw(layers)
   _seeker.sampler_clear.grid:draw(layers)
-  _seeker.sampler_creator.grid:draw(layers)
-  _seeker.sampler_performance.grid:draw(layers)
+  _seeker.sampler_create.grid:draw(layers)
+  _seeker.sampler_perform.grid:draw(layers)
   _seeker.sampler_keyboard.grid:draw(layers)
 end
 
@@ -45,15 +45,15 @@ function SamplerType.handle_key(x, y, z)
     return true
   end
 
-  -- Creator button (2, 7)
-  if _seeker.sampler_creator.grid:contains(x, y) then
-    _seeker.sampler_creator.grid:handle_key(x, y, z)
+  -- Create button (2, 7)
+  if _seeker.sampler_create.grid:contains(x, y) then
+    _seeker.sampler_create.grid:handle_key(x, y, z)
     return true
   end
 
-  -- Performance button (4, 7)
-  if _seeker.sampler_performance.grid:contains(x, y) then
-    _seeker.sampler_performance.grid:handle_key(x, y, z)
+  -- Perform button (4, 7)
+  if _seeker.sampler_perform.grid:contains(x, y) then
+    _seeker.sampler_perform.grid:handle_key(x, y, z)
     return true
   end
 

@@ -1,13 +1,13 @@
--- performance.lua
+-- perform.lua
 -- Hold-to-activate performance controls: Mute, Accent, Soft
 -- Tap to navigate to screen, hold to activate selected mode
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
-local SamplerPerformance = {}
+local SamplerPerform = {}
 
 -- Performance modes
 local MODE_MUTE = 1
@@ -30,7 +30,7 @@ local function get_lane_state(lane_id)
 end
 
 -- Returns velocity multiplier based on active performance mode and slew progress
-function SamplerPerformance.get_velocity_multiplier(lane_id)
+function SamplerPerform.get_velocity_multiplier(lane_id)
   local state = get_lane_state(lane_id)
   if not state.active then
     return 1.0
@@ -59,7 +59,7 @@ function SamplerPerformance.get_velocity_multiplier(lane_id)
   return 1.0 + (target - 1.0) * progress
 end
 
-function SamplerPerformance.is_muted(lane_id)
+function SamplerPerform.is_muted(lane_id)
   local state = get_lane_state(lane_id)
   local mode = params:get("lane_" .. lane_id .. "_performance_mode")
   return state.active and mode == MODE_MUTE
@@ -76,7 +76,7 @@ local function set_active(lane_id, active)
   end
 end
 
-function SamplerPerformance.is_active(lane_id)
+function SamplerPerform.is_active(lane_id)
   local state = get_lane_state(lane_id)
   return state.active
 end
@@ -87,8 +87,8 @@ local function create_params()
 
     params:add_option("lane_" .. i .. "_performance_mode", "Mode", mode_names, MODE_MUTE)
     params:set_action("lane_" .. i .. "_performance_mode", function(value)
-      if _seeker and _seeker.sampler_performance and _seeker.sampler_performance.screen then
-        _seeker.sampler_performance.screen:rebuild_params()
+      if _seeker and _seeker.sampler_perform and _seeker.sampler_perform.screen then
+        _seeker.sampler_perform.screen:rebuild_params()
       end
       if _seeker and _seeker.screen_ui then
         _seeker.screen_ui.set_needs_redraw()
@@ -108,8 +108,8 @@ end
 
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
-    id = "SAMPLER_PERFORMANCE",
-    name = "Performance",
+    id = "SAMPLER_PERFORM",
+    name = "Perform",
     description = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
     params = {}
   })
@@ -138,17 +138,20 @@ local function create_screen_ui()
   norns_ui.draw_default = function(self)
     NornsUI.draw_default(self)
 
-    local tooltip = "hold to perform"
-    local width = screen.text_extents(tooltip)
+    if not self.state.showing_description then
+      local tooltip = "hold to perform"
+      local width = screen.text_extents(tooltip)
 
-    if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_PERFORMANCE" then
-      screen.level(15)
-    else
-      screen.level(2)
+      if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_PERFORM" then
+        screen.level(15)
+      else
+        screen.level(2)
+      end
+
+      screen.move(64 - width/2, 46)
+      screen.text(tooltip)
     end
 
-    screen.move(64 - width/2, 46)
-    screen.text(tooltip)
     screen.update()
   end
 
@@ -163,7 +166,7 @@ end
 
 local function create_grid_ui()
   local grid_ui = GridUI.new({
-    id = "SAMPLER_PERFORMANCE",
+    id = "SAMPLER_PERFORM",
     layout = {
       x = 4,
       y = 7,
@@ -180,7 +183,7 @@ local function create_grid_ui()
     if state.active then
       -- Pulsing when active
       brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.HIGH - 3)
-    elseif _seeker.ui_state.get_current_section() == "SAMPLER_PERFORMANCE" then
+    elseif _seeker.ui_state.get_current_section() == "SAMPLER_PERFORM" then
       brightness = GridConstants.BRIGHTNESS.FULL
     end
 
@@ -193,8 +196,8 @@ local function create_grid_ui()
 
     if z == 1 then
       self:key_down(key_id)
-      _seeker.ui_state.set_current_section("SAMPLER_PERFORMANCE")
-      _seeker.ui_state.set_long_press_state(true, "SAMPLER_PERFORMANCE")
+      _seeker.ui_state.set_current_section("SAMPLER_PERFORM")
+      _seeker.ui_state.set_long_press_state(true, "SAMPLER_PERFORM")
       set_active(lane_id, true)
     else
       set_active(lane_id, false)
@@ -209,17 +212,17 @@ local function create_grid_ui()
   return grid_ui
 end
 
-function SamplerPerformance.init()
+function SamplerPerform.init()
   local component = {
     screen = create_screen_ui(),
     grid = create_grid_ui(),
-    is_muted = SamplerPerformance.is_muted,
-    is_active = SamplerPerformance.is_active,
-    get_velocity_multiplier = SamplerPerformance.get_velocity_multiplier
+    is_muted = SamplerPerform.is_muted,
+    is_active = SamplerPerform.is_active,
+    get_velocity_multiplier = SamplerPerform.get_velocity_multiplier
   }
   create_params()
 
   return component
 end
 
-return SamplerPerformance
+return SamplerPerform

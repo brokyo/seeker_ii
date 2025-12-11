@@ -1,6 +1,6 @@
 -- playback.lua
 -- Sampler type: motif playback control
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -12,7 +12,7 @@ SamplerPlayback.__index = SamplerPlayback
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_PLAYBACK",
-    name = "Playback",
+    name = "Play",
     description = "Control playback timing.",
     params = {}
   })
@@ -21,8 +21,6 @@ local function create_screen_ui()
   norns_ui.rebuild_params = function(self)
     local lane_idx = _seeker.ui_state.get_focused_lane()
 
-    -- Sampler doesn't use pitch offset (no MIDI notes)
-    -- Focus on rhythm/timing controls
     self.params = {
       { separator = true, title = "Rhythm" },
       { id = "lane_" .. lane_idx .. "_speed" },

@@ -2,7 +2,7 @@
 -- Configure sampler mode stage transformations
 -- Provides screen UI and parameters for sampler transform stages
 -- Accessed via stage_nav buttons (no dedicated grid button)
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
 
@@ -18,8 +18,8 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        -- 1 config_stage + 4 stages * 10 params per stage = 41
-        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 41)
+        -- 1 config_stage + 4 stages * 8 params per stage = 33
+        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 33)
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)
             config_state.config_stage = value
@@ -57,10 +57,6 @@ local function create_params()
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range", "Pan Range",
                 controlspec.new(0, 100, "lin", 1, 100, "%"))
 
-            -- Filter Sweep Transform Params
-            params:add_option("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_direction", "Filter Direction", {"Down", "Up"}, 1)
-            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_amount", "Filter Amount",
-                controlspec.new(0, 100, "lin", 1, 25, "%"))
         end
     end
 end
@@ -69,7 +65,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "SAMPLER_STAGE_CONFIG",
         name = "Sampler Stage Config",
-        description = "Transform chop parameters across stages. Scatter randomizes start positions.",
+        description = "Transform chop parameters across stages. Primarily time and rate manipulation.",
         params = {
             { separator = true, title = "Sampler Stage Config" },
         }
@@ -118,9 +114,6 @@ local function create_screen_ui()
         elseif transform_type == "Pan Spread" then
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_prob", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range", arc_multi_float = {10, 5, 1} })
-        elseif transform_type == "Filter Sweep" then
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_direction" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_amount", arc_multi_float = {10, 5, 1} })
         end
 
         -- Config section with reset and loop count

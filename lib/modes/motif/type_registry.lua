@@ -12,7 +12,7 @@ local function get_type(motif_type)
     local type_paths = {
       [1] = nil,  -- TAPE: not yet extracted
       [2] = nil,  -- COMPOSER: not yet extracted
-      [3] = "lib/modes/motif/types/sampler/type"
+      [3] = "lib/modes/motif/sampler/type"
     }
 
     if type_paths[motif_type] then

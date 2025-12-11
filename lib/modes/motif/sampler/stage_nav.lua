@@ -1,7 +1,7 @@
 -- stage_nav.lua
 -- Stage navigation for Sampler type
 -- Four buttons to select stage for editing (mimics expression_config pattern)
--- Part of lib/modes/motif/types/sampler/
+-- Part of lib/modes/motif/sampler/
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
