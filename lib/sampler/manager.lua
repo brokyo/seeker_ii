@@ -35,6 +35,7 @@ local function create_default_chop(start_pos, stop_pos, overrides)
     fade_time = 0.005,
     mode = MODE_GATE,
     rate = 1.0,
+    pitch_offset = 0,  -- Semitones to transpose playback (positive = higher, negative = lower)
     max_volume = 1.0,
     pan = 0,
     filter_type = FILTER_OFF,
@@ -223,6 +224,7 @@ function SamplerManager.get_genesis_chop(lane, pad)
 end
 
 -- Update a specific property of a working chop
+-- Also updates genesis for user-configured properties (not transform results)
 function SamplerManager.update_chop(lane, pad, key, value)
   if not SamplerManager.lane_chops[lane] or not SamplerManager.lane_chops[lane][pad] then
     return
@@ -234,6 +236,25 @@ function SamplerManager.update_chop(lane, pad, key, value)
   if key == "start_pos" or key == "stop_pos" then
     local chop = SamplerManager.lane_chops[lane][pad]
     chop.duration = chop.stop_pos - chop.start_pos
+  end
+
+  -- User-configured properties persist to genesis (survive reset_to_genesis)
+  -- These are set via pad_config UI, not by transforms
+  local genesis_properties = {
+    start_pos = true, stop_pos = true,
+    attack = true, release = true, fade_time = true,
+    mode = true, rate = true, pitch_offset = true,
+    max_volume = true, pan = true,
+    filter_type = true, lpf = true, resonance = true, hpf = true
+  }
+
+  if genesis_properties[key] and SamplerManager.lane_genesis_chops[lane] then
+    SamplerManager.lane_genesis_chops[lane][pad][key] = value
+    -- Also update genesis duration
+    if key == "start_pos" or key == "stop_pos" then
+      local genesis = SamplerManager.lane_genesis_chops[lane][pad]
+      genesis.duration = genesis.stop_pos - genesis.start_pos
+    end
   end
 end
 
@@ -249,6 +270,7 @@ function SamplerManager.reset_chop_to_genesis(lane, pad)
     fade_time = genesis.fade_time,
     mode = genesis.mode,
     rate = genesis.rate,
+    pitch_offset = genesis.pitch_offset,
     max_volume = genesis.max_volume,
     pan = genesis.pan,
     filter_type = genesis.filter_type,
@@ -375,8 +397,10 @@ function SamplerManager.trigger_pad(lane, pad, velocity)
   -- Set crossfade time for smooth loop points (prevents clicks)
   softcut.fade_time(voice, chop.fade_time or 0.005)
 
-  -- Set playback rate (supports reverse with negative values)
-  softcut.rate(voice, chop.rate)
+  -- Combine speed and pitch: speed * semitone-derived rate
+  local semitone_rate = 2 ^ ((chop.pitch_offset or 0) / 12)
+  local final_rate = chop.rate * semitone_rate
+  softcut.rate(voice, final_rate)
 
   -- Set pan (-1 left, 0 center, 1 right)
   softcut.pan(voice, chop.pan)

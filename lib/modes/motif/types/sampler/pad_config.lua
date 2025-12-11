@@ -7,6 +7,7 @@
 -- This means pad configs DO NOT persist with PSETs currently
 
 local NornsUI = include("lib/ui/base/norns_ui")
+local theory = include("lib/motif_core/theory")
 
 -- Filter type constants
 local FILTER_OFF = 1
@@ -28,7 +29,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_PAD_CONFIG",
     name = "Chop Config",
-    description = "Configure individual chop points and envelopes. Press pads to select.",
+    description = "Configure individual chop points and envelopes. Each pad controls one chop. Pitch and Speed combine.",
     params = {}
   })
 
@@ -46,6 +47,7 @@ local function create_screen_ui()
       {id = "spc_start_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {id = "spc_stop_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {separator = true, title = "Playback"},
+      {id = "spc_pitch"},
       {id = "spc_rate", arc_multi_float = {0.5, 0.1, 0.01}},
       {id = "spc_pan", arc_multi_float = {0.1, 0.05, 0.01}},
       {separator = true, title = "Envelope"},
@@ -88,7 +90,7 @@ function SamplerPadConfig.init()
   SamplerPadConfig.screen = create_screen_ui()
 
   -- Create parameter group for pad configuration UI
-  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 9)
+  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 14)
 
   params:add_control("spc_start_pos", "Start Position",
     controlspec.new(0, 10, 'lin', 0.001, 0, 's'))
@@ -120,10 +122,21 @@ function SamplerPadConfig.init()
     SamplerPadConfig.update_chop('fade_time', value)
   end)
 
-  params:add_control("spc_rate", "Rate",
+  params:add_control("spc_rate", "Speed",
     controlspec.new(-2, 2, 'lin', 0.01, 1.0, ''))
   params:set_action("spc_rate", function(value)
     SamplerPadConfig.update_chop('rate', value)
+  end)
+
+  -- Pitch transposition in semitones (-12 to +12, 0 = original)
+  local pitch_names = {}
+  for semitones = -12, 12 do
+    table.insert(pitch_names, theory.offset_to_display(semitones))
+  end
+  params:add_option("spc_pitch", "Pitch", pitch_names, 13)  -- Index 13 = 0 semitones
+  params:set_action("spc_pitch", function(idx)
+    local semitones = idx - 13  -- Convert index to semitone offset
+    SamplerPadConfig.update_chop('pitch_offset', semitones)
   end)
 
   params:add_control("spc_max_volume", "Max Volume",
@@ -224,6 +237,11 @@ function SamplerPadConfig.load_pad_params()
   params:set("spc_lpf", chop.lpf or 20000, true)
   params:set("spc_resonance", chop.resonance or 0, true)
   params:set("spc_hpf", chop.hpf or 20, true)
+
+  -- Convert pitch_offset semitones back to option index (index 13 = 0 semitones)
+  local pitch_offset = chop.pitch_offset or 0
+  local pitch_idx = pitch_offset + 13
+  params:set("spc_pitch", pitch_idx, true)
 
   -- Update max values based on sample duration
   local duration = _seeker.sampler.get_sample_duration(lane)

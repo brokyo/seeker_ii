@@ -187,4 +187,46 @@ function theory.get_scale_chord_roots()
     return get_scale_chord_roots()
 end
 
+-- Get scale degrees as semitone offsets for two octaves (one below, one above root)
+-- Returns array of semitone values like {-12, -10, -8, -7, -5, -3, -1, 0, 2, 4, 5, 7, 9, 11, 12}
+function theory.get_pitch_offsets()
+  local scale_type = params:get("scale_type")
+  local scale_intervals = musicutil.SCALES[scale_type].intervals
+
+  local offsets = {}
+
+  -- One octave below (negative)
+  for i = #scale_intervals, 1, -1 do
+    if scale_intervals[i] > 0 then
+      table.insert(offsets, scale_intervals[i] - 12)
+    end
+  end
+
+  -- Root octave
+  for _, interval in ipairs(scale_intervals) do
+    table.insert(offsets, interval)
+  end
+
+  -- One octave above
+  for _, interval in ipairs(scale_intervals) do
+    if interval > 0 then
+      table.insert(offsets, interval + 12)
+    end
+  end
+
+  table.sort(offsets)
+  return offsets
+end
+
+-- Convert semitone offset to display string (e.g., "0", "+7", "-12")
+function theory.offset_to_display(semitones)
+  if semitones == 0 then
+    return "0"
+  elseif semitones > 0 then
+    return "+" .. semitones
+  else
+    return tostring(semitones)
+  end
+end
+
 return theory
