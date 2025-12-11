@@ -4,7 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local EurorackUtils = include("lib/components/eurorack/eurorack_utils")
+local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 local TxoCvOutput = {}
 TxoCvOutput.__index = TxoCvOutput
@@ -534,8 +534,8 @@ local function create_params()
         params:add_option("txo_cv_" .. i .. "_clock_offset", "Offset", EurorackUtils.offset_options, 1)
         params:set_action("txo_cv_" .. i .. "_clock_interval", function(value)
             TxoCvOutput.update_txo_cv(i)
-            if _seeker and _seeker.txo_cv_output then
-                _seeker.txo_cv_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+                _seeker.eurorack.txo_cv_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)
@@ -549,8 +549,8 @@ local function create_params()
         params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Random Walk", "Envelope"}, 1)
         params:set_action("txo_cv_" .. i .. "_type", function(value)
             TxoCvOutput.update_txo_cv(i)
-            if _seeker and _seeker.txo_cv_output then
-                _seeker.txo_cv_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+                _seeker.eurorack.txo_cv_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)
@@ -589,8 +589,8 @@ local function create_params()
         params:add_option("txo_cv_" .. i .. "_random_walk_mode", "Mode", {"Jump", "Accumulate"}, 2)
         params:set_action("txo_cv_" .. i .. "_random_walk_mode", function(value)
             TxoCvOutput.update_txo_cv(i)
-            if _seeker and _seeker.txo_cv_output then
-                _seeker.txo_cv_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+                _seeker.eurorack.txo_cv_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)
@@ -624,8 +624,8 @@ local function create_params()
         params:add_option("txo_cv_" .. i .. "_envelope_mode", "Envelope Mode", {"ADSR", "AR"}, 1)
         params:set_action("txo_cv_" .. i .. "_envelope_mode", function(value)
             TxoCvOutput.update_txo_cv(i)
-            if _seeker and _seeker.txo_cv_output then
-                _seeker.txo_cv_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+                _seeker.eurorack.txo_cv_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)

@@ -6,21 +6,21 @@ local EurorackMode = {}
 
 function EurorackMode.draw_full_page(layers)
   -- Draw all three component grid selectors
-  _seeker.crow_output.grid:draw(layers)
-  _seeker.txo_tr_output.grid:draw(layers)
-  _seeker.txo_cv_output.grid:draw(layers)
+  _seeker.eurorack.crow_output.grid:draw(layers)
+  _seeker.eurorack.txo_tr_output.grid:draw(layers)
+  _seeker.eurorack.txo_cv_output.grid:draw(layers)
 end
 
 function EurorackMode.handle_full_page_key(x, y, z)
   _seeker.ui_state.register_activity()
 
   -- Route to appropriate component based on grid position
-  if _seeker.crow_output.grid:contains(x, y) then
-    _seeker.crow_output.grid:handle_key(x, y, z)
-  elseif _seeker.txo_tr_output.grid:contains(x, y) then
-    _seeker.txo_tr_output.grid:handle_key(x, y, z)
-  elseif _seeker.txo_cv_output.grid:contains(x, y) then
-    _seeker.txo_cv_output.grid:handle_key(x, y, z)
+  if _seeker.eurorack.crow_output.grid:contains(x, y) then
+    _seeker.eurorack.crow_output.grid:handle_key(x, y, z)
+  elseif _seeker.eurorack.txo_tr_output.grid:contains(x, y) then
+    _seeker.eurorack.txo_tr_output.grid:handle_key(x, y, z)
+  elseif _seeker.eurorack.txo_cv_output.grid:contains(x, y) then
+    _seeker.eurorack.txo_cv_output.grid:handle_key(x, y, z)
   end
 
   return true

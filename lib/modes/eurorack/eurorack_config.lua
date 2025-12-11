@@ -16,14 +16,14 @@ local function create_params()
     params:set_action("eurorack_selected_type", function(value)
         -- Rebuild params for whichever component is currently active
         local current_section = _seeker.ui_state.get_current_section()
-        if current_section == "CROW_OUTPUT" and _seeker.crow_output then
-            _seeker.crow_output.screen:rebuild_params()
+        if current_section == "CROW_OUTPUT" and _seeker.eurorack.crow_output then
+            _seeker.eurorack.crow_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-        elseif current_section == "TXO_TR_OUTPUT" and _seeker.txo_tr_output then
-            _seeker.txo_tr_output.screen:rebuild_params()
+        elseif current_section == "TXO_TR_OUTPUT" and _seeker.eurorack.txo_tr_output then
+            _seeker.eurorack.txo_tr_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-        elseif current_section == "TXO_CV_OUTPUT" and _seeker.txo_cv_output then
-            _seeker.txo_cv_output.screen:rebuild_params()
+        elseif current_section == "TXO_CV_OUTPUT" and _seeker.eurorack.txo_cv_output then
+            _seeker.eurorack.txo_cv_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
@@ -32,14 +32,14 @@ local function create_params()
     params:set_action("eurorack_selected_number", function(value)
         -- Rebuild params for whichever component is currently active
         local current_section = _seeker.ui_state.get_current_section()
-        if current_section == "CROW_OUTPUT" and _seeker.crow_output then
-            _seeker.crow_output.screen:rebuild_params()
+        if current_section == "CROW_OUTPUT" and _seeker.eurorack.crow_output then
+            _seeker.eurorack.crow_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-        elseif current_section == "TXO_TR_OUTPUT" and _seeker.txo_tr_output then
-            _seeker.txo_tr_output.screen:rebuild_params()
+        elseif current_section == "TXO_TR_OUTPUT" and _seeker.eurorack.txo_tr_output then
+            _seeker.eurorack.txo_tr_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-        elseif current_section == "TXO_CV_OUTPUT" and _seeker.txo_cv_output then
-            _seeker.txo_cv_output.screen:rebuild_params()
+        elseif current_section == "TXO_CV_OUTPUT" and _seeker.eurorack.txo_cv_output then
+            _seeker.eurorack.txo_cv_output.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)

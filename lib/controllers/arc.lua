@@ -100,7 +100,7 @@ function Arc.init()
     device.delta = function(n, delta)
       -- Check for knob recording mode and intercept encoder turns
       if _seeker.ui_state.state.knob_recording_active and n == 2 then
-        _seeker.crow_output.handle_encoder_input(delta)
+        _seeker.eurorack.crow_output.handle_encoder_input(delta)
         return
       end
 
@@ -235,8 +235,8 @@ function Arc.init()
         -- Check for knob recording mode - Arc button stops recording
         if _seeker.ui_state.state.knob_recording_active then
           local output_num = params:get("eurorack_selected_number")
-          if _seeker.crow_output then
-            _seeker.crow_output.stop_recording_knob(output_num)
+          if _seeker.eurorack and _seeker.eurorack.crow_output then
+            _seeker.eurorack.crow_output.stop_recording_knob(output_num)
           end
           return
         end

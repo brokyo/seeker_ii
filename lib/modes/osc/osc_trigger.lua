@@ -4,7 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local OscUtils = include("lib/components/osc/osc_utils")
+local OscUtils = include("lib/modes/osc/osc_utils")
 
 local OscTrigger = {}
 OscTrigger.__index = OscTrigger
@@ -49,19 +49,19 @@ local function send_trigger_envelope(trigger_index)
     local min_sustain_frac = total > 0 and (min_sustain_pct / total) or 0.25
     local release_frac = total > 0 and (release_pct / total) or 0.25
 
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/attack", {attack_frac})
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/decay", {decay_frac})
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/min_sustain", {min_sustain_frac})
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/release", {release_frac})
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/min", {env_min})
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/max", {env_max})
-    _seeker.osc_config.send_message("/trigger/" .. trigger_index .. "/multiplier", {multiplier})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/attack", {attack_frac})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/decay", {decay_frac})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/min_sustain", {min_sustain_frac})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/release", {release_frac})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/min", {env_min})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/max", {env_max})
+    _seeker.osc.send_message("/trigger/" .. trigger_index .. "/multiplier", {multiplier})
 end
 
 -- Send trigger pulse with explicit value
 local function send_trigger_pulse(trigger_index, value)
     local path = "/trigger/" .. trigger_index .. "/pulse"
-    _seeker.osc_config.send_message(path, {value})
+    _seeker.osc.send_message(path, {value})
 end
 
 -- Update trigger clock (start/stop trigger pulses)
@@ -242,8 +242,8 @@ local function create_grid_ui()
 
                 _seeker.ui_state.set_current_section("OSC_TRIGGER")
 
-                if _seeker.osc_trigger and _seeker.osc_trigger.screen then
-                    _seeker.osc_trigger.screen:rebuild_params()
+                if _seeker.osc and _seeker.osc.trigger and _seeker.osc.trigger.screen then
+                    _seeker.osc.trigger.screen:rebuild_params()
                     _seeker.screen_ui.set_needs_redraw()
                 end
 

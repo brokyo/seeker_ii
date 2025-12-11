@@ -19,34 +19,15 @@ function ScreenUI.init()
     -- Keyboard Mode
     KEYBOARD = _seeker.keyboard.screen,
     LANE_CONFIG = _seeker.lane_config.screen,
-
-    -- WTape Mode
-    WTAPE = _seeker.w_tape.screen,
-    WTAPE_PLAYBACK = _seeker.wtape_playback.screen,
-    WTAPE_RECORD = _seeker.wtape_record.screen,
-    WTAPE_FF = _seeker.wtape_ff.screen,
-    WTAPE_REWIND = _seeker.wtape_rewind.screen,
-    WTAPE_LOOP_START = _seeker.wtape_loop_start.screen,
-    WTAPE_LOOP_END = _seeker.wtape_loop_end.screen,
-    WTAPE_REVERSE = _seeker.wtape_reverse.screen,
-    WTAPE_LOOP_ACTIVE = _seeker.wtape_loop_active.screen,
-
-    -- Eurorack Mode
-    EURORACK_CONFIG = _seeker.eurorack_config.screen,
-    CROW_OUTPUT = _seeker.crow_output.screen,
-    TXO_TR_OUTPUT = _seeker.txo_tr_output.screen,
-    TXO_CV_OUTPUT = _seeker.txo_cv_output.screen,
-
-    -- OSC Mode
-    OSC_CONFIG = _seeker.osc_config.screen,
-    OSC_FLOAT = _seeker.osc_float.screen,
-    OSC_LFO = _seeker.osc_lfo.screen,
-    OSC_TRIGGER = _seeker.osc_trigger.screen,
   }
 
-  -- Auto-register motif type sections
-  for _, type_module in ipairs({_seeker.tape, _seeker.sampler_type, _seeker.composer}) do
-    for section_id, screen in pairs(type_module.sections) do
+  -- Auto-register sections from mode modules (each provides a .sections table)
+  local mode_modules = {
+    _seeker.tape, _seeker.sampler_type, _seeker.composer,
+    _seeker.wtape, _seeker.eurorack, _seeker.osc
+  }
+  for _, mode_module in ipairs(mode_modules) do
+    for section_id, screen in pairs(mode_module.sections) do
       ScreenUI.sections[section_id] = screen
     end
   end

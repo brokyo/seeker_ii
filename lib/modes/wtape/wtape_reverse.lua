@@ -18,7 +18,7 @@ local function create_screen_ui()
     screen_ui.draw = function(self)
         screen.clear()
 
-        local is_forward = _seeker.wtape_direction == 1
+        local is_forward = _seeker.wtape.direction == 1
         local status_text = is_forward and "FWD" or "REV"
 
         screen.font_size(16)
@@ -53,7 +53,7 @@ local function create_grid_ui()
     })
 
     grid_ui.draw = function(self, layers)
-        local is_reverse = _seeker.wtape_direction == -1
+        local is_reverse = _seeker.wtape.direction == -1
         local brightness = is_reverse and
             GridConstants.BRIGHTNESS.UI.FOCUSED or
             GridConstants.BRIGHTNESS.UI.NORMAL

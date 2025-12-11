@@ -87,12 +87,12 @@ end
 
 -- Sync all OSC outputs by calling type components' sync methods
 function OscConfig.sync()
-    if _seeker.osc_lfo and _seeker.osc_lfo.sync then
-        _seeker.osc_lfo.sync()
+    if _seeker.osc and _seeker.osc.lfo and _seeker.osc.lfo.sync then
+        _seeker.osc.lfo.sync()
     end
 
-    if _seeker.osc_trigger and _seeker.osc_trigger.sync then
-        _seeker.osc_trigger.sync()
+    if _seeker.osc and _seeker.osc.trigger and _seeker.osc.trigger.sync then
+        _seeker.osc.trigger.sync()
     end
 end
 

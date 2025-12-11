@@ -4,7 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local EurorackUtils = include("lib/components/eurorack/eurorack_utils")
+local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 local CrowOutput = {}
 CrowOutput.__index = CrowOutput
@@ -908,8 +908,8 @@ local function create_params()
         params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Envelope", "Knob Recorder", "Looped Random", "Clocked Random", "Random Walk"}, 1)
         params:set_action("crow_" .. i .. "_type", function(value)
             CrowOutput.update_crow(i)
-            if _seeker and _seeker.crow_output then
-                _seeker.crow_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
+                _seeker.eurorack.crow_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)
@@ -927,8 +927,8 @@ local function create_params()
         params:add_option("crow_" .. i .. "_gate_mode", "Gate Mode", {"Clock", "Pattern"}, 1)
         params:set_action("crow_" .. i .. "_gate_mode", function(value)
             CrowOutput.update_crow(i)
-            if _seeker and _seeker.crow_output then
-                _seeker.crow_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
+                _seeker.eurorack.crow_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)
@@ -1070,8 +1070,8 @@ local function create_params()
         params:add_option("crow_" .. i .. "_envelope_mode", "Envelope Mode", {"ADSR", "AR"}, 1)
         params:set_action("crow_" .. i .. "_envelope_mode", function(value)
             CrowOutput.update_crow(i)
-            if _seeker and _seeker.crow_output then
-                _seeker.crow_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
+                _seeker.eurorack.crow_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)
@@ -1118,8 +1118,8 @@ local function create_params()
         params:add_option("crow_" .. i .. "_random_walk_mode", "Mode", {"Jump", "Accumulate"}, 2)
         params:set_action("crow_" .. i .. "_random_walk_mode", function(value)
             CrowOutput.update_crow(i)
-            if _seeker and _seeker.crow_output then
-                _seeker.crow_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
+                _seeker.eurorack.crow_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)

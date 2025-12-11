@@ -14,7 +14,7 @@ local selected_float = 1
 -- Send float value via shared OSC infrastructure
 local function send_float_value(index, value)
     local path = "/float/" .. index .. "/value"
-    _seeker.osc_config.send_message(path, {value})
+    _seeker.osc.send_message(path, {value})
     return value
 end
 
@@ -22,7 +22,7 @@ end
 local function send_float_multiplier(index)
     local multiplier = params:get("osc_float_" .. index .. "_multiplier")
     local path = "/float/" .. index .. "/multiplier"
-    _seeker.osc_config.send_message(path, {multiplier})
+    _seeker.osc.send_message(path, {multiplier})
     return multiplier
 end
 
@@ -119,8 +119,8 @@ local function create_grid_ui()
                 _seeker.ui_state.set_current_section("OSC_FLOAT")
 
                 -- Rebuild screen params
-                if _seeker.osc_float and _seeker.osc_float.screen then
-                    _seeker.osc_float.screen:rebuild_params()
+                if _seeker.osc and _seeker.osc.float and _seeker.osc.float.screen then
+                    _seeker.osc.float.screen:rebuild_params()
                     _seeker.screen_ui.set_needs_redraw()
                 end
 

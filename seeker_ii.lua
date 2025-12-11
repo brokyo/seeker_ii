@@ -35,28 +35,10 @@ local Tape = include("lib/modes/motif/tape/init")
 local Sampler = include("lib/modes/motif/sampler/init")
 local Composer = include("lib/modes/motif/composer/init")
 
--- Components: WTape Mode
-local WTape = include("lib/components/wtape/wtape_config")
-local WTapePlayback = include("lib/components/wtape/wtape_playback")
-local WTapeRecord = include("lib/components/wtape/wtape_record")
-local WTapeFF = include("lib/components/wtape/wtape_ff")
-local WTapeRewind = include("lib/components/wtape/wtape_rewind")
-local WTapeLoopStart = include("lib/components/wtape/wtape_loop_start")
-local WTapeLoopEnd = include("lib/components/wtape/wtape_loop_end")
-local WTapeReverse = include("lib/components/wtape/wtape_reverse")
-local WTapeLoopActive = include("lib/components/wtape/wtape_loop_active")
-
--- Components: Eurorack Mode
-local EurorackConfig = include("lib/components/eurorack/eurorack_config")
-local CrowOutput = include("lib/components/eurorack/crow_output")
-local TxoTrOutput = include("lib/components/eurorack/txo_tr_output")
-local TxoCvOutput = include("lib/components/eurorack/txo_cv_output")
-
--- Components: OSC Mode
-local OscConfig = include("lib/components/osc/osc_config")
-local OscFloat = include("lib/components/osc/osc_float")
-local OscLfo = include("lib/components/osc/osc_lfo")
-local OscTrigger = include("lib/components/osc/osc_trigger")
+-- Mode Types
+local WTape = include("lib/modes/wtape/init")
+local Eurorack = include("lib/modes/eurorack/init")
+local Osc = include("lib/modes/osc/init")
 
 -- Global state
 _seeker = {
@@ -78,20 +60,17 @@ _seeker = {
 
   current_mode = nil,
 
-  -- Component Approach
+  -- Components
   config = nil,
-  w_tape = nil,
-  eurorack_config = nil,
-  crow_output = nil,
-  txo_tr_output = nil,
-  txo_cv_output = nil,
-  osc_config = nil,
   lane_config = nil,
 
-  -- Motif Types (initialized via type/init.lua)
+  -- Mode Types (initialized via init.lua)
   tape = nil,
   sampler_type = nil,
   composer = nil,
+  wtape = nil,
+  eurorack = nil,
+  osc = nil,
 }
 
 --------------------------------------------------
@@ -141,28 +120,10 @@ function init()
   _seeker.sampler_type = Sampler.init()
   _seeker.composer = Composer.init()
 
-  -- WTape Mode
-  _seeker.w_tape = WTape.init()
-  _seeker.wtape_playback = WTapePlayback.init()
-  _seeker.wtape_record = WTapeRecord.init()
-  _seeker.wtape_ff = WTapeFF.init()
-  _seeker.wtape_rewind = WTapeRewind.init()
-  _seeker.wtape_loop_start = WTapeLoopStart.init()
-  _seeker.wtape_loop_end = WTapeLoopEnd.init()
-  _seeker.wtape_reverse = WTapeReverse.init()
-  _seeker.wtape_loop_active = WTapeLoopActive.init()
-
-  -- Eurorack Mode
-  _seeker.eurorack_config = EurorackConfig.init()
-  _seeker.crow_output = CrowOutput.init()
-  _seeker.txo_tr_output = TxoTrOutput.init()
-  _seeker.txo_cv_output = TxoCvOutput.init()
-
-  -- OSC Mode
-  _seeker.osc_config = OscConfig.init()
-  _seeker.osc_float = OscFloat.init()
-  _seeker.osc_lfo = OscLfo.init()
-  _seeker.osc_trigger = OscTrigger.init()
+  -- Mode Types
+  _seeker.wtape = WTape.init()
+  _seeker.eurorack = Eurorack.init()
+  _seeker.osc = Osc.init()
   
   -- UI Setup and global access
   params_manager.init_params()

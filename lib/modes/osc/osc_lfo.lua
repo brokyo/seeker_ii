@@ -4,7 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local OscUtils = include("lib/components/osc/osc_utils")
+local OscUtils = include("lib/modes/osc/osc_utils")
 
 local OscLfo = {}
 OscLfo.__index = OscLfo
@@ -28,7 +28,7 @@ local function send_lfo_frequency(lfo_index)
 
     if frequency > 0 then
         local path = "/lfo/" .. lfo_index .. "/freq"
-        _seeker.osc_config.send_message(path, {frequency})
+        _seeker.osc.send_message(path, {frequency})
 
         -- Send sync pulse on next beat boundary
         local beats = OscUtils.division_to_beats(sync_div)
@@ -36,10 +36,10 @@ local function send_lfo_frequency(lfo_index)
             clock.sync(beats)
             local sync_path = "/lfo/" .. lfo_index .. "/sync"
 
-            _seeker.osc_config.send_message(sync_path, {1})
+            _seeker.osc.send_message(sync_path, {1})
 
             clock.sleep(0.25)
-            _seeker.osc_config.send_message(sync_path, {0})
+            _seeker.osc.send_message(sync_path, {0})
         end
 
         active_lfo_sync_clocks["lfo_" .. lfo_index] = clock.run(send_single_sync_pulse)
@@ -47,7 +47,7 @@ local function send_lfo_frequency(lfo_index)
         return frequency
     else
         local path = "/lfo/" .. lfo_index .. "/freq"
-        _seeker.osc_config.send_message(path, {0})
+        _seeker.osc.send_message(path, {0})
         return 0
     end
 end
@@ -60,15 +60,15 @@ local function send_lfo_range(lfo_index)
     local min_path = "/lfo/" .. lfo_index .. "/min"
     local max_path = "/lfo/" .. lfo_index .. "/max"
 
-    _seeker.osc_config.send_message(min_path, {min_val})
-    _seeker.osc_config.send_message(max_path, {max_val})
+    _seeker.osc.send_message(min_path, {min_val})
+    _seeker.osc.send_message(max_path, {max_val})
 end
 
 -- Send LFO shape type (as integer: 0=Sine, 1=Gaussian, 2=Triangle, 3=Ramp, 4=Square, 5=Pulse)
 local function send_lfo_shape(lfo_index)
     local shape_index = params:get("osc_lfo_" .. lfo_index .. "_shape") - 1
     local path = "/lfo/" .. lfo_index .. "/shape"
-    _seeker.osc_config.send_message(path, {shape_index})
+    _seeker.osc.send_message(path, {shape_index})
 end
 
 local function create_params()
@@ -170,8 +170,8 @@ local function create_grid_ui()
 
                 _seeker.ui_state.set_current_section("OSC_LFO")
 
-                if _seeker.osc_lfo and _seeker.osc_lfo.screen then
-                    _seeker.osc_lfo.screen:rebuild_params()
+                if _seeker.osc and _seeker.osc.lfo and _seeker.osc.lfo.screen then
+                    _seeker.osc.lfo.screen:rebuild_params()
                     _seeker.screen_ui.set_needs_redraw()
                 end
 

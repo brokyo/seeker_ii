@@ -4,7 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local EurorackUtils = include("lib/components/eurorack/eurorack_utils")
+local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 local TxoTrOutput = {}
 TxoTrOutput.__index = TxoTrOutput
@@ -343,8 +343,8 @@ local function create_params()
         params:add_option("txo_tr_" .. i .. "_type", "Type", {"Gate", "Burst", "Pattern"}, 1)
         params:set_action("txo_tr_" .. i .. "_type", function(value)
             TxoTrOutput.update_txo_tr(i)
-            if _seeker and _seeker.txo_tr_output then
-                _seeker.txo_tr_output.screen:rebuild_params()
+            if _seeker and _seeker.eurorack and _seeker.eurorack.txo_tr_output then
+                _seeker.eurorack.txo_tr_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end)

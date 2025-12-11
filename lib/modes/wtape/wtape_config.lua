@@ -25,13 +25,13 @@ local function create_params()
     end)
 
     -- Direction state: 1 = forward, -1 = reverse (tracked locally since reverse() is stateless)
-    _seeker.wtape_direction = 1
+    _seeker.wtape.direction = 1
 
     params:add_binary("wtape_reverse", "Play Direction", "trigger", 0)
     params:set_action("wtape_reverse", function(value)
         if value == 1 then
             crow.ii.wtape.reverse()
-            _seeker.wtape_direction = _seeker.wtape_direction * -1
+            _seeker.wtape.direction = _seeker.wtape.direction * -1
             _seeker.screen_ui.set_needs_redraw()
         end
     end)

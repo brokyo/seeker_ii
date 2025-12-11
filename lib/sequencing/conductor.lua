@@ -104,17 +104,17 @@ function Conductor.sync_all()
     end
 
     -- Sync each component that has a sync method
-    if _seeker.crow_output and _seeker.crow_output.sync then
-      _seeker.crow_output.sync()
+    if _seeker.eurorack and _seeker.eurorack.crow_output and _seeker.eurorack.crow_output.sync then
+      _seeker.eurorack.crow_output.sync()
     end
-    if _seeker.txo_tr_output and _seeker.txo_tr_output.sync then
-      _seeker.txo_tr_output.sync()
+    if _seeker.eurorack and _seeker.eurorack.txo_tr_output and _seeker.eurorack.txo_tr_output.sync then
+      _seeker.eurorack.txo_tr_output.sync()
     end
-    if _seeker.txo_cv_output and _seeker.txo_cv_output.sync then
-      _seeker.txo_cv_output.sync()
+    if _seeker.eurorack and _seeker.eurorack.txo_cv_output and _seeker.eurorack.txo_cv_output.sync then
+      _seeker.eurorack.txo_cv_output.sync()
     end
-    if _seeker.osc_config and _seeker.osc_config.sync then
-      _seeker.osc_config.sync()
+    if _seeker.osc and _seeker.osc.sync then
+      _seeker.osc.sync()
     end
 
     -- Wait for next beat
