@@ -9,6 +9,9 @@ local GridLayers = include("lib/grid/layers")
 
 local SamplerKeyboard = {}
 
+-- Note: Performance state is accessed via _seeker.sampler_performance
+-- to ensure we use the single initialized instance
+
 -- Playback mode constants for sampler behavior
 local MODE_GATE = 1
 
@@ -78,11 +81,17 @@ local function pad_on(x, y)
     end
   end
 
-  -- Always trigger sample playback
+  -- Trigger sample playback (unless muted by performance button)
   if _seeker and _seeker.sampler then
     local lane = _seeker.ui_state.get_focused_lane()
-    local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
-    _seeker.sampler.trigger_pad(lane, pad, velocity)
+    local perf = _seeker.sampler_performance
+    if not perf or not perf.is_muted(lane) then
+      local velocity = _seeker.sampler_velocity and _seeker.sampler_velocity.get_current_velocity() or 127
+      if perf then
+        velocity = velocity * perf.get_velocity_multiplier(lane)
+      end
+      _seeker.sampler.trigger_pad(lane, pad, velocity)
+    end
   end
 
   -- Record pad event if motif recorder is active

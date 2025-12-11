@@ -6,6 +6,8 @@ local forms = include('lib/motif_core/forms')
 local tape_transform = include('lib/components/lanes/stage_types/tape_transform')
 local arpeggio_sequence = include('lib/components/lanes/stage_types/arpeggio_sequence')
 local sampler_transforms = include('lib/modes/motif/types/sampler/transforms')
+-- Note: Performance state is accessed via _seeker.sampler_performance at runtime
+-- to ensure we use the single initialized instance
 
 -- Motif type constants
 local TAPE_MODE = 1
@@ -538,9 +540,17 @@ end
 --   Send MIDI or engine note_on
 ---------------------------------------------------------
 function Lane:on_note_on(event)
-  -- Simple unconditional logging
-  -- print("NOTE_ON: note=" .. tostring(event.note) .. " vel=" .. tostring(event.velocity))
+  -- Check sampler performance mute (only applies in sampler mode)
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local perf = _seeker and _seeker.sampler_performance
+  if motif_type == SAMPLER_MODE and perf and perf.is_muted(self.id) then
+    return
+  end
 
+  -- Apply sampler performance velocity multiplier (only in sampler mode)
+  if motif_type == SAMPLER_MODE and perf then
+    event.velocity = event.velocity * perf.get_velocity_multiplier(self.id)
+  end
 
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note

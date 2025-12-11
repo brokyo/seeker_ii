@@ -10,7 +10,7 @@ function SamplerType.draw(layers)
   _seeker.sampler_playback.grid:draw(layers)
   _seeker.sampler_clear.grid:draw(layers)
   _seeker.sampler_creator.grid:draw(layers)
-  _seeker.sampler_stage_config.grid:draw(layers)
+  _seeker.sampler_performance.grid:draw(layers)
   _seeker.sampler_keyboard.grid:draw(layers)
 end
 
@@ -51,9 +51,9 @@ function SamplerType.handle_key(x, y, z)
     return true
   end
 
-  -- Stage config button (4, 7)
-  if _seeker.sampler_stage_config.grid:contains(x, y) then
-    _seeker.sampler_stage_config.grid:handle_key(x, y, z)
+  -- Performance button (4, 7)
+  if _seeker.sampler_performance.grid:contains(x, y) then
+    _seeker.sampler_performance.grid:handle_key(x, y, z)
     return true
   end
 

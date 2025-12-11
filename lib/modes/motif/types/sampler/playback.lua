@@ -12,8 +12,8 @@ SamplerPlayback.__index = SamplerPlayback
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_PLAYBACK",
-    name = "Sampler Playback",
-    description = "Control playback timing for sampler motifs.",
+    name = "Playback",
+    description = "Control playback timing.",
     params = {}
   })
 

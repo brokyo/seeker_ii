@@ -31,6 +31,7 @@ function ScreenUI.init()
     SAMPLER_PLAYBACK = _seeker.sampler_playback.screen,
     SAMPLER_CLEAR = _seeker.sampler_clear.screen,
     SAMPLER_VELOCITY = _seeker.sampler_velocity.screen,
+    SAMPLER_PERFORMANCE = _seeker.sampler_performance.screen,
     EXPRESSION_CONFIG = _seeker.expression_config.screen,
     HARMONIC_CONFIG = _seeker.harmonic_config.screen,
 

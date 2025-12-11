@@ -46,6 +46,7 @@ GridModeRegistry.MODES = {
       "SAMPLER_PLAYBACK",
       "SAMPLER_CLEAR",
       "SAMPLER_VELOCITY",
+      "SAMPLER_PERFORMANCE",
       "EXPRESSION_CONFIG",
       "HARMONIC_CONFIG",
       "CLEAR_MOTIF"

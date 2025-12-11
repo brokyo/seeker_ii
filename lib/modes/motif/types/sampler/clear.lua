@@ -12,7 +12,7 @@ SamplerClear.__index = SamplerClear
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_CLEAR",
-    name = "Clear Sampler Motif",
+    name = "Clear",
     description = "Hold to clear the sampler motif and reset chops to genesis",
     params = {
       { separator = true, title = "Clear Motif" }

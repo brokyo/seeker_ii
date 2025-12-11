@@ -27,8 +27,8 @@ local SamplerPadConfig = {
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_PAD_CONFIG",
-    name = "Pad Config",
-    description = "Configure individual pad chop points and envelopes. Press pads to select.",
+    name = "Chop Config",
+    description = "Configure individual chop points and envelopes. Press pads to select.",
     params = {}
   })
 
@@ -39,7 +39,7 @@ local function create_screen_ui()
     local filter_type = params:get("spc_filter_type")
 
     local param_list = {
-      {separator = true, title = "Sample Config"},
+      {separator = true, title = "Chop Config"},
       {id = "spc_mode"},
       {id = "spc_max_volume", arc_multi_float = {0.1, 0.05, 0.01}},
       {separator = true, title = "Slice Points"},

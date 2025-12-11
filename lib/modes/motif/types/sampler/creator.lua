@@ -33,7 +33,7 @@ end
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "SAMPLER_CREATOR",
-        name = "Sampler",
+        name = "Create",
         description = "Record pad triggers as a looping motif. Load samples via Lane Config.",
         params = {
             { separator = true, title = "Sampler" }
@@ -45,7 +45,7 @@ local function create_screen_ui()
         local lane = _seeker.lanes[focused_lane]
 
         local param_table = {
-            { separator = true, title = "Sampler" }
+            { separator = true, title = "Motif Configuration" }
         }
 
         -- Show duration param only when there's an active motif

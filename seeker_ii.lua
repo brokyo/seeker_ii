@@ -42,6 +42,7 @@ local LaneConfig = include("lib/components/lanes/lane_config")
 local TapeStageConfig = include("lib/components/lanes/tape_stage_config")
 local ExpressionConfig = include("lib/components/lanes/expression_config")
 local HarmonicConfig = include("lib/components/lanes/harmonic_config")
+local SamplerPerformance = include("lib/modes/motif/types/sampler/performance")
 
 -- Components: WTape Mode
 local WTape = include("lib/components/wtape/wtape_config")
@@ -109,6 +110,7 @@ _seeker = {
   txo_cv_output = nil,
   osc_config = nil,
   lane_config = nil,
+  sampler_performance = nil,
 }
 
 --------------------------------------------------
@@ -168,6 +170,7 @@ function init()
   _seeker.tape_stage_config = TapeStageConfig.init()
   _seeker.expression_config = ExpressionConfig.init()
   _seeker.harmonic_config = HarmonicConfig.init()
+  _seeker.sampler_performance = SamplerPerformance.init()
 
   -- WTape Mode
   _seeker.w_tape = WTape.init()

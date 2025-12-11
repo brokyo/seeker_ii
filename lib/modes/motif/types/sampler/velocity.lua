@@ -15,10 +15,10 @@ local VELOCITY_LABELS = {"soft", "med", "loud", "max"}
 local function create_params()
   params:add_group("sampler_velocity", "SAMPLER VELOCITY", 5)
 
-  params:add_number("sampler_velocity_1", "Soft Level", 0, 127, 40)
-  params:add_number("sampler_velocity_2", "Medium Level", 0, 127, 70)
-  params:add_number("sampler_velocity_3", "Loud Level", 0, 127, 100)
-  params:add_number("sampler_velocity_4", "Max Level", 0, 127, 127)
+  params:add_number("sampler_velocity_1", "Soft", 0, 127, 40)
+  params:add_number("sampler_velocity_2", "Medium", 0, 127, 70)
+  params:add_number("sampler_velocity_3", "Loud", 0, 127, 100)
+  params:add_number("sampler_velocity_4", "Max", 0, 127, 127)
 
   params:add_number("sampler_velocity_selected", "Selected", 1, 4, 3)
   params:set_action("sampler_velocity_selected", function(value)
@@ -34,8 +34,8 @@ end
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_VELOCITY",
-    name = "Sample Amplitude",
-    description = "Control sample playback amplitude. Press grid keys to select level.",
+    name = "Chop Amplitude",
+    description = "Control chop playback volume. Press grid keys to select level. Tweak as needed. Performable.",
     params = {
       { separator = true, title = "Amplitude Levels" },
       { id = "sampler_velocity_1" },
@@ -49,7 +49,7 @@ local function create_screen_ui()
     local selected = params:get("sampler_velocity_selected")
 
     self.params = {
-      { separator = true, title = "Amplitude Levels" },
+      { separator = true, title = "Levels" },
       { id = "sampler_velocity_1" },
       { id = "sampler_velocity_2" },
       { id = "sampler_velocity_3" },
