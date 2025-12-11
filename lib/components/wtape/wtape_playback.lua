@@ -11,31 +11,25 @@ WTapePlayback.__index = WTapePlayback
 local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_PLAYBACK",
-        name = "Play/Stop",
-        params = {}
+        name = "Play",
+        description = "Tape playback. Press grid to toggle play/stop. Speed affects pitch.",
+        params = {
+            { separator = true, title = "Playback" },
+            { id = "wtape_speed", arc_multi_float = {0.5, 0.1, 0.01} }
+        }
     })
 
-    screen_ui.draw = function(self)
-        screen.clear()
+    -- Display playback status below parameters
+    screen_ui.draw_default = function(self)
+        NornsUI.draw_default(self)
 
-        -- Large status text centered on screen
         local is_playing = params:get("wtape_toggle_playing") == 1
-        local status_text = is_playing and "PLAYING" or "STOPPED"
+        local status_text = is_playing and "> PLAYING" or "[] STOPPED"
 
-        screen.font_size(16)
-        screen.level(15)
-        local text_width = screen.text_extents(status_text)
-        screen.move((128 - text_width) / 2, 30)
+        local width = screen.text_extents(status_text)
+        screen.level(is_playing and 15 or 6)
+        screen.move(64 - width/2, 46)
         screen.text(status_text)
-
-        -- Simple footer without lane/stage info
-        screen.font_size(8)
-        screen.level(8)
-        screen.rect(0, 52, 128, 12)
-        screen.fill()
-        screen.level(0)
-        screen.move(2, 60)
-        screen.text("Play/Stop")
 
         screen.update()
     end
