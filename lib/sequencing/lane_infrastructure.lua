@@ -28,8 +28,9 @@ local function create_stage_params(i)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        -- All stages default to active
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, 2)
+        -- Stage 1 defaults active, stages 2-4 default inactive
+        local active_default = (stage_idx == 1) and 2 or 1
+        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, active_default)
         params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_active", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
@@ -114,6 +115,18 @@ local function create_basic_lane_params(i)
         -- Stop playback when switching modes
         if _seeker and _seeker.lanes and _seeker.lanes[i] then
             _seeker.lanes[i]:stop()
+        end
+
+        -- Set stage defaults based on motif type
+        -- Composer: enable all 4 stages (typical workflow uses all stages)
+        -- Tape/Sampler: enable only stage 1 (additional stages inactive by default)
+        local all_stages_active = (value == 2)  -- Composer
+        for stage_idx = 1, 4 do
+            if all_stages_active then
+                params:set("lane_" .. i .. "_stage_" .. stage_idx .. "_active", 2, true)
+            else
+                params:set("lane_" .. i .. "_stage_" .. stage_idx .. "_active", (stage_idx == 1) and 2 or 1, true)
+            end
         end
 
         -- Rebuild screens (motif type affects Create Motif params and Lane Config voice routing)

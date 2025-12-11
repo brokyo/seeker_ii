@@ -177,6 +177,8 @@ function Lane:play()
   
   if not self.playing then
     self.playing = true
+    -- Sync stage config from params before starting
+    self:sync_all_stages_from_params()
     -- Reset motif and loop counters when starting playback
     self:reset_motif()
     for _, stage in ipairs(self.stages) do
@@ -574,12 +576,12 @@ function Lane:on_note_on(event)
   if event.positions then
     positions = event.positions
   elseif event.x and event.y then
-    -- For arpeggio mode, never use theory system - use direct coordinates
-    if motif_type == 2 then
-      positions = {{x = event.x, y = event.y}}
-    else
-      -- Tape/arpeggio modes: use keyboard region for multi-position notes
+    -- Tape mode: notes may appear at multiple grid positions (same pitch on different rows)
+    -- Arpeggio/Sampler: each note has a single grid position from the event
+    if motif_type == TAPE_MODE then
       positions = KeyboardRegion.note_to_positions(note) or {{x = event.x, y = event.y}}
+    else
+      positions = {{x = event.x, y = event.y}}
     end
   end
 
@@ -811,7 +813,6 @@ function Lane:on_note_on(event)
       -- TODO: Check if we're playing in poly or mono. For code based on trigger.
       local polyphony = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select")
       if polyphony == 1 then
-        print("Polyphony")
         crow.ii.disting.note_pitch(note, v8_note)
         crow.ii.disting.note_velocity(note, disting_volume)
       else
@@ -1176,7 +1177,19 @@ function Lane:get_active_positions()
     return positions
   end
 
-  -- For tape mode, use existing note-based illumination
+  -- For sampler mode, use stored positions from active_notes
+  if motif_type == SAMPLER_MODE then
+    for key, note in pairs(self.active_notes) do
+      if note.positions then
+        for _, pos in ipairs(note.positions) do
+          table.insert(positions, {x = pos.x, y = pos.y})
+        end
+      end
+    end
+    return positions
+  end
+
+  -- Tape mode: illuminate all grid positions where this note appears
   for key, note in pairs(self.active_notes) do
     local current_positions = KeyboardRegion.note_to_positions(note.note)
     if current_positions then
