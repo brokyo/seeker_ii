@@ -32,11 +32,13 @@ function KeyboardMode.draw_full_page(layers)
       _seeker.create_motif.grid:draw(layers)
       _seeker.tape_stage_config.grid:draw(layers)
       KeyboardRegion.draw(layers)
+      KeyboardRegion.draw_motif_events(layers)
     elseif motif_type == ARPEGGIO_MODE then
       _seeker.motif_playback.grid:draw(layers)
       _seeker.clear_motif.grid:draw(layers)
       _seeker.create_motif.grid:draw(layers)
       KeyboardRegion.draw(layers)
+      KeyboardRegion.draw_motif_events(layers)
     end
 
     -- Shared components for legacy types
