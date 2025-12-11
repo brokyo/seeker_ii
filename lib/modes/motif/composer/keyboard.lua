@@ -296,7 +296,8 @@ local function create_grid_ui()
       self.held_notes[key] = playback_note
       self.pressed_blocks[key] = {x = x, y = y, timestamp = util.time()}
 
-      local velocity = _seeker.velocity.get_current_velocity()
+      -- Use stage 1's velocity max for live preview
+      local velocity = params:get("lane_" .. focused_lane.id .. "_stage_1_composer_velocity_max")
 
       focused_lane:on_note_on({
         note = playback_note,
