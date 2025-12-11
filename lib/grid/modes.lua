@@ -34,10 +34,6 @@ GridModeRegistry.MODES = {
       "KEYBOARD",
       "LANE",
       "STAGE",
-      "MOTIF",
-      "CREATE_MOTIF",
-      "VELOCITY",
-      "TUNING",
       "LANE_CONFIG",
       -- Tape type sections
       "TAPE_VELOCITY",
@@ -63,8 +59,7 @@ GridModeRegistry.MODES = {
       "COMPOSER_EXPRESSION_STAGES",
       "COMPOSER_HARMONIC_STAGES",
       "EXPRESSION_CONFIG",
-      "HARMONIC_CONFIG",
-      "CLEAR_MOTIF"
+      "HARMONIC_CONFIG"
     },
     path = "lib/grid/modes/keyboard_mode"
   },

@@ -18,11 +18,6 @@ function ScreenUI.init()
 
     -- Keyboard Mode
     KEYBOARD = _seeker.keyboard.screen,
-    VELOCITY = _seeker.velocity.screen,
-    TUNING = _seeker.tuning.screen,
-    MOTIF = _seeker.motif_playback.screen,
-    CLEAR_MOTIF = _seeker.clear_motif.screen,
-    CREATE_MOTIF = _seeker.create_motif.screen,
     LANE_CONFIG = _seeker.lane_config.screen,
     TAPE_STAGE_CONFIG = _seeker.tape_stage_config.screen,
     SAMPLER_CHOP_CONFIG = _seeker.sampler_chop_config.screen,

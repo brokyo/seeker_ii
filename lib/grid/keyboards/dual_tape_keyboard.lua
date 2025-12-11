@@ -247,8 +247,8 @@ local function handle_record_button(x, y, z)
         current_lane:play()
       end
 
-      if _seeker.create_motif and _seeker.create_motif.screen then
-        _seeker.create_motif.screen:rebuild_params()
+      if _seeker.tape_create and _seeker.tape_create.screen then
+        _seeker.tape_create.screen:rebuild_params()
       end
       _seeker.screen_ui.set_needs_redraw()
     elseif is_long_press then
@@ -263,8 +263,8 @@ local function handle_record_button(x, y, z)
         -- New recording
         current_lane:clear()
 
-        if _seeker.create_motif and _seeker.create_motif.screen then
-          _seeker.create_motif.screen:rebuild_params()
+        if _seeker.tape_create and _seeker.tape_create.screen then
+          _seeker.tape_create.screen:rebuild_params()
         end
 
         _seeker.motif_recorder:set_recording_mode(1)
@@ -308,9 +308,9 @@ local function handle_clear_button(x, y, z)
       if lane and lane.motif and #lane.motif.events > 0 then
         lane:clear()
 
-        -- Rebuild create_motif parameters to hide duration since motif was cleared
-        if _seeker.create_motif and _seeker.create_motif.screen then
-          _seeker.create_motif.screen:rebuild_params()
+        -- Rebuild tape_create screen to hide duration since motif was cleared
+        if _seeker.tape_create and _seeker.tape_create.screen then
+          _seeker.tape_create.screen:rebuild_params()
         end
 
         _seeker.screen_ui.set_needs_redraw()

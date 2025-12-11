@@ -25,11 +25,6 @@ local lane_infrastructure = include("lib/sequencing/lane_infrastructure")
 
 -- Components: Keyboard Mode
 local Keyboard = include("lib/components/keyboard/keyboard_config")
-local Velocity = include("lib/components/keyboard/velocity")
-local Tuning = include("lib/components/keyboard/tuning")
-local MotifPlayback = include("lib/components/keyboard/motif_playback")
-local CreateMotif = include("lib/components/keyboard/create_motif")
-local ClearMotif = include("lib/components/keyboard/clear_motif")
 local SamplerKeyboard = include("lib/modes/motif/sampler/keyboard")
 local SamplerChopConfig = include("lib/modes/motif/sampler/chop_config")
 local SamplerCreate = include("lib/modes/motif/sampler/create")
@@ -105,14 +100,11 @@ _seeker = {
   sampler_playback = nil,
   sampler_clear = nil,
   sampler_velocity = nil,
-  -- This one is a hack to get the velocity section to work. There's got to be a better way.
-  velocity = 3,
 
   current_mode = nil,
 
   -- Component Approach
   config = nil,
-  create_motif = nil,
   w_tape = nil,
   tape_stage_config = nil,
   eurorack_config = nil,
@@ -180,11 +172,6 @@ function init()
 
   -- Keyboard Mode
   _seeker.keyboard = Keyboard.init()
-  _seeker.velocity = Velocity.init()
-  _seeker.tuning = Tuning.init()
-  _seeker.motif_playback = MotifPlayback.init()
-  _seeker.create_motif = CreateMotif.init()
-  _seeker.clear_motif = ClearMotif.init()
   _seeker.sampler_keyboard = SamplerKeyboard.init()
   _seeker.sampler_chop_config = SamplerChopConfig.init()
   _seeker.sampler_create = SamplerCreate.init()
