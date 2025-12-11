@@ -329,6 +329,31 @@ local function create_screen_ui()
 
             -- Push overlay to display
             screen.update()
+
+        -- Check if loading sample and draw overlay
+        elseif _seeker.sampler and _seeker.sampler.loading_state then
+            -- Dark background
+            screen.level(1)
+            screen.rect(0, 0, 128, 64)
+            screen.fill()
+
+            -- Border box
+            screen.level(15)
+            screen.rect(10, 20, 108, 24)
+            screen.stroke()
+
+            -- Main message (large, centered)
+            screen.level(15)
+            screen.move(64, 32)
+            screen.font_face(1)
+            screen.font_size(16)
+            screen.text_center("LOADING")
+
+            -- Reset font size
+            screen.font_size(8)
+
+            -- Push overlay to display
+            screen.update()
         end
     end
 

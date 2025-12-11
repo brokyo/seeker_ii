@@ -67,6 +67,7 @@ SamplerManager.recording_buffer = nil
 SamplerManager.recording_state = nil  -- nil, "recording", or "saving"
 SamplerManager.record_start_time = 0
 SamplerManager.file_select_active = false  -- true while norns fileselect is open
+SamplerManager.loading_state = nil  -- nil or "loading"
 
 -- Initialize all softcut voices for sampler use
 function SamplerManager.init()
@@ -508,6 +509,12 @@ function SamplerManager.load_file(lane, filepath)
     return false
   end
 
+  -- Show loading overlay
+  SamplerManager.loading_state = "loading"
+  if _seeker and _seeker.screen_ui then
+    _seeker.screen_ui.set_needs_redraw()
+  end
+
   -- Clear existing sample data for this lane (stops voices, resets chops)
   SamplerManager.clear_lane_chops(lane)
 
@@ -528,11 +535,25 @@ function SamplerManager.load_file(lane, filepath)
 
     -- Auto-chop into fixed chops
     SamplerManager.set_fixed_chops(lane, duration)
+
+    -- Clear loading overlay after brief delay (buffer_read_mono has no completion callback)
+    clock.run(function()
+      clock.sleep(1.0)
+      SamplerManager.loading_state = nil
+      if _seeker and _seeker.screen_ui then
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end)
+
     return true
   else
     print("≋ Sampler: Failed to load file")
     -- Free the buffer since load failed
     SamplerManager.free_buffer(lane)
+    SamplerManager.loading_state = nil
+    if _seeker and _seeker.screen_ui then
+      _seeker.screen_ui.set_needs_redraw()
+    end
     return false
   end
 end
