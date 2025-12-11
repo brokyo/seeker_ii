@@ -12,28 +12,26 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_RECORD",
         name = "Record",
-        params = {}
+        description = "Tape recording. Erase 0=overdub, 1=replace. Echo plays back before erasing.",
+        params = {
+            { separator = true, title = "Recording" },
+            { id = "wtape_rec_level", arc_multi_float = {0.1, 0.05, 0.01} },
+            { id = "wtape_erase_strength", arc_multi_float = {0.1, 0.05, 0.01} },
+            { id = "wtape_echo_mode" }
+        }
     })
 
-    screen_ui.draw = function(self)
-        screen.clear()
+    -- Display recording status below parameters
+    screen_ui.draw_default = function(self)
+        NornsUI.draw_default(self)
 
         local is_recording = params:get("wtape_toggle_recording") == 1
         local status_text = is_recording and "REC ON" or "REC OFF"
 
-        screen.font_size(16)
-        screen.level(15)
-        local text_width = screen.text_extents(status_text)
-        screen.move((128 - text_width) / 2, 30)
+        local width = screen.text_extents(status_text)
+        screen.level(is_recording and 15 or 6)
+        screen.move(64 - width/2, 46)
         screen.text(status_text)
-
-        screen.font_size(8)
-        screen.level(8)
-        screen.rect(0, 52, 128, 12)
-        screen.fill()
-        screen.level(0)
-        screen.move(2, 60)
-        screen.text("Record")
 
         screen.update()
     end

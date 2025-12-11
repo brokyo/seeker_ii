@@ -10,7 +10,7 @@ WTape.__index = WTape
 
 -- wtape api here: https://github.com/monome/crow/blob/main/lua/ii/wtape.lua
 local function create_params()
-    params:add_group("wtape", "WTAPE", 12)
+    params:add_group("wtape", "WTAPE", 13)
 
     -- Playback
     params:add_binary("wtape_toggle_playing", "Toggle Playing", "toggle", 0)
@@ -57,7 +57,13 @@ local function create_params()
     params:set_action("wtape_rec_level", function(value)
         crow.ii.wtape.rec_level(value)
     end)
-    
+
+    params:add_binary("wtape_echo_mode", "Echo Mode", "toggle", 0)
+    params:set_action("wtape_echo_mode", function(value)
+        crow.ii.wtape.echo_mode(value)
+        _seeker.screen_ui.set_needs_redraw()
+    end)
+
     -- Seek
     params:add_binary("wtape_rewind", "Rewind 10 seconds", "trigger", 0)
     params:set_action("wtape_rewind", function(value)
