@@ -23,8 +23,8 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        -- 1 config_stage + 4 stages * 8 params per stage = 33
-        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 33)
+        -- 1 config_stage + 4 stages * 7 params per stage = 29
+        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 29)
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)
             config_state.config_stage = value
@@ -39,8 +39,7 @@ local function create_params()
                 _seeker.screen_ui.set_needs_redraw()
             end)
 
-            -- Stage Volume Param
-            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_volume", "Stage Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
+            -- Stage volume uses shared param from lane_infrastructure (lane_X_stage_Y_volume)
 
             -- Scatter Transform Params
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount", "Scatter Amount",
@@ -91,53 +90,37 @@ local function create_screen_ui()
         local lane_idx = _seeker.ui_state.get_focused_lane()
         local stage_idx = config_state.config_stage
 
+        -- Update footer to show current stage
+        self.name = "Stage " .. stage_idx .. " Config"
+
         -- Get the current transform type
         local transform_type = params:string("lane_" .. lane_idx .. "_sampler_transform_stage_" .. stage_idx)
 
         local param_table = {
             { separator = true, title = "Stage " .. stage_idx .. " Settings" },
-            { id = "lane_" .. lane_idx .. "_sampler_config_stage" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_volume" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { separator = true, title = "Transform" },
             { id = "lane_" .. lane_idx .. "_sampler_transform_stage_" .. stage_idx },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" }
         }
 
         -- Add transform-specific parameters
         if transform_type == "Scatter" then
-            table.insert(param_table, { separator = true, title = "Scatter Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount",
-                arc_multi_float = {10, 5, 1}
-            })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_scatter_amount", arc_multi_float = {10, 5, 1} })
         elseif transform_type == "Reverse" then
-            table.insert(param_table, { separator = true, title = "Reverse Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob",
-                arc_multi_float = {10, 5, 1}
-            })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob", arc_multi_float = {10, 5, 1} })
         elseif transform_type == "Pan Spread" then
-            table.insert(param_table, { separator = true, title = "Pan Spread Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_prob",
-                arc_multi_float = {10, 5, 1}
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range",
-                arc_multi_float = {10, 5, 1}
-            })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_prob", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range", arc_multi_float = {10, 5, 1} })
         elseif transform_type == "Filter Sweep" then
-            table.insert(param_table, { separator = true, title = "Filter Sweep Config" })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_direction"
-            })
-            table.insert(param_table, {
-                id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_amount",
-                arc_multi_float = {10, 5, 1}
-            })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_direction" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_amount", arc_multi_float = {10, 5, 1} })
         end
+
+        -- Config section with reset and loop count
+        table.insert(param_table, { separator = true, title = "Config" })
+        table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" })
+        table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" })
 
         -- Update the UI with the new parameter table
         self.params = param_table

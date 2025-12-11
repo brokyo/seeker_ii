@@ -115,6 +115,12 @@ local function create_basic_lane_params(i)
         -- Stop playback when switching modes
         if _seeker and _seeker.lanes and _seeker.lanes[i] then
             _seeker.lanes[i]:stop()
+            -- Stop any playing sampler voices for this lane
+            if _seeker.sampler then
+                for pad = 1, 16 do
+                    _seeker.sampler.stop_pad(i, pad)
+                end
+            end
         end
 
         -- Set stage defaults based on motif type
