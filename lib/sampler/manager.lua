@@ -135,7 +135,6 @@ function SamplerManager.init()
   end
 
   SamplerManager.initialized = true
-  print(string.format("≋ Sampler: %d voices initialized, 8 lanes prepared, 2 buffers available", SamplerManager.num_voices))
 end
 
 -- Allocate a free buffer for a lane (returns buffer_id 1 or 2, or nil if none available)

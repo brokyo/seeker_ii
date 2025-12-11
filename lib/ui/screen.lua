@@ -69,9 +69,8 @@ function ScreenUI.init()
         -- Sections opt-in via needs_playback_refresh property
         local current_section = _seeker.ui_state.get_current_section()
         local section = ScreenUI.sections[current_section]
-        local lane_playing = _seeker.lanes[_seeker.ui_state.get_focused_lane()].playing
         if _seeker.motif_recorder.is_recording or
-           (section and section.needs_playback_refresh and lane_playing) then
+           (section and section.needs_playback_refresh) then
           ScreenUI.set_needs_redraw()
         end
 
