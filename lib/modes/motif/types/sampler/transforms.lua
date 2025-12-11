@@ -25,9 +25,10 @@ transforms.available = {
     name = "Scatter",
     ui_name = "Scatter",
     ui_order = 2,
-    description = "Randomize chop start positions within a percentage of current values (compounds)",
+    description = "Chaotic micro-loops: amount controls drift, size controls minimum chop length",
     fn = function(lane_id, stage_id)
       local scatter_amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_scatter_amount") / 100
+      local scatter_size = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_scatter_size") / 100
 
       if scatter_amount == 0 then return end
       if not _seeker.sampler then return end
@@ -35,29 +36,88 @@ transforms.available = {
       local sample_duration = _seeker.sampler.get_sample_duration(lane_id)
       if sample_duration <= 0 then return end
 
-      -- Scatter each pad's start position from its current value
       for pad = 1, 16 do
         local chop = _seeker.sampler.get_chop(lane_id, pad)
 
         if chop then
-          -- Calculate scatter range based on current start_pos (compounds across stages)
-          local current_start = chop.start_pos
-          local max_offset = current_start * scatter_amount
+          local original_duration = chop.stop_pos - chop.start_pos
 
-          -- Random offset within range
+          -- Calculate random offset within scatter_amount percentage of chop duration
+          local max_offset = original_duration * scatter_amount
           local offset = (math.random() * 2 - 1) * max_offset
 
-          -- Apply offset, clamped to valid range
-          local new_start = math.max(0, math.min(current_start + offset, sample_duration - 0.01))
+          -- New start position, clamped to buffer
+          local new_start = math.max(0, math.min(chop.start_pos + offset, sample_duration - 0.001))
 
-          -- Update the working chop
-          _seeker.sampler.update_chop(lane_id, pad, 'start_pos', new_start)
+          -- Scale original duration by scatter_size parameter (0-100%)
+          local target_duration = original_duration * scatter_size
+          local min_duration = 0.005  -- 5ms floor for audible content
+          local new_duration = math.max(min_duration, target_duration)
 
-          -- Ensure stop_pos stays after start_pos
-          if chop.stop_pos <= new_start then
-            local new_stop = math.min(new_start + 0.1, sample_duration)
-            _seeker.sampler.update_chop(lane_id, pad, 'stop_pos', new_stop)
+          -- Calculate stop, ensuring it doesn't exceed buffer
+          local new_stop = math.min(new_start + new_duration, sample_duration)
+
+          -- Adjust start position if stop hits buffer boundary
+          if new_stop - new_start < min_duration then
+            new_start = math.max(0, new_stop - min_duration)
           end
+
+          _seeker.sampler.update_chop(lane_id, pad, 'start_pos', new_start)
+          _seeker.sampler.update_chop(lane_id, pad, 'stop_pos', new_stop)
+        end
+      end
+    end
+  },
+
+  slide = {
+    name = "Slide",
+    ui_name = "Slide",
+    ui_order = 3,
+    description = "Shift chop windows through buffer while preserving duration",
+    fn = function(lane_id, stage_id)
+      local slide_amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_amount") / 100
+      local slide_wrap = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_wrap") == 2
+
+      if slide_amount == 0 then return end
+      if not _seeker.sampler then return end
+
+      local sample_duration = _seeker.sampler.get_sample_duration(lane_id)
+      if sample_duration <= 0 then return end
+
+      for pad = 1, 16 do
+        local chop = _seeker.sampler.get_chop(lane_id, pad)
+
+        if chop then
+          local duration = chop.stop_pos - chop.start_pos
+
+          -- Slide range based on sample duration
+          local max_offset = sample_duration * slide_amount
+          local offset = (math.random() * 2 - 1) * max_offset
+
+          local new_start = chop.start_pos + offset
+          local new_stop = new_start + duration
+
+          if slide_wrap then
+            -- Wrap around buffer boundaries
+            new_start = new_start % sample_duration
+            new_stop = new_start + duration
+            -- Truncate at buffer end when wrap would exceed duration
+            if new_stop > sample_duration then
+              new_stop = sample_duration
+            end
+          else
+            -- Clamp to buffer boundaries
+            if new_start < 0 then
+              new_start = 0
+              new_stop = duration
+            elseif new_stop > sample_duration then
+              new_stop = sample_duration
+              new_start = sample_duration - duration
+            end
+          end
+
+          _seeker.sampler.update_chop(lane_id, pad, 'start_pos', new_start)
+          _seeker.sampler.update_chop(lane_id, pad, 'stop_pos', new_stop)
         end
       end
     end
@@ -66,7 +126,7 @@ transforms.available = {
   reverse = {
     name = "Reverse",
     ui_name = "Reverse",
-    ui_order = 3,
+    ui_order = 4,
     description = "Flip playback direction with probability per pad",
     fn = function(lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_reverse_prob") / 100
@@ -90,7 +150,7 @@ transforms.available = {
   pan_spread = {
     name = "Pan Spread",
     ui_name = "Pan Spread",
-    ui_order = 4,
+    ui_order = 5,
     description = "Randomly distribute pads across stereo field",
     fn = function(lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_prob") / 100
@@ -115,7 +175,7 @@ transforms.available = {
   filter_sweep = {
     name = "Filter Sweep",
     ui_name = "Filter Sweep",
-    ui_order = 5,
+    ui_order = 6,
     description = "Progressive lowpass filter movement across stages",
     fn = function(lane_id, stage_id)
       local direction = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_direction")
