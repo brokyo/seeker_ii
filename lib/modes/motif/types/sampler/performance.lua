@@ -125,11 +125,11 @@ local function create_screen_ui()
 
     -- Accent and Soft modes expose their velocity amount and slew controls
     if mode == MODE_ACCENT then
-      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_accent_amount" })
-      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew" })
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_accent_amount", arc_multi_float = {0.1, 0.05, 0.01} })
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew", arc_multi_float = {0.1, 0.05, 0.01} })
     elseif mode == MODE_SOFT then
-      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_soft_amount" })
-      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew" })
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_soft_amount", arc_multi_float = {0.1, 0.05, 0.01} })
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew", arc_multi_float = {0.1, 0.05, 0.01} })
     end
 
     self.params = param_table
