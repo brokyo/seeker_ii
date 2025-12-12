@@ -148,7 +148,7 @@ transforms.available = {
     name = "Pan Spread",
     ui_name = "Pan Spread",
     ui_order = 5,
-    description = "Randomly distribute events across stereo field",
+    description = "Randomly offset pan from recorded value",
     fn = function(events, lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_prob") / 100
       local range = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_range") / 100
@@ -158,7 +158,8 @@ transforms.available = {
 
       for _, event in ipairs(events) do
         if event.type == "note_on" and event.pan and math.random() < probability then
-          event.pan = (math.random() * 2 - 1) * range
+          local offset = (math.random() * 2 - 1) * range
+          event.pan = util.clamp(event.pan + offset, -1, 1)
         end
       end
 
@@ -201,15 +202,6 @@ function transforms.get_transform_id_by_ui_name(ui_name)
     end
   end
   return "none"
-end
-
--- Get transform ID and function by UI name (called from Lane:prepare_stage)
-function transforms.get_transform_by_ui_name(ui_name)
-  local transform_id = transforms.get_transform_id_by_ui_name(ui_name)
-  if transform_id and transforms.available[transform_id] then
-    return transforms.available[transform_id]
-  end
-  return nil
 end
 
 return transforms

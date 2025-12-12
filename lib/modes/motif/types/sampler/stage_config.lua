@@ -9,7 +9,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local SamplerStageConfig = {}
 
 -- Transform types for sampler
-local transform_types = {"None", "Scatter", "Slide", "Reverse", "Pan Spread", "Filter Sweep"}
+local transform_types = {"None", "Scatter", "Slide", "Reverse", "Pan Spread"}
 
 -- Local state for stage configuration
 local config_state = {
