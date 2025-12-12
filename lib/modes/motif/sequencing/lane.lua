@@ -1,4 +1,15 @@
 -- lane.lua
+-- Core sequencing unit. Each lane owns a motif and manages its playback through stages.
+--
+-- Responsibilities:
+--   - State: playing, current_stage_index, motif, active_notes, trails
+--   - Playback: play(), stop(), schedule_stage(), stage transitions
+--   - Event scheduling: quantization, swing, speed scaling, conductor insertion
+--   - Note output: routes to all active voices (MIDI, MX Samples, Crow, JF, wsyn, etc.)
+--
+-- Architecture debt: Voice routing (~350 lines) should be extracted to a VoiceRouter module.
+-- The on_note_on/on_note_off methods handle 8 different voice types inline.
+
 local mx_samples = include('lib/modes/motif/infrastructure/voices/mx_samples')
 local Motif = include('lib/modes/motif/core/motif')
 local forms = include('lib/modes/motif/core/forms')
@@ -31,11 +42,13 @@ end
     return string.format("%d,%d", x, y)
   end
 
+-- Create a new lane with the given config
+-- Config: { id, speed?, stages? }
 function Lane.new(config)
   local lane = {}
   setmetatable(lane, Lane)
 
-  -- Copy over config fields matching archetype structure
+  -- Core identity and playback state
   lane.id = config.id
   lane.playing = false
   lane.instrument = params:get("lane_" .. lane.id .. "_instrument")
@@ -47,7 +60,7 @@ function Lane.new(config)
   lane.reverb_send = params:get("lane_" .. lane.id .. "_reverb_send")
   lane.chord_phase_offset = 0  -- Track chord position for phasing across loops
 
-  -- Initialize voice active states from params
+  -- Voice routing flags (cached from params, updated via param actions)
   lane.mx_samples_active = params:get("lane_" .. lane.id .. "_mx_samples_active") == 1
   lane.midi_active = params:get("lane_" .. lane.id .. "_midi_active") == 1
   lane.eurorack_active = params:get("lane_" .. lane.id .. "_eurorack_active") == 1
@@ -56,7 +69,8 @@ function Lane.new(config)
   lane.osc_active = params:get("lane_" .. lane.id .. "_osc_active") == 1
   lane.disting_active = params:get("lane_" .. lane.id .. "_disting_active") == 1
   
-  -- Initialize with four default stages if none provided
+  -- Stage configuration (4 stages per lane, each with loops/active/reset_motif/transforms)
+  -- Stage 1 defaults active, stages 2-4 default inactive
   lane.stages = config.stages or {
     {
       id = 1,
@@ -235,13 +249,17 @@ end
 
 ---------------------------------------------------------
 -- schedule_stage(stage_index, start_time)
---   Creates the series of note events for a single pass of that stage.
---   Handles looping within the stage before moving to next stage.
---   
---   Key timing concepts:
---   - base_duration: The effective duration (custom or recorded)
---   - speed_adjusted_duration: Duration modified by lane's speed
---   - loop_offset: Time offset for current loop iteration
+--   Core scheduling loop. Iterates motif events and inserts them into conductor.
+--
+--   Flow:
+--   1. Prepare stage (apply mode-specific transforms)
+--   2. For each event: apply quantize/swing, scale by speed, insert into conductor
+--   3. Schedule end-of-loop callback (triggers next loop or stage transition)
+--
+--   Timing:
+--   - base_duration: Motif length in beats (custom_duration or recorded)
+--   - speed_adjusted_duration: base_duration / speed
+--   - Events scheduled at: start_time + (event.time / speed)
 ---------------------------------------------------------
 function Lane:schedule_stage(stage_index, start_time)
   local stage = self.stages[stage_index]
@@ -348,12 +366,24 @@ function Lane:schedule_stage(stage_index, start_time)
                 y = event.y,
                 is_playback = true,
                 event_index = i,
-                -- Pass through the stored ADSR and pan values
+                -- Tape mode values
                 attack = event.attack,
                 decay = event.decay,
                 sustain = event.sustain,
                 release = event.release,
-                pan = event.pan
+                pan = event.pan,
+                -- Sampler mode values
+                fade_time = event.fade_time,
+                rate = event.rate,
+                pitch_offset = event.pitch_offset,
+                max_volume = event.max_volume,
+                mode = event.mode,
+                filter_type = event.filter_type,
+                lpf = event.lpf,
+                hpf = event.hpf,
+                resonance = event.resonance,
+                start_pos = event.start_pos,
+                stop_pos = event.stop_pos
               })
             end
           })
@@ -534,8 +564,12 @@ function Lane:on_motif_end(stage_index, end_time)
 end
 
 ---------------------------------------------------------
--- on_note_on(note)
---   Send MIDI or engine note_on
+-- on_note_on(event)
+--   Main note trigger. Called by conductor when a scheduled note_on fires.
+--   Checks performance state, applies transforms, then routes to all active voices.
+--
+--   Event fields: note, velocity, x, y, is_playback, plus voice-specific params
+--   (attack/decay/sustain/release/pan for tape, chop params for sampler)
 ---------------------------------------------------------
 function Lane:on_note_on(event)
   -- Check performance mute by motif type
@@ -635,7 +669,13 @@ function Lane:on_note_on(event)
 
   end 
 
-  -- If MIDI is active, play the note
+  --------------------------------
+  -- VOICE OUTPUT ROUTING
+  -- Routes note to all active voice outputs for this lane.
+  -- Each voice type checks its _active flag before outputting.
+  --------------------------------
+
+  -- MIDI Output
   if self.midi_active then
     local midi_voice_volume = params:get("lane_" .. self.id .. "_midi_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
@@ -705,7 +745,8 @@ function Lane:on_note_on(event)
       -- Apply lane volume to velocity before passing to sampler
       local lane_volume = params:get("lane_" .. self.id .. "_volume")
       local scaled_velocity = event.velocity * lane_volume
-      _seeker.sampler.trigger_pad(self.id, note, scaled_velocity)
+      -- Pass full event so trigger_pad can use recorded chop values
+      _seeker.sampler.trigger_pad(self.id, note, scaled_velocity, event)
     end
   end
 
@@ -855,16 +896,20 @@ function Lane:on_note_on(event)
     end
   end
 
-  -- Add trails for all positions with keyboard-specific behavior
+  --------------------------------
+  -- GRID TRAIL VISUALIZATION
+  -- Creates fading brightness trails on grid when notes play.
+  -- Composer mode skips this (uses keyboard's built-in feedback).
+  --------------------------------
+
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   local is_composer_mode = (motif_type == 2)
 
-  -- Composer mode uses built-in keyboard tail decay, skip trail system
   if is_composer_mode then
     return
   end
 
-  -- Tape mode: gradual fade trails
+  -- Tape/Sampler: gradual fade trails
   local trail_brightness = GridConstants.BRIGHTNESS.HIGH
   local trail_decay = 0.95
 
@@ -889,7 +934,9 @@ function Lane:on_note_on(event)
 end
 
 ---------------------------------------------------------
--- on_note_off(note)
+-- on_note_off(event)
+--   Note release. Called by conductor when a scheduled note_off fires.
+--   Stops voices, clears active note tracking, manages gate output.
 ---------------------------------------------------------
 function Lane:on_note_off(event)
   -- Simple unconditional logging
