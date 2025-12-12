@@ -6,6 +6,13 @@ local musicutil = require('musicutil')
 -- Create the theory utilities table
 local theory = {}
 
+-- Scale cache to avoid regenerating on every grid_to_note call
+local scale_cache = {
+  root = nil,
+  scale_type = nil,
+  scale = nil
+}
+
 -- Converts grid x,y coordinates to a MIDI note number using modal Tonnetz layout
 -- The layout creates a grid where:
 -- Root note is at bottom left (6,7)
@@ -13,22 +20,30 @@ local theory = {}
 function theory.grid_to_note(x, y, octave)
   local root = params:get("root_note")  -- Use 1-based root directly
   local scale_type = params:get("scale_type")
-  
+
   -- Get tuning offset for current lane
   local focused_lane = _seeker.ui_state.get_focused_lane()
   local grid_offset = params:get("lane_" .. focused_lane .. "_grid_offset")
-  
+
   -- Calculate steps from root position
   local x_steps = (x - 6) * params:get("keyboard_column_steps")  -- Scale degrees per horizontal step
   local y_steps = (7 - y) * params:get("keyboard_row_steps")     -- Scale degrees per vertical step
   local total_steps = x_steps + y_steps + grid_offset
-  
+
   -- Calculate the base MIDI note for the root in the specified octave
   local base_root_note = (octave + 1) * 12 + (root - 1)
-  
-  -- Generate scale starting from a low octave to ensure we have enough notes
-  local root_midi = (root - 1)  -- Convert to 0-based for musicutil
-  local scale = musicutil.generate_scale(root_midi, musicutil.SCALES[scale_type].name, 10)
+
+  -- Use cached scale if root and scale_type haven't changed
+  local scale
+  if scale_cache.root == root and scale_cache.scale_type == scale_type then
+    scale = scale_cache.scale
+  else
+    local root_midi = (root - 1)  -- Convert to 0-based for musicutil
+    scale = musicutil.generate_scale(root_midi, musicutil.SCALES[scale_type].name, 10)
+    scale_cache.root = root
+    scale_cache.scale_type = scale_type
+    scale_cache.scale = scale
+  end
   
   -- Find the base root note in our scale
   local root_index = nil
@@ -37,18 +52,6 @@ function theory.grid_to_note(x, y, octave)
       root_index = i
       break
     end
-  end
-  
-  -- If we couldn't find the root note, try the first occurrence that matches the pitch class
-  if not root_index then
-    print("Couldn't find root note in scale")
-    -- local target_pitch_class = (root - 1) % 12
-    -- for i, note in ipairs(scale) do
-    --   if note % 12 == target_pitch_class and note >= base_root_note - 12 then
-    --     root_index = i
-    --     break
-    --   end
-    -- end
   end
   
   -- Get the note from our scale relative to the root position

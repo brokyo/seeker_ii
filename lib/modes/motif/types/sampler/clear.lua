@@ -28,9 +28,9 @@ local function create_screen_ui()
       local lane = _seeker.lanes[focused_lane]
 
       if lane and lane.motif and #lane.motif.events > 0 then
-        tooltip = "x: hold [clear]"
+        tooltip = "clear: hold"
       else
-        tooltip = "No motif to clear"
+        tooltip = "no motif to clear"
       end
 
       local width = screen.text_extents(tooltip)
@@ -133,7 +133,7 @@ local function create_grid_ui()
             for pad = 1, 16 do
               _seeker.sampler.stop_pad(focused_lane, pad)
             end
-            -- Reset chops to genesis on clear
+            -- Reset sample slice points to initial state
             _seeker.sampler.reset_lane_to_genesis(focused_lane)
           end
 

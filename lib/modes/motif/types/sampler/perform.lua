@@ -37,19 +37,20 @@ function SamplerPerform.get_velocity_multiplier(lane_id)
   end
 
   local mode = params:get("lane_" .. lane_id .. "_performance_mode")
-  if mode == MODE_MUTE then
-    return 0.0
-  end
-
   local target = 1.0
-  if mode == MODE_ACCENT then
+  local slew_time = 0
+
+  if mode == MODE_MUTE then
+    target = 0.0
+    slew_time = params:get("lane_" .. lane_id .. "_performance_mute_slew")
+  elseif mode == MODE_ACCENT then
     target = params:get("lane_" .. lane_id .. "_performance_accent_amount")
+    slew_time = params:get("lane_" .. lane_id .. "_performance_slew")
   elseif mode == MODE_SOFT then
     target = params:get("lane_" .. lane_id .. "_performance_soft_amount")
+    slew_time = params:get("lane_" .. lane_id .. "_performance_slew")
   end
 
-  -- Gradually transition to target velocity over slew time
-  local slew_time = params:get("lane_" .. lane_id .. "_performance_slew")
   if slew_time <= 0 then
     return target
   end
@@ -83,7 +84,7 @@ end
 
 local function create_params()
   for i = 1, 8 do
-    params:add_group("lane_" .. i .. "_performance", "LANE " .. i .. " PERFORMANCE", 4)
+    params:add_group("lane_" .. i .. "_performance", "LANE " .. i .. " PERFORMANCE", 5)
 
     params:add_option("lane_" .. i .. "_performance_mode", "Mode", mode_names, MODE_MUTE)
     params:set_action("lane_" .. i .. "_performance_mode", function(value)
@@ -102,7 +103,10 @@ local function create_params()
       controlspec.new(0.1, 1.0, 'lin', 0.1, 0.5, "x"))
 
     params:add_control("lane_" .. i .. "_performance_slew", "Slew Time",
-      controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0, "s"))
+      controlspec.new(0.0, 5.0, 'lin', 0.01, 0.0, "s"))
+
+    params:add_control("lane_" .. i .. "_performance_mute_slew", "Mute Slew",
+      controlspec.new(0.0, 5.0, 'lin', 0.01, 0.0, "s"))
   end
 end
 
@@ -123,13 +127,14 @@ local function create_screen_ui()
       { id = "lane_" .. lane_id .. "_performance_mode" },
     }
 
-    -- Accent and Soft modes expose their velocity amount and slew controls
-    if mode == MODE_ACCENT then
+    if mode == MODE_MUTE then
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_mute_slew", arc_multi_float = {1.0, 0.1, 0.01} })
+    elseif mode == MODE_ACCENT then
       table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_accent_amount", arc_multi_float = {0.1, 0.05, 0.01} })
-      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew", arc_multi_float = {0.1, 0.05, 0.01} })
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew", arc_multi_float = {1.0, 0.1, 0.01} })
     elseif mode == MODE_SOFT then
       table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_soft_amount", arc_multi_float = {0.1, 0.05, 0.01} })
-      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew", arc_multi_float = {0.1, 0.05, 0.01} })
+      table.insert(param_table, { id = "lane_" .. lane_id .. "_performance_slew", arc_multi_float = {1.0, 0.1, 0.01} })
     end
 
     self.params = param_table
@@ -139,7 +144,10 @@ local function create_screen_ui()
     NornsUI.draw_default(self)
 
     if not self.state.showing_description then
-      local tooltip = "hold to perform"
+      local lane_id = _seeker.ui_state.get_focused_lane()
+      local mode = params:get("lane_" .. lane_id .. "_performance_mode")
+      local mode_name = ({"mute", "accent", "soft"})[mode]
+      local tooltip = mode_name .. ": hold"
       local width = screen.text_extents(tooltip)
 
       if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_PERFORM" then

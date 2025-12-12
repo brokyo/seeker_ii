@@ -178,7 +178,7 @@ local function create_screen_ui()
         self:_draw_standard_ui()
 
         -- Draw help text
-        local help_text = "generate: hold grid key"
+        local help_text = "generate: hold"
         local width = screen.text_extents(help_text)
 
         -- Brighten text during long press

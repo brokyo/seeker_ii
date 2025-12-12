@@ -20,32 +20,31 @@ local function create_screen_ui()
         }
     })
 
-    -- Override draw to add help text
     norns_ui.draw_default = function(self)
-        -- Call the original draw method from NornsUI
         NornsUI.draw_default(self)
 
-        -- Show tooltip for clearing motif
-        local tooltip
-        local focused_lane = _seeker.ui_state.get_focused_lane()
-        local lane = _seeker.lanes[focused_lane]
+        if not self.state.showing_description then
+            local tooltip
+            local focused_lane = _seeker.ui_state.get_focused_lane()
+            local lane = _seeker.lanes[focused_lane]
 
-        if lane and lane.motif and #lane.motif.events > 0 then
-            tooltip = "clear: hold grid key"
-        else
-            tooltip = "No motif to clear"
+            if lane and lane.motif and #lane.motif.events > 0 then
+                tooltip = "clear: hold"
+            else
+                tooltip = "no motif to clear"
+            end
+
+            local width = screen.text_extents(tooltip)
+
+            if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "COMPOSER_CLEAR" then
+                screen.level(15)
+            else
+                screen.level(2)
+            end
+
+            screen.move(64 - width/2, 46)
+            screen.text(tooltip)
         end
-
-        local width = screen.text_extents(tooltip)
-
-        if _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "COMPOSER_CLEAR" then
-            screen.level(15)
-        else
-            screen.level(2)
-        end
-
-        screen.move(64 - width/2, 46)
-        screen.text(tooltip)
 
         screen.update()
     end

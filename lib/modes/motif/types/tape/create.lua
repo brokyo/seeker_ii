@@ -44,7 +44,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TAPE_CREATE",
         name = "Create",
-        description = "Record notes as a looping motif. Set duration before or after recording. Hold key to overdub. Overdubs take on local envelope settings (see Lane Config).",
+        description = "Record notes as a looping motif. Hold to record and again to overdub. Overdubs take on local envelope settings (see Lane Config).",
         params = {}
     })
 
@@ -67,8 +67,8 @@ local function create_screen_ui()
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
-        original_enter(self)
         self:rebuild_params()
+        original_enter(self)
     end
 
     -- Override get_param_value for duration display
@@ -196,6 +196,8 @@ local function create_screen_ui()
                         local speed = 4
                         local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
                         screen.level(pulse)
+                    elseif _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "TAPE_CREATE" then
+                        screen.level(15)
                     else
                         screen.level(1)
                     end
@@ -368,6 +370,8 @@ local function create_screen_ui()
                 local speed = 4
                 local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
                 screen.level(pulse)
+            elseif _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "TAPE_CREATE" then
+                screen.level(15)
             else
                 screen.level(2)
             end

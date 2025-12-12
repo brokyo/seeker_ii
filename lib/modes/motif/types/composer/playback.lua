@@ -56,9 +56,9 @@ local function create_screen_ui()
     local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
     local help_text
     if lane and lane.playing then
-      help_text = "stop: hold grid key"
+      help_text = "stop: hold"
     else
-      help_text = "play: hold grid key"
+      help_text = "play: hold"
     end
     local width = screen.text_extents(help_text)
 

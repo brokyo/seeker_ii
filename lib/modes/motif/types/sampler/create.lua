@@ -19,7 +19,7 @@ local function create_params()
         local focused_lane = _seeker.ui_state.get_focused_lane()
         local motif = _seeker.lanes[focused_lane] and _seeker.lanes[focused_lane].motif
         if motif then
-            -- Directly update genesis duration - treat as permanent tape length change
+            -- Permanently update motif duration
             motif.genesis.duration = value
             motif.duration = value
             if _seeker.screen_ui then
@@ -57,8 +57,8 @@ local function create_screen_ui()
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
-        original_enter(self)
         self:rebuild_params()
+        original_enter(self)
     end
 
     -- Override get_param_value for duration display
@@ -83,7 +83,7 @@ local function create_screen_ui()
             local lane = _seeker.lanes[focused_lane]
             if lane and lane.motif then
                 local current = lane.motif.genesis.duration
-                -- Snap to quarter beats for clean increments
+                -- Round to nearest quarter beat for consistent adjustments
                 current = math.floor(current * 4 + 0.5) / 4
                 local new_value = util.clamp(current + (delta * 0.25), 0.25, 128)
                 params:set("sampler_creator_duration", new_value)
@@ -109,7 +109,7 @@ local function create_screen_ui()
         if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
             tooltip = "stop: tap"
         elseif _seeker.sampler and _seeker.sampler.has_buffer(focused_lane) then
-            tooltip = "hold to record"
+            tooltip = "record: hold"
         else
             tooltip = "load samples in Lane Config"
         end
@@ -156,6 +156,8 @@ local function create_screen_ui()
                         local speed = 4
                         local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
                         screen.level(pulse)
+                    elseif _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_CREATE" then
+                        screen.level(15)
                     else
                         screen.level(1)
                     end
@@ -292,6 +294,8 @@ local function create_screen_ui()
                 local speed = 4
                 local pulse = math.floor(math.sin(clock.get_beats() * speed) * range + base)
                 screen.level(pulse)
+            elseif _seeker.ui_state.is_long_press_active() and _seeker.ui_state.get_long_press_section() == "SAMPLER_CREATE" then
+                screen.level(15)
             else
                 screen.level(2)
             end
@@ -357,12 +361,12 @@ local function create_grid_ui()
         current_lane:set_motif(recorded_motif)
 
         if was_overdubbing then
-            -- Overdub: param is source of truth, restore it
+            -- When overdubbing, restore duration from parameter
             local param_duration = params:get("sampler_creator_duration")
             current_lane.motif.genesis.duration = param_duration
             current_lane.motif.duration = param_duration
         else
-            -- New recording: set param from recorded duration
+            -- When recording new motif, update parameter to match recorded duration
             params:set("sampler_creator_duration", recorded_motif.duration, true)
             current_lane:play()
         end
