@@ -39,6 +39,16 @@ local function create_screen_ui()
     local pad = SamplerChopConfig.state.selected_pad
     local filter_type = params:get("spc_filter_type")
 
+    -- Check if chop is using global filter settings
+    local uses_global = true
+    if _seeker and _seeker.sampler then
+      local chop = _seeker.sampler.get_chop(lane, pad)
+      if chop then
+        uses_global = chop.uses_global_filter ~= false
+      end
+    end
+    local filter_title = uses_global and "Filter (global)" or "Filter"
+
     local param_list = {
       {separator = true, title = "Chop Config"},
       {id = "spc_mode"},
@@ -54,11 +64,11 @@ local function create_screen_ui()
       {id = "spc_attack", arc_multi_float = {0.1, 0.01, 0.001}},
       {id = "spc_release", arc_multi_float = {0.1, 0.01, 0.001}},
       {id = "spc_fade_time", arc_multi_float = {0.01, 0.001, 0.0001}},
-      {separator = true, title = "Filter"},
+      {separator = true, title = filter_title},
       {id = "spc_filter_type"}
     }
 
-    -- Add appropriate filter params based on selected type
+    -- Add filter params based on chop's filter type
     if filter_type == FILTER_LOWPASS then
       table.insert(param_list, {id = "spc_lpf", arc_multi_float = {1000, 100, 10}})
       table.insert(param_list, {id = "spc_resonance", arc_multi_float = {0.5, 0.1, 0.05}})
@@ -66,7 +76,6 @@ local function create_screen_ui()
       table.insert(param_list, {id = "spc_hpf", arc_multi_float = {1000, 100, 10}})
       table.insert(param_list, {id = "spc_resonance", arc_multi_float = {0.5, 0.1, 0.05}})
     elseif filter_type == FILTER_BANDPASS or filter_type == FILTER_NOTCH then
-      -- Reuse lpf param as center frequency for bandpass/notch modes
       table.insert(param_list, {id = "spc_lpf", arc_multi_float = {1000, 100, 10}, custom_name = "Center Freq"})
       table.insert(param_list, {id = "spc_resonance", arc_multi_float = {0.5, 0.1, 0.05}})
     end
@@ -163,11 +172,11 @@ function SamplerChopConfig.init()
     end
   end)
 
-  -- Filter controls
+  -- Filter controls (editing any filter param marks chop as locally modified)
   params:add_option("spc_filter_type", "Filter Type", {"Off", "Lowpass", "Highpass", "Bandpass", "Notch"}, 1)
   params:set_action("spc_filter_type", function(value)
     SamplerChopConfig.update_chop('filter_type', value)
-    -- Rebuild UI to show appropriate filter params
+    SamplerChopConfig.update_chop('uses_global_filter', false)
     if SamplerChopConfig.screen then
       SamplerChopConfig.screen:rebuild_params()
     end
@@ -175,20 +184,24 @@ function SamplerChopConfig.init()
       _seeker.screen_ui.set_needs_redraw()
     end
   end)
+
   params:add_taper("spc_lpf", "LPF Cutoff", 20, 20000, 20000, 3, "Hz")
   params:set_action("spc_lpf", function(value)
     SamplerChopConfig.update_chop('lpf', value)
+    SamplerChopConfig.update_chop('uses_global_filter', false)
   end)
 
   params:add_control("spc_resonance", "Resonance",
     controlspec.new(0, 4, 'lin', 0.01, 0, ""))
   params:set_action("spc_resonance", function(value)
     SamplerChopConfig.update_chop('resonance', value)
+    SamplerChopConfig.update_chop('uses_global_filter', false)
   end)
 
   params:add_taper("spc_hpf", "HPF Cutoff", 20, 20000, 20, 3, "Hz")
   params:set_action("spc_hpf", function(value)
     SamplerChopConfig.update_chop('hpf', value)
+    SamplerChopConfig.update_chop('uses_global_filter', false)
   end)
 
   return SamplerChopConfig
@@ -235,8 +248,8 @@ function SamplerChopConfig.load_pad_params()
   params:set("spc_mode", chop.mode or 1, true)
   params:set("spc_filter_type", chop.filter_type or 1, true)
   params:set("spc_lpf", chop.lpf or 20000, true)
-  params:set("spc_resonance", chop.resonance or 0, true)
   params:set("spc_hpf", chop.hpf or 20, true)
+  params:set("spc_resonance", chop.resonance or 0, true)
 
   -- Convert pitch_offset semitones back to option index (index 13 = 0 semitones)
   local pitch_offset = chop.pitch_offset or 0

@@ -1,6 +1,7 @@
 -- engine.lua
 -- Softcut engine for sampler mode playback and recording
--- NOTE: Chop data stored internally per-lane, params in chop_config are just a UI view
+-- Chop storage is current UI state for live play and next recording.
+-- Recorded values live in motif events. Transforms mutate motif events, not chops.
 
 local SamplerEngine = {}
 
@@ -25,38 +26,31 @@ local FILTER_BANDPASS = 4
 local FILTER_NOTCH = 5
 
 -- Create a chop with default values
-local function create_default_chop(start_pos, stop_pos, overrides)
-  local chop = {
+local function create_default_chop(start_pos, stop_pos)
+  return {
     start_pos = start_pos or 0,
     stop_pos = stop_pos or 0,
     duration = (stop_pos or 0) - (start_pos or 0),
-    attack = 0.1,
-    release = 0.1,
+    attack = 0.01,
+    release = 0.01,
     fade_time = 0.005,
     mode = MODE_GATE,
     rate = 1.0,
-    pitch_offset = 0,  -- Semitones to transpose playback (positive = higher, negative = lower)
+    pitch_offset = 0,
     max_volume = 1.0,
     pan = 0,
     filter_type = FILTER_OFF,
     lpf = 20000,
     resonance = 0,
-    hpf = 20
+    hpf = 20,
+    uses_global_filter = true
   }
-  if overrides then
-    for k, v in pairs(overrides) do
-      chop[k] = v
-    end
-  end
-  return chop
 end
 
 -- State
 SamplerEngine.num_voices = 6  -- Configurable voice count
 SamplerEngine.voices = {}  -- voice[i] = {lane = lane_number, pad = pad_number, active = bool}
 SamplerEngine.voice_generation = {}  -- Tracks assignment generation to prevent stale clock callbacks
-SamplerEngine.lane_chops = {}  -- lane_chops[lane][pad] = working chops (what transforms mutate)
-SamplerEngine.lane_genesis_chops = {}  -- lane_genesis_chops[lane][pad] = original chops (captured on load/record)
 SamplerEngine.lane_durations = {}  -- lane_durations[lane] = sample_duration
 SamplerEngine.lane_to_buffer = {}  -- lane_to_buffer[lane] = buffer_id (1 or 2)
 SamplerEngine.buffer_occupied = {false, false}  -- tracks which buffers are in use
@@ -126,14 +120,6 @@ function SamplerEngine.init()
   -- Initialize per-lane storage
   for lane = 1, 8 do
     SamplerEngine.lane_durations[lane] = 0
-    SamplerEngine.lane_chops[lane] = {}
-    SamplerEngine.lane_genesis_chops[lane] = {}
-
-    -- Initialize empty chops (16 pads per lane)
-    for pad = 1, NUM_PADS do
-      SamplerEngine.lane_chops[lane][pad] = create_default_chop()
-      SamplerEngine.lane_genesis_chops[lane][pad] = create_default_chop()
-    end
   end
 
   SamplerEngine.initialized = true
@@ -173,8 +159,8 @@ function SamplerEngine.get_buffer_for_lane(lane)
   return SamplerEngine.lane_to_buffer[lane]
 end
 
--- Clear all chop data and stop playback for a lane
-function SamplerEngine.clear_lane_chops(lane)
+-- Stop all voices playing from a lane and reset duration
+function SamplerEngine.clear_lane(lane)
   -- Stop all voices playing from this lane
   for v = 1, SamplerEngine.num_voices do
     if SamplerEngine.voices[v].active and SamplerEngine.voices[v].lane == lane then
@@ -184,106 +170,69 @@ function SamplerEngine.clear_lane_chops(lane)
       SamplerEngine.voices[v].pad = nil
     end
   end
-
-  -- Reset all chops to default empty state
-  for pad = 1, NUM_PADS do
-    SamplerEngine.lane_chops[lane][pad] = create_default_chop()
-    SamplerEngine.lane_genesis_chops[lane][pad] = create_default_chop()
-  end
-
   SamplerEngine.lane_durations[lane] = 0
 end
 
--- Divide sample into equal chops across all pads for a specific lane
--- Captures to both genesis (original) and working chops
+-- Initialize chop storage on _seeker.sampler if needed
+local function ensure_chop_storage(lane)
+  if not _seeker then return false end
+  if not _seeker.sampler then return false end
+  if not _seeker.sampler.chops then
+    _seeker.sampler.chops = {}
+  end
+  if not _seeker.sampler.chops[lane] then
+    _seeker.sampler.chops[lane] = {}
+  end
+  return true
+end
+
+-- Set sample duration and initialize 16 chops with equal slices
 function SamplerEngine.set_fixed_chops(lane, sample_duration)
   SamplerEngine.lane_durations[lane] = sample_duration
-  local chop_duration = sample_duration / NUM_PADS
 
+  if not ensure_chop_storage(lane) then return end
+
+  local chop_duration = sample_duration / NUM_PADS
   for pad = 1, NUM_PADS do
     local start_pos = (pad - 1) * chop_duration
-    local stop_pos = start_pos + chop_duration
-    local chop = create_default_chop(start_pos, stop_pos)
-    -- Deep copy to genesis (original state)
-    SamplerEngine.lane_genesis_chops[lane][pad] = create_default_chop(start_pos, stop_pos)
-    -- Working copy for transforms to mutate
-    SamplerEngine.lane_chops[lane][pad] = chop
+    local stop_pos = pad * chop_duration
+    _seeker.sampler.chops[lane][pad] = create_default_chop(start_pos, stop_pos)
   end
 end
 
--- Get working chop data for a specific lane and pad
+-- Get chop config for a specific lane and pad
 function SamplerEngine.get_chop(lane, pad)
-  if not SamplerEngine.lane_chops[lane] then return nil end
-  return SamplerEngine.lane_chops[lane][pad]
+  if _seeker and _seeker.sampler and _seeker.sampler.chops and _seeker.sampler.chops[lane] then
+    return _seeker.sampler.chops[lane][pad]
+  end
+  return nil
 end
 
--- Get genesis (original) chop data for a specific lane and pad
-function SamplerEngine.get_genesis_chop(lane, pad)
-  if not SamplerEngine.lane_genesis_chops[lane] then return nil end
-  return SamplerEngine.lane_genesis_chops[lane][pad]
-end
-
--- Update a specific property of a working chop
--- Also updates genesis for user-configured properties (not transform results)
+-- Update a specific property of a chop
 function SamplerEngine.update_chop(lane, pad, key, value)
-  if not SamplerEngine.lane_chops[lane] or not SamplerEngine.lane_chops[lane][pad] then
-    return
-  end
-
-  SamplerEngine.lane_chops[lane][pad][key] = value
-
-  -- Recalculate duration if start or stop changed
-  if key == "start_pos" or key == "stop_pos" then
-    local chop = SamplerEngine.lane_chops[lane][pad]
-    chop.duration = chop.stop_pos - chop.start_pos
-  end
-
-  -- User-configured properties persist to genesis (survive reset_to_genesis)
-  -- These are set via pad_config UI, not by transforms
-  local genesis_properties = {
-    start_pos = true, stop_pos = true,
-    attack = true, release = true, fade_time = true,
-    mode = true, rate = true, pitch_offset = true,
-    max_volume = true, pan = true,
-    filter_type = true, lpf = true, resonance = true, hpf = true
-  }
-
-  if genesis_properties[key] and SamplerEngine.lane_genesis_chops[lane] then
-    SamplerEngine.lane_genesis_chops[lane][pad][key] = value
-    -- Also update genesis duration
-    if key == "start_pos" or key == "stop_pos" then
-      local genesis = SamplerEngine.lane_genesis_chops[lane][pad]
-      genesis.duration = genesis.stop_pos - genesis.start_pos
-    end
+  if not ensure_chop_storage(lane) then return end
+  if _seeker.sampler.chops[lane][pad] then
+    _seeker.sampler.chops[lane][pad][key] = value
   end
 end
 
--- Reset a pad's working chop to its genesis state
-function SamplerEngine.reset_chop_to_genesis(lane, pad)
-  local genesis = SamplerEngine.lane_genesis_chops[lane][pad]
-  if not genesis then return end
+-- Apply global filter settings to all chops in a lane
+function SamplerEngine.apply_global_filter(lane)
+  if not ensure_chop_storage(lane) then return end
 
-  -- Deep copy genesis to working
-  SamplerEngine.lane_chops[lane][pad] = create_default_chop(genesis.start_pos, genesis.stop_pos, {
-    attack = genesis.attack,
-    release = genesis.release,
-    fade_time = genesis.fade_time,
-    mode = genesis.mode,
-    rate = genesis.rate,
-    pitch_offset = genesis.pitch_offset,
-    max_volume = genesis.max_volume,
-    pan = genesis.pan,
-    filter_type = genesis.filter_type,
-    lpf = genesis.lpf,
-    resonance = genesis.resonance,
-    hpf = genesis.hpf
-  })
-end
+  local filter_type = params:get("lane_" .. lane .. "_sampler_filter_type")
+  local lpf = params:get("lane_" .. lane .. "_sampler_lpf")
+  local hpf = params:get("lane_" .. lane .. "_sampler_hpf")
+  local resonance = params:get("lane_" .. lane .. "_sampler_resonance")
 
--- Reset all working chops to genesis state for a lane
-function SamplerEngine.reset_lane_to_genesis(lane)
   for pad = 1, NUM_PADS do
-    SamplerEngine.reset_chop_to_genesis(lane, pad)
+    if _seeker.sampler.chops[lane][pad] then
+      _seeker.sampler.chops[lane][pad].filter_type = filter_type
+      _seeker.sampler.chops[lane][pad].lpf = lpf
+      _seeker.sampler.chops[lane][pad].hpf = hpf
+      _seeker.sampler.chops[lane][pad].resonance = resonance
+      _seeker.sampler.chops[lane][pad].uses_global_filter = true
+    end
   end
 end
 
@@ -356,7 +305,9 @@ function SamplerEngine.allocate_voice(lane, pad)
 end
 
 -- Trigger a pad to play its chop
-function SamplerEngine.trigger_pad(lane, pad, velocity)
+-- event (optional): recorded event with chop values captured at record time
+-- When event is provided (playback), uses recorded values; otherwise uses current chop config (live play)
+function SamplerEngine.trigger_pad(lane, pad, velocity, event)
   if not SamplerEngine.initialized then
     print("≋ Sampler: Not initialized")
     return
@@ -375,6 +326,32 @@ function SamplerEngine.trigger_pad(lane, pad, velocity)
     return
   end
 
+  -- Use recorded event values (playback) or current chop config (live play)
+  -- When event exists, use its values exclusively (don't fall back to chop)
+  local source = event or chop
+  local start_pos = source.start_pos
+  local stop_pos = source.stop_pos
+  local attack = source.attack
+  local release = source.release
+  local fade_time = source.fade_time or 0.005
+  local rate = source.rate
+  local pitch_offset = source.pitch_offset or 0
+  local max_volume = source.max_volume
+  local pan = source.pan
+  local mode = source.mode
+  local filter_type = source.filter_type
+  local lpf = source.lpf
+  local hpf = source.hpf
+  local resonance = source.resonance
+
+  -- Build a config table for filter application
+  local config = {
+    filter_type = filter_type,
+    lpf = lpf,
+    hpf = hpf,
+    resonance = resonance
+  }
+
   -- Allocate a voice
   local voice = SamplerEngine.allocate_voice(lane, pad)
 
@@ -382,35 +359,35 @@ function SamplerEngine.trigger_pad(lane, pad, velocity)
   softcut.buffer(voice, buffer_id)
 
   -- Configure voice for this chop
-  softcut.loop_start(voice, chop.start_pos)
-  softcut.loop_end(voice, chop.stop_pos)
+  softcut.loop_start(voice, start_pos)
+  softcut.loop_end(voice, stop_pos)
 
   -- Position at end for reverse playback, start for forward
-  local start_position = chop.rate < 0 and chop.stop_pos or chop.start_pos
+  local start_position = rate < 0 and stop_pos or start_pos
   softcut.position(voice, start_position)
 
   -- Set loop mode based on playback mode
   -- Enable looping for Gate mode, disable for One-shot mode
-  local loop_enabled = (chop.mode == MODE_GATE) and 1 or 0
+  local loop_enabled = (mode == MODE_GATE) and 1 or 0
   softcut.loop(voice, loop_enabled)
 
   -- Set crossfade time for smooth loop points (prevents clicks)
-  softcut.fade_time(voice, chop.fade_time or 0.005)
+  softcut.fade_time(voice, fade_time)
 
   -- Combine speed and pitch: speed * semitone-derived rate
-  local semitone_rate = 2 ^ ((chop.pitch_offset or 0) / 12)
-  local final_rate = chop.rate * semitone_rate
+  local semitone_rate = 2 ^ (pitch_offset / 12)
+  local final_rate = rate * semitone_rate
   softcut.rate(voice, final_rate)
 
   -- Set pan (-1 left, 0 center, 1 right)
-  softcut.pan(voice, chop.pan)
+  softcut.pan(voice, pan)
 
   -- Configure post-filter
-  apply_filter(voice, chop)
+  apply_filter(voice, config)
 
   -- Calculate target volume (scale max_volume by velocity)
   velocity = velocity or 127
-  local volume = chop.max_volume * (velocity / 127)
+  local volume = max_volume * (velocity / 127)
 
   -- Attack envelope: Ramp volume from 0 to target over attack time
   -- First set level to 0 instantly, then enable slew and ramp to target volume
@@ -418,7 +395,7 @@ function SamplerEngine.trigger_pad(lane, pad, velocity)
   softcut.level_slew_time(voice, 0)
   softcut.level(voice, 0)
   softcut.play(voice, 1)
-  softcut.level_slew_time(voice, chop.attack)
+  softcut.level_slew_time(voice, attack)
   softcut.level(voice, volume)
 
   -- Track voice state and increment generation counter for this assignment
@@ -428,9 +405,12 @@ function SamplerEngine.trigger_pad(lane, pad, velocity)
   SamplerEngine.voice_generation[voice] = SamplerEngine.voice_generation[voice] + 1
   local trigger_generation = SamplerEngine.voice_generation[voice]
 
+  -- Calculate duration from slice points
+  local duration = math.abs(stop_pos - start_pos)
+
   -- For one-shot mode, apply release envelope and cleanup after playback finishes
-  if chop.mode == MODE_ONE_SHOT then
-    local playback_time = chop.duration / math.abs(chop.rate)
+  if mode == MODE_ONE_SHOT then
+    local playback_time = duration / math.abs(rate)
 
     clock.run(function()
       -- Wait for playback to finish (attack happens automatically at start)
@@ -439,11 +419,11 @@ function SamplerEngine.trigger_pad(lane, pad, velocity)
       -- Only apply release if voice hasn't been reassigned
       if SamplerEngine.voice_generation[voice] == trigger_generation then
         -- Apply release envelope by ramping level to 0
-        softcut.level_slew_time(voice, chop.release)
+        softcut.level_slew_time(voice, release)
         softcut.level(voice, 0)
 
         -- Wait for release to complete
-        clock.sleep(chop.release)
+        clock.sleep(release)
 
         -- Stop playback and free voice if still assigned to this trigger
         if SamplerEngine.voice_generation[voice] == trigger_generation then
@@ -540,7 +520,7 @@ function SamplerEngine.load_file(lane, filepath)
   end
 
   -- Clear existing sample data for this lane (stops voices, resets chops)
-  SamplerEngine.clear_lane_chops(lane)
+  SamplerEngine.clear_lane(lane)
 
   -- Clear this lane's buffer
   softcut.buffer_clear_channel(buffer_id)
@@ -608,7 +588,7 @@ function SamplerEngine.start_recording(lane)
   end
 
   -- Clear existing sample data for this lane (stops voices, resets chops)
-  SamplerEngine.clear_lane_chops(lane)
+  SamplerEngine.clear_lane(lane)
 
   -- Clear this lane's buffer
   softcut.buffer_clear_channel(buffer_id)

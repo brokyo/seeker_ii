@@ -235,10 +235,10 @@ function Lane:prepare_stage(stage)
   elseif motif_type == COMPOSER_MODE then
     composer_generator.prepare_stage(self.id, stage.id, self.motif)
   elseif motif_type == SAMPLER_MODE then
-    -- Reset chops to genesis if configured
+    -- Reset motif events to genesis if configured
     local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
     if reset_motif then
-      sampler_transforms.reset_to_genesis(self.id)
+      self.motif:reset_to_genesis()
     end
     -- Apply sampler transform
     sampler_transforms.apply(self.id, stage.id)

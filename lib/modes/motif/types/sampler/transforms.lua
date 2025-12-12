@@ -1,6 +1,7 @@
 -- transforms.lua
--- Sampler mode transforms (chop parameter modifications)
+-- Sampler mode transforms (motif event modifications)
 -- Called by Lane:prepare_stage() for sampler mode stages
+-- Transforms mutate motif.events, not chop configs (which are just UI state)
 -- Part of lib/modes/motif/types/sampler/
 
 local transforms = {}
@@ -9,14 +10,21 @@ local transforms = {}
 -- Transform Registry
 --------------------------------------------------
 
+-- Helper to get motif events for a lane
+local function get_motif_events(lane_id)
+  if _seeker and _seeker.lanes[lane_id] then
+    return _seeker.lanes[lane_id].motif.events
+  end
+  return nil
+end
+
 transforms.available = {
   none = {
     name = "No Operation",
     ui_name = "None",
     ui_order = 1,
-    description = "Returns chops with no changes",
+    description = "No changes to events",
     fn = function(lane_id, stage_id)
-      -- No operation - chops remain as they are
       return
     end
   },
@@ -31,23 +39,23 @@ transforms.available = {
       local scatter_size = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_scatter_size") / 100
 
       if scatter_amount == 0 then return end
-      if not _seeker.sampler then return end
+
+      local events = get_motif_events(lane_id)
+      if not events then return end
 
       local sample_duration = _seeker.sampler.get_sample_duration(lane_id)
       if sample_duration <= 0 then return end
 
-      for pad = 1, 16 do
-        local chop = _seeker.sampler.get_chop(lane_id, pad)
-
-        if chop then
-          local original_duration = chop.stop_pos - chop.start_pos
+      for _, event in ipairs(events) do
+        if event.type == "note_on" and event.start_pos and event.stop_pos then
+          local original_duration = event.stop_pos - event.start_pos
 
           -- Calculate random offset within scatter_amount percentage of chop duration
           local max_offset = original_duration * scatter_amount
           local offset = (math.random() * 2 - 1) * max_offset
 
           -- New start position, clamped to buffer
-          local new_start = math.max(0, math.min(chop.start_pos + offset, sample_duration - 0.001))
+          local new_start = math.max(0, math.min(event.start_pos + offset, sample_duration - 0.001))
 
           -- Scale original duration by scatter_size parameter (0-100%)
           local target_duration = original_duration * scatter_size
@@ -62,8 +70,8 @@ transforms.available = {
             new_start = math.max(0, new_stop - min_duration)
           end
 
-          _seeker.sampler.update_chop(lane_id, pad, 'start_pos', new_start)
-          _seeker.sampler.update_chop(lane_id, pad, 'stop_pos', new_stop)
+          event.start_pos = new_start
+          event.stop_pos = new_stop
         end
       end
     end
@@ -79,22 +87,22 @@ transforms.available = {
       local slide_wrap = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_wrap") == 2
 
       if slide_amount == 0 then return end
-      if not _seeker.sampler then return end
+
+      local events = get_motif_events(lane_id)
+      if not events then return end
 
       local sample_duration = _seeker.sampler.get_sample_duration(lane_id)
       if sample_duration <= 0 then return end
 
-      for pad = 1, 16 do
-        local chop = _seeker.sampler.get_chop(lane_id, pad)
-
-        if chop then
-          local duration = chop.stop_pos - chop.start_pos
+      for _, event in ipairs(events) do
+        if event.type == "note_on" and event.start_pos and event.stop_pos then
+          local duration = event.stop_pos - event.start_pos
 
           -- Slide range based on sample duration
           local max_offset = sample_duration * slide_amount
           local offset = (math.random() * 2 - 1) * max_offset
 
-          local new_start = chop.start_pos + offset
+          local new_start = event.start_pos + offset
           local new_stop = new_start + duration
 
           if slide_wrap then
@@ -116,8 +124,8 @@ transforms.available = {
             end
           end
 
-          _seeker.sampler.update_chop(lane_id, pad, 'start_pos', new_start)
-          _seeker.sampler.update_chop(lane_id, pad, 'stop_pos', new_stop)
+          event.start_pos = new_start
+          event.stop_pos = new_stop
         end
       end
     end
@@ -127,21 +135,18 @@ transforms.available = {
     name = "Reverse",
     ui_name = "Reverse",
     ui_order = 4,
-    description = "Flip playback direction with probability per pad",
+    description = "Flip playback direction with probability per event",
     fn = function(lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_reverse_prob") / 100
 
       if probability == 0 then return end
-      if not _seeker.sampler then return end
 
-      for pad = 1, 16 do
-        if math.random() < probability then
-          local chop = _seeker.sampler.get_chop(lane_id, pad)
-          if chop then
-            -- Flip the rate sign
-            local new_rate = -chop.rate
-            _seeker.sampler.update_chop(lane_id, pad, 'rate', new_rate)
-          end
+      local events = get_motif_events(lane_id)
+      if not events then return end
+
+      for _, event in ipairs(events) do
+        if event.type == "note_on" and event.rate and math.random() < probability then
+          event.rate = -event.rate
         end
       end
     end
@@ -151,22 +156,19 @@ transforms.available = {
     name = "Pan Spread",
     ui_name = "Pan Spread",
     ui_order = 5,
-    description = "Randomly distribute pads across stereo field",
+    description = "Randomly distribute events across stereo field",
     fn = function(lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_prob") / 100
       local range = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_range") / 100
 
       if probability == 0 or range == 0 then return end
-      if not _seeker.sampler then return end
 
-      for pad = 1, 16 do
-        if math.random() < probability then
-          local chop = _seeker.sampler.get_chop(lane_id, pad)
-          if chop then
-            -- Random pan within range (-range to +range)
-            local new_pan = (math.random() * 2 - 1) * range
-            _seeker.sampler.update_chop(lane_id, pad, 'pan', new_pan)
-          end
+      local events = get_motif_events(lane_id)
+      if not events then return end
+
+      for _, event in ipairs(events) do
+        if event.type == "note_on" and event.pan and math.random() < probability then
+          event.pan = (math.random() * 2 - 1) * range
         end
       end
     end
@@ -219,13 +221,6 @@ function transforms.apply(lane_id, stage_id)
     if transform and transform.fn then
       transform.fn(lane_id, stage_id)
     end
-  end
-end
-
--- Reset chops to genesis (called when reset_motif is enabled)
-function transforms.reset_to_genesis(lane_id)
-  if _seeker.sampler then
-    _seeker.sampler.reset_lane_to_genesis(lane_id)
   end
 end
 

@@ -53,16 +53,40 @@ local function note_to_positions(note)
 end
 
 -- Create a standardized note event for sampler pads
+-- Captures chop config at record time (like tape captures ADSR/pan)
 local function create_note_event(x, y, pad, velocity)
   local pos = pad_to_position(pad)
-
-  return {
+  local event = {
     note = pad,  -- Use pad number as note (1-16)
     velocity = velocity or 127,
     x = x,
     y = y,
     all_positions = pos and {pos} or nil
   }
+
+  -- Capture chop's filter/envelope values at record time
+  if _seeker and _seeker.sampler then
+    local lane = _seeker.ui_state.get_focused_lane()
+    local chop = _seeker.sampler.get_chop(lane, pad)
+    if chop then
+      event.attack = chop.attack
+      event.release = chop.release
+      event.fade_time = chop.fade_time
+      event.rate = chop.rate
+      event.pitch_offset = chop.pitch_offset
+      event.max_volume = chop.max_volume
+      event.pan = chop.pan
+      event.mode = chop.mode
+      event.filter_type = chop.filter_type
+      event.lpf = chop.lpf
+      event.hpf = chop.hpf
+      event.resonance = chop.resonance
+      event.start_pos = chop.start_pos
+      event.stop_pos = chop.stop_pos
+    end
+  end
+
+  return event
 end
 
 -- Handle pad press

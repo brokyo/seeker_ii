@@ -1,5 +1,7 @@
 -- lane_config.lua
--- Self-contained component for Lane configuration following the component pattern
+-- Central hub for lane setup: motif type selection (Tape/Composer/Sampler) and voice routing.
+-- Each lane can output to multiple voices simultaneously (MX Samples, MIDI, Crow, Just Friends, etc.)
+-- Sampler mode bypasses voice routing and plays audio directly via softcut.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -33,7 +35,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 81)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 85)
 
         -- Config Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice",
@@ -51,6 +53,32 @@ local function create_params()
         voice_wsyn.create_params(i)
         voice_osc.create_params(i)
         voice_disting.create_params(i)
+
+        -- Global sampler filter (applies to all chops in lane)
+        local lane_idx = i  -- Capture for closures
+        params:add_option("lane_" .. i .. "_sampler_filter_type", "Filter Type",
+            {"Off", "Lowpass", "Highpass", "Bandpass", "Notch"}, 1)
+        params:set_action("lane_" .. i .. "_sampler_filter_type", function()
+            if _seeker.sampler then _seeker.sampler.apply_global_filter(lane_idx) end
+            _seeker.lane_config.screen:rebuild_params()
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+
+        params:add_taper("lane_" .. i .. "_sampler_lpf", "LPF Cutoff", 20, 20000, 20000, 3, "Hz")
+        params:set_action("lane_" .. i .. "_sampler_lpf", function()
+            if _seeker.sampler then _seeker.sampler.apply_global_filter(lane_idx) end
+        end)
+
+        params:add_taper("lane_" .. i .. "_sampler_hpf", "HPF Cutoff", 20, 20000, 20, 3, "Hz")
+        params:set_action("lane_" .. i .. "_sampler_hpf", function()
+            if _seeker.sampler then _seeker.sampler.apply_global_filter(lane_idx) end
+        end)
+
+        params:add_control("lane_" .. i .. "_sampler_resonance", "Resonance",
+            controlspec.new(0, 4, 'lin', 0.01, 0, ""))
+        params:set_action("lane_" .. i .. "_sampler_resonance", function()
+            if _seeker.sampler then _seeker.sampler.apply_global_filter(lane_idx) end
+        end)
     end
 end
 
@@ -59,7 +87,7 @@ local function create_screen_ui()
         id = "LANE_CONFIG",
         name = "Lane 1",
         icon = "⌸",
-        description = "Voice configuration. Multiple voices can run simultaneously",
+        description = "Select Motif type and configure voices. Multiple voices can run simultaneously",
         params = {}
     })
     
@@ -79,17 +107,26 @@ local function create_screen_ui()
         -- Update section name with current lane
         self.name = string.format("Lane %d", lane_idx)
 
+        -- Update description based on motif type
+        local base = "Select motif type and configure voices. "
+        if motif_type == MOTIF_TYPE_TAPE then
+            self.description = base .. "Tape: Record and loop live performances with overdub layering."
+        elseif motif_type == MOTIF_TYPE_COMPOSER then
+            self.description = base .. "Composer: Generate chord progressions with algorithmic patterns."
+        elseif motif_type == MOTIF_TYPE_SAMPLER then
+            self.description = base .. "Sampler: Chop and sequence audio samples across 16 pads."
+        end
+
         -- Start with volume and motif type (always visible)
         local param_table = {
-            { separator = true, title = string.format("Lane %d Config", lane_idx) },
+            { separator = true, title = "Config" },
             { id = "lane_" .. lane_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
             { id = "lane_" .. lane_idx .. "_motif_type" }
         }
 
         -- Sampler mode loads audio files directly (no voice routing needed)
         if motif_type == MOTIF_TYPE_SAMPLER then
-            table.insert(param_table, { separator = true, title = "Sampler Settings" })
-            table.insert(param_table, { id = "sampler_voice_count" })
+            -- Sample source first (most important)
             table.insert(param_table, { separator = true, title = "Sample Source" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sample_file", is_action = true })
 
@@ -103,6 +140,25 @@ local function create_screen_ui()
                 })
             else
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_record_sample", is_action = true })
+            end
+
+            -- Global settings
+            table.insert(param_table, { separator = true, title = "Global Settings" })
+            table.insert(param_table, { id = "sampler_voice_count" })
+
+            -- Global filter (defaults for all chops, overridden per-chop)
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_filter_type" })
+
+            local filter_type = params:get("lane_" .. lane_idx .. "_sampler_filter_type")
+            if filter_type == 2 then -- Lowpass
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_lpf", arc_multi_float = {1000, 100, 10} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
+            elseif filter_type == 3 then -- Highpass
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_hpf", arc_multi_float = {1000, 100, 10} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
+            elseif filter_type == 4 or filter_type == 5 then -- Bandpass or Notch
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_lpf", arc_multi_float = {1000, 100, 10} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
             end
         else -- Tape/Composer modes require voice routing to play notes
             table.insert(param_table, { separator = true, title = "Voice Routing" })
@@ -322,7 +378,7 @@ local function create_screen_ui()
             -- Instruction (smaller, centered below)
             screen.font_size(8)
             screen.move(64, 42)
-            screen.text_center("use norns e2/k3")
+            screen.text_center("use norns e2/e3/k3")
 
             -- Reset font size
             screen.font_size(8)

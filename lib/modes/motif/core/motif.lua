@@ -83,11 +83,11 @@ function Motif:clear()
   -- Clear genesis state
   self.genesis.events = {}
   self.genesis.duration = 0
-  
+
   -- Clear working state
   self.events = {}
   self.duration = 0
   self.custom_duration = nil  -- Also clear custom duration
 end
 
-return Motif 
+return Motif

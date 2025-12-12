@@ -1,18 +1,13 @@
 -- motif_recorder.lua
--- Core responsibility: Capture real-time grid/MIDI input into note on/off events
+-- Real-time event capture for Tape and Sampler modes.
+-- Captures grid/MIDI input as note_on/note_off events with timing.
 --
--- ARCHITECTURE NOTE: This recorder is for TAPE MODE only (real-time capture)
--- Other motif creation modes use generators, not recording:
--- - Composer mode: composer/generator.lua (params → motif)
--- - Future generators (Foundations, Pulsar, etc): lib/_to_assess/generators/ pattern
+-- Used by: Tape (keyboard notes), Sampler (pad triggers)
+-- NOT used by: Composer (uses generator.lua for algorithmic motif creation)
 --
--- Supports two recording modes:
--- 1. Tape: Record a new motif from scratch (duration = time between start/stop)
--- 2. Overdub: Layer onto existing motif (duration = original motif duration)
---
--- The separation is:
--- - recorder.lua: Real-time input → events (this file)
--- - generators: Parameters → events (composer/generator.lua, future generators)
+-- Recording modes:
+-- 1. New recording: Duration determined by start/stop timing
+-- 2. Overdub: Layer onto existing motif, duration preserved
 
 local musicutil = require('musicutil')
 
@@ -36,7 +31,8 @@ function MotifRecorder:reset_state()
   self.original_motif = nil
   self.current_generation = 1
 
-  -- Track active notes for overdub mode to handle loop wraparound
+  -- Track active notes to handle held notes on recording stop and overdub wraparound
+  -- Keys are note_key strings, values are {position, event_data} tables
   self.active_notes = {}
 end
 
@@ -96,13 +92,19 @@ function MotifRecorder:on_note_on(event)
       position = now - self.start_time
     end
 
-    -- Track this note as active for overdub mode
-    local note_key = self:_note_key(event)
-    self.active_notes[note_key] = position
   end
-      
+
+  -- Track active note in both modes (for held-note cleanup and overdub wraparound)
+  local note_key = self:_note_key(event)
+  self.active_notes[note_key] = {
+    position = position,
+    note = event.note,
+    x = event.x,
+    y = event.y
+  }
+
   -- Store note_on event
-  -- N.B. ADSR/Pan are on a per-note basis
+  -- Tape mode: ADSR/Pan from params; Sampler mode: chop values from event
   local focused_lane = _seeker.ui_state.get_focused_lane()
   table.insert(self.events, {
     time = position,
@@ -112,11 +114,24 @@ function MotifRecorder:on_note_on(event)
     x = event.x,
     y = event.y,
     generation = self.current_generation,
-    attack = params:get("lane_" .. focused_lane .. "_attack"),
-    decay = params:get("lane_" .. focused_lane .. "_decay"),
-    sustain = params:get("lane_" .. focused_lane .. "_sustain"),
-    release = params:get("lane_" .. focused_lane .. "_release"),
-    pan = params:get("lane_" .. focused_lane .. "_pan")
+    -- Tape mode values (from params)
+    attack = event.attack or params:get("lane_" .. focused_lane .. "_attack"),
+    decay = event.decay or params:get("lane_" .. focused_lane .. "_decay"),
+    sustain = event.sustain or params:get("lane_" .. focused_lane .. "_sustain"),
+    release = event.release or params:get("lane_" .. focused_lane .. "_release"),
+    pan = event.pan or params:get("lane_" .. focused_lane .. "_pan"),
+    -- Sampler mode values (from event, nil for tape)
+    fade_time = event.fade_time,
+    rate = event.rate,
+    pitch_offset = event.pitch_offset,
+    max_volume = event.max_volume,
+    mode = event.mode,
+    filter_type = event.filter_type,
+    lpf = event.lpf,
+    hpf = event.hpf,
+    resonance = event.resonance,
+    start_pos = event.start_pos,
+    stop_pos = event.stop_pos
   })
 end
 
@@ -153,17 +168,14 @@ function MotifRecorder:on_note_off(event)
     -- Handle loop wraparound for overdub mode
     if self.recording_mode == 2 then
       local note_key = self:_note_key(event)
-      local note_on_position = self.active_notes[note_key]
-      
-      if note_on_position then
+      local active_note = self.active_notes[note_key]
+
+      if active_note then
         -- If note_off position is less than note_on position, the note crossed the loop boundary
         -- Add loop_length to note_off to maintain proper temporal ordering
-        if position < note_on_position then
+        if position < active_note.position then
           position = position + self.loop_length
         end
-        
-        -- Clear from active notes
-        self.active_notes[note_key] = nil
       end
     end
   else
@@ -180,6 +192,10 @@ function MotifRecorder:on_note_off(event)
     y = event.y,
     generation = self.current_generation
   })
+
+  -- Clear from active notes
+  local note_key = self:_note_key(event)
+  self.active_notes[note_key] = nil
 end
 
 -- Set the recording mode
@@ -204,7 +220,7 @@ function MotifRecorder:start_recording(existing_motif)
     -- Copy genesis events and preserve their generations
     local max_gen = 1
     for _, evt in ipairs(existing_motif.genesis.events) do
-      -- Add events to recorder
+      -- Add events to recorder (include both tape and sampler fields)
       table.insert(self.events, {
         time = evt.time,
         type = evt.type,
@@ -213,11 +229,24 @@ function MotifRecorder:start_recording(existing_motif)
         x = evt.x,
         y = evt.y,
         generation = evt.generation,
+        -- Tape mode fields
         attack = evt.attack,
         decay = evt.decay,
         sustain = evt.sustain,
         release = evt.release,
-        pan = evt.pan
+        pan = evt.pan,
+        -- Sampler mode fields
+        fade_time = evt.fade_time,
+        rate = evt.rate,
+        pitch_offset = evt.pitch_offset,
+        max_volume = evt.max_volume,
+        mode = evt.mode,
+        filter_type = evt.filter_type,
+        lpf = evt.lpf,
+        hpf = evt.hpf,
+        resonance = evt.resonance,
+        start_pos = evt.start_pos,
+        stop_pos = evt.stop_pos
       })
 
       -- Track the highest generation we've seen
@@ -243,6 +272,29 @@ end
 -- Grid interaction: Called from GridUI.handle_record_toggle
 function MotifRecorder:stop_recording()
   if not self.is_recording then return end
+
+  -- Inject note_off events for any notes still held
+  local now = clock.get_beats()
+  for note_key, active_note in pairs(self.active_notes) do
+    local position
+    if self.recording_mode == 1 then
+      -- Tape mode: note_off at current time relative to start
+      position = now - self.start_time
+    else
+      -- Overdub mode: note_off at loop boundary (clamp to duration)
+      position = self.loop_length
+    end
+
+    table.insert(self.events, {
+      time = position,
+      type = "note_off",
+      note = active_note.note,
+      x = active_note.x,
+      y = active_note.y,
+      generation = self.current_generation
+    })
+  end
+  self.active_notes = {}
 
   self.is_recording = false
 
