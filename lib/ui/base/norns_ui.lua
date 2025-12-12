@@ -240,12 +240,33 @@ function NornsUI:draw_params(start_y)
     local is_selected = self.state.selected_index == param_idx
       
     if param.separator then
-      -- Draw separator
-      screen.level(4)
-      screen.move(2, y)
-      screen.text(param.title)
-      screen.move(2, y + 1)
-      screen.line(126, y + 1)
+      -- Centered uppercase title with horizontal lines on each side
+      local title = param.title or ""
+      local center_x = 64
+      local line_start = 4
+      local line_end = 124
+      local title_margin = 4
+
+      screen.font_face(1)
+      screen.font_size(8)
+      local upper_title = string.upper(title)
+      local title_width = screen.text_extents(upper_title)
+
+      -- Left line up to title
+      screen.level(3)
+      screen.move(line_start, y - 3)
+      screen.line(center_x - title_width/2 - title_margin, y - 3)
+      screen.stroke()
+
+      -- Title text
+      screen.level(6)
+      screen.move(center_x - title_width/2, y)
+      screen.text(upper_title)
+
+      -- Right line from title to edge
+      screen.level(3)
+      screen.move(center_x + title_width/2 + title_margin, y - 3)
+      screen.line(line_end, y - 3)
       screen.stroke()
     else
       -- Get param metadata using Norns paramset api
