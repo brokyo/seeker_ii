@@ -35,6 +35,11 @@ local function create_params()
     params:add_option("tape_keyboard_layout", "Keyboard Layout", {"Single", "Dual"}, 1)
     params:set_action("tape_keyboard_layout", function(value)
         DualTapeKeyboard.set_active(value == 2)
+        -- Reset visual trails to match the new keyboard layout
+        local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+        if focused_lane then
+            focused_lane.trails = {}
+        end
         if _seeker.grid_ui then
             _seeker.grid_ui.redraw()
         end

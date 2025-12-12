@@ -23,7 +23,7 @@ local function create_stage_params(i)
     -- Create four stages per lane with their defaults
     for stage_idx = 1, 4 do
         -- Stage volume (used by all motif types)
-        params:add_control("lane_" .. i .. "_stage_" .. stage_idx .. "_volume", "Stage " .. stage_idx .. " Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
+        params:add_control("lane_" .. i .. "_stage_" .. stage_idx .. "_volume", "Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
 
         params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", "Loops", 1, 10, 2)
         params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", function(value)
@@ -69,7 +69,7 @@ local function create_motif_playback_params(i)
 
     -- Speed control with musical ratios
     params:add_option("lane_" .. i .. "_speed", "Speed",
-        {"1/12x", "1/11x", "1/10x", "1/9x", "1/8x", "1/7x", "1/6x", "1/5x", "1/4x", "1/3x", "1/2x", "1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x", "11x", "12x"}, 12)
+        {"1/12x", "1/11x", "1/10x", "1/9x", "1/8x", "1/7x", "1/6x", "1/5x", "1/4x", "1/3x", "1/2x", "2/3x", "1x", "1.5x", "2x", "3x", "4x", "5x", "6x", "7x", "8x", "9x", "10x", "11x", "12x"}, 13)
     params:set_action("lane_" .. i .. "_speed", function(value)
         local speed_ratios = {0.0833, 0.0909, 0.1, 0.1111, 0.125, 0.1429, 0.1667, 0.1818, 0.25, 0.333, 0.5, 0.667, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0}
         _seeker.lanes[i].speed = speed_ratios[value]
