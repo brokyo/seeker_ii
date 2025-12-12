@@ -133,8 +133,6 @@ local function create_grid_ui()
             for pad = 1, 16 do
               _seeker.sampler.stop_pad(focused_lane, pad)
             end
-            -- Reset sample slice points to initial state
-            _seeker.sampler.reset_lane_to_genesis(focused_lane)
           end
 
           lane:clear()

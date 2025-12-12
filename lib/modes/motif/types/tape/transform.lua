@@ -26,7 +26,7 @@ end
 function TapeTransform.populate_params(ui, lane_idx, stage_idx)
   -- Initial params - rebuild_params will add transform-specific and config sections
   local param_table = {
-    { separator = true, title = "Stage " .. stage_idx .. " Settings" },
+    { separator = true, title = "Settings" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
     { separator = true, title = "Transform" },
@@ -55,7 +55,7 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
   local transform_type = params:string("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
 
   local param_table = {
-    { separator = true, title = "Stage " .. stage_idx .. " Settings" },
+    { separator = true, title = "Settings" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
     { separator = true, title = "Transform" },

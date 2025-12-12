@@ -95,7 +95,7 @@ local function create_screen_ui()
         local transform_type = params:string("lane_" .. lane_idx .. "_sampler_transform_stage_" .. stage_idx)
 
         local param_table = {
-            { separator = true, title = "Stage " .. stage_idx .. " Settings" },
+            { separator = true, title = "Settings" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { separator = true, title = "Transform" },
