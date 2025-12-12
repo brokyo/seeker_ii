@@ -240,8 +240,13 @@ function Lane:prepare_stage(stage)
     if reset_motif then
       self.motif:reset_to_genesis()
     end
-    -- Apply sampler transform
-    sampler_transforms.apply(self.id, stage.id)
+    -- Get and apply sampler transform (matching tape pattern)
+    local transform_ui_name = params:string("lane_" .. self.id .. "_sampler_transform_stage_" .. stage.id)
+    local transform_id = sampler_transforms.get_transform_id_by_ui_name(transform_ui_name)
+    if transform_id and transform_id ~= "none" then
+      local transform = sampler_transforms.available[transform_id]
+      self.motif.events = transform.fn(self.motif.events, self.id, stage.id)
+    end
   end
 
   return true

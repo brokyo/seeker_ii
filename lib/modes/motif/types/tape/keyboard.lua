@@ -36,10 +36,12 @@ local function note_to_positions(note)
 end
 
 -- Create a standardized note event
+-- Captures voice parameters (ADSR/pan) at record time so playback reflects original settings
 local function create_note_event(x, y, note, velocity)
   local all_positions = note_to_positions(note)
+  local lane_idx = _seeker.ui_state.get_focused_lane()
 
-  return {
+  local event = {
     note = note,
     velocity = velocity or 0,
     x = x,
@@ -48,6 +50,15 @@ local function create_note_event(x, y, note, velocity)
     is_playback = false,
     source = "grid"
   }
+
+  -- Capture voice parameters at record time (like sampler captures chop params)
+  event.attack = params:get("lane_" .. lane_idx .. "_attack")
+  event.decay = params:get("lane_" .. lane_idx .. "_decay")
+  event.sustain = params:get("lane_" .. lane_idx .. "_sustain")
+  event.release = params:get("lane_" .. lane_idx .. "_release")
+  event.pan = params:get("lane_" .. lane_idx .. "_pan")
+
+  return event
 end
 
 -- Handle note on event

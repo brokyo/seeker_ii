@@ -1,7 +1,7 @@
 -- transforms.lua
 -- Sampler mode transforms (motif event modifications)
 -- Called by Lane:prepare_stage() for sampler mode stages
--- Transforms mutate motif.events, not chop configs (which are just UI state)
+-- Transforms receive events array, modify it, and return it (matching tape pattern)
 -- Part of lib/modes/motif/types/sampler/
 
 local transforms = {}
@@ -10,22 +10,14 @@ local transforms = {}
 -- Transform Registry
 --------------------------------------------------
 
--- Helper to get motif events for a lane
-local function get_motif_events(lane_id)
-  if _seeker and _seeker.lanes[lane_id] then
-    return _seeker.lanes[lane_id].motif.events
-  end
-  return nil
-end
-
 transforms.available = {
   none = {
     name = "No Operation",
     ui_name = "None",
     ui_order = 1,
     description = "No changes to events",
-    fn = function(lane_id, stage_id)
-      return
+    fn = function(events, lane_id, stage_id)
+      return events
     end
   },
 
@@ -34,17 +26,15 @@ transforms.available = {
     ui_name = "Scatter",
     ui_order = 2,
     description = "Chaotic micro-loops: amount controls drift, size controls minimum chop length",
-    fn = function(lane_id, stage_id)
+    fn = function(events, lane_id, stage_id)
       local scatter_amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_scatter_amount") / 100
       local scatter_size = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_scatter_size") / 100
 
-      if scatter_amount == 0 then return end
-
-      local events = get_motif_events(lane_id)
-      if not events then return end
+      if scatter_amount == 0 then return events end
+      if not events then return events end
 
       local sample_duration = _seeker.sampler.get_sample_duration(lane_id)
-      if sample_duration <= 0 then return end
+      if sample_duration <= 0 then return events end
 
       for _, event in ipairs(events) do
         if event.type == "note_on" and event.start_pos and event.stop_pos then
@@ -74,6 +64,8 @@ transforms.available = {
           event.stop_pos = new_stop
         end
       end
+
+      return events
     end
   },
 
@@ -82,17 +74,15 @@ transforms.available = {
     ui_name = "Slide",
     ui_order = 3,
     description = "Shift chop windows through buffer while preserving duration",
-    fn = function(lane_id, stage_id)
+    fn = function(events, lane_id, stage_id)
       local slide_amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_amount") / 100
       local slide_wrap = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_wrap") == 2
 
-      if slide_amount == 0 then return end
-
-      local events = get_motif_events(lane_id)
-      if not events then return end
+      if slide_amount == 0 then return events end
+      if not events then return events end
 
       local sample_duration = _seeker.sampler.get_sample_duration(lane_id)
-      if sample_duration <= 0 then return end
+      if sample_duration <= 0 then return events end
 
       for _, event in ipairs(events) do
         if event.type == "note_on" and event.start_pos and event.stop_pos then
@@ -128,6 +118,8 @@ transforms.available = {
           event.stop_pos = new_stop
         end
       end
+
+      return events
     end
   },
 
@@ -136,19 +128,19 @@ transforms.available = {
     ui_name = "Reverse",
     ui_order = 4,
     description = "Flip playback direction with probability per event",
-    fn = function(lane_id, stage_id)
+    fn = function(events, lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_reverse_prob") / 100
 
-      if probability == 0 then return end
-
-      local events = get_motif_events(lane_id)
-      if not events then return end
+      if probability == 0 then return events end
+      if not events then return events end
 
       for _, event in ipairs(events) do
         if event.type == "note_on" and event.rate and math.random() < probability then
           event.rate = -event.rate
         end
       end
+
+      return events
     end
   },
 
@@ -157,20 +149,20 @@ transforms.available = {
     ui_name = "Pan Spread",
     ui_order = 5,
     description = "Randomly distribute events across stereo field",
-    fn = function(lane_id, stage_id)
+    fn = function(events, lane_id, stage_id)
       local probability = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_prob") / 100
       local range = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_pan_range") / 100
 
-      if probability == 0 or range == 0 then return end
-
-      local events = get_motif_events(lane_id)
-      if not events then return end
+      if probability == 0 or range == 0 then return events end
+      if not events then return events end
 
       for _, event in ipairs(events) do
         if event.type == "note_on" and event.pan and math.random() < probability then
           event.pan = (math.random() * 2 - 1) * range
         end
       end
+
+      return events
     end
   },
 
@@ -211,17 +203,13 @@ function transforms.get_transform_id_by_ui_name(ui_name)
   return "none"
 end
 
--- Apply transform for a stage (called from Lane:prepare_stage)
-function transforms.apply(lane_id, stage_id)
-  local transform_ui_name = params:string("lane_" .. lane_id .. "_sampler_transform_stage_" .. stage_id)
-  local transform_id = transforms.get_transform_id_by_ui_name(transform_ui_name)
-
-  if transform_id and transform_id ~= "none" then
-    local transform = transforms.available[transform_id]
-    if transform and transform.fn then
-      transform.fn(lane_id, stage_id)
-    end
+-- Get transform ID and function by UI name (called from Lane:prepare_stage)
+function transforms.get_transform_by_ui_name(ui_name)
+  local transform_id = transforms.get_transform_id_by_ui_name(ui_name)
+  if transform_id and transforms.available[transform_id] then
+    return transforms.available[transform_id]
   end
+  return nil
 end
 
 return transforms
