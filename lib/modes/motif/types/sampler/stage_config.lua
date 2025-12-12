@@ -9,7 +9,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local SamplerStageConfig = {}
 
 -- Transform types for sampler
-local transform_types = {"None", "Scatter", "Slide", "Reverse", "Pan Spread"}
+local transform_types = {"None", "Scatter", "Slide", "Reverse", "Pan Spread", "Filter Drift"}
 
 -- Local state for stage configuration
 local config_state = {
@@ -18,8 +18,8 @@ local config_state = {
 
 local function create_params()
     for lane_idx = 1, _seeker.num_lanes do
-        -- 1 config_stage + 4 stages * 8 params per stage = 33
-        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 33)
+        -- 1 config_stage + 4 stages * 10 params per stage = 41
+        params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 41)
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)
             config_state.config_stage = value
@@ -56,6 +56,12 @@ local function create_params()
                 controlspec.new(0, 100, "lin", 1, 50, "%"))
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range", "Pan Range",
                 controlspec.new(0, 100, "lin", 1, 100, "%"))
+
+            -- Filter Drift Transform Params
+            params:add_option("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_drift_direction", "Direction",
+                {"Darken", "Brighten"}, 1)
+            params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_drift_amount", "Amount",
+                controlspec.new(0, 100, "lin", 1, 25, "%"))
 
         end
     end
@@ -114,6 +120,9 @@ local function create_screen_ui()
         elseif transform_type == "Pan Spread" then
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_prob", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_pan_range", arc_multi_float = {10, 5, 1} })
+        elseif transform_type == "Filter Drift" then
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_drift_direction" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_filter_drift_amount", arc_multi_float = {10, 5, 1} })
         end
 
         -- Config section with reset and loop count

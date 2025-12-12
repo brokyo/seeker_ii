@@ -167,6 +167,41 @@ transforms.available = {
     end
   },
 
+  filter_drift = {
+    name = "Filter Drift",
+    ui_name = "Filter Drift",
+    ui_order = 6,
+    description = "Progressively darken or brighten filter across stages",
+    fn = function(events, lane_id, stage_id)
+      local direction = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_drift_direction")
+      local amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_filter_drift_amount") / 100
+
+      if amount == 0 then return events end
+      if not events then return events end
+
+      local MIN_LPF = 20
+      local MAX_LPF = 20000
+
+      for _, event in ipairs(events) do
+        if event.type == "note_on" and event.lpf then
+          local current_lpf = event.lpf
+
+          if direction == 1 then
+            -- Darken: move toward minimum (multiply to reduce)
+            local new_lpf = current_lpf * (1 - amount * 0.5)
+            event.lpf = math.max(MIN_LPF, new_lpf)
+          else
+            -- Brighten: move toward maximum
+            local new_lpf = current_lpf + (MAX_LPF - current_lpf) * amount * 0.5
+            event.lpf = math.min(MAX_LPF, new_lpf)
+          end
+        end
+      end
+
+      return events
+    end
+  },
+
 }
 
 -- Build ordered list of transform UI names
