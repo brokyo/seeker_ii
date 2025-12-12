@@ -40,15 +40,18 @@ local function create_screen_ui()
     local pad = SamplerChopConfig.state.selected_pad
     local filter_type = params:get("spc_filter_type")
 
-    -- Check if chop is using global filter settings
-    local uses_global = true
+    -- Check if chop is using global settings
+    local uses_global_filter = true
+    local uses_global_envelope = true
     if _seeker and _seeker.sampler then
       local chop = _seeker.sampler.get_chop(lane, pad)
       if chop then
-        uses_global = chop.uses_global_filter ~= false
+        uses_global_filter = chop.uses_global_filter ~= false
+        uses_global_envelope = chop.uses_global_envelope ~= false
       end
     end
-    local filter_title = uses_global and "Filter (global)" or "Filter"
+    local filter_title = uses_global_filter and "Global Filter" or "Filter"
+    local envelope_title = uses_global_envelope and "Global Envelope" or "Envelope"
 
     local param_list = {
       {separator = true, title = "Chop Config"},
@@ -61,7 +64,7 @@ local function create_screen_ui()
       {id = "spc_pitch"},
       {id = "spc_rate", arc_multi_float = {0.5, 0.1, 0.01}},
       {id = "spc_pan", arc_multi_float = {0.1, 0.05, 0.01}},
-      {separator = true, title = "Envelope"},
+      {separator = true, title = envelope_title},
       {id = "spc_attack", arc_multi_float = {0.1, 0.01, 0.001}},
       {id = "spc_release", arc_multi_float = {0.1, 0.01, 0.001}},
       {id = "spc_fade_time", arc_multi_float = {0.01, 0.001, 0.0001}},
@@ -118,12 +121,26 @@ function SamplerChopConfig.init()
     controlspec.new(0.001, 5.0, 'lin', 0.001, 0.01, 's'))
   params:set_action("spc_attack", function(value)
     SamplerChopConfig.update_chop('attack', value)
+    SamplerChopConfig.update_chop('uses_global_envelope', false)
+    if SamplerChopConfig.screen then
+      SamplerChopConfig.screen:rebuild_params()
+    end
+    if _seeker and _seeker.screen_ui then
+      _seeker.screen_ui.set_needs_redraw()
+    end
   end)
 
   params:add_control("spc_release", "Release",
     controlspec.new(0.001, 5.0, 'lin', 0.001, 0.01, 's'))
   params:set_action("spc_release", function(value)
     SamplerChopConfig.update_chop('release', value)
+    SamplerChopConfig.update_chop('uses_global_envelope', false)
+    if SamplerChopConfig.screen then
+      SamplerChopConfig.screen:rebuild_params()
+    end
+    if _seeker and _seeker.screen_ui then
+      _seeker.screen_ui.set_needs_redraw()
+    end
   end)
 
   params:add_control("spc_fade_time", "Crossfade",

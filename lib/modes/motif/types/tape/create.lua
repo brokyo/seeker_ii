@@ -410,6 +410,9 @@ local function create_grid_ui()
         local recorded_motif = _seeker.motif_recorder:stop_recording()
         current_lane:set_motif(recorded_motif)
 
+        -- Sync duration param to recorded motif's actual duration
+        params:set("tape_create_duration", recorded_motif.duration, true)
+
         if not was_overdubbing then
             current_lane:play()
         end

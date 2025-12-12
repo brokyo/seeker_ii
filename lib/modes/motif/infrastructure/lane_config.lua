@@ -36,7 +36,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 85)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 87)
 
         -- Config Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice",
@@ -79,6 +79,19 @@ local function create_params()
             controlspec.new(0, 4, 'lin', 0.01, 0, ""))
         params:set_action("lane_" .. i .. "_sampler_resonance", function()
             if _seeker.sampler then _seeker.sampler.apply_global_filter(lane_idx) end
+        end)
+
+        -- Global sampler envelope (applies to all chops in lane)
+        params:add_control("lane_" .. i .. "_sampler_attack", "Attack",
+            controlspec.new(0, 2, 'lin', 0.01, 0.01, "s"))
+        params:set_action("lane_" .. i .. "_sampler_attack", function()
+            if _seeker.sampler then _seeker.sampler.apply_global_envelope(lane_idx) end
+        end)
+
+        params:add_control("lane_" .. i .. "_sampler_release", "Release",
+            controlspec.new(0, 2, 'lin', 0.01, 0.01, "s"))
+        params:set_action("lane_" .. i .. "_sampler_release", function()
+            if _seeker.sampler then _seeker.sampler.apply_global_envelope(lane_idx) end
         end)
     end
 end
@@ -148,6 +161,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "sampler_voice_count" })
 
             -- Global filter (defaults for all chops, overridden per-chop)
+            table.insert(param_table, { separator = true, title = "Global Filter" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_filter_type" })
 
             local filter_type = params:get("lane_" .. lane_idx .. "_sampler_filter_type")
@@ -161,6 +175,11 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_lpf", arc_multi_float = {1000, 100, 10} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
             end
+
+            -- Global envelope
+            table.insert(param_table, { separator = true, title = "Global Envelope" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_attack", arc_multi_float = {0.5, 0.1, 0.01} })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_release", arc_multi_float = {0.5, 0.1, 0.01} })
         else -- Tape/Composer parameters: voice routing configuration
             table.insert(param_table, { separator = true, title = "Voice Routing" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })

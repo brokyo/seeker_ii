@@ -43,7 +43,8 @@ local function create_default_chop(start_pos, stop_pos)
     lpf = 20000,
     resonance = 0,
     hpf = 20,
-    uses_global_filter = true
+    uses_global_filter = true,
+    uses_global_envelope = true
   }
 end
 
@@ -232,6 +233,22 @@ function SamplerEngine.apply_global_filter(lane)
       _seeker.sampler.chops[lane][pad].hpf = hpf
       _seeker.sampler.chops[lane][pad].resonance = resonance
       _seeker.sampler.chops[lane][pad].uses_global_filter = true
+    end
+  end
+end
+
+-- Apply global envelope settings to all chops in a lane
+function SamplerEngine.apply_global_envelope(lane)
+  if not ensure_chop_storage(lane) then return end
+
+  local attack = params:get("lane_" .. lane .. "_sampler_attack")
+  local release = params:get("lane_" .. lane .. "_sampler_release")
+
+  for pad = 1, NUM_PADS do
+    if _seeker.sampler.chops[lane][pad] then
+      _seeker.sampler.chops[lane][pad].attack = attack
+      _seeker.sampler.chops[lane][pad].release = release
+      _seeker.sampler.chops[lane][pad].uses_global_envelope = true
     end
   end
 end
