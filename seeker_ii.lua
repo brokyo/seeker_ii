@@ -12,7 +12,6 @@ engine.name = "MxSamples"
 local mxsamples = include("mx.samples/lib/mx.samples")
 local Lane = include("lib/modes/motif/sequencing/lane")
 local conductor = include("lib/modes/motif/sequencing/conductor")
-local lane_archetype = include("lib/modes/motif/sequencing/lane_archetype")
 local grid = include("lib/controllers/grid")
 local screen_ui = include("/lib/ui/screen_router")
 local ui_state = include('/lib/ui/state')

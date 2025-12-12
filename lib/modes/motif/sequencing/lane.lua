@@ -12,7 +12,6 @@
 
 local mx_samples = include('lib/modes/motif/infrastructure/voices/mx_samples')
 local Motif = include('lib/modes/motif/core/motif')
-local forms = include('lib/modes/motif/core/forms')
 -- Stage type modules for mode-specific preparation
 local tape_transform = include('lib/modes/motif/types/tape/transform')
 local composer_generator = include('lib/modes/motif/types/composer/generator')
@@ -1152,37 +1151,6 @@ end
 function Lane:clear()
   self:stop()  -- Stop playback
   self.motif:clear()  -- Clear motif data
-end
-
----------------------------------------------------------
--- apply_arrangement(arrangement_name)
---   Apply an arrangement preset to this lane's stages
----------------------------------------------------------
-function Lane:apply_arrangement(arrangement_name)
-    local arrangement = forms.arrangements[arrangement_name]    
-    for i, stage_config in ipairs(arrangement.stages) do
-        -- Copy all fields from the stage config
-        for k, v in pairs(stage_config) do
-            if k == "transform_config" then
-                -- Deep copy transform config
-                self.stages[i][k] = {}
-                for param_k, param_v in pairs(v) do
-                    self.stages[i][k][param_k] = param_v
-                end
-            else
-                self.stages[i][k] = v
-            end
-        end
-    end
-end
-
----------------------------------------------------------
--- update_stage_param(stage_num, param_name, value)
---   Update a parameter for a specific stage
----------------------------------------------------------
-function Lane:update_stage_param(stage_num, param_name, value)
-    local stage = self.stages[stage_num]
-    stage.transform_config[param_name] = value
 end
 
 ---------------------------------------------------------
