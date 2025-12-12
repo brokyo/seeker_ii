@@ -6,6 +6,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local ComposerClear = {}
 ComposerClear.__index = ComposerClear
@@ -14,7 +15,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "COMPOSER_CLEAR",
         name = "Clear",
-        description = "Hold to clear the currently stored motif.",
+        description = Descriptions.COMPOSER_CLEAR,
         params = {
             { separator = true, title = "Clear Motif" }
         }

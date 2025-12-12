@@ -5,6 +5,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local OscUtils = include("lib/modes/osc/osc_utils")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local OscTrigger = {}
 OscTrigger.__index = OscTrigger
@@ -166,7 +167,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_TRIGGER",
         name = "Trigger 1",
-        description = "Send a trigger value over OSC. Use Seeker TD tox. Best with Arc controller.",
+        description = Descriptions.OSC_TRIGGER,
         params = {}
     })
 

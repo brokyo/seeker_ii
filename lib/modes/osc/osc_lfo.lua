@@ -5,6 +5,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local OscUtils = include("lib/modes/osc/osc_utils")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local OscLfo = {}
 OscLfo.__index = OscLfo
@@ -101,7 +102,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_LFO",
         name = "LFO 1",
-        description = "Send an LFO value over OSC. Use Seeker TD tox. Best with Arc controller.",
+        description = Descriptions.OSC_LFO,
         params = {}
     })
 

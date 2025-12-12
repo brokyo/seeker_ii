@@ -5,6 +5,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local TxoTrOutput = {}
 TxoTrOutput.__index = TxoTrOutput
@@ -211,7 +212,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TXO_TR_OUTPUT",
         name = "TXO TR Output",
-        description = "Configure TXO trigger output. Clocks, patterns, etc.",
+        description = Descriptions.TXO_TR_OUTPUT,
         params = {}
     })
 

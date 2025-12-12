@@ -4,6 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local WTapeRecord = {}
 WTapeRecord.__index = WTapeRecord
@@ -12,7 +13,7 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_RECORD",
         name = "Record",
-        description = "Tape recording. Erase 0=overdub, 1=replace. Echo plays back before erasing.",
+        description = Descriptions.WTAPE_RECORD,
         params = {
             { separator = true, title = "Recording" },
             { id = "wtape_rec_level", arc_multi_float = {0.1, 0.05, 0.01} },

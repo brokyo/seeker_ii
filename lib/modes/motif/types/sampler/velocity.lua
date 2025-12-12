@@ -5,6 +5,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local SamplerVelocity = {}
 SamplerVelocity.__index = SamplerVelocity
@@ -35,7 +36,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_VELOCITY",
     name = "Chop Amplitude",
-    description = "Control chop playback volume. Press grid keys to select level. Tweak as needed. Performable.",
+    description = Descriptions.SAMPLER_VELOCITY,
     params = {
       { separator = true, title = "Amplitude Levels" },
       { id = "sampler_velocity_1" },

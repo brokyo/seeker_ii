@@ -2,6 +2,7 @@
 -- Global OSC configuration: connection settings and sync orchestration
 
 local NornsUI = include("lib/ui/base/norns_ui")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local OscConfig = {}
 OscConfig.__index = OscConfig
@@ -62,7 +63,7 @@ local function create_screen_ui()
     return NornsUI.new({
         id = "OSC_CONFIG",
         name = "OSC Config",
-        description = "OSC connection and settings. Tuned for TouchDesigner.",
+        description = Descriptions.OSC_CONFIG,
         params = {
             { separator = true, title = "Actions" },
             { id = "osc_sync_all_clocks", is_action = true },

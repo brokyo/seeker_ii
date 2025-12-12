@@ -7,6 +7,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local composer_generator = include("lib/modes/motif/types/composer/generator")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local ComposerCreate = {}
 ComposerCreate.__index = ComposerCreate
@@ -140,7 +141,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "COMPOSER_CREATE",
         name = "Create",
-        description = "Generate a motif from current parameters. Hold grid button to generate. Presets change rhythmic structure in realtime.",
+        description = Descriptions.COMPOSER_CREATE,
         params = {}
     })
 

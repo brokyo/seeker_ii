@@ -5,6 +5,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local SamplerClear = {}
 SamplerClear.__index = SamplerClear
@@ -13,7 +14,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_CLEAR",
     name = "Clear",
-    description = "Hold to clear the recorded motif and reset to a blank canvas.",
+    description = Descriptions.SAMPLER_CLEAR,
     params = {
       { separator = true, title = "Clear Motif" }
     }

@@ -5,6 +5,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local CrowOutput = {}
 CrowOutput.__index = CrowOutput
@@ -700,7 +701,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "CROW_OUTPUT",
         name = "Crow Output",
-        description = "Configure Crow voltage output. Gates, bursts, LFOs, etc.",
+        description = Descriptions.CROW_OUTPUT,
         params = {}
     })
 

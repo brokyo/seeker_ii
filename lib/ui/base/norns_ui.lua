@@ -1,6 +1,7 @@
 -- norns_ui.lua
--- Base class for Norns UI components
--- Handles default logic. Can be overridden by individual components (see: @create_motif.lua)
+-- Base class for Norns UI components with parameter navigation, drawing, and input handling
+
+local Modal = include("lib/ui/components/modal")
 
 local NornsUI = {}
 NornsUI.__index = NornsUI
@@ -81,8 +82,6 @@ function NornsUI:evaluate_condition(condition)
   end
 
   for _, viz_check in ipairs(condition) do
-    -- TODO: params:string "Returns the string associated with the current value for a given parameter's id" 
-    -- Will this work for number param types?
     local actual_value = params:string(viz_check.id)
     local test_value = viz_check.value
 
@@ -109,8 +108,7 @@ function NornsUI:evaluate_condition(condition)
   
 end
 
--- Used in components to update dynamic parameter lists
--- Result of conditional logic about params (see: @wtape.lua)
+-- Filters parameter list based on view_conditions to show/hide params dynamically
 function NornsUI:filter_active_params()
   -- Reset the active params array
   self.active_params = {}
@@ -151,34 +149,8 @@ function NornsUI:get_param_value(param)
   return param_value
 end
 
--- Used by encoder handling to modify the value of a parameter
--- Forked logic based on param type
-
--- TODO: I think I can get rid of all is_custom logic
+-- Modifies parameter value via encoder delta, with special handling for actions and binary params
 function NornsUI:modify_param(param, delta)
-  -- if param.is_custom then -- Handles custom seeker params which do not use the norns param API
-  --   if param.spec.type == "option" then
-  --     local options = param.spec.options
-
-  --     -- Find current index
-  --     local current_idx = 1
-  --     for i, opt in ipairs(options) do
-  --       if opt == param.value then
-  --         current_idx = i
-  --         break
-  --       end
-  --     end
-
-  --     -- Calculate new index with wrap-around
-  --     local new_idx = util.clamp(current_idx + delta, 1, #options)
-  --     return options[new_idx]
-  --   elseif param.spec.type == "integer" then
-  --     -- Handle integer parameters with min/max bounds
-  --     local new_value = param.value + delta
-  --     return util.clamp(new_value, param.spec.min, param.spec.max)
-  --   end
-  -- end
-
   if param.is_action then
     -- Only allow action triggers through button press, not encoder
     if delta ~= 1 then
@@ -203,46 +175,14 @@ end
 -- Drawing functions
 --------------------------------
 
--- Draw consistent content (footer, params, etc) without calling screen.clear() or screen.update().
--- Useful for components with animation (@create_motif.lua)
+-- Draw consistent content (footer, params, modal) without screen.clear() or screen.update()
+-- For use by components that need custom rendering or animation
 function NornsUI:_draw_standard_ui()
-  -- Write description if k3 held
+  -- Draw modal overlay if description is showing
   if self.state.showing_description then
-    screen.level(15)
-    -- Split description into words
-    local words = {}
-    for word in self.description:gmatch("%S+") do
-      table.insert(words, word)
-    end
-      
-    local line = ""
-    local y = 20  -- Start position
-    local x = 2   -- Left margin
-    local MAX_WIDTH = 124  -- Screen width minus margins
-    
-    for i, word in ipairs(words) do
-      local test_line = line .. (line == "" and "" or " ") .. word
-      local width = screen.text_extents(test_line)
-      
-      if width > MAX_WIDTH then
-        -- Draw current line and start new one
-        screen.move(x, y)
-        screen.text(line)
-        line = word
-        y = y + 11  -- Line height
-      else
-        -- Add word to current line
-        line = test_line
-      end
-    end
-    
-    -- Draw final line
-    if line ~= "" then
-      screen.move(x, y)
-      screen.text(line)
-    end
+    Modal.draw()
   -- Otherwise draw footer and params
-  else 
+  else
     self:draw_footer()
     if #self.params > 0 then
       self:draw_params(0)
@@ -377,6 +317,11 @@ end
 --------------------------------
 
 function NornsUI:handle_enc_default(n, d)
+  -- Let modal handle e3 for scrolling when active
+  if Modal.handle_enc(n, d) then
+    return
+  end
+
   if n == 2 then
     -- Filter active params first
     self:filter_active_params()
@@ -448,12 +393,21 @@ function NornsUI:handle_enc(n, d)
 end
 
 function NornsUI:handle_key(n, z)
-
   -- Toggle description display on K2 press/release
   if n == 2 then
-    self.state.showing_description = (z == 1)
+    if z == 1 then
+      self.state.showing_description = true
+      Modal.show_description({
+        title = self.name,
+        body = self.description,
+        hint = "e3 scroll · release k2"
+      })
+    else
+      self.state.showing_description = false
+      Modal.dismiss()
+    end
 
-    -- Handle K3 press for action items
+  -- Handle K3 press for action items
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self:get_selected_param()
     if param and param.is_action then
@@ -474,8 +428,7 @@ function NornsUI:enter()
   self:filter_active_params()
   self.state.selected_index = self:find_first_selectable()
 
-  -- Get the number of params (and their type) to send to Arc
-  -- TODO: This is a bit of a hack. There should probably be a new_section method and update_params method on Arc.
+  -- Initialize Arc with current parameter list
   _seeker.arc.new_section(self.params)
 
   self:update()

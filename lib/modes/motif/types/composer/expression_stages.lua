@@ -7,6 +7,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local composer_generator = include("lib/modes/motif/types/composer/generator")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local ExpressionStages = {}
 ExpressionStages.__index = ExpressionStages
@@ -82,7 +83,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "COMPOSER_EXPRESSION_STAGES",
         name = "Expression",
-        description = "Configure pattern and timing for each stage. Phasing is very cool if you have more unequal step (create) and length (harmonic). ",
+        description = Descriptions.COMPOSER_EXPRESSION_STAGES,
         params = {
             { separator = true, title = "Expression" },
         }

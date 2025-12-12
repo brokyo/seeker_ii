@@ -6,6 +6,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local TapeVelocity = {}
 
@@ -33,7 +34,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "TAPE_VELOCITY",
     name = "Note Velocity",
-    description = "Control note loudness. Press grid keys to select level.",
+    description = Descriptions.TAPE_VELOCITY,
     params = {
       { separator = true, title = "Velocity Levels" },
       { id = "tape_velocity_1" },

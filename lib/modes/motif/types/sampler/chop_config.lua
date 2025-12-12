@@ -8,6 +8,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local theory = include("lib/modes/motif/core/theory")
+local Descriptions = include("lib/ui/component_descriptions")
 
 -- Filter type constants
 local FILTER_OFF = 1
@@ -29,7 +30,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_CHOP_CONFIG",
     name = "Chop Config",
-    description = "Configure individual chop points and envelopes. Each pad controls one chop. Pitch and Speed combine.",
+    description = Descriptions.SAMPLER_CHOP_CONFIG,
     params = {}
   })
 

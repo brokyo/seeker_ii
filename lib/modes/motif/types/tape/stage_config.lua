@@ -6,6 +6,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local tape_transforms = include("lib/modes/motif/core/transforms")
 local tape_transform = include("lib/modes/motif/types/tape/transform")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local TapeStageConfig = {}
 
@@ -70,7 +71,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TAPE_STAGE_CONFIG",
         name = "Tape Stage Config",
-        description = "Sequence changes to the loop. Structured and probabilistic options. Harmonize is a lot of fun.",
+        description = Descriptions.TAPE_STAGE_CONFIG,
         params = {
             { separator = true, title = "Tape Stage Config" },
         }

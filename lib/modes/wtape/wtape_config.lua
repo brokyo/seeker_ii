@@ -3,7 +3,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
--- local GridConstants = include("lib/grid/constants") -- Not needed for minimal version
+local Descriptions = include("lib/ui/component_descriptions")
 
 local WTape = {}
 WTape.__index = WTape
@@ -111,7 +111,7 @@ local function create_screen_ui()
     return NornsUI.new({
         id = "WTAPE",
         name = "WTape Config",
-        description = "WTape settings. Most documented features implemented via grid buttons.",
+        description = Descriptions.WTAPE,
         params = {
             { separator = true, title = "Playback" },
             { id = "wtape_speed", arc_multi_float = {1.0, 0.1, 0.01}},

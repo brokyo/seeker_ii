@@ -7,6 +7,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local DualTapeKeyboard = include("lib/modes/motif/types/tape/dual_keyboard")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local TapeCreate = {}
 
@@ -44,7 +45,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TAPE_CREATE",
         name = "Create",
-        description = "Record notes as a looping motif. Hold to record and again to overdub. Overdubs take on local envelope settings (see Lane Config).",
+        description = Descriptions.TAPE_CREATE,
         params = {}
     })
 

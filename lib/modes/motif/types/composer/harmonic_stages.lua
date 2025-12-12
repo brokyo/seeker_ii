@@ -6,6 +6,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local HarmonicStages = {}
 HarmonicStages.__index = HarmonicStages
@@ -35,7 +36,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "COMPOSER_HARMONIC_STAGES",
         name = "Harmonic",
-        description = "Configure pitch and harmonic content for each stage.",
+        description = Descriptions.COMPOSER_HARMONIC_STAGES,
         params = {
             { separator = true, title = "Harmonic" },
         }

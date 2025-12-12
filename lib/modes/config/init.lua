@@ -5,6 +5,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local theory = include('lib/modes/motif/core/theory')
+local Descriptions = include("lib/ui/component_descriptions")
 local musicutil = require('musicutil')
 
 local Config = {}
@@ -127,7 +128,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "CONFIG",
         name = "Seeker II Config",
-        description = "Settings that affect all modes",
+        description = Descriptions.CONFIG,
         params = {
             { separator = true, title = "Clock" },
             { id = "seeker_clock_tempo", arc_multi_float = {10, 5, 1} },

@@ -1,11 +1,12 @@
 -- lane_config.lua
--- Central hub for lane setup: motif type selection (Tape/Composer/Sampler) and voice routing.
+-- Lane configuration: motif type selection (Tape/Composer/Sampler) and voice routing
 -- Each lane can output to multiple voices simultaneously (MX Samples, MIDI, Crow, Just Friends, etc.)
--- Sampler mode bypasses voice routing and plays audio directly via softcut.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Modal = include("lib/ui/components/modal")
+local Descriptions = include("lib/ui/component_descriptions")
 
 -- Voice parameter modules
 local voice_mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
@@ -87,7 +88,7 @@ local function create_screen_ui()
         id = "LANE_CONFIG",
         name = "Lane 1",
         icon = "⌸",
-        description = "Select Motif type and configure voices. Multiple voices can run simultaneously",
+        description = Descriptions.LANE_CONFIG,
         params = {}
     })
     
@@ -124,7 +125,7 @@ local function create_screen_ui()
             { id = "lane_" .. lane_idx .. "_motif_type" }
         }
 
-        -- Sampler mode loads audio files directly (no voice routing needed)
+        -- Sampler parameters: audio source, recording, filter
         if motif_type == MOTIF_TYPE_SAMPLER then
             -- Sample source first (most important)
             table.insert(param_table, { separator = true, title = "Sample Source" })
@@ -160,7 +161,7 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_lpf", arc_multi_float = {1000, 100, 10} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
             end
-        else -- Tape/Composer modes require voice routing to play notes
+        else -- Tape/Composer parameters: voice routing configuration
             table.insert(param_table, { separator = true, title = "Voice Routing" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
 
@@ -325,90 +326,18 @@ local function create_screen_ui()
         -- Check if recording and draw overlay
         if _seeker.sampler and _seeker.sampler.recording_state then
             local message = _seeker.sampler.recording_state == "recording" and "RECORDING" or "SAVING"
-
-            -- Dark background
-            screen.level(1)
-            screen.rect(0, 0, 128, 64)
-            screen.fill()
-
-            -- Border box
-            screen.level(15)
-            screen.rect(10, 20, 108, 24)
-            screen.stroke()
-
-            -- Main message (large, centered)
-            screen.level(15)
-            screen.move(64, 32)
-            screen.font_face(1)
-            screen.font_size(16)
-            screen.text_center(message)
-
-            -- Instruction (smaller, centered below)
-            if _seeker.sampler.recording_state == "recording" then
-                screen.font_size(8)
-                screen.move(64, 42)
-                screen.text_center("k3 to stop")
-            end
-
-            -- Reset font size
-            screen.font_size(8)
-
-            -- Push overlay to display
+            local hint = _seeker.sampler.recording_state == "recording" and "k3 to stop" or nil
+            Modal.draw_status_immediate({ body = message, hint = hint })
             screen.update()
 
         -- Check if fileselect is active and draw overlay
         elseif _seeker.sampler and _seeker.sampler.file_select_active then
-            -- Dark background
-            screen.level(1)
-            screen.rect(0, 0, 128, 64)
-            screen.fill()
-
-            -- Border box
-            screen.level(15)
-            screen.rect(10, 16, 108, 32)
-            screen.stroke()
-
-            -- Main message (large, centered)
-            screen.level(15)
-            screen.move(64, 30)
-            screen.font_face(1)
-            screen.font_size(12)
-            screen.text_center("FILE SELECT")
-
-            -- Instruction (smaller, centered below)
-            screen.font_size(8)
-            screen.move(64, 42)
-            screen.text_center("use norns e2/e3/k3")
-
-            -- Reset font size
-            screen.font_size(8)
-
-            -- Push overlay to display
+            Modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
             screen.update()
 
         -- Check if loading sample and draw overlay
         elseif _seeker.sampler and _seeker.sampler.loading_state then
-            -- Dark background
-            screen.level(1)
-            screen.rect(0, 0, 128, 64)
-            screen.fill()
-
-            -- Border box
-            screen.level(15)
-            screen.rect(10, 20, 108, 24)
-            screen.stroke()
-
-            -- Main message (large, centered)
-            screen.level(15)
-            screen.move(64, 32)
-            screen.font_face(1)
-            screen.font_size(16)
-            screen.text_center("LOADING")
-
-            -- Reset font size
-            screen.font_size(8)
-
-            -- Push overlay to display
+            Modal.draw_status_immediate({ body = "LOADING" })
             screen.update()
         end
     end

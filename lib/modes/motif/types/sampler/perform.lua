@@ -6,6 +6,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local SamplerPerform = {}
 
@@ -114,7 +115,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "SAMPLER_PERFORM",
     name = "Perform",
-    description = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
+    description = Descriptions.SAMPLER_PERFORM,
     params = {}
   })
 

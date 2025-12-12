@@ -5,6 +5,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local TxoCvOutput = {}
 TxoCvOutput.__index = TxoCvOutput
@@ -389,7 +390,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "TXO_CV_OUTPUT",
         name = "TXO CV Output",
-        description = "Configure TXO CV output. LFOs, random walks, etc.",
+        description = Descriptions.TXO_CV_OUTPUT,
         params = {}
     })
 

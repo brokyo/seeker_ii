@@ -4,6 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local WTapePlayback = {}
 WTapePlayback.__index = WTapePlayback
@@ -12,7 +13,7 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_PLAYBACK",
         name = "Play",
-        description = "Tape playback. Press grid to toggle play/stop. Speed affects pitch.",
+        description = Descriptions.WTAPE_PLAYBACK,
         params = {
             { separator = true, title = "Playback" },
             { id = "wtape_speed", arc_multi_float = {0.5, 0.1, 0.01} }

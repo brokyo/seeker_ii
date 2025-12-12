@@ -5,6 +5,7 @@
 -- Part of lib/modes/motif/types/sampler/
 
 local NornsUI = include("lib/ui/base/norns_ui")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local SamplerStageConfig = {}
 
@@ -71,7 +72,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "SAMPLER_STAGE_CONFIG",
         name = "Sampler Stage Config",
-        description = "Transform chop parameters across stages. Primarily time and rate manipulation.",
+        description = Descriptions.SAMPLER_STAGE_CONFIG,
         params = {
             { separator = true, title = "Sampler Stage Config" },
         }

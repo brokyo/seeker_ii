@@ -4,6 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local OscFloat = {}
 OscFloat.__index = OscFloat
@@ -46,7 +47,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "OSC_FLOAT",
         name = "Float 1",
-        description = "Send a float value over OSC. Use Seeker TD tox. Best with Arc controller.",
+        description = Descriptions.OSC_FLOAT,
         params = {}
     })
 

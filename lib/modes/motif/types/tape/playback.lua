@@ -5,6 +5,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local TapePlayback = {}
 
@@ -12,7 +13,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "TAPE_PLAYBACK",
     name = "Play",
-    description = "Control playback timing and transposition.",
+    description = Descriptions.TAPE_PLAYBACK,
     params = {}
   })
 

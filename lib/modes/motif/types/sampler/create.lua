@@ -6,6 +6,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local SamplerCreate = {}
 SamplerCreate.__index = SamplerCreate
@@ -33,7 +34,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "SAMPLER_CREATE",
         name = "Create",
-        description = "Record pad triggers as a looping motif. Load samples in Lane Config.",
+        description = Descriptions.SAMPLER_CREATE,
         params = {
             { separator = true, title = "Sampler" }
         }

@@ -3,6 +3,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local Keyboard = {}
 Keyboard.__index = Keyboard
@@ -101,7 +102,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "KEYBOARD",
         name = "Motif Keys Config",
-        description = "Select the scale. Set keyboard intervals. Connect MIDI. Tape mode shows lane tuning.",
+        description = Descriptions.KEYBOARD,
         params = {}
     })
 

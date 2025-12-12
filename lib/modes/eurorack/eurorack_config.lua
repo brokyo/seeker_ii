@@ -4,6 +4,7 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local EurorackConfig = {}
 EurorackConfig.__index = EurorackConfig
@@ -58,7 +59,7 @@ local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "EURORACK_CONFIG",
         name = "Eurorack Config",
-        description = "Control Eurorack modules over i2c. Supports Crow and TXO.",
+        description = Descriptions.EURORACK_CONFIG,
         params = {
             { separator = true, title = "Actions" },
             { id = "sync_all_eurorack_clocks", is_action = true }
