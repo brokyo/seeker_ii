@@ -10,7 +10,7 @@ WTape.__index = WTape
 
 -- wtape api here: https://github.com/monome/crow/blob/main/lua/ii/wtape.lua
 local function create_params()
-    params:add_group("wtape", "WTAPE", 13)
+    params:add_group("wtape", "WTAPE", 15)
 
     -- Playback
     params:add_binary("wtape_toggle_playing", "Toggle Playing", "toggle", 0)
@@ -65,18 +65,24 @@ local function create_params()
     end)
 
     -- Seek
-    params:add_binary("wtape_rewind", "Rewind 10 seconds", "trigger", 0)
+    params:add_control("wtape_rewind_time", "Rewind Time", controlspec.new(0.1, 60, 'lin', 0.1, 10))
+
+    params:add_binary("wtape_rewind", "Rewind", "trigger", 0)
     params:set_action("wtape_rewind", function(value)
         if value == 1 then
-            crow.ii.wtape.seek(-10)
+            local time = params:get("wtape_rewind_time")
+            crow.ii.wtape.seek(-time)
             _seeker.ui_state.trigger_activated("wtape_rewind")
         end
     end)
-    
-    params:add_binary("wtape_fast_forward", "Fast Forward 10 seconds", "trigger", 0)
+
+    params:add_control("wtape_ff_time", "Fast Forward Time", controlspec.new(0.1, 60, 'lin', 0.1, 10))
+
+    params:add_binary("wtape_fast_forward", "Fast Forward", "trigger", 0)
     params:set_action("wtape_fast_forward", function(value)
         if value == 1 then
-            crow.ii.wtape.seek(10)
+            local time = params:get("wtape_ff_time")
+            crow.ii.wtape.seek(time)
             _seeker.ui_state.trigger_activated("wtape_fast_forward")
         end
     end)

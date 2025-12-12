@@ -176,8 +176,8 @@ Transport control for the Whimsical Raps W/ module in tape mode. I think this is
 - **Reverse** — Toggle tape direction.
 
 **Transport:**
-- **Rewind** — Jump back 10 seconds.
-- **Fast Forward** — Jump forward 10 seconds.
+- **Rewind** — Jump back configurable time (0.1-60s, default 10s).
+- **Fast Forward** — Jump forward configurable time (0.1-60s, default 10s).
 
 **Recording:**
 - **Record** — Arm recording on/off.

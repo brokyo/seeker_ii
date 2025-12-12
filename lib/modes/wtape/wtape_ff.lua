@@ -12,28 +12,24 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_FF",
         name = "Fast Forward",
-        params = {}
+        params = {
+            { id = "wtape_ff_time", arc_multi_float = {10, 1, 0.1} }
+        }
     })
 
-    screen_ui.draw = function(self)
-        screen.clear()
+    screen_ui.draw_default = function(self)
+        NornsUI.draw_default(self)
 
         local recently_triggered = _seeker.ui_state.is_recently_triggered("wtape_fast_forward")
-        local status_text = recently_triggered and ">> 10s" or "FWD"
+        if recently_triggered then
+            local time = params:get("wtape_ff_time")
+            local status_text = string.format(">> %.1fs", time)
 
-        screen.font_size(16)
-        screen.level(15)
-        local text_width = screen.text_extents(status_text)
-        screen.move((128 - text_width) / 2, 30)
-        screen.text(status_text)
-
-        screen.font_size(8)
-        screen.level(8)
-        screen.rect(0, 52, 128, 12)
-        screen.fill()
-        screen.level(0)
-        screen.move(2, 60)
-        screen.text("Fast Forward")
+            local width = screen.text_extents(status_text)
+            screen.level(15)
+            screen.move(64 - width/2, 46)
+            screen.text(status_text)
+        end
 
         screen.update()
     end
