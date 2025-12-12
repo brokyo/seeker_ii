@@ -35,7 +35,6 @@ Modal.TYPE = {
 local state = {
   active = false,
   modal_type = nil,
-  title = nil,
   body = nil,
   hint = nil,
   scroll_offset = 0,
@@ -108,11 +107,10 @@ local function draw_shadow(x, y, w, h)
   screen.fill()
 end
 
--- Show a description modal (scrollable text with title)
+-- Show a description modal (scrollable text)
 function Modal.show_description(config)
   state.active = true
   state.modal_type = Modal.TYPE.DESCRIPTION
-  state.title = config.title or nil
   state.body = config.body or ""
   state.hint = config.hint or "release k2"
   state.scroll_offset = 0
@@ -124,9 +122,8 @@ function Modal.show_description(config)
   state.wrapped_lines = wrap_text(state.body, text_width)
 
   -- Calculate max scroll based on visible area
-  local title_space = state.title and (SIZES.TITLE + 6) or 0
   local hint_space = state.hint and (SIZES.HINT + 4) or 0
-  local available_height = SCREEN_HEIGHT - (MODAL_MARGIN * 2) - title_space - hint_space - PADDING
+  local available_height = SCREEN_HEIGHT - (MODAL_MARGIN * 2) - hint_space - PADDING
   local visible_lines = math.floor(available_height / LINE_HEIGHT)
   state.max_scroll = math.max(0, #state.wrapped_lines - visible_lines)
 end
@@ -135,7 +132,6 @@ end
 function Modal.show_status(config)
   state.active = true
   state.modal_type = Modal.TYPE.STATUS
-  state.title = config.title or nil
   state.body = config.body or ""
   state.hint = config.hint or nil
   state.scroll_offset = 0
@@ -147,7 +143,6 @@ end
 function Modal.dismiss()
   state.active = false
   state.modal_type = nil
-  state.title = nil
   state.body = nil
   state.hint = nil
   state.scroll_offset = 0
@@ -173,7 +168,7 @@ function Modal.handle_enc(n, d)
   -- Only intercept e3 for description scrolling
   if n == 3 and state.modal_type == Modal.TYPE.DESCRIPTION then
     state.scroll_offset = util.clamp(
-      state.scroll_offset + d,
+      state.scroll_offset + util.round(d),
       0,
       state.max_scroll
     )
@@ -196,10 +191,10 @@ end
 
 -- Draw description modal (scrollable text)
 function Modal._draw_description()
-  local mx = MODAL_MARGIN
-  local my = MODAL_MARGIN
-  local mw = SCREEN_WIDTH - (MODAL_MARGIN * 2)
-  local mh = SCREEN_HEIGHT - (MODAL_MARGIN * 2)
+  local modal_x = MODAL_MARGIN
+  local modal_y = MODAL_MARGIN
+  local modal_width = SCREEN_WIDTH - (MODAL_MARGIN * 2)
+  local modal_height = SCREEN_HEIGHT - (MODAL_MARGIN * 2)
 
   -- Dark background overlay
   screen.level(0)
@@ -207,37 +202,20 @@ function Modal._draw_description()
   screen.fill()
 
   -- Shadow
-  draw_shadow(mx, my, mw, mh)
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
 
   -- Modal background
   screen.level(1)
-  screen.rect(mx, my, mw, mh)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
   screen.fill()
 
   -- Border
   screen.level(6)
-  screen.rect(mx, my, mw, mh)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
   screen.stroke()
 
-  local content_x = mx + PADDING
-  local content_y = my + PADDING
-
-  -- Title (if provided)
-  if state.title then
-    screen.level(15)
-    screen.font_face(FONTS.TITLE)
-    screen.font_size(SIZES.TITLE)
-    screen.move(content_x, content_y + SIZES.TITLE - 2)
-    screen.text(state.title)
-    content_y = content_y + SIZES.TITLE + 4
-
-    -- Subtle divider line
-    screen.level(3)
-    screen.move(content_x, content_y)
-    screen.line(mx + mw - PADDING, content_y)
-    screen.stroke()
-    content_y = content_y + 4
-  end
+  local content_x = modal_x + PADDING
+  local content_y = modal_y + PADDING
 
   -- Body text (scrollable)
   screen.font_face(FONTS.BODY)
@@ -245,7 +223,7 @@ function Modal._draw_description()
   screen.level(12)
 
   local hint_space = state.hint and (SIZES.HINT + 6) or 0
-  local available_height = (my + mh - hint_space) - content_y - 2
+  local available_height = (modal_y + modal_height - hint_space) - content_y - 2
   local visible_lines = math.floor(available_height / LINE_HEIGHT)
 
   for i = 1, visible_lines do
@@ -259,12 +237,12 @@ function Modal._draw_description()
   -- Scroll indicators
   if state.scroll_offset > 0 then
     screen.level(6)
-    screen.move(mx + mw - PADDING, content_y + 4)
+    screen.move(modal_x + modal_width - PADDING, content_y + 4)
     screen.text("▲")
   end
   if state.scroll_offset < state.max_scroll then
     screen.level(6)
-    screen.move(mx + mw - PADDING, content_y + available_height - 4)
+    screen.move(modal_x + modal_width - PADDING, content_y + available_height - 4)
     screen.text("▼")
   end
 
@@ -273,18 +251,18 @@ function Modal._draw_description()
     screen.level(4)
     screen.font_face(FONTS.HINT)
     screen.font_size(SIZES.HINT)
-    local hint_y = my + mh - 4
-    screen.move(mx + mw / 2 - screen.text_extents(state.hint) / 2, hint_y)
+    local hint_y = modal_y + modal_height - 4
+    screen.move(modal_x + modal_width / 2 - screen.text_extents(state.hint) / 2, hint_y)
     screen.text(state.hint)
   end
 end
 
 -- Draw status modal (centered, prominent)
 function Modal._draw_status()
-  local mx = 10
-  local my = 18
-  local mw = SCREEN_WIDTH - 20
-  local mh = 28
+  local modal_x = 10
+  local modal_y = 18
+  local modal_width = SCREEN_WIDTH - 20
+  local modal_height = 28
 
   -- Dark background overlay
   screen.level(0)
@@ -292,16 +270,16 @@ function Modal._draw_status()
   screen.fill()
 
   -- Shadow
-  draw_shadow(mx, my, mw, mh)
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
 
   -- Modal background
   screen.level(1)
-  screen.rect(mx, my, mw, mh)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
   screen.fill()
 
   -- Border
   screen.level(8)
-  screen.rect(mx, my, mw, mh)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
   screen.stroke()
 
   -- Status text (centered, large)
@@ -309,7 +287,7 @@ function Modal._draw_status()
   screen.font_face(FONTS.STATUS)
   screen.font_size(SIZES.STATUS)
   local text_width = screen.text_extents(state.body)
-  screen.move(SCREEN_WIDTH / 2 - text_width / 2, my + mh / 2 + SIZES.STATUS / 3)
+  screen.move(SCREEN_WIDTH / 2 - text_width / 2, modal_y + modal_height / 2 + SIZES.STATUS / 3)
   screen.text(state.body)
 
   -- Hint text (below status)
@@ -318,7 +296,7 @@ function Modal._draw_status()
     screen.font_face(FONTS.HINT)
     screen.font_size(SIZES.HINT)
     local hint_width = screen.text_extents(state.hint)
-    screen.move(SCREEN_WIDTH / 2 - hint_width / 2, my + mh + 10)
+    screen.move(SCREEN_WIDTH / 2 - hint_width / 2, modal_y + modal_height + 10)
     screen.text(state.hint)
   end
 end
@@ -329,10 +307,10 @@ function Modal.draw_status_immediate(config)
   local body = config.body or ""
   local hint = config.hint or nil
 
-  local mx = 10
-  local my = 18
-  local mw = SCREEN_WIDTH - 20
-  local mh = 28
+  local modal_x = 10
+  local modal_y = 18
+  local modal_width = SCREEN_WIDTH - 20
+  local modal_height = 28
 
   -- Dark background overlay
   screen.level(0)
@@ -340,16 +318,16 @@ function Modal.draw_status_immediate(config)
   screen.fill()
 
   -- Shadow
-  draw_shadow(mx, my, mw, mh)
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
 
   -- Modal background
   screen.level(1)
-  screen.rect(mx, my, mw, mh)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
   screen.fill()
 
   -- Border
   screen.level(8)
-  screen.rect(mx, my, mw, mh)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
   screen.stroke()
 
   -- Status text (centered, large)
@@ -357,7 +335,7 @@ function Modal.draw_status_immediate(config)
   screen.font_face(FONTS.STATUS)
   screen.font_size(SIZES.STATUS)
   local text_width = screen.text_extents(body)
-  screen.move(SCREEN_WIDTH / 2 - text_width / 2, my + mh / 2 + SIZES.STATUS / 3)
+  screen.move(SCREEN_WIDTH / 2 - text_width / 2, modal_y + modal_height / 2 + SIZES.STATUS / 3)
   screen.text(body)
 
   -- Hint text (below status)
@@ -366,7 +344,7 @@ function Modal.draw_status_immediate(config)
     screen.font_face(FONTS.HINT)
     screen.font_size(SIZES.HINT)
     local hint_width = screen.text_extents(hint)
-    screen.move(SCREEN_WIDTH / 2 - hint_width / 2, my + mh + 10)
+    screen.move(SCREEN_WIDTH / 2 - hint_width / 2, modal_y + modal_height + 10)
     screen.text(hint)
   end
 

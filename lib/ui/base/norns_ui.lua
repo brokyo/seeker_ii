@@ -81,23 +81,23 @@ function NornsUI:evaluate_condition(condition)
     return true
   end
 
-  for _, viz_check in ipairs(condition) do
-    local actual_value = params:string(viz_check.id)
-    local test_value = viz_check.value
+  for _, rule in ipairs(condition) do
+    local actual_value = params:string(rule.id)
+    local test_value = rule.value
 
-    if viz_check.operator == ">" then
+    if rule.operator == ">" then
       if actual_value > test_value then
         return true
       end
-    elseif viz_check.operator == "<" then
+    elseif rule.operator == "<" then
       if actual_value < test_value then
         return true
       end
-    elseif viz_check.operator == "=" then
+    elseif rule.operator == "=" then
       if actual_value == test_value then
         return true
       end
-    elseif viz_check.operator == "!=" then
+    elseif rule.operator == "!=" then
       if actual_value ~= test_value then
         return true
       end
@@ -119,7 +119,7 @@ function NornsUI:filter_active_params()
     if potential_param.separator or not potential_param.view_conditions then
       table.insert(self.active_params, potential_param)
     else
-      -- Insert param if it's passes the visibility check
+      -- Add parameter if visibility conditions are met
       local is_visible = self:evaluate_condition(potential_param.view_conditions)
       if is_visible then
         table.insert(self.active_params, potential_param)
@@ -330,11 +330,12 @@ function NornsUI:handle_enc_default(n, d)
     if #self.active_params == 0 then return end
 
     -- Manage index in active_params space
-    local new_index = self.state.selected_index + d
-    
+    local delta = util.round(d)
+    local new_index = self.state.selected_index + delta
+
     -- Skip separators
     while new_index >= 1 and new_index <= #self.active_params and self.active_params[new_index].separator do
-      new_index = new_index + d
+      new_index = new_index + delta
     end
     
     -- Clamp to valid range
@@ -342,7 +343,7 @@ function NornsUI:handle_enc_default(n, d)
     
     -- If we hit a separator at the boundary, find nearest selectable
     if new_index <= #self.active_params and self.active_params[new_index].separator then
-      if d > 0 then
+      if delta > 0 then
         -- Moving down, find next selectable
         for i = new_index + 1, #self.active_params do
           if not self.active_params[i].separator then
@@ -398,7 +399,6 @@ function NornsUI:handle_key(n, z)
     if z == 1 then
       self.state.showing_description = true
       Modal.show_description({
-        title = self.name,
         body = self.description,
         hint = "e3 scroll · release k2"
       })
