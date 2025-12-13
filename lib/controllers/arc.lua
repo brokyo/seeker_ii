@@ -412,49 +412,48 @@ function Arc.init()
       -- Start the pulse animation
       device.action_pulse_clock = clock.run(function()
         while device.pulse_action_param do
-          -- Adjust brightness based on direction
-          device.pulse_brightness = device.pulse_brightness + (device.pulse_direction * 0.5)
-          
-          -- Reverse direction at limits
-          if device.pulse_brightness >= 8 then
-            device.pulse_brightness = 8
-            device.pulse_direction = -1
-          elseif device.pulse_brightness <= 3 then
-            device.pulse_brightness = 3
-            device.pulse_direction = 1
+          -- Skip drawing if modal is active (modal owns the display)
+          if _seeker.modal and _seeker.modal.is_active() then
+            clock.sleep(0.1)
+          else
+            -- Adjust brightness based on direction
+            device.pulse_brightness = device.pulse_brightness + (device.pulse_direction * 0.5)
+
+            -- Reverse direction at limits
+            if device.pulse_brightness >= 8 then
+              device.pulse_brightness = 8
+              device.pulse_direction = -1
+            elseif device.pulse_brightness <= 3 then
+              device.pulse_brightness = 3
+              device.pulse_direction = 1
+            end
+
+            -- Update the LEDs with current brightness
+            for i = 1, 64 do
+              device:led(2, i, 0) -- Clear
+            end
+
+            -- Draw pulsing dots at cardinal positions
+            local brightness = math.floor(device.pulse_brightness)
+            device:led(2, 1, brightness)
+            device:led(2, 17, brightness)
+            device:led(2, 33, brightness)
+            device:led(2, 49, brightness)
+
+            device:refresh()
+            clock.sleep(0.1) -- Update 10 times per second
           end
-          
-          -- Update the LEDs with current brightness
-          for i = 1, 64 do
-            device:led(2, i, 0) -- Clear
-          end
-          
-          -- Draw pulsing dots at cardinal positions
-          local brightness = math.floor(device.pulse_brightness)
-          device:led(2, 1, brightness)
-          device:led(2, 17, brightness)
-          device:led(2, 33, brightness)
-          device:led(2, 49, brightness)
-          
-          device:refresh()
-          clock.sleep(0.1) -- Update 10 times per second
         end
       end)
     end
     
-    -- Stop the pulse animation
+    -- Stop the pulse animation (caller handles display update)
     device.stop_action_pulse = function()
       if device.action_pulse_clock then
         clock.cancel(device.action_pulse_clock)
         device.action_pulse_clock = nil
       end
       device.pulse_action_param = nil
-      
-      -- Clear the LEDs
-      for i = 1, 64 do
-        device:led(2, i, 0)
-      end
-      device:refresh()
     end
     
     -- Display numeric value across 2-3 rings showing place values
@@ -540,6 +539,11 @@ function Arc.init()
       -- When modal is active, handle display specially
       if _seeker.modal and _seeker.modal.is_active() then
         local modal_type = _seeker.modal.get_type()
+
+        -- Stop any pulse animation when modal is active
+        if device.pulse_action_param then
+          device.stop_action_pulse()
+        end
 
         -- ADSR modal: show A/D/S/R values on rings 1-4
         if modal_type == _seeker.modal.TYPE.ADSR then
@@ -688,50 +692,73 @@ function Arc.init()
       device:refresh()
     end
 
-    -- Display ADSR values on rings 1-4 during ADSR modal
+    -- Display ADSR modal: ring 1 shows selected stage, rings 2-4 show value position
     device.update_adsr_display = function()
       local Modal = _seeker.modal
       if not Modal then return end
 
       local selected = Modal.get_adsr_selected()
+      local param_ids = Modal.get_adsr_param_ids()
 
-      -- Get param specs to determine ranges
-      local lane_idx = _seeker.ui_state.get_focused_lane()
-      local param_ids = {
-        "lane_" .. lane_idx .. "_attack",
-        "lane_" .. lane_idx .. "_decay",
-        "lane_" .. lane_idx .. "_sustain",
-        "lane_" .. lane_idx .. "_release"
-      }
+      -- Fallback to lane params if modal didn't provide param IDs
+      if not param_ids then
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        param_ids = {
+          "lane_" .. lane_idx .. "_attack",
+          "lane_" .. lane_idx .. "_decay",
+          "lane_" .. lane_idx .. "_sustain",
+          "lane_" .. lane_idx .. "_release"
+        }
+      end
 
-      for ring = 1, 4 do
-        -- Read raw param value directly (not from modal, which may normalize values)
-        local value = params:get(param_ids[ring])
-        local is_selected = (ring == selected)
-        local base_brightness = is_selected and 4 or 2
-        local highlight_brightness = is_selected and 15 or 10
+      -- Ring 1: Selection indicator (A/D/S/R at cardinal positions)
+      for i = 1, 64 do
+        device:led(1, i, 0)
+      end
+      -- Show all 4 stages dimly, selected brightly
+      local stage_positions = {1, 17, 33, 49}  -- Cardinal positions for A, D, S, R
+      for stage = 1, 4 do
+        local brightness = (stage == selected) and 15 or 4
+        local pos = stage_positions[stage]
+        device:led(1, pos, brightness)
+        device:led(1, pos + 1, math.floor(brightness * 0.5))
+        if pos > 1 then device:led(1, pos - 1, math.floor(brightness * 0.5)) end
+      end
 
-        -- Get param range
-        local p = params:lookup_param(param_ids[ring])
-        local min_val = p.controlspec and p.controlspec.minval or 0
-        local max_val = p.controlspec and p.controlspec.maxval or 1
+      -- Rings 2-4: Value position for selected stage
+      local param_id = param_ids[selected]
+      local value = params:get(param_id)
 
-        -- Normalize value to 0-1 range
-        local normalized = (value - min_val) / (max_val - min_val)
-        normalized = util.clamp(normalized, 0, 1)
+      -- Get param range
+      local p = params:lookup_param(param_id)
+      local min_val, max_val
+      if p.controlspec then
+        min_val = p.controlspec.minval
+        max_val = p.controlspec.maxval
+      elseif p.min and p.max then
+        min_val = p.min
+        max_val = p.max
+      else
+        min_val = 0
+        max_val = 1
+      end
 
-        -- Calculate LED position (0-63)
-        local led_pos = math.floor(normalized * 63) + 1
+      -- Normalize value to 0-1 range
+      local normalized = (value - min_val) / (max_val - min_val)
+      normalized = util.clamp(normalized, 0, 1)
 
-        -- Set base illumination
+      -- Calculate LED position for rings 2-4
+      local led_pos = math.floor(normalized * 63) + 1
+
+      for ring = 2, 4 do
+        -- Dim base illumination
         for i = 1, 64 do
-          device:led(ring, i, base_brightness)
+          device:led(ring, i, 2)
         end
-
-        -- Highlight current value position
-        device:led(ring, led_pos, highlight_brightness)
-        if led_pos > 1 then device:led(ring, led_pos - 1, highlight_brightness - 3) end
-        if led_pos < 64 then device:led(ring, led_pos + 1, highlight_brightness - 3) end
+        -- Highlight value position
+        device:led(ring, led_pos, 15)
+        if led_pos > 1 then device:led(ring, led_pos - 1, 10) end
+        if led_pos < 64 then device:led(ring, led_pos + 1, 10) end
       end
 
       device:refresh()

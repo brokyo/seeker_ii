@@ -107,11 +107,12 @@ local function create_params()
             local idx = lane_idx
 
             -- Get current ADSR values for visualization
+            -- Sustain is normalized from 0-2 range to 0-1 for modal visualization
             local function get_adsr_data()
                 return {
                     a = params:get("lane_" .. idx .. "_attack"),
                     d = params:get("lane_" .. idx .. "_decay"),
-                    s = params:get("lane_" .. idx .. "_sustain"),
+                    s = params:get("lane_" .. idx .. "_sustain") / 2,
                     r = params:get("lane_" .. idx .. "_release")
                 }
             end
@@ -123,6 +124,31 @@ local function create_params()
                 "lane_" .. idx .. "_sustain",
                 "lane_" .. idx .. "_release"
             }
+
+            -- Step sizes for each ADSR stage: {coarse, medium, fine} for encoders 2/3/4
+            local adsr_step_sizes = {
+                {0.5, 0.1, 0.01},   -- Attack (0-10s)
+                {0.5, 0.1, 0.01},   -- Decay (0-10s)
+                {0.2, 0.05, 0.01},  -- Sustain (0-2)
+                {1.0, 0.5, 0.1}     -- Release (0-10s)
+            }
+
+            -- Adjust the selected ADSR parameter using encoder-specific step sizes
+            local function adjust_adsr(encoder, delta)
+                local stage = Modal.get_adsr_selected()
+                local param_id = adsr_params[stage]
+                local steps = adsr_step_sizes[stage]
+                -- Encoder 2=coarse, 3=medium, 4=fine
+                local step = steps[encoder - 1]
+                if step then
+                    local current = params:get(param_id)
+                    local new_val = current + (delta * step)
+                    params:set(param_id, new_val)
+                end
+                if _seeker.arc and _seeker.arc.update_adsr_display then
+                    _seeker.arc.update_adsr_display()
+                end
+            end
 
             -- Key handler: K3 saves and dismisses, K2 cancels
             local function on_key(n, z)
@@ -136,27 +162,48 @@ local function create_params()
                 return false
             end
 
-            -- Encoder handler: Arc E1-4 control A/D/S/R, Norns E2 selects, E3 adjusts
+            -- Accumulate Arc encoder 1 movements to prevent accidental selection changes
+            local selector_accumulator = 0
+            local SELECTOR_THRESHOLD = 12
+
+            -- Encoder handler: Arc ring 1 selects stage, rings 2-4 adjust; Norns E2 selects, E3 adjusts
             local function on_enc(n, d, source)
                 if source == "arc" then
-                    -- Arc encoders 1-4 directly control A/D/S/R and highlight that stage
-                    if n >= 1 and n <= 4 then
-                        Modal.set_adsr_selected(n)
-                        params:delta(adsr_params[n], d)
+                    if n == 1 then
+                        -- Select stage after enough rotation
+                        selector_accumulator = selector_accumulator + d
+                        if math.abs(selector_accumulator) >= SELECTOR_THRESHOLD then
+                            local direction = selector_accumulator > 0 and 1 or -1
+                            selector_accumulator = 0
+                            local current = Modal.get_adsr_selected()
+                            local new_sel = util.clamp(current + direction, 1, 4)
+                            Modal.set_adsr_selected(new_sel)
+                            if _seeker.arc and _seeker.arc.update_adsr_display then
+                                _seeker.arc.update_adsr_display()
+                            end
+                            _seeker.screen_ui.set_needs_redraw()
+                        end
+                        return true
+                    elseif n >= 2 and n <= 4 then
+                        -- Adjust selected stage with coarse/medium/fine steps
+                        adjust_adsr(n, d)
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     end
                 else
-                    -- Norns E2: select stage, E3: adjust selected value
+                    -- Norns E2: select stage, E3: adjust selected value (medium step)
                     if n == 2 then
                         local current = Modal.get_adsr_selected()
                         local new_sel = util.clamp(current + util.round(d), 1, 4)
                         Modal.set_adsr_selected(new_sel)
+                        if _seeker.arc and _seeker.arc.update_adsr_display then
+                            _seeker.arc.update_adsr_display()
+                        end
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     elseif n == 3 then
-                        local sel = Modal.get_adsr_selected()
-                        params:delta(adsr_params[sel], d)
+                        -- Use medium step for Norns encoder
+                        adjust_adsr(3, d)
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     end
@@ -164,17 +211,22 @@ local function create_params()
                 return false
             end
 
-            -- Clear Arc outer rings if available
-            if _seeker.arc and _seeker.arc.clear_outer_rings then
-                _seeker.arc.clear_outer_rings()
-            end
-
             Modal.show_adsr({
                 get_data = get_adsr_data,
+                param_ids = adsr_params,
                 on_key = on_key,
                 on_enc = on_enc,
                 hint = "e2 select e3 change k3 set"
             })
+            -- Stop pulse animation and update Arc display for ADSR modal
+            if _seeker.arc then
+                if _seeker.arc.stop_action_pulse then
+                    _seeker.arc.stop_action_pulse()
+                end
+                if _seeker.arc.update_adsr_display then
+                    _seeker.arc.update_adsr_display()
+                end
+            end
             _seeker.screen_ui.set_needs_redraw()
         end)
 
@@ -200,6 +252,29 @@ local function create_params()
                 "lane_" .. lane_idx .. "_disting_multisample_release"
             }
 
+            -- Step sizes for Disting 0-100 range: {coarse, medium, fine}
+            local adsr_step_sizes = {
+                {10, 5, 1},  -- Attack
+                {10, 5, 1},  -- Decay
+                {10, 5, 1},  -- Sustain
+                {10, 5, 1}   -- Release
+            }
+
+            local function adjust_adsr(encoder, delta)
+                local stage = Modal.get_adsr_selected()
+                local param_id = adsr_params[stage]
+                local steps = adsr_step_sizes[stage]
+                local step = steps[encoder - 1]
+                if step then
+                    local current = params:get(param_id)
+                    local new_val = current + (delta * step)
+                    params:set(param_id, new_val)
+                end
+                if _seeker.arc and _seeker.arc.update_adsr_display then
+                    _seeker.arc.update_adsr_display()
+                end
+            end
+
             local function on_key(n, z)
                 if z == 1 and (n == 2 or n == 3) then
                     Modal.dismiss()
@@ -209,11 +284,28 @@ local function create_params()
                 return false
             end
 
+            -- Accumulate Arc encoder 1 movements to prevent accidental selection changes
+            local selector_accumulator = 0
+            local SELECTOR_THRESHOLD = 12
+
             local function on_enc(n, d, source)
                 if source == "arc" then
-                    if n >= 1 and n <= 4 then
-                        Modal.set_adsr_selected(n)
-                        params:delta(adsr_params[n], d)
+                    if n == 1 then
+                        selector_accumulator = selector_accumulator + d
+                        if math.abs(selector_accumulator) >= SELECTOR_THRESHOLD then
+                            local direction = selector_accumulator > 0 and 1 or -1
+                            selector_accumulator = 0
+                            local current = Modal.get_adsr_selected()
+                            local new_sel = util.clamp(current + direction, 1, 4)
+                            Modal.set_adsr_selected(new_sel)
+                            if _seeker.arc and _seeker.arc.update_adsr_display then
+                                _seeker.arc.update_adsr_display()
+                            end
+                            _seeker.screen_ui.set_needs_redraw()
+                        end
+                        return true
+                    elseif n >= 2 and n <= 4 then
+                        adjust_adsr(n, d)
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     end
@@ -222,11 +314,13 @@ local function create_params()
                         local current = Modal.get_adsr_selected()
                         local new_sel = util.clamp(current + util.round(d), 1, 4)
                         Modal.set_adsr_selected(new_sel)
+                        if _seeker.arc and _seeker.arc.update_adsr_display then
+                            _seeker.arc.update_adsr_display()
+                        end
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     elseif n == 3 then
-                        local sel = Modal.get_adsr_selected()
-                        params:delta(adsr_params[sel], d)
+                        adjust_adsr(3, d)
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     end
@@ -234,16 +328,21 @@ local function create_params()
                 return false
             end
 
-            if _seeker.arc and _seeker.arc.clear_outer_rings then
-                _seeker.arc.clear_outer_rings()
-            end
-
             Modal.show_adsr({
                 get_data = get_adsr_data,
+                param_ids = adsr_params,
                 on_key = on_key,
                 on_enc = on_enc,
                 hint = "e2 select e3 change k3 set"
             })
+            if _seeker.arc then
+                if _seeker.arc.stop_action_pulse then
+                    _seeker.arc.stop_action_pulse()
+                end
+                if _seeker.arc.update_adsr_display then
+                    _seeker.arc.update_adsr_display()
+                end
+            end
             _seeker.screen_ui.set_needs_redraw()
         end)
     end
@@ -348,19 +447,19 @@ local function create_screen_ui()
                 table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
-                table.insert(param_table, { separator = true, title = "Individual Event" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { separator = true, title = "Envelope" })
                 table.insert(param_table, {
                     id = "lane_" .. lane_idx .. "_adsr_visual_edit",
                     is_action = true,
                     custom_name = "Visual Edit",
                     custom_value = "..."
                 })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.5, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { separator = true, title = "Lane Effects" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.5, 0.1} })
+                table.insert(param_table, { separator = true, title = "Filter" })
                 table.insert(param_table, {
                     id = "lane_" .. lane_idx .. "_lpf",
                     arc_multi_float = {1000, 100, 10}
@@ -370,6 +469,7 @@ local function create_screen_ui()
                     id = "lane_" .. lane_idx .. "_hpf",
                     arc_multi_float = {1000, 100, 10}
                 })
+                table.insert(param_table, { separator = true, title = "Effects" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_delay_send", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send", arc_multi_float = {0.1, 0.05, 0.01} })
             end

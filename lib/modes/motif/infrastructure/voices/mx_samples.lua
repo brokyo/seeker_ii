@@ -45,8 +45,8 @@ function mx_samples.create_params(i)
         _seeker.lanes[i].decay = value
     end)
 
-    params:add_control("lane_" .. i .. "_sustain", "Sustain", controlspec.new(0, 2, 'lin', 0.01, 0.9, "amp"),
-        function(param) return string.format("%.2f", param:get()) end)
+    params:add_control("lane_" .. i .. "_sustain", "Sustain", controlspec.new(0, 2, 'lin', 0.01, 0.9, ""),
+        function(param) return string.format("%d%%", math.floor(param:get() * 100)) end)
     params:set_action("lane_" .. i .. "_sustain", function(value)
         _seeker.lanes[i].sustain = value
     end)
@@ -79,12 +79,14 @@ function mx_samples.create_params(i)
     end)
 
     -- Effects sends
-    params:add_control("lane_" .. i .. "_delay_send", "Delay Send", controlspec.new(0, 1, 'lin', 0.01, 0, "", 0.01))
+    params:add_control("lane_" .. i .. "_delay_send", "Delay", controlspec.new(0, 1, 'lin', 0.01, 0, "", 0.01),
+        function(param) return string.format("%d%%", math.floor(param:get() * 100)) end)
     params:set_action("lane_" .. i .. "_delay_send", function(value)
         _seeker.lanes[i].delay_send = value
     end)
 
-    params:add_control("lane_" .. i .. "_reverb_send", "Reverb Send", controlspec.new(0, 1, 'lin', 0.01, 0, "", 0.01))
+    params:add_control("lane_" .. i .. "_reverb_send", "Reverb", controlspec.new(0, 1, 'lin', 0.01, 0, "", 0.01),
+        function(param) return string.format("%d%%", math.floor(param:get() * 100)) end)
     params:set_action("lane_" .. i .. "_reverb_send", function(value)
         _seeker.lanes[i].reverb_send = value
     end)

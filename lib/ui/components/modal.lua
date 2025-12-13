@@ -189,6 +189,7 @@ function Modal.show_adsr(config)
   state.active = true
   state.modal_type = Modal.TYPE.ADSR
   state.adsr_data = config.get_data
+  state.adsr_param_ids = config.param_ids  -- Store param IDs for Arc display
   state.adsr_selected = config.selected or 1
   state.hint = config.hint or "k2 cancel · k3 save"
   state.on_key = config.on_key
@@ -210,6 +211,11 @@ function Modal.get_adsr_data()
     return state.adsr_data()
   end
   return nil
+end
+
+-- Get ADSR param IDs (for Arc display)
+function Modal.get_adsr_param_ids()
+  return state.adsr_param_ids
 end
 
 -- Dismiss the modal
@@ -619,16 +625,32 @@ function Modal._draw_adsr()
   local env_width = modal_width - (PADDING * 2) - 4
   local env_height = 22
 
-  -- Calculate envelope points
-  -- Normalize times to fit in width (A+D+R spread across width, sustain holds)
-  local total_time = a + d + r + 0.5  -- sustain gets fixed portion
-  local scale = env_width / total_time
+  -- Calculate envelope segment widths
+  local sustain_time = 0.5  -- fixed display duration for sustain hold
+  local raw_total = a + d + sustain_time + r
+  local base_scale = env_width / raw_total
+
+  -- Use simple proportional scaling - let the envelope shape speak for itself
+  local w_attack = a * base_scale
+  local w_decay = d * base_scale
+  local w_sustain = sustain_time * base_scale
+  local w_release = r * base_scale
+
+  -- Scale down proportionally if total exceeds available width
+  local total_width = w_attack + w_decay + w_sustain + w_release
+  if total_width > env_width then
+    local shrink = env_width / total_width
+    w_attack = w_attack * shrink
+    w_decay = w_decay * shrink
+    w_sustain = w_sustain * shrink
+    w_release = w_release * shrink
+  end
 
   local x_start = env_x
-  local x_attack = x_start + (a * scale)
-  local x_decay = x_attack + (d * scale)
-  local x_sustain = x_decay + (0.5 * scale)  -- fixed sustain duration for display
-  local x_release = x_sustain + (r * scale)
+  local x_attack = x_start + w_attack
+  local x_decay = x_attack + w_decay
+  local x_sustain = x_decay + w_sustain
+  local x_release = x_sustain + w_release
 
   local y_bottom = env_y + env_height
   local y_top = env_y
