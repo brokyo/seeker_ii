@@ -10,6 +10,18 @@ local Descriptions = include("lib/ui/component_descriptions")
 local CrowOutput = {}
 CrowOutput.__index = CrowOutput
 
+-- Type descriptions for dynamic help
+local TYPE_DESCRIPTIONS = {
+  Gate = "Clocked gate/trigger output.\n\nClock: Sends gates at clock intervals.\nPattern: Euclidean-style rhythmic patterns.\n\nVoltage sets gate height, Length sets duty cycle.",
+  Burst = "Rapid burst of triggers.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\nShape: Timing distribution (linear, accelerating, etc).\n\nGreat for drum rolls and fills.",
+  LFO = "Low frequency oscillator.\n\nShape: Waveform type (sine, linear, etc).\nMin/Max: Voltage range.\n\nSyncs to clock for tempo-locked modulation.",
+  Envelope = "Shaped voltage envelope.\n\nADSR: Attack, Decay, Sustain, Release.\nAR: Simple attack/release.\n\nDuration sets total time relative to clock. Useful for synced modulation.",
+  ["Knob Recorder"] = "Record E3 movements as CV.\n\nSensitivity: How much the knob affects voltage.\nStart Recording: Begin capture.\nClear: Erase recorded data.\n\nPlayback loops with interpolation.",
+  ["Looped Random"] = "Random voltage sequence.\n\nSteps: Number of random values.\nLoops: How many times before regenerating.\nQuantize: Snap to scale.\n\nCreates evolving but repeatable patterns.",
+  ["Clocked Random"] = "Random voltage on external trigger.\n\nCrow Input: Which input triggers new values.\nQuantize: Snap to scale voltages.\n\nReactive to external clock or gates.",
+  ["Random Walk"] = "Wandering random voltage.\n\nJump: Random position each step.\nAccumulate: Gradual drift from current value.\n\nSlew smooths transitions. Great for generative modulation."
+}
+
 -- Store active clock IDs globally
 local active_clocks = {}
 
@@ -730,6 +742,9 @@ local function create_screen_ui()
         local param_table = {}
         local output_num = selected_number
         local type = params:string("crow_" .. output_num .. "_type")
+
+        -- Update description based on selected type
+        self.description = TYPE_DESCRIPTIONS[type] or Descriptions.CROW_OUTPUT
 
         table.insert(param_table, { separator = true, title = "Crow " .. output_num })
         table.insert(param_table, { id = "crow_" .. output_num .. "_type" })

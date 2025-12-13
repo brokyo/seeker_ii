@@ -10,6 +10,13 @@ local Descriptions = include("lib/ui/component_descriptions")
 local TxoCvOutput = {}
 TxoCvOutput.__index = TxoCvOutput
 
+-- Type descriptions for dynamic help
+local TYPE_DESCRIPTIONS = {
+  LFO = "TXO low frequency oscillator.\n\nShape: Waveform (sine, tri, etc).\nMorph: Blend between shapes.\nDepth/Offset: Voltage range.\nPhase: Cycle offset.\n\nSyncs to clock for tempo-locked modulation.",
+  ["Random Walk"] = "TXO wandering voltage.\n\nJump: Random position each step.\nAccumulate: Gradual drift.\n\nSlew smooths between values. Min/Max sets bounds.",
+  Envelope = "TXO shaped envelope.\n\nADSR: Attack, Decay, Sustain, Release.\nAR: Simple attack/release.\n\nDuration sets total time relative to clock."
+}
+
 -- Store active clock IDs globally
 local active_clocks = {}
 
@@ -408,6 +415,9 @@ local function create_screen_ui()
         local param_table = {}
         local output_num = selected_number
         local type = params:string("txo_cv_" .. output_num .. "_type")
+
+        -- Update description based on selected type
+        self.description = TYPE_DESCRIPTIONS[type] or Descriptions.TXO_CV_OUTPUT
 
         table.insert(param_table, { separator = true, title = "TXO CV " .. output_num })
         table.insert(param_table, { id = "txo_cv_" .. output_num .. "_type" })

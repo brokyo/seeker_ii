@@ -10,6 +10,13 @@ local Descriptions = include("lib/ui/component_descriptions")
 local TxoTrOutput = {}
 TxoTrOutput.__index = TxoTrOutput
 
+-- Type descriptions for dynamic help
+local TYPE_DESCRIPTIONS = {
+  Gate = "TXO clocked gate output.\n\nSends gates at clock intervals. Length sets duty cycle as percentage of clock period.\n\nSimple and reliable clock-synced triggers.",
+  Burst = "TXO rapid trigger burst.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\n\nSends multiple quick triggers on each clock beat.",
+  Pattern = "TXO euclidean patterns.\n\nLength: Total steps in pattern.\nHits: Number of active steps.\nReroll: Generate new pattern.\n\nCreates rhythmically interesting trigger patterns."
+}
+
 -- Store active clock IDs globally
 local active_clocks = {}
 
@@ -230,6 +237,9 @@ local function create_screen_ui()
         local param_table = {}
         local output_num = selected_number
         local type = params:string("txo_tr_" .. output_num .. "_type")
+
+        -- Update description based on selected type
+        self.description = TYPE_DESCRIPTIONS[type] or Descriptions.TXO_TR_OUTPUT
 
         table.insert(param_table, { separator = true, title = "TXO TR " .. output_num })
         table.insert(param_table, { id = "txo_tr_" .. output_num .. "_type" })

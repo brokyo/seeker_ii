@@ -15,7 +15,7 @@ transforms.available = {
     name = "No Operation",
     ui_name = "None",
     ui_order = 1,
-    description = "Returns the exact same sequence with no changes",
+    description = "Pass-through with no changes.\n\nThe motif plays exactly as recorded. Use this for stages that should play the original sequence.",
     fn = function(events, lane_id, stage_id)
       -- Deep copy events
       local result = {}
@@ -34,7 +34,7 @@ transforms.available = {
     name = "Overdub Filter",
     ui_name = "Overdub Filter",
     ui_order = 2,
-    description = "Filter events to include only specific overdub rounds",
+    description = "Filter notes by recording layer.\n\nUp To: Play layers 1 through N.\nOnly: Play just layer N.\nExcept: Play all except layer N.\n\nGreat for gradually revealing or hiding overdubbed parts.",
     fn = function(events, lane_id, stage_id)
       local mode = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_overdub_filter_mode")
       local target_generation = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_overdub_filter_round")
@@ -87,7 +87,7 @@ transforms.available = {
     name = "Resonate",
     ui_name = "Harmonize",
     ui_order = 3,
-    description = "Adds subtle harmonic overtones",
+    description = "Layer harmonic intervals over notes.\n\nSub Octave: One octave below (-12 semitones).\nFifth Above: Perfect fifth (+7 semitones).\nOctave Above: One octave up (+12 semitones).\n\nEach has independent chance and volume. Timing is subtly humanized.",
     fn = function(events, lane_id, stage_id)
       -- Helper function to convert option to chance percentage
       local function option_to_chance(option_value)
@@ -301,7 +301,7 @@ transforms.available = {
     name = "Transpose",
     ui_name = "Transpose",
     ui_order = 4,
-    description = "Shift all notes up or down by a number of semitones",
+    description = "Shift all notes by semitones.\n\nPositive values raise pitch, negative lower it. Common intervals: +7 (fifth), +12 (octave), -12 (octave down).\n\nUse across stages for chord progressions or melodic variation.",
     fn = function(events, lane_id, stage_id)
       local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_transpose_amount")
       
@@ -329,7 +329,7 @@ transforms.available = {
     name = "Rotate",
     ui_name = "Rotate",
     ui_order = 5,
-    description = "Rotate the order of notes while preserving their relative timing",
+    description = "Rotate note order in time.\n\nNotes shift position while keeping original rhythmic slots. Amount sets how many positions to rotate.\n\nCreates melodic permutations from the same material.",
     fn = function(events, lane_id, stage_id)
       local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_rotate_amount")
       
@@ -380,7 +380,7 @@ transforms.available = {
     name = "Reverse",
     ui_name = "Reverse",
     ui_order = 6,
-    description = "Reverse the order of notes in time while preserving note durations",
+    description = "Play the motif backwards.\n\nNotes play in reverse order while preserving their individual durations. The last note becomes first.\n\nClassic technique for retrograde variations.",
     fn = function(events, lane_id, stage_id)
       -- First pass: collect note_on/note_off pairs and their durations
       local notes = {}
@@ -454,7 +454,7 @@ transforms.available = {
     name = "Skip",
     ui_name = "Skip",
     ui_order = 7,
-    description = "Play every Nth note, skipping the ones in between",
+    description = "Play every Nth note.\n\nInterval: Play every 2nd, 3rd, 4th note, etc.\nOffset: Which note in the pattern to start from.\n\nThins out busy passages or creates rhythmic variations.",
     fn = function(events, lane_id, stage_id)
       local n = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_interval")
       local offset = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_offset")
@@ -498,10 +498,10 @@ transforms.available = {
   },
 
   ratchet = {
-    name = "Ratchet", 
-    ui_name = "Ratchet", 
+    name = "Ratchet",
+    ui_name = "Ratchet",
     ui_order = 8,
-    description = "Repeat notes with probability and timing variations",
+    description = "Rapid-fire note repeats.\n\nChance: Probability each note ratchets.\nMax Repeats: Upper limit of repeats per note.\nTiming Window: Duration for all repeats.\n\nAdds rhythmic complexity and drive.",
     fn = function(events, lane_id, stage_id)
       local repeat_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_chance") / 100
       local max_repeats = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_max_repeats")
