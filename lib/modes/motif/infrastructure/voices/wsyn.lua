@@ -3,11 +3,27 @@
 
 local wsyn = {}
 
+-- Send all current param values to w/syn hardware
+function wsyn.init(i)
+    crow.ii.wsyn.ar_mode(params:get("lane_" .. i .. "_wsyn_ar_mode"))
+    crow.ii.wsyn.curve(params:get("lane_" .. i .. "_wsyn_curve"))
+    crow.ii.wsyn.ramp(params:get("lane_" .. i .. "_wsyn_ramp"))
+    crow.ii.wsyn.fm_index(params:get("lane_" .. i .. "_wsyn_fm_index"))
+    crow.ii.wsyn.fm_env(params:get("lane_" .. i .. "_wsyn_fm_env"))
+    crow.ii.wsyn.fm_ratio(
+        params:get("lane_" .. i .. "_wsyn_fm_ratio_num"),
+        params:get("lane_" .. i .. "_wsyn_fm_ratio_denom")
+    )
+    crow.ii.wsyn.lpg_time(params:get("lane_" .. i .. "_wsyn_lpg_time"))
+    crow.ii.wsyn.lpg_symmetry(params:get("lane_" .. i .. "_wsyn_lpg_symmetry"))
+end
+
 function wsyn.create_params(i)
     params:add_binary("lane_" .. i .. "_wsyn_active", "w/syn Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_wsyn_active", function(value)
         if value == 1 then
             _seeker.lanes[i].wsyn_active = true
+            wsyn.init(i)
         else
             _seeker.lanes[i].wsyn_active = false
         end
@@ -88,17 +104,13 @@ function wsyn.create_params(i)
     params:add_option("lane_" .. i .. "_wsyn_patch_this", "THIS",
         {"ramp", "curve", "fm_env", "fm_index", "lpg_time", "lpg_symmetry", "gate", "pitch", "fm_ratio_num", "fm_ratio_denom"}, 1)
     params:set_action("lane_" .. i .. "_wsyn_patch_this", function(value)
-        local param_map = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-        local param_num = param_map[value]
-        crow.ii.wsyn.patch(1, param_num)
+        crow.ii.wsyn.patch(1, value)
     end)
 
     params:add_option("lane_" .. i .. "_wsyn_patch_that", "THAT",
         {"ramp", "curve", "fm_env", "fm_index", "lpg_time", "lpg_symmetry", "gate", "pitch", "fm_ratio_num", "fm_ratio_denom"}, 1)
     params:set_action("lane_" .. i .. "_wsyn_patch_that", function(value)
-        local param_map = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-        local param_num = param_map[value]
-        crow.ii.wsyn.patch(2, param_num)
+        crow.ii.wsyn.patch(2, value)
     end)
 end
 

@@ -510,18 +510,25 @@ local function create_screen_ui()
 
             -- Only show additional w/syn params if active
             if params:get("lane_" .. lane_idx .. "_wsyn_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
+                table.insert(param_table, { separator = true, title = "Voice" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_select" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
+
+                table.insert(param_table, { separator = true, title = "Oscillator" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_curve", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ramp", arc_multi_float = {1.0, 0.1, 0.01} })
+
+                table.insert(param_table, { separator = true, title = "FM" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_index", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_env", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_num", arc_multi_float = {0.1, 0.01, 0.001} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_denom", arc_multi_float = {0.1, 0.01, 0.001} })
+
+                table.insert(param_table, { separator = true, title = "LPG" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_time", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_symmetry", arc_multi_float = {1.0, 0.1, 0.01} })
+
                 table.insert(param_table, { separator = true, title = "CV Patching" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_this" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_that" })
