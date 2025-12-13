@@ -1483,12 +1483,54 @@ local function create_params()
                 return false
             end
 
-            -- Encoder handler: Arc E1-4 control A/D/S/R, Norns E2 selects, E3 adjusts
+            -- Step sizes for each ADSR stage: {coarse, medium, fine} for encoders 2/3/4
+            local adsr_step_sizes = {
+                {10, 5, 1},   -- Attack (1-100%)
+                {10, 5, 1},   -- Decay (1-100%)
+                {10, 5, 1},   -- Sustain (1-100%)
+                {10, 5, 1}    -- Release (1-100%)
+            }
+
+            -- Adjust the selected ADSR parameter using encoder-specific step sizes
+            local function adjust_adsr(encoder, delta)
+                local stage = Modal.get_adsr_selected()
+                local param_id = adsr_params[stage]
+                local steps = adsr_step_sizes[stage]
+                local step = steps[encoder - 1]
+                if step then
+                    local current = params:get(param_id)
+                    local new_val = current + (delta * step)
+                    params:set(param_id, new_val)
+                end
+                if _seeker.arc and _seeker.arc.update_adsr_display then
+                    _seeker.arc.update_adsr_display()
+                end
+            end
+
+            -- Accumulate Arc encoder 1 movements to prevent accidental selection changes
+            local selector_accumulator = 0
+            local SELECTOR_THRESHOLD = 12
+
+            -- Encoder handler: Arc ring 1 selects stage, rings 2-4 adjust; Norns E2 selects, E3 adjusts
             local function on_enc(n, d, source)
                 if source == "arc" then
-                    if n >= 1 and n <= 4 then
-                        Modal.set_adsr_selected(n)
-                        params:delta(adsr_params[n], d)
+                    if n == 1 then
+                        -- Select stage after enough rotation
+                        selector_accumulator = selector_accumulator + d
+                        if math.abs(selector_accumulator) >= SELECTOR_THRESHOLD then
+                            local direction = selector_accumulator > 0 and 1 or -1
+                            selector_accumulator = 0
+                            local current = Modal.get_adsr_selected()
+                            local new_sel = util.clamp(current + direction, 1, 4)
+                            Modal.set_adsr_selected(new_sel)
+                            if _seeker.arc and _seeker.arc.update_adsr_display then
+                                _seeker.arc.update_adsr_display()
+                            end
+                            _seeker.screen_ui.set_needs_redraw()
+                        end
+                        return true
+                    elseif n >= 2 and n <= 4 then
+                        adjust_adsr(n, d)
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     end
@@ -1497,11 +1539,17 @@ local function create_params()
                         local current = Modal.get_adsr_selected()
                         local new_sel = util.clamp(current + util.round(d), 1, 4)
                         Modal.set_adsr_selected(new_sel)
+                        if _seeker.arc and _seeker.arc.update_adsr_display then
+                            _seeker.arc.update_adsr_display()
+                        end
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     elseif n == 3 then
                         local sel = Modal.get_adsr_selected()
                         params:delta(adsr_params[sel], d)
+                        if _seeker.arc and _seeker.arc.update_adsr_display then
+                            _seeker.arc.update_adsr_display()
+                        end
                         _seeker.screen_ui.set_needs_redraw()
                         return true
                     end
@@ -1509,16 +1557,16 @@ local function create_params()
                 return false
             end
 
-            if _seeker.arc and _seeker.arc.clear_outer_rings then
-                _seeker.arc.clear_outer_rings()
-            end
-
             Modal.show_adsr({
                 get_data = get_adsr_data,
+                param_ids = adsr_params,
                 on_key = on_key,
                 on_enc = on_enc,
                 hint = "e2 select e3 change k3 set"
             })
+            if _seeker.arc and _seeker.arc.update_adsr_display then
+                _seeker.arc.update_adsr_display()
+            end
             _seeker.screen_ui.set_needs_redraw()
         end)
 
