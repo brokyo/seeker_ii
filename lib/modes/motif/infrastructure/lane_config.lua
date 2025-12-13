@@ -5,8 +5,12 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local Modal = include("lib/ui/components/modal")
 local Descriptions = include("lib/ui/component_descriptions")
+
+-- Use global Modal singleton
+local function get_modal()
+  return _seeker and _seeker.modal
+end
 
 -- Voice parameter modules
 local voice_mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
@@ -341,6 +345,9 @@ local function create_screen_ui()
     norns_ui.draw = function(self)
         -- Draw standard UI
         self:draw_default()
+
+        local Modal = get_modal()
+        if not Modal then return end
 
         -- Check if recording and draw overlay
         if _seeker.sampler and _seeker.sampler.recording_state then

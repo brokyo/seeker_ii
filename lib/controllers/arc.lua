@@ -107,9 +107,8 @@ function Arc.init()
 
     -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
     device.delta = function(n, delta)
-      -- Check for knob recording mode and intercept encoder turns
-      if _seeker.ui_state.state.knob_recording_active and n == 2 then
-        _seeker.eurorack.crow_output.handle_encoder_input(delta)
+      -- Modal handles Arc encoder input first when active
+      if _seeker.modal and _seeker.modal.handle_enc(n, delta, "arc") then
         return
       end
 
@@ -242,12 +241,8 @@ function Arc.init()
 
     device.key = function(n, d)
       if d == 1 then
-        -- Check for knob recording mode - Arc button stops recording
-        if _seeker.ui_state.state.knob_recording_active then
-          local output_num = params:get("eurorack_selected_number")
-          if _seeker.eurorack and _seeker.eurorack.crow_output then
-            _seeker.eurorack.crow_output.stop_recording_knob(output_num)
-          end
+        -- Modal handles Arc button press first (as K3)
+        if _seeker.modal and _seeker.modal.handle_key(3, 1) then
           return
         end
 
@@ -526,6 +521,16 @@ function Arc.init()
         return
       end
 
+      -- When modal is active, only use encoder 2 - clear 3 and 4
+      if _seeker.modal and _seeker.modal.is_active() then
+        for ring = 3, 4 do
+          for i = 1, 64 do
+            device:led(ring, i, 0)
+          end
+        end
+        device:refresh()
+        return
+      end
 
       -- Get current param info
       local current_section = _seeker.screen_ui.sections[current_section_id]
@@ -648,11 +653,20 @@ function Arc.init()
       end
     end
 
+    -- Clear rings 3 and 4 (used when modal takes over input)
+    device.clear_outer_rings = function()
+      for ring = 3, 4 do
+        for i = 1, 64 do
+          device:led(ring, i, 0)
+        end
+      end
+      device:refresh()
+    end
 
   else
     print("No Arc device found")
   end
-  
+
   return device
 end
 

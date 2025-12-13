@@ -29,7 +29,8 @@ local MODAL_MARGIN = 4
 -- Modal types
 Modal.TYPE = {
   DESCRIPTION = "description",
-  STATUS = "status"
+  STATUS = "status",
+  RECORDING = "recording"
 }
 
 -- Internal state
@@ -40,7 +41,13 @@ local state = {
   hint = nil,
   scroll_offset = 0,
   wrapped_lines = {},
-  max_scroll = 0
+  max_scroll = 0,
+  -- Recording modal state
+  recording_data = nil,       -- function that returns {data, current_voltage, min, max}
+  recording_output = nil,     -- output number being recorded
+  -- Input callbacks (optional, for multi-step interactions)
+  on_key = nil,               -- function(n, z) -> bool (return true to block default handling)
+  on_enc = nil                -- function(n, d, source) -> bool (return true to block default handling)
 }
 
 -- Word-wrap text to fit within max_width using current font settings
@@ -71,9 +78,7 @@ local function wrap_text(text, max_width)
 
           if width > max_width then
             if current_line ~= "" then
-              -- Check if line starts with "Word:" pattern for uppercase styling
-              local bold_prefix = current_line:match("^([%w%s]+:)")
-              table.insert(lines, {text = current_line, is_empty = false, bold_prefix = bold_prefix})
+              table.insert(lines, {text = current_line, is_empty = false})
             end
             current_line = word
           else
@@ -82,8 +87,7 @@ local function wrap_text(text, max_width)
         end
 
         if current_line ~= "" then
-          local bold_prefix = current_line:match("^([%w%s]+:)")
-          table.insert(lines, {text = current_line, is_empty = false, bold_prefix = bold_prefix})
+          table.insert(lines, {text = current_line, is_empty = false})
         end
       end
     end
@@ -158,6 +162,21 @@ function Modal.show_status(config)
   state.max_scroll = 0
 end
 
+-- Show a recording modal (live waveform visualization)
+-- config.get_data: function returning {data={}, voltage=0, min=-10, max=10}
+-- config.output_num: crow output number (1-4)
+-- config.on_key: optional function(n, z) for key handling, return true to block default handling
+-- config.on_enc: optional function(n, d, source) for encoder handling, return true to block default handling
+function Modal.show_recording(config)
+  state.active = true
+  state.modal_type = Modal.TYPE.RECORDING
+  state.recording_data = config.get_data
+  state.recording_output = config.output_num
+  state.hint = config.hint or "k2/k3 stop"
+  state.on_key = config.on_key
+  state.on_enc = config.on_enc
+end
+
 -- Dismiss the modal
 function Modal.dismiss()
   state.active = false
@@ -167,6 +186,10 @@ function Modal.dismiss()
   state.scroll_offset = 0
   state.wrapped_lines = {}
   state.max_scroll = 0
+  state.recording_data = nil
+  state.recording_output = nil
+  state.on_key = nil
+  state.on_enc = nil
 end
 
 -- Check if modal is currently active
@@ -179,19 +202,42 @@ function Modal.get_type()
   return state.modal_type
 end
 
--- Handle encoder input (for scrolling descriptions)
--- Returns true if the modal consumed the input
-function Modal.handle_enc(n, d)
+-- Handle key input when modal is active
+-- Returns true if the modal handled the input
+function Modal.handle_key(n, z)
   if not state.active then return false end
 
-  -- Only intercept e3 for description scrolling
+  -- If modal has a key callback, let it handle input
+  if state.on_key then
+    local handled = state.on_key(n, z)
+    if handled then return true end
+  end
+
+  return false
+end
+
+-- Handle encoder input (for scrolling descriptions or custom callbacks)
+-- source: "norns" or "arc" to differentiate input device
+-- Returns true if the modal handled the input
+function Modal.handle_enc(n, d, source)
+  if not state.active then return false end
+
+  source = source or "norns"
+
+  -- If modal has an encoder callback, let it handle input first
+  if state.on_enc then
+    local handled = state.on_enc(n, d, source)
+    if handled then return true end
+  end
+
+  -- Default: e3 scrolls description modals
   if n == 3 and state.modal_type == Modal.TYPE.DESCRIPTION then
     state.scroll_offset = util.clamp(
       state.scroll_offset + util.round(d),
       0,
       state.max_scroll
     )
-    return true  -- Consumed the input
+    return true
   end
 
   return false
@@ -205,6 +251,8 @@ function Modal.draw()
     Modal._draw_description()
   elseif state.modal_type == Modal.TYPE.STATUS then
     Modal._draw_status()
+  elseif state.modal_type == Modal.TYPE.RECORDING then
+    Modal._draw_recording()
   end
 end
 
@@ -257,14 +305,7 @@ function Modal._draw_description()
       screen.level(12)
       screen.move(content_x, y_pos - 2)
 
-      -- Uppercase prefix if present, otherwise draw normal text
-      if line.bold_prefix then
-        local upper_prefix = string.upper(line.bold_prefix)
-        local rest = line.text:sub(#line.bold_prefix + 1)
-        screen.text(upper_prefix .. rest)
-      else
-        screen.text(line.text)
-      end
+      screen.text(line.text)
     end
 
     lines_drawn = lines_drawn + 1
@@ -344,6 +385,106 @@ function Modal._draw_status()
     screen.font_size(SIZES.HINT)
     local hint_width = screen.text_extents(state.hint)
     screen.move(SCREEN_WIDTH / 2 - hint_width / 2, modal_y + modal_height + 10)
+    screen.text(state.hint)
+  end
+end
+
+-- Draw recording modal (live waveform visualization)
+function Modal._draw_recording()
+  local modal_x = MODAL_MARGIN
+  local modal_y = MODAL_MARGIN
+  local modal_width = SCREEN_WIDTH - (MODAL_MARGIN * 2)
+  local modal_height = SCREEN_HEIGHT - (MODAL_MARGIN * 2)
+
+  -- Get live data from callback
+  local info = state.recording_data and state.recording_data() or {data = {}, voltage = 0, min = -10, max = 10}
+  local data = info.data or {}
+  local current_voltage = info.voltage or 0
+  local v_min = info.min or -10
+  local v_max = info.max or 10
+
+  -- Dark background overlay
+  screen.level(0)
+  screen.rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+  screen.fill()
+
+  -- Shadow
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
+
+  -- Modal background
+  screen.level(1)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.fill()
+
+  -- Border
+  screen.level(6)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.stroke()
+
+  -- Waveform area
+  local wave_x = modal_x + PADDING
+  local wave_y = modal_y + 12
+  local wave_width = modal_width - (PADDING * 2) - 24  -- Leave room for voltage display
+  local wave_height = modal_height - 24
+
+  -- Draw zero line
+  local zero_y = wave_y + wave_height * (v_max / (v_max - v_min))
+  screen.level(2)
+  screen.move(wave_x, zero_y)
+  screen.line(wave_x + wave_width, zero_y)
+  screen.stroke()
+
+  -- Draw waveform from recorded data
+  if #data > 1 then
+    local max_points = wave_width
+    local start_idx = math.max(1, #data - max_points + 1)
+    local points_to_draw = math.min(#data, max_points)
+
+    screen.level(8)
+    for i = 1, points_to_draw do
+      local data_idx = start_idx + i - 1
+      local v = data[data_idx]
+      local x = wave_x + (i - 1)
+      local y = wave_y + wave_height * ((v_max - v) / (v_max - v_min))
+      y = util.clamp(y, wave_y, wave_y + wave_height)
+
+      if i == 1 then
+        screen.move(x, y)
+      else
+        screen.line(x, y)
+      end
+    end
+    screen.stroke()
+  end
+
+  -- Draw current voltage indicator (right side, bright dot)
+  local current_y = wave_y + wave_height * ((v_max - current_voltage) / (v_max - v_min))
+  current_y = util.clamp(current_y, wave_y, wave_y + wave_height)
+  screen.level(15)
+  screen.circle(wave_x + wave_width + 4, current_y, 2)
+  screen.fill()
+
+  -- Voltage text (right side)
+  screen.level(12)
+  screen.font_face(1)
+  screen.font_size(8)
+  local voltage_text = string.format("%.1fv", current_voltage)
+  screen.move(wave_x + wave_width + 8, current_y + 3)
+  screen.text(voltage_text)
+
+  -- Title
+  screen.level(10)
+  screen.font_face(1)
+  screen.font_size(8)
+  local title = "RECORDING"
+  screen.move(modal_x + modal_width / 2 - screen.text_extents(title) / 2, modal_y + 8)
+  screen.text(title)
+
+  -- Hint text (bottom, centered)
+  if state.hint then
+    screen.level(4)
+    local hint_width = screen.text_extents(state.hint)
+    screen.move(modal_x + modal_width / 2 - hint_width / 2, modal_y + modal_height - 4)
     screen.text(state.hint)
   end
 end

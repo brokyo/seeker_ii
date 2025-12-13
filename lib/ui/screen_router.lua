@@ -46,7 +46,8 @@ function ScreenUI.init()
         local current_section = _seeker.ui_state.get_current_section()
         local section = ScreenUI.sections[current_section]
         if _seeker.motif_recorder.is_recording or
-           (section and section.needs_playback_refresh) then
+           (section and section.needs_playback_refresh) or
+           (_seeker.modal and _seeker.modal.is_active()) then
           ScreenUI.set_needs_redraw()
         end
 

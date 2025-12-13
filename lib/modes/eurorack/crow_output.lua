@@ -7,6 +7,11 @@ local GridConstants = include("lib/grid/constants")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 local Descriptions = include("lib/ui/component_descriptions")
 
+-- Use global Modal singleton
+local function get_modal()
+  return _seeker and _seeker.modal
+end
+
 local CrowOutput = {}
 CrowOutput.__index = CrowOutput
 
@@ -16,16 +21,16 @@ local CV_MODES = {"LFO", "Envelope", "Looped Random", "Clocked Random", "Random 
 
 -- Mode descriptions for dynamic help
 local MODE_DESCRIPTIONS = {
-  Clock = "Clocked gate/trigger output.\n\nSends gates at clock intervals.\nVoltage sets gate height.\nLength sets duty cycle as percentage.",
-  Pattern = "Random rhythmic patterns.\n\nLength: Total steps in pattern.\nHits: Number of active steps.\nReroll: Generate new random pattern.\n\nHits distributed randomly across pattern length.",
-  Euclidean = "Euclidean rhythmic patterns.\n\nLength: Total steps in pattern.\nHits: Active steps spread evenly.\nRotation: Shift pattern start point.\n\nClassic Bjorklund algorithm for balanced rhythms.",
-  Burst = "Rapid burst of triggers.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\nShape: Timing distribution (linear, accelerating, etc).\n\nGreat for drum rolls and fills.",
-  LFO = "Low frequency oscillator.\n\nShape: Waveform type (sine, linear, etc).\nMin/Max: Voltage range.\n\nSyncs to clock for tempo-locked modulation.",
-  Envelope = "Shaped voltage envelope.\n\nADSR: Attack, Decay, Sustain, Release.\nAR: Simple attack/release.\n\nDuration sets total time relative to clock. Useful for synced modulation.",
-  ["Knob Recorder"] = "Record E3 movements as CV.\n\nSensitivity: How much the knob affects voltage.\nStart Recording: Begin capture.\nClear: Erase recorded data.\n\nPlayback loops with interpolation.",
-  ["Looped Random"] = "Random voltage sequence.\n\nSteps: Number of random values.\nLoops: How many times before regenerating.\nQuantize: Snap to scale.\n\nCreates evolving but repeatable patterns.",
-  ["Clocked Random"] = "Random voltage on external trigger.\n\nCrow Input: Which input triggers new values.\nQuantize: Snap to scale voltages.\n\nReactive to external clock or gates.",
-  ["Random Walk"] = "Wandering random voltage.\n\nJump: Random position each step.\nAccumulate: Gradual drift from current value.\n\nSlew smooths transitions. Great for generative modulation."
+  Clock = "Clocked gate output.",
+  Pattern = "Random rhythmic pattern.\n\nREROLL generates a new random distribution.",
+  Euclidean = "Euclidean rhythmic pattern.",
+  Burst = "Rapid burst of triggers.\n\nWINDOW sets burst duration as percentage of clock period.\n\nSHAPE controls timing between triggers.",
+  LFO = "Clock-synced LFO.",
+  Envelope = "Clock-synced envelope.\n\nDURATION sets envelope time as percentage of clock period.",
+  ["Knob Recorder"] = "Record E3 knob movements as CV.\n\nK3 opens preview, K3 starts recording, K3 stops.\nK2 cancels.\n\nCROSSFADE smooths the loop point.",
+  ["Looped Random"] = "Looping random sequence.\n\nLOOPS sets how many times the sequence repeats before regenerating.",
+  ["Clocked Random"] = "Random voltage on external trigger.\n\nConnect a trigger source to Crow input 1.",
+  ["Random Walk"] = "Wandering voltage.\n\nJUMP picks a new random position each step.\n\nACCUMULATE drifts from current value by STEP SIZE."
 }
 
 -- Returns the mode name for an output based on its category (Gate or CV)
@@ -68,10 +73,17 @@ local function clamp_envelope_if_needed(output_num, changed_param)
     end
 end
 
+-- Recording stage constants
+local RECORDING_STAGE = {
+    IDLE = 0,
+    PREVIEW = 1,
+    RECORDING = 2
+}
+
 -- Initialize recording states for all 4 crow outputs
 for i = 1, 4 do
     recording_states[i] = {
-        active = false,
+        stage = 0,
         voltage = 0,
         data = {},
         sensitivity = 0.1,
@@ -100,7 +112,7 @@ end
 -- Helper function to reset recording state for a specific output
 local function reset_recording_state(output_num)
     recording_states[output_num] = {
-        active = false,
+        stage = 0,
         voltage = 0,
         data = {},
         sensitivity = 0.1,
@@ -308,73 +320,191 @@ function CrowOutput.reroll_pattern(output_num)
 end
 
 -- Knob Recorder functions
+-- Stage 0: idle, Stage 1: preview (modal open), Stage 2: recording
 
-function CrowOutput.handle_encoder_input(delta)
-    for output_num = 1, 4 do
+-- Returns data for the recording modal visualization
+local function get_recording_data(output_num)
+    return function()
         local state = recording_states[output_num]
-        if state.active then
-            local sensitivity = params:get("crow_" .. output_num .. "_knob_sensitivity")
-
-            state.voltage = state.voltage + (delta * sensitivity)
-            state.voltage = util.clamp(state.voltage, -10, 10)
-
-            crow.output[output_num].volts = state.voltage
-        end
+        return {
+            data = state.data,
+            voltage = state.voltage,
+            min = -10,
+            max = 10
+        }
     end
 end
 
-function CrowOutput.record_knob(output_num)
-    if active_clocks["knob_playback_" .. output_num] then
-        clock.cancel(active_clocks["knob_playback_" .. output_num])
-        active_clocks["knob_playback_" .. output_num] = nil
+-- Creates key callback for recording modal that advances stages or cancels
+local function create_recording_key_handler(output_num)
+    return function(n, z)
+        local state = recording_states[output_num]
+
+        -- K3 press advances recording stage
+        if n == 3 and z == 1 then
+            CrowOutput.toggle_knob_recording(output_num)
+            return true
+        end
+
+        -- K2 press cancels recording without playback
+        if n == 2 and z == 1 then
+            if state.capture_clock then
+                clock.cancel(state.capture_clock)
+                state.capture_clock = nil
+            end
+            local Modal = get_modal()
+            if Modal then Modal.dismiss() end
+            reset_recording_state(output_num)
+            _seeker.ui_state.state.knob_recording_active = false
+            crow.output[output_num].volts = 0
+            _seeker.screen_ui.set_needs_redraw()
+            return true
+        end
+
+        -- Block K2 release during recording (prevent parent dismiss)
+        if n == 2 and z == 0 then
+            return true
+        end
+
+        return false
+    end
+end
+
+-- Creates encoder callback for recording modal voltage control
+local function create_recording_enc_handler(output_num)
+    return function(n, d, source)
+        local state = recording_states[output_num]
+
+        -- Norns E3 or Arc E2 controls voltage
+        local is_voltage_control = (source == "norns" and n == 3) or (source == "arc" and n == 2)
+        if is_voltage_control then
+            local sensitivity = params:get("crow_" .. output_num .. "_knob_sensitivity")
+            state.voltage = state.voltage + (d * sensitivity)
+            state.voltage = util.clamp(state.voltage, -10, 10)
+            crow.output[output_num].volts = state.voltage
+            return true
+        end
+
+        -- Block other encoders during recording
+        return true
+    end
+end
+
+-- 3-stage toggle: idle -> preview -> recording -> idle (with playback)
+function CrowOutput.toggle_knob_recording(output_num)
+    local state = recording_states[output_num]
+    local Modal = get_modal()
+
+    if state.stage == 0 then
+        -- Stage 0 -> 1: Open modal for preview, user can set start voltage
+        if active_clocks["knob_playback_" .. output_num] then
+            clock.cancel(active_clocks["knob_playback_" .. output_num])
+            active_clocks["knob_playback_" .. output_num] = nil
+        end
+
+        state.stage = 1
+        state.voltage = 0
+        state.data = {}
+        crow.output[output_num].volts = 0
+
+        _seeker.ui_state.state.knob_recording_active = true
+
+        -- Clear Arc outer rings for modal mode
+        if _seeker.arc and _seeker.arc.clear_outer_rings then
+            _seeker.arc.clear_outer_rings()
+        end
+
+        if Modal then
+            Modal.show_recording({
+                get_data = get_recording_data(output_num),
+                output_num = output_num,
+                hint = "k2 cancel · k3 record",
+                on_key = create_recording_key_handler(output_num),
+                on_enc = create_recording_enc_handler(output_num)
+            })
+        end
+
+    elseif state.stage == 1 then
+        -- Stage 1 -> 2: Start recording
+        state.stage = 2
+
+        if Modal then
+            Modal.show_recording({
+                get_data = get_recording_data(output_num),
+                output_num = output_num,
+                hint = "k2 cancel · k3 stop",
+                on_key = create_recording_key_handler(output_num),
+                on_enc = create_recording_enc_handler(output_num)
+            })
+        end
+
+        state.capture_clock = clock.run(function()
+            while state.stage == 2 do
+                table.insert(state.data, state.voltage)
+                crow.output[output_num].volts = state.voltage
+                clock.sleep(state.clock_interval)
+            end
+        end)
+
+    elseif state.stage == 2 then
+        -- Stage 2 -> 0: Stop recording, dismiss modal, start playback
+        CrowOutput.stop_recording_knob(output_num)
     end
 
-    local state = recording_states[output_num]
+    _seeker.screen_ui.set_needs_redraw()
+end
 
-    state.active = true
-    state.voltage = 0
-    state.data = {}
-
-    _seeker.ui_state.state.knob_recording_active = true
-
-    state.capture_clock = clock.run(function()
-        while state.active do
-            table.insert(state.data, state.voltage)
-            crow.output[output_num].volts = state.voltage
-            clock.sleep(state.clock_interval)
-        end
-    end)
+-- Legacy function for backwards compatibility
+function CrowOutput.record_knob(output_num)
+    CrowOutput.toggle_knob_recording(output_num)
 end
 
 function CrowOutput.stop_recording_knob(output_num)
     local state = recording_states[output_num]
+    local Modal = get_modal()
 
-    state.active = false
-
-    local any_recording = false
-    for i = 1, 4 do
-        if recording_states[i].active then
-            any_recording = true
-            break
-        end
-    end
-
-    if not any_recording then
-        _seeker.ui_state.state.knob_recording_active = false
-    end
-
+    -- Stop capture clock
     if state.capture_clock then
         clock.cancel(state.capture_clock)
         state.capture_clock = nil
     end
 
-    local data = state.data
+    -- Capture data before any resets
+    local data = {}
+    for i, v in ipairs(state.data) do
+        data[i] = v
+    end
+    local interpolation_steps = state.interpolation_steps
 
-    if #data > 0 then
+    -- Show completion state briefly before dismissing
+    if Modal then
+        Modal.show_recording({
+            get_data = get_recording_data(output_num),
+            output_num = output_num,
+            hint = "looping",
+            on_key = function() return true end,  -- Block input during completion
+            on_enc = function() return true end
+        })
+    end
+
+    -- Apply crossfade to smooth the loop point
+    if #data > 1 then
+        local crossfade_pct = params:get("crow_" .. output_num .. "_knob_crossfade") / 100
+        local crossfade_samples = math.floor(#data * crossfade_pct)
+
+        if crossfade_samples > 0 and crossfade_samples < #data / 2 then
+            for i = 1, crossfade_samples do
+                local blend = i / crossfade_samples
+                local end_idx = #data - crossfade_samples + i
+                local start_idx = i
+                data[end_idx] = data[end_idx] * (1 - blend) + data[start_idx] * blend
+            end
+        end
+
+        -- Start playback immediately
         active_clocks["knob_playback_" .. output_num] = clock.run(function()
             local step = 1
             local substep = 0
-            local interpolation_steps = state.interpolation_steps
 
             while true do
                 local current_voltage = data[step]
@@ -397,7 +527,14 @@ function CrowOutput.stop_recording_knob(output_num)
         end)
     end
 
-    reset_recording_state(output_num)
+    -- Dismiss modal and clean up after pause (keeps visualization during pause)
+    clock.run(function()
+        clock.sleep(2.0)
+        if Modal then Modal.dismiss() end
+        reset_recording_state(output_num)
+        _seeker.ui_state.state.knob_recording_active = false
+        _seeker.screen_ui.set_needs_redraw()
+    end)
 end
 
 function CrowOutput.clear_knob(output_num)
@@ -837,18 +974,6 @@ local function create_screen_ui()
         original_enter(self)
     end
 
-    -- Override key handler to stop recording with K2/K3
-    norns_ui.handle_key = function(self, n, z)
-        if _seeker.ui_state.state.knob_recording_active and (n == 2 or n == 3) and z == 1 then
-            local output_num = params:get("eurorack_selected_number")
-            CrowOutput.stop_recording_knob(output_num)
-            return
-        end
-
-        -- Call parent handler for normal behavior
-        NornsUI.handle_key(self, n, z)
-    end
-
     norns_ui.rebuild_params = function(self)
         local selected_number = params:get("eurorack_selected_number")
         self.name = "Output Type"
@@ -921,6 +1046,7 @@ local function create_screen_ui()
         elseif mode == "Knob Recorder" then
             table.insert(param_table, { separator = true, title = "Knob Recorder" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity", arc_multi_float = {0.1, 0.05, 0.01} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_knob_crossfade", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_start_recording", is_action = true })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_clear", is_action = true })
         elseif mode == "Envelope" then
@@ -1241,11 +1367,17 @@ local function create_params()
             recording_states[i].sensitivity = value
         end)
 
-        params:add_binary("crow_" .. i .. "_knob_start_recording", "Toggle Recording", "trigger", 0)
+        params:add_control("crow_" .. i .. "_knob_crossfade", "Loop Crossfade", controlspec.new(0, 50, 'lin', 1, 10), function(param)
+            return params:get(param.id) .. "%"
+        end)
+
+        params:add_binary("crow_" .. i .. "_knob_start_recording", "Record", "trigger", 0)
+        local output_idx = i  -- Capture for closure
         params:set_action("crow_" .. i .. "_knob_start_recording", function(value)
-            if value == 1 then
-                CrowOutput.record_knob(i)
-                _seeker.ui_state.trigger_activated("crow_" .. i .. "_knob_start_recording")
+            -- Only trigger from stage 0 (idle) - prevents Arc/encoder re-triggering
+            if value == 1 and recording_states[output_idx].stage == 0 then
+                CrowOutput.record_knob(output_idx)
+                _seeker.ui_state.trigger_activated("crow_" .. output_idx .. "_knob_start_recording")
             end
         end)
 
@@ -1361,7 +1493,6 @@ function CrowOutput.init()
         screen = create_screen_ui(),
         grid = create_grid_ui(),
         sync = CrowOutput.sync,
-        handle_encoder_input = CrowOutput.handle_encoder_input,
         record_knob = CrowOutput.record_knob,
         stop_recording_knob = CrowOutput.stop_recording_knob,
         clear_knob = CrowOutput.clear_knob

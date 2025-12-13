@@ -1,7 +1,10 @@
 -- norns_ui.lua
 -- Base class for Norns UI components with parameter navigation, drawing, and input handling
 
-local Modal = include("lib/ui/components/modal")
+-- Use global Modal singleton to avoid multiple include() instances
+local function get_modal()
+  return _seeker and _seeker.modal
+end
 
 local NornsUI = {}
 NornsUI.__index = NornsUI
@@ -178,8 +181,10 @@ end
 -- Draw consistent content (footer, params, modal) without screen.clear() or screen.update()
 -- For use by components that need custom rendering or animation
 function NornsUI:_draw_standard_ui()
-  -- Draw modal overlay if description is showing
-  if self.state.showing_description then
+  local Modal = get_modal()
+  -- Draw modal overlay if any modal is active
+  local modal_active = Modal and Modal.is_active()
+  if modal_active then
     Modal.draw()
   -- Otherwise draw params then footer (footer draws last to clip overflow)
   else
@@ -339,6 +344,7 @@ function NornsUI:draw_params(start_y)
 end
 
 function NornsUI:draw_default()
+  local Modal = get_modal()
   screen.clear()
   self:_draw_standard_ui()
   screen.update()
@@ -353,8 +359,9 @@ end
 --------------------------------
 
 function NornsUI:handle_enc_default(n, d)
-  -- Let modal handle e3 for scrolling when active
-  if Modal.handle_enc(n, d) then
+  local Modal = get_modal()
+  -- Modal handles encoder input first when active
+  if Modal and Modal.handle_enc(n, d, "norns") then
     return
   end
 
@@ -430,17 +437,26 @@ function NornsUI:handle_enc(n, d)
 end
 
 function NornsUI:handle_key(n, z)
+  local Modal = get_modal()
+
+  -- Modal handles input first when active
+  if Modal and Modal.handle_key(n, z) then
+    return
+  end
+
   -- Toggle description display on K2 press/release
   if n == 2 then
     if z == 1 then
       self.state.showing_description = true
-      Modal.show_description({
-        body = self.description,
-        hint = "e3 scroll · release k2"
-      })
+      if Modal then
+        Modal.show_description({
+          body = self.description,
+          hint = "e3 scroll · release k2"
+        })
+      end
     else
       self.state.showing_description = false
-      Modal.dismiss()
+      if Modal then Modal.dismiss() end
     end
 
   -- Handle K3 press for action items

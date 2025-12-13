@@ -19,6 +19,7 @@ local MotifRecorder = include("lib/modes/motif/core/recorder")
 local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
 local SamplerEngine = include("lib/modes/motif/types/sampler/engine")
+local Modal = include("lib/ui/components/modal")
 
 -- Global Config Mode
 local Config = include("lib/modes/config/init")
@@ -52,6 +53,7 @@ _seeker = {
   midi_input = nil,
   arc = nil,
   sampler = nil,
+  modal = Modal,  -- Single shared Modal instance
 
   current_mode = nil,
 

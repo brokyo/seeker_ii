@@ -180,16 +180,8 @@ end
 
 function UIState.enc(n, d)
   UIState.register_activity()
-  
-  -- Check if knob recording is active and delegate to eurorack output component
-  if UIState.state.knob_recording_active and n == 3 then
-    if _seeker.eurorack_output then
-      _seeker.eurorack_output.handle_encoder_input(d)
-    end
-    return
-  end
-  
-  -- Otherwise, continue execution
+
+  -- Pass to screen UI (Modal routing happens inside norns_ui.handle_enc_default)
   if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
     _seeker.screen_ui.enc(n, d)
   end
