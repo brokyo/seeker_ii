@@ -17,7 +17,7 @@ CrowOutput.__index = CrowOutput
 
 -- Mode options by category
 local GATE_MODES = {"Clock", "Pattern", "Euclidean", "Burst"}
-local CV_MODES = {"LFO", "Envelope", "Looped Random", "Clocked Random", "Random Walk", "Knob Recorder"}
+local CV_MODES = {"LFO", "Knob Recorder", "Envelope", "Looped Random", "Clocked Random", "Random Walk"}
 
 -- Mode descriptions for dynamic help
 local MODE_DESCRIPTIONS = {

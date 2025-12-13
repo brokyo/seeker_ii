@@ -158,11 +158,11 @@ Each output selects a Category (Gate or CV) then a Mode within that category.
 
 *CV Category:*
 - **LFO** — Tempo-synced shapes (sine, triangle, saw, pulse, noise) with voltage range.
+- **Knob Recorder** — Capture E3 knob movements as looping CV.
 - **Envelope** — ADSR or AR with clock-synced timing.
 - **Looped Random** — Generate a random CV sequence, loop it N times, then regenerate.
 - **Clocked Random** — External trigger (Crow input) generates random voltages.
 - **Random Walk** — Stochastic movement within configurable ranges.
-- **Knob Recorder** — Capture E3 knob movements as looping CV.
 
 **TXO TR:** Clock, Pattern, Euclidean, and Burst modes matching Crow's Gate category.
 
