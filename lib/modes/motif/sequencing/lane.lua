@@ -67,7 +67,8 @@ function Lane.new(config)
   lane.wsyn_active = params:get("lane_" .. lane.id .. "_wsyn_active") == 1
   lane.osc_active = params:get("lane_" .. lane.id .. "_osc_active") == 1
   lane.disting_active = params:get("lane_" .. lane.id .. "_disting_active") == 1
-  
+  lane.txo_osc_active = params:get("lane_" .. lane.id .. "_txo_osc_active") == 1
+
   -- Stage configuration (4 stages per lane, each with loops/active/reset_motif/transforms)
   -- Stage 1 defaults active, stages 2-4 default inactive
   lane.stages = config.stages or {
@@ -782,9 +783,9 @@ function Lane:on_note_on(event)
     if gate_out > 1 then
       if gate_out <= 5 then
         -- Calculate crow gate volume with 5v as max, applying both voice and lane volume
-        local euro_voice_volume = params:get("lane_" .. self.id .. "_euro_voice_volume")
+        local eurorack_voice_volume = params:get("lane_" .. self.id .. "_eurorack_voice_volume")
         local lane_volume = params:get("lane_" .. self.id .. "_volume")
-        local gate_volume = euro_voice_volume * lane_volume
+        local gate_volume = eurorack_voice_volume * lane_volume
         crow.output[gate_out - 1].volts = gate_volume * 5
       else
         -- TXO gate (subtract 5 to get 1-4 as we're passing in an index from params that includes crow)
@@ -898,6 +899,27 @@ function Lane:on_note_on(event)
       crow.ii.disting.note_pitch(note, v8_note)
       crow.ii.disting.note_velocity(note, disting_volume)
     end
+  end
+
+  --------------------------------
+  -- TXO Oscillator Output
+  --------------------------------
+
+  if self.txo_osc_active then
+    local osc_select = params:get("lane_" .. self.id .. "_txo_osc_select")
+    local mode = params:get("lane_" .. self.id .. "_txo_osc_mode")
+
+    -- Set oscillator pitch (MIDI note number)
+    crow.ii.txo.osc_n(osc_select, note)
+
+    if mode == 2 then -- triggered mode: set CV and trigger AD envelope
+      local txo_voice_volume = params:get("lane_" .. self.id .. "_txo_osc_volume")
+      local lane_volume = params:get("lane_" .. self.id .. "_volume")
+      local amplitude_volts = txo_voice_volume * lane_volume * (event.velocity / 127) * 5
+      crow.ii.txo.cv(osc_select, amplitude_volts)
+      crow.ii.txo.env_trig(osc_select, 1)
+    end
+    -- drone mode: CV already set high on activation, just pitch changes
   end
 
   --------------------------------
@@ -1033,6 +1055,12 @@ function Lane:on_note_off(event)
 
     end
   end
+
+  --------------------------------
+  -- TXO Oscillator note off
+  --------------------------------
+  -- drone mode: no action (stays on, just pitch changes)
+  -- triggered mode: let AD envelope decay naturally (no action needed)
 
   --------------------------------
   -- Sampler Output

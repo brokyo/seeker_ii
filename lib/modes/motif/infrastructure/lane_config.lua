@@ -15,11 +15,12 @@ end
 -- Voice parameter modules
 local voice_mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
 local voice_midi = include("lib/modes/motif/infrastructure/voices/midi")
-local voice_crow_txo = include("lib/modes/motif/infrastructure/voices/crow_txo")
+local voice_eurorack_cv = include("lib/modes/motif/infrastructure/voices/eurorack_cv")
 local voice_just_friends = include("lib/modes/motif/infrastructure/voices/just_friends")
 local voice_wsyn = include("lib/modes/motif/infrastructure/voices/wsyn")
 local voice_osc = include("lib/modes/motif/infrastructure/voices/osc")
 local voice_disting = include("lib/modes/motif/infrastructure/voices/disting")
+local voice_txo_osc = include("lib/modes/motif/infrastructure/voices/txo_osc")
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
@@ -40,11 +41,11 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 89)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 99)
 
-        -- Config Voice selector
-        params:add_option("lane_" .. i .. "_visible_voice", "Config Voice",
-            {"MX Samples", "MIDI", "Crow/TXO", "Just Friends", "w/syn", "OSC", "Disting"})
+        -- Voice selector
+        params:add_option("lane_" .. i .. "_visible_voice", "Voice",
+            {"MX Samples", "MIDI", "Eurorack", "Just Friends", "w/syn", "OSC", "Disting", "TXO Osc"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
@@ -53,11 +54,12 @@ local function create_params()
         -- Create all voice-specific parameters
         voice_mx_samples.create_params(i)
         voice_midi.create_params(i)
-        voice_crow_txo.create_params(i)
+        voice_eurorack_cv.create_params(i)
         voice_just_friends.create_params(i)
         voice_wsyn.create_params(i)
         voice_osc.create_params(i)
         voice_disting.create_params(i)
+        voice_txo_osc.create_params(i)
 
         -- Global sampler filter (applies to all chops in lane)
         local lane_idx = i  -- Capture for closures
@@ -486,10 +488,10 @@ local function create_screen_ui()
         elseif visible_voice == 3 then -- CV/Gate via i2c
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_active" })
 
-            -- Only show additional Crow/TXO params if active
+            -- Only show additional Eurorack CV/Gate params if active
             if params:get("lane_" .. lane_idx .. "_eurorack_active") == 1 then
                 table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_euro_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_gate_out" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_cv_out" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_loop_start_trigger" })
@@ -594,6 +596,33 @@ local function create_screen_ui()
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_pan", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_brightness", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_morph", arc_multi_float = {10, 5, 1} })
+                end
+            end
+        elseif visible_voice == 8 then -- TXO Osc
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_active" })
+
+            -- Only show additional TXO Osc params if active
+            if params:get("lane_" .. lane_idx .. "_txo_osc_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Output" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_select" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_mode" })
+
+                table.insert(param_table, { separator = true, title = "Oscillator" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_wave" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_morph", arc_multi_float = {100, 50, 10} })
+                -- Show pulse width only for pulse waveform
+                local wave = params:get("lane_" .. lane_idx .. "_txo_osc_wave")
+                if wave == 4 then
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_width", arc_multi_float = {10, 5, 1} })
+                end
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_slew", arc_multi_float = {10, 5, 1} })
+
+                -- Only show envelope params in triggered mode
+                if params:get("lane_" .. lane_idx .. "_txo_osc_mode") == 2 then
+                    table.insert(param_table, { separator = true, title = "Envelope" })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_attack", arc_multi_float = {0.1, 0.05, 0.01} })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_decay", arc_multi_float = {0.1, 0.05, 0.01} })
                 end
             end
         end
