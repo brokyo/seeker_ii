@@ -312,37 +312,28 @@ local function create_screen_ui()
                         end
                     end
 
+                    -- Track elapsed time to visualize notes still being held
+                    local current_recording_time = clock.get_beats() - _seeker.motif_recorder.start_time
+
                     for _, event_pair in ipairs(recorder_note_pairs) do
                         local x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
+                        -- If note hasn't been released (nil end_time), draw to current position
+                        local display_end_time = event_pair.end_time or current_recording_time
+                        local clamped_end = math.min(display_end_time, loop_duration)
+                        local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
+
                         if max_note > min_note then
                             local note_range = max_note - min_note
                             local note_y_offset = ((event_pair.note - min_note) / note_range) * (VIS_HEIGHT - 2)
                             local note_y = VIS_Y + VIS_HEIGHT - 1 - note_y_offset
-
-                            if event_pair.end_time then
-                                local clamped_end = math.min(event_pair.end_time, loop_duration)
-                                local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
-                                screen.move(x_start, note_y)
-                                screen.line(x_end, note_y)
-                                screen.stroke()
-                            else
-                                screen.move(x_start, note_y - 1)
-                                screen.line(x_start, note_y + 1)
-                                screen.stroke()
-                            end
+                            screen.move(x_start, note_y)
+                            screen.line(x_end, note_y)
+                            screen.stroke()
                         else
                             local note_y = VIS_Y + VIS_HEIGHT / 2
-                            if event_pair.end_time then
-                                local clamped_end = math.min(event_pair.end_time, loop_duration)
-                                local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
-                                screen.move(x_start, note_y)
-                                screen.line(x_end, note_y)
-                                screen.stroke()
-                            else
-                                screen.move(x_start, VIS_Y)
-                                screen.line(x_start, VIS_Y + VIS_HEIGHT)
-                                screen.stroke()
-                            end
+                            screen.move(x_start, note_y)
+                            screen.line(x_end, note_y)
+                            screen.stroke()
                         end
                     end
                 end

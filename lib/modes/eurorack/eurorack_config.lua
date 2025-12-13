@@ -10,7 +10,7 @@ local EurorackConfig = {}
 EurorackConfig.__index = EurorackConfig
 
 local function create_params()
-    params:add_group("eurorack_config", "EURORACK CONFIG", 3)
+    params:add_group("eurorack_config", "EURORACK CONFIG", 7)
 
     -- Selection params used by all eurorack output components
     params:add_option("eurorack_selected_type", "Type", {"Crow", "TXO TR", "TXO CV"}, 1)
@@ -44,6 +44,18 @@ local function create_params()
             _seeker.screen_ui.set_needs_redraw()
         end
     end)
+
+    -- Crow output category params (Gate vs CV)
+    for i = 1, 4 do
+        params:add_option("crow_" .. i .. "_category", "Category", {"Gate", "CV"}, 1)
+        params:set_action("crow_" .. i .. "_category", function(value)
+            -- Reset mode and pattern state when category changes
+            if _seeker.eurorack and _seeker.eurorack.crow_output then
+                _seeker.eurorack.crow_output.screen:rebuild_params()
+                _seeker.screen_ui.set_needs_redraw()
+            end
+        end)
+    end
 
     -- Add sync trigger param
     params:add_binary("sync_all_eurorack_clocks", "Synchronize All", "trigger", 0)

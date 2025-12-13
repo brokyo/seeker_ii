@@ -233,8 +233,6 @@ function ScreenSaver.draw()
         end
 
         local x_playhead = MARGIN_LEFT + (position / loop_duration * timeline_width)
-
-        -- Draw bright playhead line
         screen.level(15)
         screen.move(x_playhead, y_pos)
         screen.line(x_playhead, y_pos + lane_height)

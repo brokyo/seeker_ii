@@ -12,9 +12,10 @@ TxoTrOutput.__index = TxoTrOutput
 
 -- Type descriptions for dynamic help
 local TYPE_DESCRIPTIONS = {
-  Gate = "TXO clocked gate output.\n\nSends gates at clock intervals. Length sets duty cycle as percentage of clock period.\n\nSimple and reliable clock-synced triggers.",
-  Burst = "TXO rapid trigger burst.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\n\nSends multiple quick triggers on each clock beat.",
-  Pattern = "TXO euclidean patterns.\n\nLength: Total steps in pattern.\nHits: Number of active steps.\nReroll: Generate new pattern.\n\nCreates rhythmically interesting trigger patterns."
+  Clock = "TXO clocked gate output.\n\nSends gates at clock intervals.\nLength sets duty cycle as percentage of clock period.\n\nSimple and reliable clock-synced triggers.",
+  Pattern = "TXO random patterns.\n\nLength: Total steps in pattern.\nHits: Active steps distributed randomly.\nReroll: Generate new random pattern.\n\nCreates rhythmically interesting trigger patterns.",
+  Euclidean = "TXO euclidean patterns.\n\nLength: Total steps in pattern.\nHits: Active steps spread evenly.\nRotation: Shift pattern start point.\n\nBjorklund algorithm for balanced rhythms.",
+  Burst = "TXO rapid trigger burst.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\n\nSends multiple quick triggers on each clock beat."
 }
 
 -- Store active clock IDs globally
@@ -95,9 +96,10 @@ end
 
 -- Pattern generation and management
 
-function TxoTrOutput.generate_txo_pattern(output_num)
-    local pattern_length = params:get("txo_tr_" .. output_num .. "_gate_pattern_length")
-    local pattern_hits = params:get("txo_tr_" .. output_num .. "_gate_pattern_hits")
+-- Generate random pattern with hits distributed randomly across length
+function TxoTrOutput.generate_random_pattern(output_num)
+    local pattern_length = params:get("txo_tr_" .. output_num .. "_pattern_length")
+    local pattern_hits = params:get("txo_tr_" .. output_num .. "_pattern_hits")
 
     if not pattern_states["txo_" .. output_num] then
         pattern_states["txo_" .. output_num] = {
@@ -105,6 +107,9 @@ function TxoTrOutput.generate_txo_pattern(output_num)
             current_step = 1
         }
     end
+
+    -- Clamp hits to length to prevent infinite loop
+    pattern_hits = math.min(pattern_hits, pattern_length)
 
     local pattern = {}
     local hits_placed = 0
@@ -129,8 +134,89 @@ function TxoTrOutput.generate_txo_pattern(output_num)
     return pattern
 end
 
+-- Generate euclidean pattern using Bjorklund algorithm
+function TxoTrOutput.generate_euclidean_pattern(output_num)
+    local pattern_length = params:get("txo_tr_" .. output_num .. "_euclidean_length")
+    local pattern_hits = params:get("txo_tr_" .. output_num .. "_euclidean_hits")
+    local rotation = params:get("txo_tr_" .. output_num .. "_euclidean_rotation")
+
+    if not pattern_states["txo_" .. output_num] then
+        pattern_states["txo_" .. output_num] = {
+            pattern = {},
+            current_step = 1
+        }
+    end
+
+    -- Clamp hits to length
+    pattern_hits = math.min(pattern_hits, pattern_length)
+
+    -- Bjorklund algorithm
+    local pattern = {}
+    if pattern_hits == 0 then
+        for i = 1, pattern_length do
+            pattern[i] = false
+        end
+    elseif pattern_hits == pattern_length then
+        for i = 1, pattern_length do
+            pattern[i] = true
+        end
+    else
+        local groups = {}
+        for i = 1, pattern_hits do
+            groups[i] = {true}
+        end
+        for i = 1, pattern_length - pattern_hits do
+            groups[pattern_hits + i] = {false}
+        end
+
+        while #groups > pattern_hits do
+            local new_groups = {}
+            local num_to_merge = math.min(pattern_hits, #groups - pattern_hits)
+            for i = 1, num_to_merge do
+                local merged = {}
+                for _, v in ipairs(groups[i]) do table.insert(merged, v) end
+                for _, v in ipairs(groups[#groups - num_to_merge + i]) do table.insert(merged, v) end
+                new_groups[i] = merged
+            end
+            for i = num_to_merge + 1, #groups - num_to_merge do
+                new_groups[i] = groups[i]
+            end
+            groups = new_groups
+            if #groups <= pattern_hits then break end
+        end
+
+        local idx = 1
+        for _, group in ipairs(groups) do
+            for _, v in ipairs(group) do
+                pattern[idx] = v
+                idx = idx + 1
+            end
+        end
+    end
+
+    -- Apply rotation
+    if rotation > 0 then
+        local rotated = {}
+        for i = 1, pattern_length do
+            local src_idx = ((i - 1 + rotation) % pattern_length) + 1
+            rotated[i] = pattern[src_idx]
+        end
+        pattern = rotated
+    end
+
+    pattern_states["txo_" .. output_num].pattern = pattern
+    pattern_states["txo_" .. output_num].current_step = 1
+
+    return pattern
+end
+
 function TxoTrOutput.reroll_txo_pattern(output_num)
-    TxoTrOutput.generate_txo_pattern(output_num)
+    local type = params:string("txo_tr_" .. output_num .. "_type")
+    if type == "Pattern" then
+        TxoTrOutput.generate_random_pattern(output_num)
+    elseif type == "Euclidean" then
+        TxoTrOutput.generate_euclidean_pattern(output_num)
+    end
     TxoTrOutput.update_txo_tr(output_num)
     _seeker.screen_ui.set_needs_redraw()
 end
@@ -144,7 +230,7 @@ function TxoTrOutput.update_txo_tr(output_num)
     end
 
     local type = params:string("txo_tr_" .. output_num .. "_type")
-    if type ~= "Burst" and type ~= "Gate" and type ~= "Pattern" then return end
+    if type ~= "Clock" and type ~= "Pattern" and type ~= "Euclidean" and type ~= "Burst" then return end
 
     local clock_interval = params:string("txo_tr_" .. output_num .. "_clock_interval")
     local clock_modifier = params:string("txo_tr_" .. output_num .. "_clock_modifier")
@@ -173,9 +259,13 @@ function TxoTrOutput.update_txo_tr(output_num)
                     crow.ii.txo.tr(output_num, 0)
                     clock.sleep(intervals[i] / 2)
                 end
-            elseif type == "Pattern" then
+            elseif type == "Pattern" or type == "Euclidean" then
                 if not pattern_states["txo_" .. output_num] or not pattern_states["txo_" .. output_num].pattern then
-                    TxoTrOutput.generate_txo_pattern(output_num)
+                    if type == "Pattern" then
+                        TxoTrOutput.generate_random_pattern(output_num)
+                    else
+                        TxoTrOutput.generate_euclidean_pattern(output_num)
+                    end
                 end
 
                 local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
@@ -196,8 +286,8 @@ function TxoTrOutput.update_txo_tr(output_num)
                 end
                 pattern_states["txo_" .. output_num].current_step = current_step
             else
-                -- Gate type
-                local gate_length = params:get("txo_tr_" .. output_num .. "_gate_length") / 100
+                -- Clock type (simple clocked gate)
+                local gate_length = params:get("txo_tr_" .. output_num .. "_clock_length") / 100
                 local beat_sec = clock.get_beat_sec()
                 local gate_time = beat_sec * beats * gate_length
 
@@ -249,20 +339,26 @@ local function create_screen_ui()
         table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_modifier" })
         table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_offset" })
 
-        if type == "Burst" then
+        if type == "Clock" then
+            table.insert(param_table, { separator = true, title = "Clock" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_length", arc_multi_float = {10, 5, 1} })
+        elseif type == "Pattern" then
+            table.insert(param_table, { separator = true, title = "Pattern" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_pattern_length" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_pattern_hits" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_pattern_reroll", is_action = true })
+        elseif type == "Euclidean" then
+            table.insert(param_table, { separator = true, title = "Euclidean" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_euclidean_length" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_euclidean_hits" })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_euclidean_rotation" })
+        elseif type == "Burst" then
             table.insert(param_table, { separator = true, title = "Burst" })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_count" })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_time", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_burst_shape" })
-        elseif type == "Gate" then
-            table.insert(param_table, { separator = true, title = "Gate" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
-        elseif type == "Pattern" then
-            table.insert(param_table, { separator = true, title = "Pattern" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_length" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_hits" })
-            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_gate_pattern_reroll", is_action = true })
         end
 
         self.params = param_table
@@ -335,7 +431,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("txo_tr_output", "TXO TR OUTPUT", 44)
+    params:add_group("txo_tr_output", "TXO TR OUTPUT", 72)
 
     for i = 1, 4 do
         params:add_option("txo_tr_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -351,8 +447,10 @@ local function create_params()
             TxoTrOutput.update_txo_tr(i)
         end)
 
-        params:add_option("txo_tr_" .. i .. "_type", "Type", {"Gate", "Burst", "Pattern"}, 1)
+        params:add_option("txo_tr_" .. i .. "_type", "Type", {"Clock", "Pattern", "Euclidean", "Burst"}, 1)
         params:set_action("txo_tr_" .. i .. "_type", function(value)
+            -- Reset pattern state when type changes
+            pattern_states["txo_" .. i] = nil
             TxoTrOutput.update_txo_tr(i)
             if _seeker and _seeker.eurorack and _seeker.eurorack.txo_tr_output then
                 _seeker.eurorack.txo_tr_output.screen:rebuild_params()
@@ -360,42 +458,63 @@ local function create_params()
             end
         end)
 
-        params:add_number("txo_tr_" .. i .. "_burst_count", "Burst Count", 1, 16, 1)
-        params:set_action("txo_tr_" .. i .. "_burst_count", function(value)
+        -- Clock parameters (simple clocked gate)
+        params:add_number("txo_tr_" .. i .. "_clock_length", "Gate Length", 1, 100, 50, function(param) return param.value .. "%" end)
+        params:set_action("txo_tr_" .. i .. "_clock_length", function(value)
             TxoTrOutput.update_txo_tr(i)
         end)
 
-        params:add_number("txo_tr_" .. i .. "_burst_time", "Burst Time", 1, 100, 25, function(param) return param.value .. "%" end)
-        params:set_action("txo_tr_" .. i .. "_burst_time", function(value)
-            TxoTrOutput.update_txo_tr(i)
-        end)
-
-        params:add_option("txo_tr_" .. i .. "_burst_shape", "Burst Shape", {"Linear", "Accelerating", "Decelerating", "Random"}, 1)
-        params:set_action("txo_tr_" .. i .. "_burst_shape", function(value)
-            TxoTrOutput.update_txo_tr(i)
-        end)
-
+        -- Shared gate length for Pattern/Euclidean
         params:add_number("txo_tr_" .. i .. "_gate_length", "Gate Length", 1, 100, 50, function(param) return param.value .. "%" end)
         params:set_action("txo_tr_" .. i .. "_gate_length", function(value)
             TxoTrOutput.update_txo_tr(i)
         end)
 
-
-        params:add_number("txo_tr_" .. i .. "_gate_pattern_length", "Pattern Length", 1, 32, 8)
-        params:set_action("txo_tr_" .. i .. "_gate_pattern_length", function(value)
-            TxoTrOutput.generate_txo_pattern(i)
+        -- Pattern parameters (random distribution)
+        params:add_number("txo_tr_" .. i .. "_pattern_length", "Length", 1, 32, 8)
+        params:set_action("txo_tr_" .. i .. "_pattern_length", function(value)
+            TxoTrOutput.generate_random_pattern(i)
             TxoTrOutput.update_txo_tr(i)
         end)
-
-        params:add_number("txo_tr_" .. i .. "_gate_pattern_hits", "Pattern Hits", 1, 32, 4)
-        params:set_action("txo_tr_" .. i .. "_gate_pattern_hits", function(value)
-            TxoTrOutput.generate_txo_pattern(i)
+        params:add_number("txo_tr_" .. i .. "_pattern_hits", "Hits", 1, 32, 4)
+        params:set_action("txo_tr_" .. i .. "_pattern_hits", function(value)
+            TxoTrOutput.generate_random_pattern(i)
             TxoTrOutput.update_txo_tr(i)
         end)
-
-        params:add_binary("txo_tr_" .. i .. "_gate_pattern_reroll", "Reroll Pattern", "trigger", 0)
-        params:set_action("txo_tr_" .. i .. "_gate_pattern_reroll", function(value)
+        params:add_binary("txo_tr_" .. i .. "_pattern_reroll", "Reroll", "trigger", 0)
+        params:set_action("txo_tr_" .. i .. "_pattern_reroll", function(value)
             TxoTrOutput.reroll_txo_pattern(i)
+        end)
+
+        -- Euclidean parameters (Bjorklund algorithm)
+        params:add_number("txo_tr_" .. i .. "_euclidean_length", "Length", 1, 32, 8)
+        params:set_action("txo_tr_" .. i .. "_euclidean_length", function(value)
+            TxoTrOutput.generate_euclidean_pattern(i)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+        params:add_number("txo_tr_" .. i .. "_euclidean_hits", "Hits", 1, 32, 4)
+        params:set_action("txo_tr_" .. i .. "_euclidean_hits", function(value)
+            TxoTrOutput.generate_euclidean_pattern(i)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+        params:add_number("txo_tr_" .. i .. "_euclidean_rotation", "Rotation", 0, 31, 0)
+        params:set_action("txo_tr_" .. i .. "_euclidean_rotation", function(value)
+            TxoTrOutput.generate_euclidean_pattern(i)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+
+        -- Burst parameters
+        params:add_number("txo_tr_" .. i .. "_burst_count", "Burst Count", 1, 16, 1)
+        params:set_action("txo_tr_" .. i .. "_burst_count", function(value)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+        params:add_number("txo_tr_" .. i .. "_burst_time", "Burst Time", 1, 100, 25, function(param) return param.value .. "%" end)
+        params:set_action("txo_tr_" .. i .. "_burst_time", function(value)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+        params:add_option("txo_tr_" .. i .. "_burst_shape", "Burst Shape", {"Linear", "Accelerating", "Decelerating", "Random"}, 1)
+        params:set_action("txo_tr_" .. i .. "_burst_shape", function(value)
+            TxoTrOutput.update_txo_tr(i)
         end)
     end
 end

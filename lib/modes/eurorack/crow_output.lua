@@ -10,9 +10,15 @@ local Descriptions = include("lib/ui/component_descriptions")
 local CrowOutput = {}
 CrowOutput.__index = CrowOutput
 
--- Type descriptions for dynamic help
-local TYPE_DESCRIPTIONS = {
-  Gate = "Clocked gate/trigger output.\n\nClock: Sends gates at clock intervals.\nPattern: Euclidean-style rhythmic patterns.\n\nVoltage sets gate height, Length sets duty cycle.",
+-- Mode options by category
+local GATE_MODES = {"Clock", "Pattern", "Euclidean", "Burst"}
+local CV_MODES = {"LFO", "Envelope", "Looped Random", "Clocked Random", "Random Walk", "Knob Recorder"}
+
+-- Mode descriptions for dynamic help
+local MODE_DESCRIPTIONS = {
+  Clock = "Clocked gate/trigger output.\n\nSends gates at clock intervals.\nVoltage sets gate height.\nLength sets duty cycle as percentage.",
+  Pattern = "Random rhythmic patterns.\n\nLength: Total steps in pattern.\nHits: Number of active steps.\nReroll: Generate new random pattern.\n\nHits distributed randomly across pattern length.",
+  Euclidean = "Euclidean rhythmic patterns.\n\nLength: Total steps in pattern.\nHits: Active steps spread evenly.\nRotation: Shift pattern start point.\n\nClassic Bjorklund algorithm for balanced rhythms.",
   Burst = "Rapid burst of triggers.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\nShape: Timing distribution (linear, accelerating, etc).\n\nGreat for drum rolls and fills.",
   LFO = "Low frequency oscillator.\n\nShape: Waveform type (sine, linear, etc).\nMin/Max: Voltage range.\n\nSyncs to clock for tempo-locked modulation.",
   Envelope = "Shaped voltage envelope.\n\nADSR: Attack, Decay, Sustain, Release.\nAR: Simple attack/release.\n\nDuration sets total time relative to clock. Useful for synced modulation.",
@@ -21,6 +27,14 @@ local TYPE_DESCRIPTIONS = {
   ["Clocked Random"] = "Random voltage on external trigger.\n\nCrow Input: Which input triggers new values.\nQuantize: Snap to scale voltages.\n\nReactive to external clock or gates.",
   ["Random Walk"] = "Wandering random voltage.\n\nJump: Random position each step.\nAccumulate: Gradual drift from current value.\n\nSlew smooths transitions. Great for generative modulation."
 }
+
+-- Get current mode for an output (handles category-based mode indexing)
+local function get_output_mode(output_num)
+  local category = params:string("crow_" .. output_num .. "_category")
+  local mode_index = params:get("crow_" .. output_num .. "_mode")
+  local modes = category == "Gate" and GATE_MODES or CV_MODES
+  return modes[mode_index] or modes[1]
+end
 
 -- Store active clock IDs globally
 local active_clocks = {}
@@ -167,9 +181,10 @@ end
 
 -- Pattern generation and management
 
-function CrowOutput.generate_pattern(output_num)
-    local pattern_length = params:get("crow_" .. output_num .. "_gate_pattern_length")
-    local pattern_hits = params:get("crow_" .. output_num .. "_gate_pattern_hits")
+-- Generate random pattern with hits distributed randomly across length
+function CrowOutput.generate_random_pattern(output_num)
+    local pattern_length = params:get("crow_" .. output_num .. "_pattern_length")
+    local pattern_hits = params:get("crow_" .. output_num .. "_pattern_hits")
 
     if not pattern_states[output_num] then
         pattern_states[output_num] = {
@@ -177,6 +192,9 @@ function CrowOutput.generate_pattern(output_num)
             current_step = 1
         }
     end
+
+    -- Clamp hits to length to prevent infinite loop
+    pattern_hits = math.min(pattern_hits, pattern_length)
 
     local pattern = {}
     local hits_placed = 0
@@ -201,8 +219,89 @@ function CrowOutput.generate_pattern(output_num)
     return pattern
 end
 
+-- Generate euclidean pattern using Bjorklund algorithm
+function CrowOutput.generate_euclidean_pattern(output_num)
+    local pattern_length = params:get("crow_" .. output_num .. "_euclidean_length")
+    local pattern_hits = params:get("crow_" .. output_num .. "_euclidean_hits")
+    local rotation = params:get("crow_" .. output_num .. "_euclidean_rotation")
+
+    if not pattern_states[output_num] then
+        pattern_states[output_num] = {
+            pattern = {},
+            current_step = 1
+        }
+    end
+
+    -- Clamp hits to length
+    pattern_hits = math.min(pattern_hits, pattern_length)
+
+    -- Bjorklund algorithm
+    local pattern = {}
+    if pattern_hits == 0 then
+        for i = 1, pattern_length do
+            pattern[i] = false
+        end
+    elseif pattern_hits == pattern_length then
+        for i = 1, pattern_length do
+            pattern[i] = true
+        end
+    else
+        local groups = {}
+        for i = 1, pattern_hits do
+            groups[i] = {true}
+        end
+        for i = 1, pattern_length - pattern_hits do
+            groups[pattern_hits + i] = {false}
+        end
+
+        while #groups > pattern_hits do
+            local new_groups = {}
+            local num_to_merge = math.min(pattern_hits, #groups - pattern_hits)
+            for i = 1, num_to_merge do
+                local merged = {}
+                for _, v in ipairs(groups[i]) do table.insert(merged, v) end
+                for _, v in ipairs(groups[#groups - num_to_merge + i]) do table.insert(merged, v) end
+                new_groups[i] = merged
+            end
+            for i = num_to_merge + 1, #groups - num_to_merge do
+                new_groups[i] = groups[i]
+            end
+            groups = new_groups
+            if #groups <= pattern_hits then break end
+        end
+
+        local idx = 1
+        for _, group in ipairs(groups) do
+            for _, v in ipairs(group) do
+                pattern[idx] = v
+                idx = idx + 1
+            end
+        end
+    end
+
+    -- Apply rotation
+    if rotation > 0 then
+        local rotated = {}
+        for i = 1, pattern_length do
+            local src_idx = ((i - 1 + rotation) % pattern_length) + 1
+            rotated[i] = pattern[src_idx]
+        end
+        pattern = rotated
+    end
+
+    pattern_states[output_num].pattern = pattern
+    pattern_states[output_num].current_step = 1
+
+    return pattern
+end
+
 function CrowOutput.reroll_pattern(output_num)
-    CrowOutput.generate_pattern(output_num)
+    local mode = get_output_mode(output_num)
+    if mode == "Pattern" then
+        CrowOutput.generate_random_pattern(output_num)
+    elseif mode == "Euclidean" then
+        CrowOutput.generate_euclidean_pattern(output_num)
+    end
     CrowOutput.update_crow(output_num)
     _seeker.screen_ui.set_needs_redraw()
 end
@@ -326,9 +425,9 @@ function CrowOutput.update_crow(output_num)
 
     random_walk_states[output_num].initialized = false
 
-    local type = params:string("crow_" .. output_num .. "_type")
+    local mode = get_output_mode(output_num)
 
-    if type == "LFO" then
+    if mode == "LFO" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
@@ -352,7 +451,7 @@ function CrowOutput.update_crow(output_num)
         return
     end
 
-    if type == "Looped Random" then
+    if mode == "Looped Random" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local shape = params:string("crow_" .. output_num .. "_looped_random_shape")
@@ -408,7 +507,7 @@ function CrowOutput.update_crow(output_num)
         return
     end
 
-    if type == "Clocked Random" then
+    if mode == "Clocked Random" then
         local input_number = params:get("crow_" .. output_num .. "_clocked_random_trigger")
         local min_value = params:get("crow_" .. output_num .. "_clocked_random_min")
         local max_value = params:get("crow_" .. output_num .. "_clocked_random_max")
@@ -447,7 +546,7 @@ function CrowOutput.update_crow(output_num)
         return
     end
 
-    if type == "Burst" then
+    if mode == "Burst" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
@@ -482,7 +581,7 @@ function CrowOutput.update_crow(output_num)
         return
     end
 
-    if type == "Gate" then
+    if mode == "Clock" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
@@ -493,60 +592,74 @@ function CrowOutput.update_crow(output_num)
             return
         end
 
-        local gate_mode = params:string("crow_" .. output_num .. "_gate_mode")
+        local clock_fn = function()
+            while true do
+                local gate_voltage = params:get("crow_" .. output_num .. "_clock_voltage")
+                local gate_length = params:get("crow_" .. output_num .. "_clock_length") / 100
+                local gate_time = timing.total_sec * gate_length
 
-        if gate_mode == "Clock" then
-            local clock_fn = function()
-                while true do
-                    local gate_voltage = params:get("crow_" .. output_num .. "_gate_voltage")
-                    local gate_length = params:get("crow_" .. output_num .. "_gate_length") / 100
-                    local gate_time = timing.total_sec * gate_length
+                crow.output[output_num].volts = gate_voltage
+                clock.sleep(gate_time)
+                crow.output[output_num].volts = 0
 
-                    crow.output[output_num].volts = gate_voltage
-                    clock.sleep(gate_time)
-                    crow.output[output_num].volts = 0
-
-                    clock.sync(timing.beats, timing.offset)
-                end
+                clock.sync(timing.beats, timing.offset)
             end
-
-            setup_clock("crow_" .. output_num, clock_fn)
-        else
-            if not pattern_states[output_num] or not pattern_states[output_num].pattern then
-                CrowOutput.generate_pattern(output_num)
-            end
-
-            local clock_fn = function()
-                while true do
-                    local gate_voltage = params:get("crow_" .. output_num .. "_gate_voltage")
-                    local gate_length = params:get("crow_" .. output_num .. "_gate_length") / 100
-                    local gate_time = timing.total_sec * gate_length
-                    local pattern = pattern_states[output_num].pattern
-                    local current_step = pattern_states[output_num].current_step
-
-                    if pattern[current_step] then
-                        crow.output[output_num].volts = gate_voltage
-                        clock.sleep(gate_time)
-                        crow.output[output_num].volts = 0
-                    end
-
-                    current_step = current_step + 1
-                    if current_step > #pattern then
-                        current_step = 1
-                    end
-                    pattern_states[output_num].current_step = current_step
-
-                    clock.sync(timing.beats, timing.offset)
-                end
-            end
-
-            setup_clock("crow_" .. output_num, clock_fn)
         end
 
+        setup_clock("crow_" .. output_num, clock_fn)
         return
     end
 
-    if type == "Envelope" then
+    if mode == "Pattern" or mode == "Euclidean" then
+        local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
+        local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
+        local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
+        local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
+
+        if not timing then
+            crow.output[output_num].volts = 0
+            return
+        end
+
+        if not pattern_states[output_num] or not pattern_states[output_num].pattern then
+            if mode == "Pattern" then
+                CrowOutput.generate_random_pattern(output_num)
+            else
+                CrowOutput.generate_euclidean_pattern(output_num)
+            end
+        end
+
+        local clock_fn = function()
+            while true do
+                local voltage_param = mode == "Pattern" and "_pattern_voltage" or "_euclidean_voltage"
+                local length_param = mode == "Pattern" and "_pattern_length" or "_euclidean_length"
+                local gate_voltage = params:get("crow_" .. output_num .. voltage_param)
+                local gate_length_pct = params:get("crow_" .. output_num .. "_gate_length") / 100
+                local gate_time = timing.total_sec * gate_length_pct
+                local pattern = pattern_states[output_num].pattern
+                local current_step = pattern_states[output_num].current_step
+
+                if pattern[current_step] then
+                    crow.output[output_num].volts = gate_voltage
+                    clock.sleep(gate_time)
+                    crow.output[output_num].volts = 0
+                end
+
+                current_step = current_step + 1
+                if current_step > #pattern then
+                    current_step = 1
+                end
+                pattern_states[output_num].current_step = current_step
+
+                clock.sync(timing.beats, timing.offset)
+            end
+        end
+
+        setup_clock("crow_" .. output_num, clock_fn)
+        return
+    end
+
+    if mode == "Envelope" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
@@ -638,7 +751,7 @@ function CrowOutput.update_crow(output_num)
         return
     end
 
-    if type == "Random Walk" then
+    if mode == "Random Walk" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local clock_offset = params:string("crow_" .. output_num .. "_clock_offset")
@@ -737,50 +850,65 @@ local function create_screen_ui()
 
     norns_ui.rebuild_params = function(self)
         local selected_number = params:get("eurorack_selected_number")
-        self.name = string.format("Crow %d", selected_number)
+        self.name = "Output Type"
 
         local param_table = {}
         local output_num = selected_number
-        local type = params:string("crow_" .. output_num .. "_type")
+        local category = params:string("crow_" .. output_num .. "_category")
+        local mode = get_output_mode(output_num)
 
-        -- Update description based on selected type
-        self.description = TYPE_DESCRIPTIONS[type] or Descriptions.CROW_OUTPUT
+        -- Update description based on selected mode
+        self.description = MODE_DESCRIPTIONS[mode] or Descriptions.CROW_OUTPUT
 
+        -- Header shows Crow output number and current mode
         table.insert(param_table, { separator = true, title = "Crow " .. output_num })
-        table.insert(param_table, { id = "crow_" .. output_num .. "_type" })
+        table.insert(param_table, { id = "crow_" .. output_num .. "_category" })
 
-        if type ~= "Clocked Random" and type ~= "Knob Recorder" then
+        -- Mode param with dynamic display based on category
+        local modes = category == "Gate" and GATE_MODES or CV_MODES
+        local mode_display = function(param)
+            local idx = params:get(param.id)
+            return modes[idx] or modes[1]
+        end
+        table.insert(param_table, { id = "crow_" .. output_num .. "_mode", formatter = mode_display })
+
+        if mode ~= "Clocked Random" and mode ~= "Knob Recorder" then
             table.insert(param_table, { separator = true, title = "Clock" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_interval" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_modifier" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_offset" })
         end
 
-        if type == "Burst" then
+        if mode == "Burst" then
             table.insert(param_table, { separator = true, title = "Burst" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_count" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_time", arc_multi_float = {0.1, 0.05, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_shape" })
-        elseif type == "Gate" then
-            table.insert(param_table, { separator = true, title = "Gate" })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_gate_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
+        elseif mode == "Clock" then
+            table.insert(param_table, { separator = true, title = "Clock" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_clock_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_clock_length", arc_multi_float = {10, 5, 1} })
+        elseif mode == "Pattern" then
+            table.insert(param_table, { separator = true, title = "Pattern" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_pattern_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_gate_mode" })
-
-            local gate_mode = params:string("crow_" .. output_num .. "_gate_mode")
-            if gate_mode == "Pattern" then
-                table.insert(param_table, { separator = true, title = "Pattern" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_gate_pattern_length" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_gate_pattern_hits" })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_gate_pattern_reroll", is_action = true })
-            end
-        elseif type == "LFO" then
+            table.insert(param_table, { id = "crow_" .. output_num .. "_pattern_length" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_pattern_hits" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_pattern_reroll", is_action = true })
+        elseif mode == "Euclidean" then
+            table.insert(param_table, { separator = true, title = "Euclidean" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_euclidean_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_gate_length", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_euclidean_length" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_euclidean_hits" })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_euclidean_rotation" })
+        elseif mode == "LFO" then
             table.insert(param_table, { separator = true, title = "LFO" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_min", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_max", arc_multi_float = {1.0, 0.1, 0.01} })
-        elseif type == "Looped Random" then
+        elseif mode == "Looped Random" then
             table.insert(param_table, { separator = true, title = "Looped Random" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_quantize" })
@@ -788,19 +916,19 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_loops" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_min", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_max", arc_multi_float = {1.0, 0.1, 0.01} })
-        elseif type == "Clocked Random" then
+        elseif mode == "Clocked Random" then
             table.insert(param_table, { separator = true, title = "Clocked Random" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_trigger" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_quantize" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_min", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clocked_random_max", arc_multi_float = {1.0, 0.1, 0.01} })
-        elseif type == "Knob Recorder" then
+        elseif mode == "Knob Recorder" then
             table.insert(param_table, { separator = true, title = "Knob Recorder" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity", arc_multi_float = {0.1, 0.05, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_start_recording", is_action = true })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_clear", is_action = true })
-        elseif type == "Envelope" then
+        elseif mode == "Envelope" then
             table.insert(param_table, { separator = true, title = "Envelope" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_mode" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
@@ -815,7 +943,7 @@ local function create_screen_ui()
 
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
-        elseif type == "Random Walk" then
+        elseif mode == "Random Walk" then
             table.insert(param_table, { separator = true, title = "Random Walk" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_mode" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_slew", arc_multi_float = {10, 5, 1} })
@@ -863,7 +991,7 @@ local function create_grid_ui()
       -- Check if output is enabled based on type
       local type = params:string("crow_" .. output_num .. "_type")
       local is_enabled = false
-      if type == "Clocked Random" then
+      if mode == "Clocked Random" then
         is_enabled = params:get("crow_" .. output_num .. "_clocked_random_trigger") > 0
       elseif type ~= "Knob Recorder" then
         is_enabled = params:string("crow_" .. output_num .. "_clock_interval") ~= "Off"
@@ -905,7 +1033,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("crow_output", "CROW OUTPUT", 184)
+    params:add_group("crow_output", "CROW OUTPUT", 204)
 
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -921,8 +1049,11 @@ local function create_params()
             CrowOutput.update_crow(i)
         end)
 
-        params:add_option("crow_" .. i .. "_type", "Type", {"Gate", "Burst", "LFO", "Envelope", "Knob Recorder", "Looped Random", "Clocked Random", "Random Walk"}, 1)
-        params:set_action("crow_" .. i .. "_type", function(value)
+        -- Mode param - index into GATE_MODES or CV_MODES based on category
+        params:add_number("crow_" .. i .. "_mode", "Mode", 1, 6, 1)
+        params:set_action("crow_" .. i .. "_mode", function(value)
+            -- Reset pattern state when mode changes
+            pattern_states[i] = nil
             CrowOutput.update_crow(i)
             if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
                 _seeker.eurorack.crow_output.screen:rebuild_params()
@@ -930,40 +1061,61 @@ local function create_params()
             end
         end)
 
-        -- Gate parameters
-        params:add_control("crow_" .. i .. "_gate_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
-        params:set_action("crow_" .. i .. "_gate_voltage", function(value)
+        -- Clock parameters (simple clocked gate)
+        params:add_control("crow_" .. i .. "_clock_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_clock_voltage", function(value)
             CrowOutput.update_crow(i)
         end)
+        params:add_control("crow_" .. i .. "_clock_length", "Gate Length", controlspec.new(1, 100, 'lin', 1, 25), function(param) return params:get(param.id) .. "%" end)
+        params:set_action("crow_" .. i .. "_clock_length", function(value)
+            CrowOutput.update_crow(i)
+        end)
+
+        -- Shared gate length for Pattern/Euclidean
         params:add_control("crow_" .. i .. "_gate_length", "Gate Length", controlspec.new(1, 100, 'lin', 1, 25), function(param) return params:get(param.id) .. "%" end)
         params:set_action("crow_" .. i .. "_gate_length", function(value)
             CrowOutput.update_crow(i)
         end)
 
-        params:add_option("crow_" .. i .. "_gate_mode", "Gate Mode", {"Clock", "Pattern"}, 1)
-        params:set_action("crow_" .. i .. "_gate_mode", function(value)
-            CrowOutput.update_crow(i)
-            if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
-                _seeker.eurorack.crow_output.screen:rebuild_params()
-                _seeker.screen_ui.set_needs_redraw()
-            end
-        end)
-
-        params:add_number("crow_" .. i .. "_gate_pattern_length", "Pattern Length", 1, 32, 8)
-        params:set_action("crow_" .. i .. "_gate_pattern_length", function(value)
-            CrowOutput.generate_pattern(i)
+        -- Pattern parameters (random distribution)
+        params:add_control("crow_" .. i .. "_pattern_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_pattern_voltage", function(value)
             CrowOutput.update_crow(i)
         end)
-
-        params:add_number("crow_" .. i .. "_gate_pattern_hits", "Pattern Hits", 1, 32, 4)
-        params:set_action("crow_" .. i .. "_gate_pattern_hits", function(value)
-            CrowOutput.generate_pattern(i)
+        params:add_number("crow_" .. i .. "_pattern_length", "Length", 1, 32, 8)
+        params:set_action("crow_" .. i .. "_pattern_length", function(value)
+            CrowOutput.generate_random_pattern(i)
             CrowOutput.update_crow(i)
         end)
-
-        params:add_binary("crow_" .. i .. "_gate_pattern_reroll", "Reroll Pattern", "trigger", 0)
-        params:set_action("crow_" .. i .. "_gate_pattern_reroll", function(value)
+        params:add_number("crow_" .. i .. "_pattern_hits", "Hits", 1, 32, 4)
+        params:set_action("crow_" .. i .. "_pattern_hits", function(value)
+            CrowOutput.generate_random_pattern(i)
+            CrowOutput.update_crow(i)
+        end)
+        params:add_binary("crow_" .. i .. "_pattern_reroll", "Reroll", "trigger", 0)
+        params:set_action("crow_" .. i .. "_pattern_reroll", function(value)
             CrowOutput.reroll_pattern(i)
+        end)
+
+        -- Euclidean parameters (Bjorklund algorithm)
+        params:add_control("crow_" .. i .. "_euclidean_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
+        params:set_action("crow_" .. i .. "_euclidean_voltage", function(value)
+            CrowOutput.update_crow(i)
+        end)
+        params:add_number("crow_" .. i .. "_euclidean_length", "Length", 1, 32, 8)
+        params:set_action("crow_" .. i .. "_euclidean_length", function(value)
+            CrowOutput.generate_euclidean_pattern(i)
+            CrowOutput.update_crow(i)
+        end)
+        params:add_number("crow_" .. i .. "_euclidean_hits", "Hits", 1, 32, 4)
+        params:set_action("crow_" .. i .. "_euclidean_hits", function(value)
+            CrowOutput.generate_euclidean_pattern(i)
+            CrowOutput.update_crow(i)
+        end)
+        params:add_number("crow_" .. i .. "_euclidean_rotation", "Rotation", 0, 31, 0)
+        params:set_action("crow_" .. i .. "_euclidean_rotation", function(value)
+            CrowOutput.generate_euclidean_pattern(i)
+            CrowOutput.update_crow(i)
         end)
 
         -- Burst parameters
