@@ -347,17 +347,17 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
                 table.insert(param_table, { separator = true, title = "Individual Event" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.5, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, {
                     id = "lane_" .. lane_idx .. "_adsr_visual_edit",
                     is_action = true,
                     custom_name = "Visual Edit",
                     custom_value = "..."
                 })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.5, 0.1, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { separator = true, title = "Lane Effects" })
                 table.insert(param_table, {
                     id = "lane_" .. lane_idx .. "_lpf",
@@ -436,17 +436,17 @@ local function create_screen_ui()
                 -- Multisample Params
                 if params:get("lane_" .. lane_idx .. "_disting_algorithm") == 1 then
                     table.insert(param_table, { separator = true, title = "Multisample Params" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sample_folder" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_attack", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_decay", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sustain", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_release", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, {
                         id = "lane_" .. lane_idx .. "_disting_multisample_visual_edit",
                         is_action = true,
                         custom_name = "Visual Edit",
                         custom_value = "..."
                     })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sample_folder" })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_attack", arc_multi_float = {10, 5, 1} })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_decay", arc_multi_float = {10, 5, 1} })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sustain", arc_multi_float = {10, 5, 1} })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_release", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_gain", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_mode" })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_level", arc_multi_float = {10, 5, 1} })

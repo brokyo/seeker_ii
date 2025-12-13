@@ -16,10 +16,54 @@ UIState.state = {
   knob_recording_active = false
 }
 
-
-
 -- Constants
 UIState.TRIGGER_VISUAL_DURATION = 0.5 -- Duration in seconds to show trigger feedback
+
+-- Encoder smoothing for DIY norns with noisy encoders (Shield Encoder Fix)
+-- Sum deltas over a window (magnitude matters), emit ±1 based on net direction
+local ENC_ACCUM_WINDOW = 0.05  -- 50ms accumulation window
+
+local function filter_enc_bounce(enc_num, delta)
+  -- Check if Shield Encoder Fix is enabled (params may not exist during early init)
+  local fix_enabled = params and params.lookup["shield_encoder_fix"] and params:get("shield_encoder_fix") == 2
+  if not fix_enabled then
+    return delta  -- Pass through unfiltered
+  end
+
+  local now = util.time()
+
+  -- Initialize accumulator state
+  UIState.state.enc_accum = UIState.state.enc_accum or {0, 0, 0}
+  UIState.state.enc_accum_start = UIState.state.enc_accum_start or {0, 0, 0}
+
+  -- Start window if not running
+  if UIState.state.enc_accum_start[enc_num] == 0 then
+    UIState.state.enc_accum_start[enc_num] = now
+  end
+
+  -- Accumulate delta (magnitude weighted)
+  UIState.state.enc_accum[enc_num] = UIState.state.enc_accum[enc_num] + delta
+
+  -- Check if window has closed
+  local elapsed = now - UIState.state.enc_accum_start[enc_num]
+  if elapsed >= ENC_ACCUM_WINDOW then
+    local sum = UIState.state.enc_accum[enc_num]
+
+    -- Reset for next window
+    UIState.state.enc_accum[enc_num] = 0
+    UIState.state.enc_accum_start[enc_num] = 0
+
+    -- Emit ±1 based on sign of sum (capped to avoid jumps)
+    if sum > 0 then
+      return 1
+    elseif sum < 0 then
+      return -1
+    end
+    -- Zero sum = no movement
+  end
+
+  return nil  -- Suppress until window completes
+end
 
 function UIState.init()
   print("⎍ UI state tracking")
@@ -180,9 +224,13 @@ end
 function UIState.enc(n, d)
   UIState.register_activity()
 
+  -- Filter encoder bounce on DIY norns
+  local filtered = filter_enc_bounce(n, d)
+  if not filtered then return end
+
   -- Pass to screen UI (Modal routing happens inside norns_ui.handle_enc_default)
   if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
-    _seeker.screen_ui.enc(n, d)
+    _seeker.screen_ui.enc(n, filtered)
   end
 end
 

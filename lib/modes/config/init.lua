@@ -83,7 +83,7 @@ local function tap_tempo()
 end
 
 local function create_params()
-    params:add_group("config", "CONFIG", 5)
+    params:add_group("config", "CONFIG", 6)
 
     -- Clock - create wrapper parameter that controls system clock_tempo
     params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
@@ -122,6 +122,9 @@ local function create_params()
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
     params:add_binary("screensaver_enabled", "Screensaver", "toggle", 1)
+
+    -- Hardware
+    params:add_option("shield_encoder_fix", "Shield Encoder Fix", {"Off", "On"}, 1)
 end
 
 local function create_screen_ui()
@@ -136,7 +139,9 @@ local function create_screen_ui()
             { id = "sync_all_clocks", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },
-            { id = "screensaver_enabled" }
+            { id = "screensaver_enabled" },
+            { separator = true, title = "Hardware" },
+            { id = "shield_encoder_fix" }
         }
     })
 

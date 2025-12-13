@@ -458,20 +458,9 @@ local function create_screen_ui()
         elseif type == "Envelope" then
             table.insert(param_table, { separator = true, title = "Envelope" })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_mode" })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_duration", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_attack", arc_multi_float = {10, 5, 1} })
 
             local mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
-            if mode == "ADSR" then
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_decay", arc_multi_float = {10, 5, 1} })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_sustain", arc_multi_float = {10, 5, 1} })
-            end
-
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
-
-            -- Visual Edit only for ADSR mode
+            -- Visual Edit only for ADSR mode (at top of section)
             if mode == "ADSR" then
                 table.insert(param_table, {
                     id = "txo_cv_" .. output_num .. "_envelope_visual_edit",
@@ -480,6 +469,18 @@ local function create_screen_ui()
                     custom_value = "..."
                 })
             end
+
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_duration", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_attack", arc_multi_float = {10, 5, 1} })
+
+            if mode == "ADSR" then
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_decay", arc_multi_float = {10, 5, 1} })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_sustain", arc_multi_float = {10, 5, 1} })
+            end
+
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
         end
 
         self.params = param_table

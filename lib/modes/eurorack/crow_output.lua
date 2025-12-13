@@ -1052,20 +1052,9 @@ local function create_screen_ui()
         elseif mode == "Envelope" then
             table.insert(param_table, { separator = true, title = "Envelope" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_mode" })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_duration", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_attack", arc_multi_float = {10, 5, 1} })
 
             local envelope_mode = params:string("crow_" .. output_num .. "_envelope_mode")
-            if envelope_mode == "ADSR" then
-                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_decay", arc_multi_float = {10, 5, 1} })
-                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_sustain", arc_multi_float = {10, 5, 1} })
-            end
-
-            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
-
-            -- Visual Edit only for ADSR mode
+            -- Visual Edit only for ADSR mode (at top of section)
             if envelope_mode == "ADSR" then
                 table.insert(param_table, {
                     id = "crow_" .. output_num .. "_envelope_visual_edit",
@@ -1074,6 +1063,18 @@ local function create_screen_ui()
                     custom_value = "..."
                 })
             end
+
+            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_duration", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_attack", arc_multi_float = {10, 5, 1} })
+
+            if envelope_mode == "ADSR" then
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_decay", arc_multi_float = {10, 5, 1} })
+                table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_sustain", arc_multi_float = {10, 5, 1} })
+            end
+
+            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
         elseif mode == "Random Walk" then
             table.insert(param_table, { separator = true, title = "Random Walk" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_mode" })
