@@ -313,11 +313,11 @@ function NornsUI:draw_params(start_y)
         end
       elseif not param.custom_value and param_base.behavior == "trigger" then
         local recently_triggered = _seeker.ui_state.is_recently_triggered(param.id)
-        
+
         if recently_triggered then
-          param_value = "✓"
+          param_value = "●"
         else
-          param_value = "␣"
+          param_value = "○"
         end
       end
 

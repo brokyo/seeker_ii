@@ -4,7 +4,7 @@
 
 return {
   -- Global
-  CONFIG = "Settings that affect all modes",
+  CONFIG = "Application-level settings. Shield Encoder fix helps smooth Norns Shields experience.",
 
   -- Lane/Keyboard
   LANE_CONFIG = "Select motif type and configure voices. Multiple voices can run simultaneously.",

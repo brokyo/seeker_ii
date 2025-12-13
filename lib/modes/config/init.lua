@@ -41,41 +41,50 @@ local function calculate_tap_tempo()
     return math.floor(bpm)
 end
 
+local function apply_tempo(bpm)
+    params:set("clock_tempo", bpm)
+    params:set("seeker_clock_tempo", bpm)
+
+    -- Update the clock engine directly
+    if clock.internal and clock.internal.set_tempo then
+        clock.internal.set_tempo(bpm)
+    end
+
+    -- Propagate tempo change to listeners
+    if clock.tempo_change_handler then
+        clock.tempo_change_handler(bpm)
+    end
+
+    _seeker.screen_ui.set_needs_redraw()
+end
+
 local function tap_tempo()
     local current_time = util.time()
-    
+
     -- Add current tap time
     table.insert(tap_times, current_time)
-    
+
     -- Keep only the last MAX_TAPS
     if #tap_times > MAX_TAPS then
         table.remove(tap_times, 1)
     end
-    
+
+    -- Visual feedback for tap
+    _seeker.ui_state.trigger_activated("tap_tempo")
+
+    -- Update tempo live as user taps
+    local bpm = calculate_tap_tempo()
+    if bpm then
+        apply_tempo(bpm)
+    end
+
     -- Cancel existing timer
     if tap_timer then
         tap_timer:stop()
     end
-    
-    -- Set new timer for inactivity
+
+    -- Reset tap buffer after inactivity
     tap_timer = metro.init(function()
-        local bpm = calculate_tap_tempo()
-        if bpm then
-            params:set("clock_tempo", bpm)
-            params:set("seeker_clock_tempo", bpm) -- Also update our wrapper parameter
-
-            -- Directly set the internal clock tempo (this actually updates the clock engine)
-            if clock.internal and clock.internal.set_tempo then
-                clock.internal.set_tempo(bpm)
-            end
-
-            -- Manually trigger tempo change handler
-            if clock.tempo_change_handler then
-                clock.tempo_change_handler(bpm)
-            end
-
-            _seeker.screen_ui.set_needs_redraw()
-        end
         tap_times = {}
         tap_timer:stop()
     end, INACTIVITY_TIMEOUT, 1)
@@ -91,12 +100,12 @@ local function create_params()
         -- Update the system clock_tempo parameter
         params:set("clock_tempo", value)
 
-        -- Directly set the internal clock tempo (this actually updates the clock engine)
+        -- Update the clock engine directly
         if clock.internal and clock.internal.set_tempo then
             clock.internal.set_tempo(value)
         end
 
-        -- Manually trigger tempo change handler since params:set() doesn't always trigger it
+        -- Propagate tempo change to listeners
         if clock.tempo_change_handler then
             clock.tempo_change_handler(value)
         end
