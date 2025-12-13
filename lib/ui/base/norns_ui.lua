@@ -235,8 +235,16 @@ function NornsUI:draw_params(start_y)
   -- Filter active_params table to only show params that pass the conditional check
   self:filter_active_params()
 
-  -- Ensure scroll offset stays in valid range
-  local max_scroll = math.max(0, #self.active_params - max_visible_items)
+  -- Count separators to calculate total spacing padding
+  local total_separators = 0
+  for _, p in ipairs(self.active_params) do
+    if p.separator then total_separators = total_separators + 1 end
+  end
+  local extra_padding = (total_separators > 1) and ((total_separators - 1) * SEPARATOR_PADDING) or 0
+  local effective_visible_items = math.floor((visible_height - extra_padding) / ITEM_HEIGHT)
+
+  -- Ensure scroll offset stays in valid range (use effective count to account for separator padding)
+  local max_scroll = math.max(0, #self.active_params - effective_visible_items)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
 
   -- Track if we've seen a separator (to skip padding on first)
@@ -247,6 +255,8 @@ function NornsUI:draw_params(start_y)
   for i = 1, math.min(max_visible_items, #self.active_params) do
     local param_idx = i + self.state.scroll_offset
     local param = self.active_params[param_idx]
+    -- Stop drawing if we've scrolled past available parameters
+    if not param then break end
 
     -- Add padding before non-first separators
     if param.separator then
@@ -410,8 +420,16 @@ function NornsUI:handle_enc_default(n, d)
     -- Adjust scroll offset to keep selection visible
     local FOOTER_Y = 52
     local ITEM_HEIGHT = 10
+    local SEPARATOR_PADDING = 4
     local visible_height = FOOTER_Y
-    local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
+
+    -- Count separators to calculate total spacing padding
+    local total_separators = 0
+    for _, p in ipairs(self.active_params) do
+      if p.separator then total_separators = total_separators + 1 end
+    end
+    local extra_padding = (total_separators > 1) and ((total_separators - 1) * SEPARATOR_PADDING) or 0
+    local max_visible_items = math.floor((visible_height - extra_padding) / ITEM_HEIGHT)
     
     -- Scroll up if selection is above visible area
     if new_index <= self.state.scroll_offset then
