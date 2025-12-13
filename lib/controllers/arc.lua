@@ -193,13 +193,15 @@ function Arc.init()
 
         -- Standard single encoder behavior for non-multi-float params
         elseif n == 2 and not selected_param.is_action then
-          -- Check if this is a binary toggle param - handle directly without filter
+          -- Check if this is a binary toggle param - direction sets value (clockwise=on, counter=off)
           if selected_param.id then
             local param_base = params:lookup_param(selected_param.id)
             if param_base and param_base.behavior == "toggle" then
-              -- Toggle binary param directly on any Arc movement
-              local current = params:get(selected_param.id)
-              params:set(selected_param.id, current == 0 and 1 or 0)
+              if direction > 0 then
+                params:set(selected_param.id, 1)
+              else
+                params:set(selected_param.id, 0)
+              end
               device.update_param_value_display()
               _seeker.screen_ui.set_needs_redraw()
               return
@@ -654,7 +656,7 @@ function Arc.init()
               update_option_ring(params:get(param.id), #param_info.options)
 
             -- Handle binary types
-            elseif param_type == params.tBINARY then
+            elseif param_info.behavior == "toggle" or param_info.behavior == "trigger" then
 
               update_binary_ring(params:get(param.id))
             else
@@ -691,11 +693,6 @@ function Arc.init()
       local Modal = _seeker.modal
       if not Modal then return end
 
-      -- Get ADSR data from modal
-      local data = Modal.get_adsr_data()
-      if not data then return end
-
-      local values = {data.a or 0, data.d or 0, data.s or 0, data.r or 0}
       local selected = Modal.get_adsr_selected()
 
       -- Get param specs to determine ranges
@@ -708,7 +705,8 @@ function Arc.init()
       }
 
       for ring = 1, 4 do
-        local value = values[ring]
+        -- Read raw param value directly (not from modal, which may normalize values)
+        local value = params:get(param_ids[ring])
         local is_selected = (ring == selected)
         local base_brightness = is_selected and 4 or 2
         local highlight_brightness = is_selected and 15 or 10

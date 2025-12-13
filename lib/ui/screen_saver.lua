@@ -58,14 +58,18 @@ function ScreenSaver.check_timeout()
   -- Update active state if it changed
   if should_be_active ~= ScreenSaver.state.is_active then
     ScreenSaver.state.is_active = should_be_active
+
+    -- Dismiss any active modal when screensaver activates
+    if should_be_active and _seeker.modal and _seeker.modal.is_active() then
+      _seeker.modal.dismiss()
+    end
   end
 
   return ScreenSaver.state.is_active
 end
 
-function ScreenSaver.draw()
-  screen.clear()
-
+-- Draw the screensaver background (scan lines and timelines) without screen.update()
+function ScreenSaver._draw_background()
   -- Draw scan lines background
   for _, line in ipairs(ScreenSaver.state.lines) do
     -- Update position
@@ -240,7 +244,12 @@ function ScreenSaver.draw()
       end
     end
   end
+end
 
+-- Draw the complete screensaver (background + screen.update)
+function ScreenSaver.draw()
+  screen.clear()
+  ScreenSaver._draw_background()
   screen.update()
 end
 

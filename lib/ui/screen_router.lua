@@ -89,6 +89,7 @@ end
 
 function ScreenUI.redraw()
   if ScreenSaver.check_timeout() then
+    -- Screensaver appears on top of everything, including modals
     ScreenSaver.draw()
   else
     local section = ScreenUI.get_active_section()

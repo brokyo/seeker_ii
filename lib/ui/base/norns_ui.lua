@@ -161,13 +161,15 @@ function NornsUI:modify_param(param, delta)
     end
   end
 
-  -- Prevent binary params from wrapping at boundaries
-  local param_type = params:t(param.id)
-  if param_type == params.tBINARY then
-    local current = params:get(param.id)
-    if (current == 0 and delta < 0) or (current == 1 and delta > 0) then
-      return
+  -- Binary params: encoder direction sets value directly (right=on, left=off)
+  local param_base = params:lookup_param(param.id)
+  if param_base and (param_base.behavior == "toggle" or param_base.behavior == "trigger") then
+    if delta > 0 then
+      params:set(param.id, 1)
+    elseif delta < 0 then
+      params:set(param.id, 0)
     end
+    return
   end
 
   -- Default implementation for norns params as defined in the API (https://monome.org/docs/norns/api/modules/paramset.html#delta)
@@ -206,7 +208,7 @@ function NornsUI:draw_footer()
   screen.move(2, 60)
   screen.text(self.name)
 
-  -- Only show lane/stage info in Motif mode
+  -- Only show lane/stage info in motif mode
   if _seeker.current_mode == "motif" then
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local lane = _seeker.lanes[lane_idx]
@@ -246,6 +248,7 @@ function NornsUI:draw_params(start_y)
   -- Ensure scroll offset stays in valid range (use effective count to account for separator padding)
   local max_scroll = math.max(0, #self.active_params - effective_visible_items)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
+
 
   -- Track if we've seen a separator (to skip padding on first)
   local separator_count = 0
@@ -517,7 +520,7 @@ end
 function NornsUI:exit()
   -- Called when leaving this section
   self.state.is_active = false
-  
+
   -- Reset to first selectable item
   self.state.selected_index = 1
   self.state.scroll_offset = 0
