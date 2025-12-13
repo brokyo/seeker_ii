@@ -72,7 +72,7 @@ function MidiInput.process_midi_event(data)
     local record_note = params:get("record_midi_note")
     local overdub_note = params:get("overdub_midi_note")
     
-    if msg.note == record_note and record_note >= 0 then
+    if record_note >= 0 and msg.note == record_note then
       -- Toggle recording
       if _seeker.motif_recorder.is_recording then
         -- Stop recording
@@ -91,7 +91,7 @@ function MidiInput.process_midi_event(data)
       end
       _seeker.screen_ui.set_needs_redraw()
       return
-    elseif msg.note == overdub_note and overdub_note >= 0 then
+    elseif overdub_note >= 0 and msg.note == overdub_note then
       -- Toggle overdub
       if _seeker.motif_recorder.is_recording then
         -- Stop recording

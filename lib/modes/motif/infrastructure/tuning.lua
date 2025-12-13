@@ -1,5 +1,5 @@
--- keyboard.lua
--- Component for keyboard mode - represents musical/performance parameters
+-- tuning.lua
+-- Global motif settings: tuning, scale, keyboard layout, and MIDI triggers
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -91,8 +91,13 @@ local function create_params()
 
     -- MIDI
     params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 1)
-    params:add_number("record_midi_note", "Record Toggle Note", 0, 127, 0)
-    params:add_number("overdub_midi_note", "Overdub Toggle Note", 0, 127, 0)
+
+    local function midi_note_formatter(param)
+        if param:get() == -1 then return "Off" end
+        return param:get()
+    end
+    params:add_number("record_midi_note", "Record Toggle Note", -1, 127, -1, midi_note_formatter)
+    params:add_number("overdub_midi_note", "Overdub Toggle Note", -1, 127, -1, midi_note_formatter)
 end
 
 -- Motif type constants
@@ -101,7 +106,7 @@ local MOTIF_TYPE_TAPE = 1
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
         id = "KEYBOARD",
-        name = "Motif Keys Config",
+        name = "Tuning",
         description = Descriptions.KEYBOARD,
         params = {}
     })
@@ -132,8 +137,8 @@ local function create_screen_ui()
         table.insert(param_table, { id = "keyboard_row_steps" })
         table.insert(param_table, { separator = true, title = "MIDI" })
         table.insert(param_table, { id = "snap_midi_to_scale" })
-        table.insert(param_table, { id = "record_midi_note" })
-        table.insert(param_table, { id = "overdub_midi_note" })
+        table.insert(param_table, { id = "record_midi_note", arc_multi_float = {10, 5, 1} })
+        table.insert(param_table, { id = "overdub_midi_note", arc_multi_float = {10, 5, 1} })
 
         self.params = param_table
     end

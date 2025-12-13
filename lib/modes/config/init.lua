@@ -60,8 +60,6 @@ end
 
 local function tap_tempo()
     local current_time = util.time()
-
-    -- Add current tap time
     table.insert(tap_times, current_time)
 
     -- Keep only the last MAX_TAPS
@@ -69,10 +67,9 @@ local function tap_tempo()
         table.remove(tap_times, 1)
     end
 
-    -- Visual feedback for tap
     _seeker.ui_state.trigger_activated("tap_tempo")
 
-    -- Update tempo live as user taps
+    -- Calculate and apply tempo from current tap sequence
     local bpm = calculate_tap_tempo()
     if bpm then
         apply_tempo(bpm)

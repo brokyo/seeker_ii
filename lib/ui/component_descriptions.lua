@@ -6,9 +6,9 @@ return {
   -- Global
   CONFIG = "Application-level settings. Shield Encoder fix helps smooth Norns Shields experience.",
 
-  -- Lane/Keyboard
+  -- Motif mode
   LANE_CONFIG = "Select motif type and configure voices. Multiple voices can run simultaneously.",
-  KEYBOARD = "Select the scale. Set keyboard intervals. Connect MIDI. Tape mode shows lane tuning.",
+  KEYBOARD = "Global scale and tuning. Keyboard layout intervals. MIDI record/overdub triggers.",
 
   -- Tape mode
   TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub. Overdubs take on local envelope settings (see Lane Config).",
