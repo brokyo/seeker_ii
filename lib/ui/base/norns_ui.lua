@@ -181,12 +181,12 @@ function NornsUI:_draw_standard_ui()
   -- Draw modal overlay if description is showing
   if self.state.showing_description then
     Modal.draw()
-  -- Otherwise draw footer and params
+  -- Otherwise draw params then footer (footer draws last to clip overflow)
   else
-    self:draw_footer()
     if #self.params > 0 then
       self:draw_params(0)
     end
+    self:draw_footer()
   end
 end
 
@@ -221,24 +221,37 @@ end
 function NornsUI:draw_params(start_y)
   local FOOTER_Y = 52
   local ITEM_HEIGHT = 10
+  local SEPARATOR_PADDING = 4
   local visible_height = FOOTER_Y - start_y
   local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
- 
+
   -- Filter active_params table to only show params that pass the conditional check
   self:filter_active_params()
 
   -- Ensure scroll offset stays in valid range
   local max_scroll = math.max(0, #self.active_params - max_visible_items)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
-  
+
+  -- Track if we've seen a separator (to skip padding on first)
+  local separator_count = 0
+  local y_offset = 0
+
   -- Draw visible, active parameters
   for i = 1, math.min(max_visible_items, #self.active_params) do
     local param_idx = i + self.state.scroll_offset
     local param = self.active_params[param_idx]
 
-    local y = start_y + (i * ITEM_HEIGHT)
+    -- Add padding before non-first separators
+    if param.separator then
+      separator_count = separator_count + 1
+      if separator_count > 1 then
+        y_offset = y_offset + SEPARATOR_PADDING
+      end
+    end
+
+    local y = start_y + (i * ITEM_HEIGHT) + y_offset
     local is_selected = self.state.selected_index == param_idx
-      
+
     if param.separator then
       -- Centered uppercase title with horizontal lines on each side
       local title = param.title or ""
