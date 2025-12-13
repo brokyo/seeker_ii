@@ -463,7 +463,8 @@ function NornsUI:handle_key(n, z)
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self:get_selected_param()
     if param and param.is_action then
-      self:modify_param(param, 1)
+      -- Action params are executed, not modified - use set() to fire the action
+      params:set(param.id, 1)
     end
   end
 end

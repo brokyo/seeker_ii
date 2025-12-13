@@ -7,6 +7,11 @@ local GridConstants = include("lib/grid/constants")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 local Descriptions = include("lib/ui/component_descriptions")
 
+-- Use global Modal singleton
+local function get_modal()
+  return _seeker and _seeker.modal
+end
+
 local TxoCvOutput = {}
 TxoCvOutput.__index = TxoCvOutput
 
@@ -465,6 +470,16 @@ local function create_screen_ui()
 
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
+
+            -- Visual Edit only for ADSR mode
+            if mode == "ADSR" then
+                table.insert(param_table, {
+                    id = "txo_cv_" .. output_num .. "_envelope_visual_edit",
+                    is_action = true,
+                    custom_name = "Visual Edit",
+                    custom_value = "..."
+                })
+            end
         end
 
         self.params = param_table
@@ -537,7 +552,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("txo_cv_output", "TXO CV OUTPUT", 96)
+    params:add_group("txo_cv_output", "TXO CV OUTPUT", 100)
 
     for i = 1, 4 do
         params:add_option("txo_cv_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -681,6 +696,76 @@ local function create_params()
                 TxoCvOutput.update_txo_cv(j)
             end
             print("Restarted all TXO CVs")
+        end)
+
+        -- ADSR visual editor trigger
+        local output_idx = i
+        params:add_trigger("txo_cv_" .. i .. "_envelope_visual_edit", "Visual Edit")
+        params:set_action("txo_cv_" .. i .. "_envelope_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            local function get_adsr_data()
+                return {
+                    a = params:get("txo_cv_" .. output_idx .. "_envelope_attack") / 100,
+                    d = params:get("txo_cv_" .. output_idx .. "_envelope_decay") / 100,
+                    s = params:get("txo_cv_" .. output_idx .. "_envelope_sustain") / 100,
+                    r = params:get("txo_cv_" .. output_idx .. "_envelope_release") / 100
+                }
+            end
+
+            local adsr_params = {
+                "txo_cv_" .. output_idx .. "_envelope_attack",
+                "txo_cv_" .. output_idx .. "_envelope_decay",
+                "txo_cv_" .. output_idx .. "_envelope_sustain",
+                "txo_cv_" .. output_idx .. "_envelope_release"
+            }
+
+            local function on_key(n, z)
+                if z == 1 and (n == 2 or n == 3) then
+                    Modal.dismiss()
+                    _seeker.screen_ui.set_needs_redraw()
+                    return true
+                end
+                return false
+            end
+
+            local function on_enc(n, d, source)
+                if source == "arc" then
+                    if n >= 1 and n <= 4 then
+                        Modal.set_adsr_selected(n)
+                        params:delta(adsr_params[n], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                else
+                    if n == 2 then
+                        local current = Modal.get_adsr_selected()
+                        local new_sel = util.clamp(current + util.round(d), 1, 4)
+                        Modal.set_adsr_selected(new_sel)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    elseif n == 3 then
+                        local sel = Modal.get_adsr_selected()
+                        params:delta(adsr_params[sel], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                end
+                return false
+            end
+
+            if _seeker.arc and _seeker.arc.clear_outer_rings then
+                _seeker.arc.clear_outer_rings()
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                on_key = on_key,
+                on_enc = on_enc,
+                hint = "e2 select e3 change k3 set"
+            })
+            _seeker.screen_ui.set_needs_redraw()
         end)
     end
 end

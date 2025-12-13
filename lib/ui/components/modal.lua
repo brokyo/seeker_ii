@@ -30,7 +30,8 @@ local MODAL_MARGIN = 4
 Modal.TYPE = {
   DESCRIPTION = "description",
   STATUS = "status",
-  RECORDING = "recording"
+  RECORDING = "recording",
+  ADSR = "adsr"
 }
 
 -- Internal state
@@ -45,6 +46,9 @@ local state = {
   -- Recording modal state
   recording_data = nil,       -- function that returns {data, current_voltage, min, max}
   recording_output = nil,     -- output number being recorded
+  -- ADSR modal state
+  adsr_data = nil,            -- function that returns {a, d, s, r, selected}
+  adsr_selected = 1,          -- currently selected stage (1=A, 2=D, 3=S, 4=R)
   -- Input callbacks (optional, for multi-step interactions)
   on_key = nil,               -- function(n, z) -> bool (return true to block default handling)
   on_enc = nil                -- function(n, d, source) -> bool (return true to block default handling)
@@ -177,6 +181,37 @@ function Modal.show_recording(config)
   state.on_enc = config.on_enc
 end
 
+-- Show an ADSR editor modal
+-- config.get_data: function returning {a, d, s, r} values (0-1 range for time params, 0-1 for sustain)
+-- config.on_key: optional function(n, z) for key handling
+-- config.on_enc: optional function(n, d, source) for encoder handling
+function Modal.show_adsr(config)
+  state.active = true
+  state.modal_type = Modal.TYPE.ADSR
+  state.adsr_data = config.get_data
+  state.adsr_selected = config.selected or 1
+  state.hint = config.hint or "k2 cancel · k3 save"
+  state.on_key = config.on_key
+  state.on_enc = config.on_enc
+end
+
+-- Get/set ADSR selected stage (for Norns E2 navigation)
+function Modal.get_adsr_selected()
+  return state.adsr_selected
+end
+
+function Modal.set_adsr_selected(idx)
+  state.adsr_selected = util.clamp(idx, 1, 4)
+end
+
+-- Get ADSR data from callback (for Arc display)
+function Modal.get_adsr_data()
+  if state.adsr_data then
+    return state.adsr_data()
+  end
+  return nil
+end
+
 -- Dismiss the modal
 function Modal.dismiss()
   state.active = false
@@ -188,6 +223,8 @@ function Modal.dismiss()
   state.max_scroll = 0
   state.recording_data = nil
   state.recording_output = nil
+  state.adsr_data = nil
+  state.adsr_selected = 1
   state.on_key = nil
   state.on_enc = nil
 end
@@ -253,6 +290,8 @@ function Modal.draw()
     Modal._draw_status()
   elseif state.modal_type == Modal.TYPE.RECORDING then
     Modal._draw_recording()
+  elseif state.modal_type == Modal.TYPE.ADSR then
+    Modal._draw_adsr()
   end
 end
 
@@ -539,6 +578,118 @@ function Modal.draw_status_immediate(config)
   -- Reset font to default
   screen.font_face(1)
   screen.font_size(8)
+end
+
+-- Draw ADSR editor modal
+function Modal._draw_adsr()
+  local modal_x = MODAL_MARGIN
+  local modal_y = MODAL_MARGIN
+  local modal_width = SCREEN_WIDTH - (MODAL_MARGIN * 2)
+  local modal_height = SCREEN_HEIGHT - (MODAL_MARGIN * 2)
+
+  -- Get live data from callback
+  local info = state.adsr_data and state.adsr_data() or {a = 0.1, d = 0.2, s = 0.7, r = 0.3}
+  local a = info.a or 0.1
+  local d = info.d or 0.2
+  local s = info.s or 0.7
+  local r = info.r or 0.3
+  local selected = state.adsr_selected
+
+  -- Dark background overlay
+  screen.level(0)
+  screen.rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+  screen.fill()
+
+  -- Shadow
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
+
+  -- Modal background
+  screen.level(1)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.fill()
+
+  -- Border
+  screen.level(6)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.stroke()
+
+  -- ADSR envelope visualization area (shifted up to avoid label/hint overlap)
+  local env_x = modal_x + PADDING + 2
+  local env_y = modal_y + 12
+  local env_width = modal_width - (PADDING * 2) - 4
+  local env_height = 22
+
+  -- Calculate envelope points
+  -- Normalize times to fit in width (A+D+R spread across width, sustain holds)
+  local total_time = a + d + r + 0.5  -- sustain gets fixed portion
+  local scale = env_width / total_time
+
+  local x_start = env_x
+  local x_attack = x_start + (a * scale)
+  local x_decay = x_attack + (d * scale)
+  local x_sustain = x_decay + (0.5 * scale)  -- fixed sustain duration for display
+  local x_release = x_sustain + (r * scale)
+
+  local y_bottom = env_y + env_height
+  local y_top = env_y
+  local y_sustain = env_y + (env_height * (1 - s))
+
+  -- Draw envelope shape
+  screen.level(10)
+  screen.move(x_start, y_bottom)
+  screen.line(x_attack, y_top)           -- Attack
+  screen.line(x_decay, y_sustain)        -- Decay
+  screen.line(x_sustain, y_sustain)      -- Sustain hold
+  screen.line(x_release, y_bottom)       -- Release
+  screen.stroke()
+
+  -- Draw stage labels with selection highlight
+  local labels = {"A", "D", "S", "R"}
+  local x_positions = {
+    (x_start + x_attack) / 2,
+    (x_attack + x_decay) / 2,
+    (x_decay + x_sustain) / 2,
+    (x_sustain + x_release) / 2
+  }
+
+  screen.font_face(1)
+  screen.font_size(8)
+
+  local label_y = y_bottom + 9
+
+  for i, label in ipairs(labels) do
+    local x = x_positions[i]
+    local is_selected = (i == selected)
+
+    -- Selection highlight
+    if is_selected then
+      screen.level(15)
+      local label_width = screen.text_extents(label)
+      screen.rect(x - label_width/2 - 2, label_y - 7, label_width + 4, 10)
+      screen.fill()
+      screen.level(0)
+    else
+      screen.level(6)
+    end
+
+    -- Label
+    local label_width = screen.text_extents(label)
+    screen.move(x - label_width/2, label_y)
+    screen.text(label)
+  end
+
+  -- Title
+  screen.level(10)
+  screen.move(modal_x + modal_width / 2 - screen.text_extents("ENVELOPE") / 2, modal_y + 8)
+  screen.text("ENVELOPE")
+
+  -- Hint text (bottom, centered)
+  if state.hint then
+    screen.level(4)
+    local hint_width = screen.text_extents(state.hint)
+    screen.move(modal_x + modal_width / 2 - hint_width / 2, modal_y + modal_height - 4)
+    screen.text(state.hint)
+  end
 end
 
 return Modal

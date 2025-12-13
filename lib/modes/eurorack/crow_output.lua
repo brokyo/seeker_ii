@@ -1064,6 +1064,16 @@ local function create_screen_ui()
 
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_shape" })
+
+            -- Visual Edit only for ADSR mode
+            if envelope_mode == "ADSR" then
+                table.insert(param_table, {
+                    id = "crow_" .. output_num .. "_envelope_visual_edit",
+                    is_action = true,
+                    custom_name = "Visual Edit",
+                    custom_value = "..."
+                })
+            end
         elseif mode == "Random Walk" then
             table.insert(param_table, { separator = true, title = "Random Walk" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_mode" })
@@ -1154,7 +1164,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("crow_output", "CROW OUTPUT", 204)
+    params:add_group("crow_output", "CROW OUTPUT", 208)
 
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -1435,6 +1445,80 @@ local function create_params()
         params:add_option("crow_" .. i .. "_envelope_shape", "Envelope Shape", EurorackUtils.shape_options, 2)
         params:set_action("crow_" .. i .. "_envelope_shape", function(value)
             CrowOutput.update_crow(i)
+        end)
+
+        -- ADSR visual editor trigger
+        local output_idx = i
+        params:add_trigger("crow_" .. i .. "_envelope_visual_edit", "Visual Edit")
+        params:set_action("crow_" .. i .. "_envelope_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            -- Get current ADSR values for visualization (normalized to 0-1)
+            local function get_adsr_data()
+                return {
+                    a = params:get("crow_" .. output_idx .. "_envelope_attack") / 100,
+                    d = params:get("crow_" .. output_idx .. "_envelope_decay") / 100,
+                    s = params:get("crow_" .. output_idx .. "_envelope_sustain") / 100,
+                    r = params:get("crow_" .. output_idx .. "_envelope_release") / 100
+                }
+            end
+
+            -- ADSR param IDs mapped to stages
+            local adsr_params = {
+                "crow_" .. output_idx .. "_envelope_attack",
+                "crow_" .. output_idx .. "_envelope_decay",
+                "crow_" .. output_idx .. "_envelope_sustain",
+                "crow_" .. output_idx .. "_envelope_release"
+            }
+
+            -- Key handler: K2/K3 dismiss
+            local function on_key(n, z)
+                if z == 1 and (n == 2 or n == 3) then
+                    Modal.dismiss()
+                    _seeker.screen_ui.set_needs_redraw()
+                    return true
+                end
+                return false
+            end
+
+            -- Encoder handler: Arc E1-4 control A/D/S/R, Norns E2 selects, E3 adjusts
+            local function on_enc(n, d, source)
+                if source == "arc" then
+                    if n >= 1 and n <= 4 then
+                        Modal.set_adsr_selected(n)
+                        params:delta(adsr_params[n], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                else
+                    if n == 2 then
+                        local current = Modal.get_adsr_selected()
+                        local new_sel = util.clamp(current + util.round(d), 1, 4)
+                        Modal.set_adsr_selected(new_sel)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    elseif n == 3 then
+                        local sel = Modal.get_adsr_selected()
+                        params:delta(adsr_params[sel], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                end
+                return false
+            end
+
+            if _seeker.arc and _seeker.arc.clear_outer_rings then
+                _seeker.arc.clear_outer_rings()
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                on_key = on_key,
+                on_enc = on_enc,
+                hint = "e2 select e3 change k3 set"
+            })
+            _seeker.screen_ui.set_needs_redraw()
         end)
 
         -- Random Walk parameters

@@ -167,11 +167,10 @@ function UIState.key(n, z)
     -- Toggle app visibility
     if _seeker.screen_ui then
       _seeker.screen_ui.state.app_on_screen = not _seeker.screen_ui.state.app_on_screen
-      print("⎍ App visibility toggled")
       return
     end
   end
-  
+
   -- Pass to screen UI if visible
   if _seeker.screen_ui and _seeker.screen_ui.state.app_on_screen then
     _seeker.screen_ui.key(n, z)

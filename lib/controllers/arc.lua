@@ -249,22 +249,14 @@ function Arc.init()
         -- Get current section and selected parameter
         local current_section_id = _seeker.ui_state.get_current_section()
         local current_section = _seeker.screen_ui.sections[current_section_id]
-        local selected_param = current_section.params[current_section.state.selected_index]
+        local selected_param = current_section:get_selected_param()
 
-        -- If selected parameter is an action, trigger it
+        -- If selected parameter is an action, execute it
         if selected_param and selected_param.is_action then
-          current_section:modify_param(selected_param, 1)
-          
-          -- Use the animate_trigger function instead of a simple flash
-          if selected_param.id then
-            device.animate_trigger(selected_param.id)
-          else
-            -- Fallback to simple flash for params without IDs
-            for i = 1, 64 do
-              device:led(2, i, 10)
-            end
-            device:refresh()
-          end
+          params:set(selected_param.id, 1)
+
+          -- Animate the trigger feedback
+          device.animate_trigger(selected_param.id)
         end
       end
     end
@@ -521,8 +513,17 @@ function Arc.init()
         return
       end
 
-      -- When modal is active, only use encoder 2 - clear 3 and 4
+      -- When modal is active, handle display specially
       if _seeker.modal and _seeker.modal.is_active() then
+        local modal_type = _seeker.modal.get_type()
+
+        -- ADSR modal: show A/D/S/R values on rings 1-4
+        if modal_type == _seeker.modal.TYPE.ADSR then
+          device.update_adsr_display()
+          return
+        end
+
+        -- Other modals: clear rings 3 and 4
         for ring = 3, 4 do
           for i = 1, 64 do
             device:led(ring, i, 0)
@@ -660,6 +661,59 @@ function Arc.init()
           device:led(ring, i, 0)
         end
       end
+      device:refresh()
+    end
+
+    -- Display ADSR values on rings 1-4 during ADSR modal
+    device.update_adsr_display = function()
+      local Modal = _seeker.modal
+      if not Modal then return end
+
+      -- Get ADSR data from modal
+      local data = Modal.get_adsr_data()
+      if not data then return end
+
+      local values = {data.a or 0, data.d or 0, data.s or 0, data.r or 0}
+      local selected = Modal.get_adsr_selected()
+
+      -- Get param specs to determine ranges
+      local lane_idx = _seeker.ui_state.get_focused_lane()
+      local param_ids = {
+        "lane_" .. lane_idx .. "_attack",
+        "lane_" .. lane_idx .. "_decay",
+        "lane_" .. lane_idx .. "_sustain",
+        "lane_" .. lane_idx .. "_release"
+      }
+
+      for ring = 1, 4 do
+        local value = values[ring]
+        local is_selected = (ring == selected)
+        local base_brightness = is_selected and 4 or 2
+        local highlight_brightness = is_selected and 15 or 10
+
+        -- Get param range
+        local p = params:lookup_param(param_ids[ring])
+        local min_val = p.controlspec and p.controlspec.minval or 0
+        local max_val = p.controlspec and p.controlspec.maxval or 1
+
+        -- Normalize value to 0-1 range
+        local normalized = (value - min_val) / (max_val - min_val)
+        normalized = util.clamp(normalized, 0, 1)
+
+        -- Calculate LED position (0-63)
+        local led_pos = math.floor(normalized * 63) + 1
+
+        -- Set base illumination
+        for i = 1, 64 do
+          device:led(ring, i, base_brightness)
+        end
+
+        -- Highlight current value position
+        device:led(ring, led_pos, highlight_brightness)
+        if led_pos > 1 then device:led(ring, led_pos - 1, highlight_brightness - 3) end
+        if led_pos < 64 then device:led(ring, led_pos + 1, highlight_brightness - 3) end
+      end
+
       device:refresh()
     end
 

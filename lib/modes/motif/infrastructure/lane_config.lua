@@ -40,7 +40,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 87)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 89)
 
         -- Config Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Config Voice",
@@ -96,6 +96,155 @@ local function create_params()
             controlspec.new(0, 2, 'lin', 0.01, 0.01, "s"))
         params:set_action("lane_" .. i .. "_sampler_release", function()
             if _seeker.sampler then _seeker.sampler.apply_global_envelope(lane_idx) end
+        end)
+
+        -- ADSR visual editor trigger (for MX Samples voice)
+        params:add_trigger("lane_" .. i .. "_adsr_visual_edit", "Visual Edit")
+        params:set_action("lane_" .. i .. "_adsr_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            local idx = lane_idx
+
+            -- Get current ADSR values for visualization
+            local function get_adsr_data()
+                return {
+                    a = params:get("lane_" .. idx .. "_attack"),
+                    d = params:get("lane_" .. idx .. "_decay"),
+                    s = params:get("lane_" .. idx .. "_sustain"),
+                    r = params:get("lane_" .. idx .. "_release")
+                }
+            end
+
+            -- ADSR param IDs mapped to stages (1=A, 2=D, 3=S, 4=R)
+            local adsr_params = {
+                "lane_" .. idx .. "_attack",
+                "lane_" .. idx .. "_decay",
+                "lane_" .. idx .. "_sustain",
+                "lane_" .. idx .. "_release"
+            }
+
+            -- Key handler: K3 saves and dismisses, K2 cancels
+            local function on_key(n, z)
+                if z == 1 then
+                    if n == 2 or n == 3 then
+                        Modal.dismiss()
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                end
+                return false
+            end
+
+            -- Encoder handler: Arc E1-4 control A/D/S/R, Norns E2 selects, E3 adjusts
+            local function on_enc(n, d, source)
+                if source == "arc" then
+                    -- Arc encoders 1-4 directly control A/D/S/R and highlight that stage
+                    if n >= 1 and n <= 4 then
+                        Modal.set_adsr_selected(n)
+                        params:delta(adsr_params[n], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                else
+                    -- Norns E2: select stage, E3: adjust selected value
+                    if n == 2 then
+                        local current = Modal.get_adsr_selected()
+                        local new_sel = util.clamp(current + util.round(d), 1, 4)
+                        Modal.set_adsr_selected(new_sel)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    elseif n == 3 then
+                        local sel = Modal.get_adsr_selected()
+                        params:delta(adsr_params[sel], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                end
+                return false
+            end
+
+            -- Clear Arc outer rings if available
+            if _seeker.arc and _seeker.arc.clear_outer_rings then
+                _seeker.arc.clear_outer_rings()
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                on_key = on_key,
+                on_enc = on_enc,
+                hint = "e2 select e3 change k3 set"
+            })
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+
+        -- Disting Multisample ADSR visual editor trigger
+        params:add_trigger("lane_" .. i .. "_disting_multisample_visual_edit", "Visual Edit")
+        params:set_action("lane_" .. i .. "_disting_multisample_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            local function get_adsr_data()
+                return {
+                    a = params:get("lane_" .. lane_idx .. "_disting_multisample_attack") / 100,
+                    d = params:get("lane_" .. lane_idx .. "_disting_multisample_decay") / 100,
+                    s = params:get("lane_" .. lane_idx .. "_disting_multisample_sustain") / 100,
+                    r = params:get("lane_" .. lane_idx .. "_disting_multisample_release") / 100
+                }
+            end
+
+            local adsr_params = {
+                "lane_" .. lane_idx .. "_disting_multisample_attack",
+                "lane_" .. lane_idx .. "_disting_multisample_decay",
+                "lane_" .. lane_idx .. "_disting_multisample_sustain",
+                "lane_" .. lane_idx .. "_disting_multisample_release"
+            }
+
+            local function on_key(n, z)
+                if z == 1 and (n == 2 or n == 3) then
+                    Modal.dismiss()
+                    _seeker.screen_ui.set_needs_redraw()
+                    return true
+                end
+                return false
+            end
+
+            local function on_enc(n, d, source)
+                if source == "arc" then
+                    if n >= 1 and n <= 4 then
+                        Modal.set_adsr_selected(n)
+                        params:delta(adsr_params[n], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                else
+                    if n == 2 then
+                        local current = Modal.get_adsr_selected()
+                        local new_sel = util.clamp(current + util.round(d), 1, 4)
+                        Modal.set_adsr_selected(new_sel)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    elseif n == 3 then
+                        local sel = Modal.get_adsr_selected()
+                        params:delta(adsr_params[sel], d)
+                        _seeker.screen_ui.set_needs_redraw()
+                        return true
+                    end
+                end
+                return false
+            end
+
+            if _seeker.arc and _seeker.arc.clear_outer_rings then
+                _seeker.arc.clear_outer_rings()
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                on_key = on_key,
+                on_enc = on_enc,
+                hint = "e2 select e3 change k3 set"
+            })
+            _seeker.screen_ui.set_needs_redraw()
         end)
     end
 end
@@ -203,6 +352,12 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {1.0, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.5, 0.1, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, {
+                    id = "lane_" .. lane_idx .. "_adsr_visual_edit",
+                    is_action = true,
+                    custom_name = "Visual Edit",
+                    custom_value = "..."
+                })
                 table.insert(param_table, { separator = true, title = "Lane Effects" })
                 table.insert(param_table, {
                     id = "lane_" .. lane_idx .. "_lpf",
@@ -286,6 +441,12 @@ local function create_screen_ui()
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_decay", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sustain", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_release", arc_multi_float = {10, 5, 1} })
+                    table.insert(param_table, {
+                        id = "lane_" .. lane_idx .. "_disting_multisample_visual_edit",
+                        is_action = true,
+                        custom_name = "Visual Edit",
+                        custom_value = "..."
+                    })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_gain", arc_multi_float = {10, 5, 1} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_mode" })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_level", arc_multi_float = {10, 5, 1} })
