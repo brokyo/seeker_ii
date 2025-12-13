@@ -134,7 +134,7 @@ function init()
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
 
-  _seeker.current_mode = "KEYBOARD"
+  _seeker.current_mode = "motif"
   _seeker.ui_state.set_current_section("LANE_CONFIG")
 
   -- Start grid redraw clock LAST after everything is initialized

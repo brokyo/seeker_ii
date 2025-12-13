@@ -27,7 +27,7 @@ GridModeRegistry.MODES = {
     path = "lib/grid/layouts/eurorack_mode"
   },
 
-  KEYBOARD = {
+  motif = {
     button = { x = 16, y = 2 },
     default_section = "KEYBOARD",
     sections = {
