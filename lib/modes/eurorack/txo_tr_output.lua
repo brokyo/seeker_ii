@@ -108,7 +108,7 @@ function TxoTrOutput.generate_random_pattern(output_num)
         }
     end
 
-    -- Clamp hits to length to prevent infinite loop
+    -- Ensure hits doesn't exceed pattern length
     pattern_hits = math.min(pattern_hits, pattern_length)
 
     local pattern = {}

@@ -289,11 +289,11 @@ local function create_screen_ui()
                 -- Draw live recording events
                 if _seeker.motif_recorder.is_recording then
                     screen.level(15)
-                    local recorder_note_pairs = {}
-                    local current_gen = _seeker.motif_recorder.current_generation
+                    local live_notes = {}
+                    local current_generation = _seeker.motif_recorder.current_generation
                     for _, event in ipairs(_seeker.motif_recorder.events) do
-                        local event_gen = event.generation or current_gen
-                        if event.type == "note_on" and event_gen == current_gen then
+                        local event_generation = event.generation or current_generation
+                        if event.type == "note_on" and event_generation == current_generation then
                             local note_off_time = nil
                             for _, off_event in ipairs(_seeker.motif_recorder.events) do
                                 if off_event.type == "note_off" and
@@ -303,24 +303,53 @@ local function create_screen_ui()
                                     break
                                 end
                             end
-                            table.insert(recorder_note_pairs, {
+                            table.insert(live_notes, {
                                 note = event.note,
                                 start_time = event.time,
                                 end_time = note_off_time,
-                                generation = event_gen
+                                generation = event_generation
                             })
                         end
                     end
 
-                    -- Track elapsed time to visualize notes still being held
                     local current_recording_time = clock.get_beats() - _seeker.motif_recorder.start_time
 
-                    for _, event_pair in ipairs(recorder_note_pairs) do
-                        local x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
-                        -- If note hasn't been released (nil end_time), draw to current position
-                        local display_end_time = event_pair.end_time or current_recording_time
-                        local clamped_end = math.min(display_end_time, loop_duration)
-                        local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
+                    for _, event_pair in ipairs(live_notes) do
+                        local x_start, x_end
+
+                        if is_recording_new then
+                            -- New recording: no modulo needed, visualization scales with duration
+                            x_start = VIS_X + (event_pair.start_time / loop_duration * VIS_WIDTH)
+                            local display_end = event_pair.end_time or current_recording_time
+                            x_end = VIS_X + (display_end / loop_duration * VIS_WIDTH)
+                        else
+                            -- Overdub: use loop iteration to determine behavior
+                            local start_in_loop = event_pair.start_time % loop_duration
+                            x_start = VIS_X + (start_in_loop / loop_duration * VIS_WIDTH)
+
+                            if event_pair.end_time then
+                                -- Released note: show at its loop position
+                                local end_in_loop = event_pair.end_time % loop_duration
+                                -- If note wrapped around loop, show to end of loop
+                                if end_in_loop < start_in_loop then
+                                    end_in_loop = loop_duration
+                                end
+                                x_end = VIS_X + (end_in_loop / loop_duration * VIS_WIDTH)
+                            else
+                                -- Held note: check if in same loop iteration
+                                local start_iteration = math.floor(event_pair.start_time / loop_duration)
+                                local current_iteration = math.floor(current_recording_time / loop_duration)
+
+                                if start_iteration == current_iteration then
+                                    -- Same loop iteration: extend to current position
+                                    local current_in_loop = current_recording_time % loop_duration
+                                    x_end = VIS_X + (current_in_loop / loop_duration * VIS_WIDTH)
+                                else
+                                    -- Note from previous iteration: show as tick
+                                    x_end = x_start + 2
+                                end
+                            end
+                        end
 
                         if max_note > min_note then
                             local note_range = max_note - min_note

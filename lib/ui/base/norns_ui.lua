@@ -195,27 +195,29 @@ function NornsUI:draw_footer()
   screen.level(8)
   screen.rect(0, 52, 128, 12)
   screen.fill()
-  
+
   -- Draw section name
   screen.level(0)
   screen.move(2, 60)
   screen.text(self.name)
-  
-  -- Add lane and stage info
-  local lane_idx = _seeker.ui_state.get_focused_lane()
-  local lane = _seeker.lanes[lane_idx]
-  local stage_idx = lane.current_stage_index
-  local info_text = string.format("L%d:S%d", lane_idx, stage_idx)
-  
-  -- Calculate position to be right-aligned
-  local SCREEN_WIDTH = 128
-  local PADDING = 6
-  local text_width = screen.text_extents(info_text)
-  local x = SCREEN_WIDTH - PADDING - text_width
-  
-  screen.level(0)
-  screen.move(x, 60)
-  screen.text(info_text)
+
+  -- Only show lane/stage info in Motif mode
+  if _seeker.current_mode == "motif" then
+    local lane_idx = _seeker.ui_state.get_focused_lane()
+    local lane = _seeker.lanes[lane_idx]
+    local stage_idx = lane.current_stage_index
+    local info_text = string.format("L%d:S%d", lane_idx, stage_idx)
+
+    -- Calculate position to be right-aligned
+    local SCREEN_WIDTH = 128
+    local PADDING = 6
+    local text_width = screen.text_extents(info_text)
+    local x = SCREEN_WIDTH - PADDING - text_width
+
+    screen.level(0)
+    screen.move(x, 60)
+    screen.text(info_text)
+  end
 end
 
 function NornsUI:draw_params(start_y)

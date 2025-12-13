@@ -49,7 +49,8 @@ local function create_params()
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_category", "Category", {"Gate", "CV"}, 1)
         params:set_action("crow_" .. i .. "_category", function(value)
-            -- Reset mode and pattern state when category changes
+            -- Reset mode to 1 when category changes (Gate has 4 modes, CV has 6)
+            params:set("crow_" .. i .. "_mode", 1)
             if _seeker.eurorack and _seeker.eurorack.crow_output then
                 _seeker.eurorack.crow_output.screen:rebuild_params()
                 _seeker.screen_ui.set_needs_redraw()

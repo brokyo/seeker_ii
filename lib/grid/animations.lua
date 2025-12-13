@@ -58,17 +58,17 @@ function GridAnimations.update_background(background_layer)
   for x = 1, GridConstants.GRID_WIDTH do
     for y = 1, GridConstants.GRID_HEIGHT do
       local key = point_key(x, y)
-      
+
       -- Initialize point if needed
       if not state.points[key] then
         state.points[key] = init_point()
       end
-      
+
       local point = state.points[key]
-      
+
       -- Update phase
       point.phase = (point.phase + point.speed) % (2 * math.pi)
-      
+
       -- Calculate brightness with full range (keeping floating point for smooth animation)
       local base = (math.sin(point.phase) + 1) / 2
       local brightness = base * BRIGHTNESS.high()

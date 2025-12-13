@@ -28,12 +28,13 @@ local MODE_DESCRIPTIONS = {
   ["Random Walk"] = "Wandering random voltage.\n\nJump: Random position each step.\nAccumulate: Gradual drift from current value.\n\nSlew smooths transitions. Great for generative modulation."
 }
 
--- Get current mode for an output (handles category-based mode indexing)
+-- Returns the mode name for an output based on its category (Gate or CV)
 local function get_output_mode(output_num)
   local category = params:string("crow_" .. output_num .. "_category")
   local mode_index = params:get("crow_" .. output_num .. "_mode")
   local modes = category == "Gate" and GATE_MODES or CV_MODES
-  return modes[mode_index] or modes[1]
+  local clamped_index = math.min(mode_index, #modes)
+  return modes[clamped_index]
 end
 
 -- Store active clock IDs globally
@@ -51,7 +52,7 @@ local random_walk_states = {}
 -- Store knob recording state for each output
 local recording_states = {}
 
--- Clamp envelope param if total exceeds 100%
+-- Reduces the changed envelope parameter if A+D+R total exceeds 100%
 local function clamp_envelope_if_needed(output_num, changed_param)
     local attack = params:get("crow_" .. output_num .. "_envelope_attack")
     local decay = params:get("crow_" .. output_num .. "_envelope_decay")
@@ -193,7 +194,7 @@ function CrowOutput.generate_random_pattern(output_num)
         }
     end
 
-    -- Clamp hits to length to prevent infinite loop
+    -- Ensure hits doesn't exceed pattern length
     pattern_hits = math.min(pattern_hits, pattern_length)
 
     local pattern = {}
@@ -864,16 +865,10 @@ local function create_screen_ui()
         table.insert(param_table, { separator = true, title = "Crow " .. output_num })
         table.insert(param_table, { id = "crow_" .. output_num .. "_category" })
 
-        -- Mode param with dynamic display based on category
-        local modes = category == "Gate" and GATE_MODES or CV_MODES
-        local mode_display = function(param)
-            local idx = params:get(param.id)
-            return modes[idx] or modes[1]
-        end
-        table.insert(param_table, { id = "crow_" .. output_num .. "_mode", formatter = mode_display })
+        table.insert(param_table, { id = "crow_" .. output_num .. "_mode" })
 
         if mode ~= "Clocked Random" and mode ~= "Knob Recorder" then
-            table.insert(param_table, { separator = true, title = "Clock" })
+            table.insert(param_table, { separator = true, title = "Timing" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_interval" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_modifier" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_offset" })
@@ -886,7 +881,7 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_time", arc_multi_float = {0.1, 0.05, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_burst_shape" })
         elseif mode == "Clock" then
-            table.insert(param_table, { separator = true, title = "Clock" })
+            table.insert(param_table, { separator = true, title = "Gate" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_clock_length", arc_multi_float = {10, 5, 1} })
         elseif mode == "Pattern" then
@@ -904,12 +899,12 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_euclidean_hits" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_euclidean_rotation" })
         elseif mode == "LFO" then
-            table.insert(param_table, { separator = true, title = "LFO" })
+            table.insert(param_table, { separator = true, title = "Shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_min", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_lfo_max", arc_multi_float = {1.0, 0.1, 0.01} })
         elseif mode == "Looped Random" then
-            table.insert(param_table, { separator = true, title = "Looped Random" })
+            table.insert(param_table, { separator = true, title = "Shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_shape" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_quantize" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_looped_random_steps" })
@@ -935,8 +930,8 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_duration", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_attack", arc_multi_float = {10, 5, 1} })
 
-            local mode = params:string("crow_" .. output_num .. "_envelope_mode")
-            if mode == "ADSR" then
+            local envelope_mode = params:string("crow_" .. output_num .. "_envelope_mode")
+            if envelope_mode == "ADSR" then
                 table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_decay", arc_multi_float = {10, 5, 1} })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_envelope_sustain", arc_multi_float = {10, 5, 1} })
             end
@@ -951,8 +946,8 @@ local function create_screen_ui()
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_min", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_max", arc_multi_float = {1.0, 0.1, 0.01} })
 
-            local mode = params:string("crow_" .. output_num .. "_random_walk_mode")
-            if mode == "Accumulate" then
+            local walk_mode = params:string("crow_" .. output_num .. "_random_walk_mode")
+            if walk_mode == "Accumulate" then
                 table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_step_size", arc_multi_float = {0.5, 0.1, 0.01} })
                 table.insert(param_table, { id = "crow_" .. output_num .. "_random_walk_offset", arc_multi_float = {1.0, 0.1, 0.01} })
             end
@@ -988,12 +983,12 @@ local function create_grid_ui()
       local output_num = i + 1
       local is_selected = (selected_type == 1 and output_num == selected_number)
 
-      -- Check if output is enabled based on type
-      local type = params:string("crow_" .. output_num .. "_type")
+      -- Check if output is enabled based on mode
+      local output_mode = get_output_mode(output_num)
       local is_enabled = false
-      if mode == "Clocked Random" then
+      if output_mode == "Clocked Random" then
         is_enabled = params:get("crow_" .. output_num .. "_clocked_random_trigger") > 0
-      elseif type ~= "Knob Recorder" then
+      elseif output_mode ~= "Knob Recorder" then
         is_enabled = params:string("crow_" .. output_num .. "_clock_interval") ~= "Off"
       end
 
@@ -1050,7 +1045,13 @@ local function create_params()
         end)
 
         -- Mode param - index into GATE_MODES or CV_MODES based on category
-        params:add_number("crow_" .. i .. "_mode", "Mode", 1, 6, 1)
+        local output_idx = i
+        params:add_number("crow_" .. i .. "_mode", "Mode", 1, 6, 1, function(param)
+            local category = params:string("crow_" .. output_idx .. "_category")
+            local modes = category == "Gate" and GATE_MODES or CV_MODES
+            local idx = math.min(param:get(), #modes)
+            return modes[idx]
+        end)
         params:set_action("crow_" .. i .. "_mode", function(value)
             -- Reset pattern state when mode changes
             pattern_states[i] = nil
@@ -1084,11 +1085,22 @@ local function create_params()
         end)
         params:add_number("crow_" .. i .. "_pattern_length", "Length", 1, 32, 8)
         params:set_action("crow_" .. i .. "_pattern_length", function(value)
+            -- Clamp hits to not exceed length
+            local hits = params:get("crow_" .. i .. "_pattern_hits")
+            if hits > value then
+                params:set("crow_" .. i .. "_pattern_hits", value)
+            end
             CrowOutput.generate_random_pattern(i)
             CrowOutput.update_crow(i)
         end)
         params:add_number("crow_" .. i .. "_pattern_hits", "Hits", 1, 32, 4)
         params:set_action("crow_" .. i .. "_pattern_hits", function(value)
+            -- Clamp hits to not exceed length
+            local length = params:get("crow_" .. i .. "_pattern_length")
+            if value > length then
+                params:set("crow_" .. i .. "_pattern_hits", length)
+                return
+            end
             CrowOutput.generate_random_pattern(i)
             CrowOutput.update_crow(i)
         end)
@@ -1104,11 +1116,22 @@ local function create_params()
         end)
         params:add_number("crow_" .. i .. "_euclidean_length", "Length", 1, 32, 8)
         params:set_action("crow_" .. i .. "_euclidean_length", function(value)
+            -- Clamp hits to not exceed length
+            local hits = params:get("crow_" .. i .. "_euclidean_hits")
+            if hits > value then
+                params:set("crow_" .. i .. "_euclidean_hits", value)
+            end
             CrowOutput.generate_euclidean_pattern(i)
             CrowOutput.update_crow(i)
         end)
         params:add_number("crow_" .. i .. "_euclidean_hits", "Hits", 1, 32, 4)
         params:set_action("crow_" .. i .. "_euclidean_hits", function(value)
+            -- Clamp hits to not exceed length
+            local length = params:get("crow_" .. i .. "_euclidean_length")
+            if value > length then
+                params:set("crow_" .. i .. "_euclidean_hits", length)
+                return
+            end
             CrowOutput.generate_euclidean_pattern(i)
             CrowOutput.update_crow(i)
         end)
