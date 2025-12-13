@@ -46,7 +46,7 @@ local function create_params()
             -- Slide Transform Params
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_amount", "Slide Amount",
                 controlspec.new(0, 100, "lin", 1, 25, "%"))
-            params:add_option("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_wrap", "Slide Wrap", {"Off", "On"}, 1)
+            params:add_binary("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_slide_wrap", "Slide Wrap", "toggle", 0)
 
             -- Reverse Transform Params
             params:add_control("lane_" .. lane_idx .. "_sampler_stage_" .. stage_idx .. "_reverse_prob", "Reverse Probability",

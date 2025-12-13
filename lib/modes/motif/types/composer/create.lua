@@ -26,7 +26,7 @@ local function apply_expression_preset(lane_id, preset_name)
             velocity_min = 90,
             velocity_max = 90,
             strum_amount = 0,
-            chord_phasing = 1, -- Off
+            chord_phasing = 0, -- Off
             strum_curve = 1, -- None
             strum_shape = 1 -- Forward
         },
@@ -41,7 +41,7 @@ local function apply_expression_preset(lane_id, preset_name)
             velocity_min = 40,
             velocity_max = 70,
             strum_amount = 60,
-            chord_phasing = 2, -- On
+            chord_phasing = 1, -- On
             strum_curve = 5, -- Sweep
             strum_shape = 5 -- Alternating
         },
@@ -56,7 +56,7 @@ local function apply_expression_preset(lane_id, preset_name)
             velocity_min = 60,
             velocity_max = 90,
             strum_amount = 45,
-            chord_phasing = 2, -- On
+            chord_phasing = 1, -- On
             strum_curve = 5, -- Sweep
             strum_shape = 3 -- Center Out
         },
@@ -71,7 +71,7 @@ local function apply_expression_preset(lane_id, preset_name)
             velocity_min = 127,
             velocity_max = 127,
             strum_amount = 0,
-            chord_phasing = 1, -- Off
+            chord_phasing = 0, -- Off
             strum_curve = 1, -- None
             strum_shape = 1 -- Forward
         },
@@ -86,7 +86,7 @@ local function apply_expression_preset(lane_id, preset_name)
             velocity_min = 70,
             velocity_max = 100,
             strum_amount = 0,
-            chord_phasing = 1, -- Off
+            chord_phasing = 0, -- Off
             strum_curve = 1, -- None
             strum_shape = 1 -- Forward
         }

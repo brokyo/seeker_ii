@@ -183,7 +183,7 @@ local function generate_motif(lane_id, stage_id)
   local strum_shape = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_shape")
 
   -- Get phasing parameter
-  local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_phasing") == 2
+  local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_phasing") == 1
 
   -- Generate chord
   local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, chord_inversion)

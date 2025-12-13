@@ -88,8 +88,13 @@ local function tap_tempo()
     tap_timer:start()
 end
 
+local function midi_note_formatter(param)
+    if param:get() == -1 then return "Off" end
+    return param:get()
+end
+
 local function create_params()
-    params:add_group("config", "CONFIG", 6)
+    params:add_group("config", "CONFIG", 10)
 
     -- Clock - create wrapper parameter that controls system clock_tempo
     params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
@@ -130,7 +135,12 @@ local function create_params()
     params:add_binary("screensaver_enabled", "Screensaver", "toggle", 1)
 
     -- Hardware
-    params:add_option("shield_encoder_fix", "Shield Encoder Fix", {"Off", "On"}, 1)
+    params:add_binary("shield_encoder_fix", "Shield Encoder Fix", "toggle", 0)
+
+    -- MIDI
+    params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 1)
+    params:add_number("record_midi_note", "Record Toggle Note", -1, 127, -1, midi_note_formatter)
+    params:add_number("overdub_midi_note", "Overdub Toggle Note", -1, 127, -1, midi_note_formatter)
 end
 
 local function create_screen_ui()
@@ -147,7 +157,11 @@ local function create_screen_ui()
             { id = "background_brightness" },
             { id = "screensaver_enabled" },
             { separator = true, title = "Hardware" },
-            { id = "shield_encoder_fix" }
+            { id = "shield_encoder_fix" },
+            { separator = true, title = "MIDI" },
+            { id = "snap_midi_to_scale" },
+            { id = "record_midi_note", arc_multi_float = {10, 5, 1} },
+            { id = "overdub_midi_note", arc_multi_float = {10, 5, 1} }
         }
     })
 

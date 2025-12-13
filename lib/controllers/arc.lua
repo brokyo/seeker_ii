@@ -193,6 +193,20 @@ function Arc.init()
 
         -- Standard single encoder behavior for non-multi-float params
         elseif n == 2 and not selected_param.is_action then
+          -- Check if this is a binary toggle param - handle directly without filter
+          if selected_param.id then
+            local param_base = params:lookup_param(selected_param.id)
+            if param_base and param_base.behavior == "toggle" then
+              -- Toggle binary param directly on any Arc movement
+              local current = params:get(selected_param.id)
+              params:set(selected_param.id, current == 0 and 1 or 0)
+              device.update_param_value_display()
+              _seeker.screen_ui.set_needs_redraw()
+              return
+            end
+          end
+
+          -- Non-binary params go through normal enc path
           _seeker.ui_state.enc(3, direction)
           device.update_param_value_display()
         end
@@ -254,9 +268,17 @@ function Arc.init()
         -- If selected parameter is an action, execute it
         if selected_param and selected_param.is_action then
           params:set(selected_param.id, 1)
-
-          -- Animate the trigger feedback
           device.animate_trigger(selected_param.id)
+
+        -- If selected parameter is a binary toggle, toggle it
+        elseif selected_param and selected_param.id then
+          local param_base = params:lookup_param(selected_param.id)
+          if param_base and param_base.behavior == "toggle" then
+            local current = params:get(selected_param.id)
+            params:set(selected_param.id, current == 0 and 1 or 0)
+            device.update_param_value_display()
+            _seeker.screen_ui.set_needs_redraw()
+          end
         end
       end
     end

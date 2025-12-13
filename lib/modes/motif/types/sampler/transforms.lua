@@ -76,7 +76,7 @@ transforms.available = {
     description = "Shift chop windows through buffer while preserving duration",
     fn = function(events, lane_id, stage_id)
       local slide_amount = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_amount") / 100
-      local slide_wrap = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_wrap") == 2
+      local slide_wrap = params:get("lane_" .. lane_id .. "_sampler_stage_" .. stage_id .. "_slide_wrap") == 1
 
       if slide_amount == 0 then return events end
       if not events then return events end

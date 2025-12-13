@@ -35,7 +35,7 @@ local function create_composer_params(lane_id)
         -- Chord Definition
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_root", "Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, 1)
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_type", "Type", {"Diatonic", "Major", "Minor", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_length", "Length", 1, 12, 3)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_length", "Length", 1, 12, 4)
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_inversion", "Inversion", {"Root", "1st", "2nd"}, 1)
         params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_octave", "Octave", 1, 7, 3)
 
@@ -53,7 +53,7 @@ local function create_composer_params(lane_id)
 
         -- Strum Parameters
         params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_strum_amount", "Amount", 0, 100, 0, function(param) return param.value .. "%" end)
-        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_phasing", "Chord Phasing", {"Off", "On"}, 1)
+        params:add_binary("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_phasing", "Chord Phasing", "toggle", 0)
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_strum_curve", "Curve",
             {"None", "Linear", "Accelerating", "Decelerating", "Sweep"}, 1)
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_strum_shape", "Shape",

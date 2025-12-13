@@ -303,7 +303,7 @@ local function create_screen_ui()
                     id = "lane_" .. lane_idx .. "_record_sample",
                     is_action = true,
                     custom_name = "Recording Sample",
-                    custom_value = "●"
+                    custom_value = "◆"
                 })
             else
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_record_sample", is_action = true })

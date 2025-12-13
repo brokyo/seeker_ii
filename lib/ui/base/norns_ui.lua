@@ -304,20 +304,22 @@ function NornsUI:draw_params(start_y)
       local param_name = param.custom_name or param.name or param_base.name
       local param_value = param.custom_value or params:string(param.id)
 
-      -- Overwrite displayed param value if it's a toggle or trigger (unless custom_value provided)
+      -- Display toggle/trigger params as symbols (unless custom_value provided)
+      -- Toggles (encoder): circles ○/●
+      -- Triggers (K3 press): squares [ ]/[x]
       if not param.custom_value and param_base.behavior == "toggle" then
         if param_value == 0 then
           param_value = "○"
         else
-          param_value = "◆"
+          param_value = "●"
         end
       elseif not param.custom_value and param_base.behavior == "trigger" then
         local recently_triggered = _seeker.ui_state.is_recently_triggered(param.id)
 
         if recently_triggered then
-          param_value = "●"
+          param_value = "[x]"
         else
-          param_value = "○"
+          param_value = "[ ]"
         end
       end
 
@@ -477,12 +479,19 @@ function NornsUI:handle_key(n, z)
       if Modal then Modal.dismiss() end
     end
 
-  -- Handle K3 press for action items
+  -- Handle K3 press for actions and toggles
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self:get_selected_param()
-    if param and param.is_action then
-      -- Action params are executed, not modified - use set() to fire the action
-      params:set(param.id, 1)
+    if param and param.id then
+      local param_base = params:lookup_param(param.id)
+      if param.is_action then
+        -- Trigger params fire once
+        params:set(param.id, 1)
+      elseif param_base and param_base.behavior == "toggle" then
+        -- Toggle params flip between 0 and 1
+        local current = params:get(param.id)
+        params:set(param.id, current == 0 and 1 or 0)
+      end
     end
   end
 end

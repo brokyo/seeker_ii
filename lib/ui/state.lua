@@ -25,7 +25,7 @@ local ENC_ACCUM_WINDOW = 0.05  -- 50ms accumulation window
 
 local function filter_enc_bounce(enc_num, delta)
   -- Check if Shield Encoder Fix is enabled (params may not exist during early init)
-  local fix_enabled = params and params.lookup["shield_encoder_fix"] and params:get("shield_encoder_fix") == 2
+  local fix_enabled = params and params.lookup["shield_encoder_fix"] and params:get("shield_encoder_fix") == 1
   if not fix_enabled then
     return delta  -- Pass through unfiltered
   end

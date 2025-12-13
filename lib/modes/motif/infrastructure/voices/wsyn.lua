@@ -26,13 +26,9 @@ function wsyn.create_params(i)
         _seeker.lanes[i].wsyn_voice_select = value
     end)
 
-    params:add_option("lane_" .. i .. "_wsyn_ar_mode", "Pluck Mode", {"Off", "On"}, 1)
+    params:add_binary("lane_" .. i .. "_wsyn_ar_mode", "Pluck Mode", "toggle", 0)
     params:set_action("lane_" .. i .. "_wsyn_ar_mode", function(value)
-        if value == 2 then
-            crow.ii.wsyn.ar_mode(1)
-        else
-            crow.ii.wsyn.ar_mode(0)
-        end
+        crow.ii.wsyn.ar_mode(value)
     end)
 
     params:add_control("lane_" .. i .. "_wsyn_curve", "Curve", controlspec.new(-5, 5, 'lin', 0.01, 0, ""),

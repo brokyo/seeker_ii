@@ -593,7 +593,7 @@ function CrowOutput.update_crow(output_num)
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")
         local clock_modifier = params:string("crow_" .. output_num .. "_clock_modifier")
         local shape = params:string("crow_" .. output_num .. "_looped_random_shape")
-        local quantize = params:string("crow_" .. output_num .. "_looped_random_quantize")
+        local quantize = params:get("crow_" .. output_num .. "_looped_random_quantize") == 1
         local steps = params:get("crow_" .. output_num .. "_looped_random_steps")
         local loops = params:get("crow_" .. output_num .. "_looped_random_loops")
         local min = params:get("crow_" .. output_num .. "_looped_random_min")
@@ -610,7 +610,7 @@ function CrowOutput.update_crow(output_num)
         local beat_sec = clock.get_beat_sec()
         local time = beat_sec * final_beats
 
-        if quantize == "On" then
+        if quantize then
             local scale = params:get("scale_type")
             local root = params:get("root_note")
             crow.output[output_num].scale(scale)
@@ -650,11 +650,11 @@ function CrowOutput.update_crow(output_num)
         local min_value = params:get("crow_" .. output_num .. "_clocked_random_min")
         local max_value = params:get("crow_" .. output_num .. "_clocked_random_max")
         local shape = params:string("crow_" .. output_num .. "_clocked_random_shape")
-        local quantize = params:string("crow_" .. output_num .. "_clocked_random_quantize")
+        local quantize = params:get("crow_" .. output_num .. "_clocked_random_quantize") == 1
 
         local function generate_random_value()
             local random_value
-            if quantize == "On" then
+            if quantize then
                 random_value = math.random(min_value, max_value)
             else
                 random_value = min_value + math.random() * (max_value - min_value)
@@ -1321,7 +1321,7 @@ local function create_params()
             CrowOutput.update_crow(i)
         end)
 
-        params:add_option("crow_" .. i .. "_looped_random_quantize", "Quantize", {"On", "Off"}, 2)
+        params:add_binary("crow_" .. i .. "_looped_random_quantize", "Quantize", "toggle", 0)
         params:set_action("crow_" .. i .. "_looped_random_quantize", function(value)
             CrowOutput.update_crow(i)
         end)
@@ -1357,7 +1357,7 @@ local function create_params()
             CrowOutput.update_crow(i)
         end)
 
-        params:add_option("crow_" .. i .. "_clocked_random_quantize", "Quantize", {"On", "Off"}, 2)
+        params:add_binary("crow_" .. i .. "_clocked_random_quantize", "Quantize", "toggle", 0)
         params:set_action("crow_" .. i .. "_clocked_random_quantize", function(value)
             CrowOutput.update_crow(i)
         end)

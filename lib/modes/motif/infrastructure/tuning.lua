@@ -9,7 +9,7 @@ local Keyboard = {}
 Keyboard.__index = Keyboard
 
 local function create_params()
-    params:add_group("keyboard", "KEYBOARD", 9)
+    params:add_group("keyboard", "KEYBOARD", 6)
 
     -- Sync trigger
     params:add_binary("keyboard_sync_all_clocks", "Synchronize All", "trigger", 0)
@@ -89,15 +89,6 @@ local function create_params()
         theory.print_keyboard_layout()
     end)
 
-    -- MIDI
-    params:add_binary("snap_midi_to_scale", "Snap MIDI to Scale", "toggle", 1)
-
-    local function midi_note_formatter(param)
-        if param:get() == -1 then return "Off" end
-        return param:get()
-    end
-    params:add_number("record_midi_note", "Record Toggle Note", -1, 127, -1, midi_note_formatter)
-    params:add_number("overdub_midi_note", "Overdub Toggle Note", -1, 127, -1, midi_note_formatter)
 end
 
 -- Motif type constants
@@ -135,10 +126,6 @@ local function create_screen_ui()
         table.insert(param_table, { separator = true, title = "Layout" })
         table.insert(param_table, { id = "keyboard_column_steps" })
         table.insert(param_table, { id = "keyboard_row_steps" })
-        table.insert(param_table, { separator = true, title = "MIDI" })
-        table.insert(param_table, { id = "snap_midi_to_scale" })
-        table.insert(param_table, { id = "record_midi_note", arc_multi_float = {10, 5, 1} })
-        table.insert(param_table, { id = "overdub_midi_note", arc_multi_float = {10, 5, 1} })
 
         self.params = param_table
     end

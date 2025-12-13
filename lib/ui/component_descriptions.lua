@@ -4,11 +4,11 @@
 
 return {
   -- Global
-  CONFIG = "Application-level settings. Shield Encoder fix helps smooth Norns Shields experience.",
+  CONFIG = "Application-level settings. \n\nTry the scale presets, it's a very tonal instrument. \n\nShield Encoder Fix improves scrolling on my DIY Norns. \n\nMIDI controls Motif mode.",
 
   -- Motif mode
   LANE_CONFIG = "Select motif type and configure voices. Multiple voices can run simultaneously.",
-  KEYBOARD = "Global scale and tuning. Keyboard layout intervals. MIDI record/overdub triggers.",
+  KEYBOARD = "Configure the modal tonnetz keyboard. Values in layouts are steps in intervals.",
 
   -- Tape mode
   TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub. Overdubs take on local envelope settings (see Lane Config).",
