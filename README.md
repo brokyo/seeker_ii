@@ -6,7 +6,7 @@ Eight musical lanes can be run in parallel with each performing its own motif wi
 
 Seeker is the center of my studio and connects to the things I regularly use. If you're reading this, you likely use them too. Eurorack via i2c (Crow, TXO, Just Friends, W/, Disting EX), OSC for visual apps like TouchDesigner, and MIDI for external equipment.
 
-It's intended to travel with you and scale to what you have on hand. I've been relentless about the user-experience and I hope that it's easy to pick up but deep enough to always surprise.
+It's intended to travel with you and scale to what you have on hand. I've been relentless about the user-experience and I hope that it's easy to pick up but deep enough to always spark something new.
 
 ## Requirements
 
@@ -47,13 +47,13 @@ When you first boot the app you will be on Lane 1 in Tape mode.
 
 4. **Overdub** — Hold record again while the motif plays. New notes layer onto existing ones.
 
-5. **Add a transform stage** — A phrase can be manipulated after an arbitrary number of loops. Open stage config (5D). Turn on a new stage and a transform (Harmonize is my favorite) to evolve the composition. Your motif evolves each loop but can always be reset to the start.
+5. **Add a transform stage** — A phrase can be manipulated after an arbitrary number of loops. Open stage config (1A). Turn on a new stage and a transform (Harmonize is my favorite) to evolve the composition. Your motif evolves each loop but can always be reset to the start.
 
 6. **Try another lane** — Select a new lane (4A). Record a variation. Now two voices phase against each other.
 
 ### Next Steps
 
-- **Composer mode** — Switch a lane to Composer and build an evolving arpeggio with timing (##) and expression (##) stages. Connect it to Eurorack and create unorthodox patterns, timing, and velocity curves.
+- **Composer mode** — Switch a lane to Composer and build an evolving arpeggio with harmonic (1A) and expression (1B) stages. Connect it to Eurorack and create unorthodox patterns, timing, and velocity curves.
 - **Sampler mode** — Built on Softcut. Load an audio file or record from input, then trigger chopped segments from the grid. Each pad has configurable envelope, filter, pitch, pan, and rate. Record performances and transform them across stages.
 - **Eurorack integration** — Configure Crow outputs (3C) for clock-synced modulation—LFOs, bursts, random walks, or knob recorders that capture Arc movements.
 
@@ -63,12 +63,14 @@ The main performance space. Eight lanes run in parallel, each playing one of thr
 
 ### Tape | Motif Type
 
-Record motifs on a 6x6 Tonnetz/interval keyboard (2A). After recording, motifs can be overdubbed by holding Create Motif (5B). After a configurable number of loops, motifs move to the next "Stage" (5D). Scale and intervals can be set in Keyboard Config (##).
+![Tape Layout](lib/etc/Tape%20Layout.png)
+
+Record motifs on a 6x6 Tonnetz/interval keyboard (2A). After recording, motifs can be overdubbed by holding Create Motif (5B). After a configurable number of loops, motifs move to the next "Stage" (1A). Scale and intervals can be set in Keyboard Config (E3 long-press).
 
 **Tape Controls:**
-- **Stage Config** (5D) — Configure transforms and loop counts.
-- **Note Velocity** (##) — Four dynamic levels (pp, mp, f, ff). Select from grid.
-- **Dual Keyboard** — Toggle to split the keyboard into two zones with separate octaves.
+- **Stage Config** (1A) — Configure transforms and loop counts.
+- **Note Velocity** (1B) — Four dynamic levels (pp, mp, f, ff). Select from grid.
+- **Dual Keyboard** — Toggle the option in Create (5B) to split the keyboard into two zones with separate octaves.
 
 **Tape Transforms:**
 - **None** — Pass through unchanged
@@ -81,20 +83,25 @@ Record motifs on a 6x6 Tonnetz/interval keyboard (2A). After recording, motifs c
 - **Ratchet** — Probabilistic note repetition with configurable burst timing
 
 ### Composer | Motif Type
-An algorithmic chord sequencer is represented by an interval keyboard (2A). Hold Create Motif (5B) to begin a sequence. Optionally, select from expression presets to give it character. Arpeggios move through stages (##) with configurable chord voicings and performance characteristics.
 
-- Create Motif (##) — Select expression preset and generate.
-- Harmonic Config (##) — Per-stage chord root, type, length, inversion, octave.
-- Expression Config (##) — Per-stage velocity curves, strum timing/shape, note duration, pattern filtering.
+![Composer Layout](lib/etc/Compose%20Layout.png)
+
+An algorithmic chord sequencer is represented by an interval keyboard (2A). Hold Create Motif (5B) to begin a sequence. Optionally, select from expression presets to give it character. Arpeggios move through stages with configurable chord voicings and performance characteristics.
+
+- **Create Motif** (5B) — Select expression preset and generate.
+- **Harmonic Config** (1A) — Per-stage chord root, type, length, inversion, octave.
+- **Expression Config** (1B) — Per-stage velocity curves, strum timing/shape, note duration, pattern filtering.
 
 ### Sampler | Motif Type
+
+![Sampler Layout](lib/etc/Sampler%20Layout.png)
 
 Load a sample or record from the Norns input (4A). Via Softcut, the sample will be chopped and distributed across a 4x4 pad grid (2A). Record pad performances and transform them across stages just like Tape mode. Good for percussion and textural sound mangling.
 
 **Sampler Controls:**
-- **Chop Config** (##) — Per-pad configuration (hold pad to edit).
-- **Stage Config** (##) — Configure sampler transforms and loop counts.
-- **Chop Amplitude** (##) — Four dynamic levels for trigger loudness.
+- **Chop Config** — Per-pad configuration (hold pad to edit).
+- **Stage Config** (1A) — Configure sampler transforms and loop counts.
+- **Chop Amplitude** (1B) — Four dynamic levels for trigger loudness.
 
 **Per-Pad Parameters:**
 - **Mode** — Gate (hold to play) or One-Shot (trigger and release)
@@ -122,7 +129,7 @@ All motif types share these controls:
 - **Create** (5B) — Hold to record/generate. Tape records keyboard, Sampler records pads, Composer generates from parameters.
 - **Play** (5A) — Control playback: offset pitch, change speed, quantize events, swing timing. Hold to play/stop.
 - **Clear** (5C) — Hold to erase the current motif. Confirmation flash on grid.
-- **Perform** (##) — Hold-to-activate Mute, Accent, or Soft with configurable slew time.
+- **Perform** (5D) — Hold-to-activate Mute, Accent, or Soft with configurable slew time.
 
 **Voice Outputs:**
 
@@ -130,35 +137,49 @@ Each lane can output to multiple destinations simultaneously:
 - MX Samples (internal engine)
 - MIDI (external gear/DAW)
 - Crow/TXO (CV/Gate to eurorack)
-- Just Friends (i2c synthesis)
-- W/Syn (i2c synthesis)
-- Disting EX (i2c synthesis)
+- Just Friends (i2c)
+- W/Syn (i2c)
+- Disting EX (i2c)
 - OSC (note events to TouchDesigner)
 
 ## Eurorack | Mode (3C)
+
+![Eurorack Layout](lib/etc/Eurorack%20Layout.png)
+
 I find Seeker most interesting when it's directly communicating with Eurorack rather than just being played through it. Accordingly, I've included a bunch of Crow and TXO output options that stay true to the music and its timing. 
 
 Every output combines can be played on a beat interval, a multiplier, and a phase offset. You can make modules doing some really unusual things.
 
 **Crow Outputs:**
-- **Gate** — Clock or pattern-driven. Patterns can be Euclidean-style or random, rerollable on demand.
-- **Burst** — Rapid pulses with configurable distribution (linear, accelerating, decelerating, random).
-- **LFO** — Tempo-synced shapes (sine, linear, rebound, etc.) with voltage range.
-- **Envelope** — ADSR or AR with configurable shape curves.
-- **Knob Recorder** — Capture Arc movements as looping CV. Gestural sampling.
-- **Looped Random** — Generate a random CV sequence, loop it N times, then regenerate.
-- **Clocked Random** — External trigger (Crow input) generates random voltages, optionally quantized to scale.
-- **Random Walk** — Stochastic movement within configurable ranges.
 
-**TXO TR:** Gate, Burst, and Pattern. All support burst shaping (linear, accelerating, decelerating, random).
+Each output selects a Category (Gate or CV) then a Mode within that category.
+
+*Gate Category:*
+- **Clock** — Simple clocked gate output.
+- **Pattern** — Random rhythmic pattern, rerollable on demand.
+- **Euclidean** — Euclidean rhythm with rotation.
+- **Burst** — Rapid pulses with configurable distribution (linear, accelerating, decelerating, random).
+
+*CV Category:*
+- **LFO** — Tempo-synced shapes (sine, triangle, saw, pulse, noise) with voltage range.
+- **Envelope** — ADSR or AR with clock-synced timing.
+- **Looped Random** — Generate a random CV sequence, loop it N times, then regenerate.
+- **Clocked Random** — External trigger (Crow input) generates random voltages.
+- **Random Walk** — Stochastic movement within configurable ranges.
+- **Knob Recorder** — Capture E3 knob movements as looping CV.
+
+**TXO TR:** Clock, Pattern, Euclidean, and Burst modes matching Crow's Gate category.
 
 **TXO CV:**
 - **LFO** — Wave morphing LFO (Sine→Triangle→Saw→Pulse→Noise).
 - **Envelope** — ADSR or AR with clock-synced timing.
 - **Random Walk** — Same as Crow.
 
-## OSC | Mode (3A)
-Built with the Seeker_II TOX in mind, this mode enables you to control TOP values in TouchDesigner in sequence with the Seeker clock and events. Set the IP in the config menu (3A) and values should automatically show up in TD. 
+## OSC | Mode (3B)
+
+![OSC Layout](lib/etc/OSC%20Layout.png)
+
+Built with the Seeker_II TOX in mind, this mode enables you to control TOP values in TouchDesigner in sequence with the Seeker clock and events. Set the IP in the config menu (3B) and values should automatically show up in TD. 
 
 **Float** — Direct value + multiplier. Useful for tuning images.
 
@@ -166,7 +187,9 @@ Built with the Seeker_II TOX in mind, this mode enables you to control TOP value
 
 **Trigger** — Clock-driven pulses with envelope parameters (attack, decay, sustain, release)
 
-## W/Tape | Mode (3B)
+## W/Tape | Mode (3A)
+
+![W/Tape Layout](lib/etc/W%3ATape%20Layout.png)
 
 Transport control for the Whimsical Raps W/ module in tape mode. I think this is such an interesting module (the W/Synth used in Motif mode is amazing) and I believe it becomes much more performable with grid control.
 
