@@ -10,9 +10,10 @@ local ChordGenerator = {}
 -- @param chord_root_degree: Scale degree (1-7) for the chord root
 -- @param chord_type: Chord quality (Major, Minor, Sus2, etc.) or "Diatonic"
 -- @param chord_length: How many notes to generate (cycles through chord tones)
--- @param chord_inversion: Inversion number (0 = root position, 1 = first inversion, etc.)
+-- @param voice_rotation: Rotates chord voicing (-2 to +2). Negative drops top notes down, positive raises bottom notes up
+-- @param octave_span: Octave range (0-3). How many octaves to span when cycling through chord tones
 -- @return: Table of MIDI note numbers representing the chord
-function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_length, chord_inversion)
+function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_length, voice_rotation, octave_span)
   -- Get global scale settings
   local root_note = params:get("root_note")
   local scale_type_index = params:get("scale_type")
@@ -46,8 +47,8 @@ function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_leng
   }
   chord_type = chord_type_map[chord_type] or chord_type
 
-  -- Get base chord intervals from musicutil with inversion
-  local base_chord = musicutil.generate_chord(chord_root_midi, chord_type, chord_inversion or 0, 3)
+  -- Get base chord from musicutil (root position)
+  local base_chord = musicutil.generate_chord(chord_root_midi, chord_type, 0, 3)
 
   -- Error handling if chord type not recognized
   if not base_chord or #base_chord == 0 then
@@ -61,14 +62,32 @@ function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_leng
     table.insert(chord_intervals, note - chord_root_midi)
   end
 
-  -- Generate extended chord using seeker-style cycling
+  -- Apply voice rotation to create inversions and drop voicings
+  -- Positive: rotate bottom notes up an octave (inversions)
+  -- Negative: rotate top notes down an octave (drop voicings)
+  local rotation = voice_rotation or 0
+  if rotation > 0 then
+    for _ = 1, math.min(rotation, #chord_intervals - 1) do
+      chord_intervals[1] = chord_intervals[1] + 12
+      table.sort(chord_intervals)
+    end
+  elseif rotation < 0 then
+    for _ = 1, math.min(-rotation, #chord_intervals - 1) do
+      chord_intervals[#chord_intervals] = chord_intervals[#chord_intervals] - 12
+      table.sort(chord_intervals)
+    end
+  end
+
+  -- Generate extended chord by cycling through chord tones with octave jumps
+  -- Span controls how many octaves to jump per cycle (0=tight, 1=normal, 2+=wide)
+  local span_semitones = 12 * (octave_span or 1)
   local chord_notes = {}
   local note_index = 1
   local octave_offset = 0
 
   for i = 1, chord_length do
     local interval = chord_intervals[note_index]
-    local note = chord_root_midi + interval + (octave_offset * 12)
+    local note = chord_root_midi + interval + (octave_offset * span_semitones)
     table.insert(chord_notes, note)
 
     note_index = note_index + 1

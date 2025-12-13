@@ -23,7 +23,7 @@ return {
   COMPOSER_PLAYBACK = "Control playback timing and pitch offset.",
   COMPOSER_CLEAR = "Hold to clear the currently stored motif.",
   COMPOSER_EXPRESSION_STAGES = "Configure pattern and timing for each stage. Phasing is very cool if you have more unequal step (create) and length (harmonic).",
-  COMPOSER_HARMONIC_STAGES = "Configure pitch and harmonic content for each stage.",
+  COMPOSER_HARMONIC_STAGES = "Configure pitch and harmonic content for each stage. Rotation moves voices up/down octaves (negative=drop voicing). Span controls octave range (0=tight, 3=wide).",
   COMPOSER_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts volume, Soft reduces velocity.",
 
   -- Sampler mode

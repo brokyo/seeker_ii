@@ -169,7 +169,8 @@ local function generate_motif(lane_id, stage_id)
   local chord_root = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_root")
   local chord_type = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_type")
   local chord_length = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_length")
-  local chord_inversion = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_inversion") - 1
+  local voice_rotation = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_voice_rotation")
+  local octave_span = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_octave_span")
   local note_duration_percent = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_note_duration")
 
   -- Get velocity curve parameters
@@ -186,7 +187,7 @@ local function generate_motif(lane_id, stage_id)
   local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_phasing") == 1
 
   -- Generate chord
-  local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, chord_inversion)
+  local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, voice_rotation, octave_span)
 
   if not effective_chord or #effective_chord == 0 then
     print("ERROR: Failed to generate chord for composer")
