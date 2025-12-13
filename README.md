@@ -31,10 +31,6 @@ In Maiden:
 ;install https://github.com/brokyo/seeker_ii
 ```
 
-## Layout
-
-![Seeker II Layout](https://github.com/brokyo/seeker_ii/raw/main/layout.png)
-
 ## Quickstart
 
 When you first boot the app you will be on Lane 1 in Tape mode.
