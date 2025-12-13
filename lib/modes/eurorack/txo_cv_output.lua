@@ -12,9 +12,9 @@ TxoCvOutput.__index = TxoCvOutput
 
 -- Type descriptions for dynamic help
 local TYPE_DESCRIPTIONS = {
-  LFO = "TXO low frequency oscillator.\n\nShape: Waveform (sine, tri, etc).\nMorph: Blend between shapes.\nDepth/Offset: Voltage range.\nPhase: Cycle offset.\n\nSyncs to clock for tempo-locked modulation.",
-  ["Random Walk"] = "TXO wandering voltage.\n\nJump: Random position each step.\nAccumulate: Gradual drift.\n\nSlew smooths between values. Min/Max sets bounds.",
-  Envelope = "TXO shaped envelope.\n\nADSR: Attack, Decay, Sustain, Release.\nAR: Simple attack/release.\n\nDuration sets total time relative to clock."
+  LFO = "Clock-synced LFO.\n\nMORPH blends between adjacent waveforms.\n\nRECT clips or folds the output voltage.",
+  ["Random Walk"] = "Wandering voltage.\n\nJUMP picks a new random position each step.\n\nACCUMULATE drifts from current value by STEP SIZE.",
+  Envelope = "Clock-synced envelope.\n\nDURATION sets envelope time as percentage of clock period."
 }
 
 -- Store active clock IDs globally

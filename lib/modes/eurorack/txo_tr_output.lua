@@ -12,10 +12,10 @@ TxoTrOutput.__index = TxoTrOutput
 
 -- Type descriptions for dynamic help
 local TYPE_DESCRIPTIONS = {
-  Clock = "TXO clocked gate output.\n\nSends gates at clock intervals.\nLength sets duty cycle as percentage of clock period.\n\nSimple and reliable clock-synced triggers.",
-  Pattern = "TXO random patterns.\n\nLength: Total steps in pattern.\nHits: Active steps distributed randomly.\nReroll: Generate new random pattern.\n\nCreates rhythmically interesting trigger patterns.",
-  Euclidean = "TXO euclidean patterns.\n\nLength: Total steps in pattern.\nHits: Active steps spread evenly.\nRotation: Shift pattern start point.\n\nBjorklund algorithm for balanced rhythms.",
-  Burst = "TXO rapid trigger burst.\n\nCount: Number of triggers per burst.\nTime: Duration of entire burst window.\n\nSends multiple quick triggers on each clock beat."
+  Clock = "Clocked gate output.",
+  Pattern = "Random rhythmic pattern.\n\nREROLL generates a new random distribution.",
+  Euclidean = "Euclidean rhythmic pattern.",
+  Burst = "Rapid burst of triggers.\n\nTIME sets burst duration as percentage of clock period.\n\nSHAPE controls timing between triggers."
 }
 
 -- Store active clock IDs globally
