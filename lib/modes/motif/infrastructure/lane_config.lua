@@ -275,13 +275,15 @@ local function create_screen_ui()
         self.name = string.format("Lane %d", lane_idx)
 
         -- Update description based on motif type
-        local base = "Select motif type and configure voices. "
+        local base = Descriptions.LANE_CONFIG
         if motif_type == MOTIF_TYPE_TAPE then
-            self.description = base .. "Tape: Record and loop live performances with overdub layering."
+            self.description = base .. "\n\nTape: Record and loop live performances with overdub layering."
         elseif motif_type == MOTIF_TYPE_COMPOSER then
-            self.description = base .. "Composer: Generate chord progressions with algorithmic patterns."
+            self.description = base .. "\n\nComposer: Generate chord progressions with algorithmic patterns."
         elseif motif_type == MOTIF_TYPE_SAMPLER then
-            self.description = base .. "Sampler: Chop and sequence audio samples across 16 pads."
+            self.description = base .. "\n\nSampler: Chop and sequence audio samples across 16 pads."
+        else
+            self.description = base
         end
 
         -- Start with volume and motif type (always visible)
