@@ -95,8 +95,12 @@ function GridUI.redraw()
 	-- Update background animations
 	GridAnimations.update_background(GridUI.layers.background)
 
-	-- Draw global mode switcher buttons (always visible)
-	ModeSwitcher.draw(GridUI.layers)
+	-- Draw mode switcher buttons (hidden in dual keyboard fullscreen mode)
+	local dual_state = _seeker.dual_keyboard_state
+	local dual_active = dual_state and dual_state.is_active
+	if not dual_active then
+		ModeSwitcher.draw(GridUI.layers)
+	end
 
 	-- Delegate to active mode for mode-specific content
 	local mode = get_active_mode()

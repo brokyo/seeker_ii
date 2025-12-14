@@ -11,7 +11,7 @@ return {
   MOTIF_CONFIG = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout only applies to modal Tonnetz in Tape.",
 
   -- Tape mode
-  TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub. Overdubs take on local envelope settings (see Lane Config).",
+  TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two tonnetz with independent octaves. Arc rings 3/4 control velocity for each side.",
   TAPE_PLAYBACK = "Control playback timing and transposition.",
   TAPE_CLEAR = "Hold to clear the recorded motif and reset to a blank canvas.",
   TAPE_VELOCITY = "Control note loudness. Press grid keys to select level.",
