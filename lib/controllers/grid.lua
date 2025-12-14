@@ -67,8 +67,17 @@ end
 
 
 function GridUI.key(x, y, z)
+  -- Close active modal when user presses grid
+  if _seeker.modal and _seeker.modal.is_active() then
+    _seeker.modal.dismiss()
+  end
+
+  -- Skip mode switcher in dual keyboard mode (fullscreen takes over)
+  local dual_state = _seeker.dual_keyboard_state
+  local dual_active = dual_state and dual_state.is_active
+
   -- Handle mode switcher first (global controls)
-  if ModeSwitcher.handle_key(x, y, z) then
+  if not dual_active and ModeSwitcher.handle_key(x, y, z) then
     return
   end
 

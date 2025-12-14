@@ -56,7 +56,7 @@ local state = {
 
 -- Word-wrap text to fit within max_width using current font settings
 -- Handles explicit newlines by splitting paragraphs first
--- Returns table of {text, is_empty, bold_prefix} entries
+-- Returns table of {text, is_empty} entries
 local function wrap_text(text, max_width)
   local lines = {}
 

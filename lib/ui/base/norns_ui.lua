@@ -511,8 +511,10 @@ function NornsUI:enter()
   self:filter_active_params()
   self.state.selected_index = self:find_first_selectable()
 
-  -- Initialize Arc with current parameter list
+  -- Initialize Arc with current parameter list and refresh all rings
   _seeker.arc.new_section(self.params)
+  _seeker.arc.update_param_key_display()
+  _seeker.arc.update_param_value_display()
 
   self:update()
 end
