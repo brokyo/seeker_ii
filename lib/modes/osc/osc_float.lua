@@ -142,10 +142,11 @@ function OscFloat.init()
     }
     create_params()
 
-    -- Initialize TouchDesigner with current param values
+    -- Send initial OSC values to external receivers
+    -- Set multipliers to 1.0 before sending to ensure non-zero default
     for i = 1, 4 do
+        params:set("osc_float_" .. i .. "_multiplier", 1.0)
         send_float_value(i, params:get("osc_float_" .. i .. "_value"))
-        send_float_multiplier(i)
     end
 
     return component

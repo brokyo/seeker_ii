@@ -280,8 +280,10 @@ function OscTrigger.init()
     }
     create_params()
 
-    -- Initialize TouchDesigner with current param values
+    -- Send initial OSC values to external receivers
+    -- Set multipliers to 1 before sending to ensure non-zero default
     for i = 1, 4 do
+        params:set("osc_trigger_" .. i .. "_env_multiplier", 1)
         send_trigger_envelope(i)
         update_trigger_clock(i)
     end
