@@ -156,7 +156,7 @@ function Modal.show_description(config)
 end
 
 -- Show a status modal (centered message, no scroll)
--- config.allows_norns_input: if true, norns E2/E3/K3 pass through (for fileselect). Default false.
+-- config.allows_norns_input: if true, norns E2/E3/K3 pass through to underlying UI. Default false.
 -- config.on_key: optional key handler (e.g., K3 to stop recording)
 function Modal.show_status(config)
   state.active = true
@@ -237,7 +237,7 @@ function Modal.dismiss()
   state.adsr_selected = 1
   state.on_key = nil
   state.on_enc = nil
-  state.blocks_norns = true  -- Reset to default
+  state.allows_norns_input = false
 end
 
 -- Check if modal is currently active
@@ -261,9 +261,9 @@ function Modal.handle_key(n, z)
     if handled then return true end
   end
 
-  -- Status modals block key input unless blocks_norns is false (for fileselect)
+  -- Status modals block key input unless allows_norns_input is true
   if state.modal_type == Modal.TYPE.STATUS then
-    return state.blocks_norns ~= false
+    return not state.allows_norns_input
   end
 
   return false
@@ -293,12 +293,12 @@ function Modal.handle_enc(n, d, source)
     return true
   end
 
-  -- Status modals: always block Arc, block Norns only if blocks_norns is true
+  -- Status modals: always block Arc, block Norns unless allows_norns_input is true
   if state.modal_type == Modal.TYPE.STATUS then
     if source == "arc" then
       return true  -- Always block Arc during status modals
     end
-    return state.blocks_norns ~= false  -- Block Norns unless explicitly allowed
+    return not state.allows_norns_input
   end
 
   return false
