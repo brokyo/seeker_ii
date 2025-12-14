@@ -97,10 +97,10 @@ local function create_params()
       end
     end)
 
-    params:add_control("lane_" .. i .. "_tape_performance_accent_amount", "Accent Amount",
+    params:add_control("lane_" .. i .. "_tape_performance_accent_amount", "Accent Multiplier",
       controlspec.new(1.0, 2.0, 'lin', 0.1, 1.5, "x"))
 
-    params:add_control("lane_" .. i .. "_tape_performance_soft_amount", "Soft Amount",
+    params:add_control("lane_" .. i .. "_tape_performance_soft_amount", "Soft Multiplier",
       controlspec.new(0.1, 1.0, 'lin', 0.1, 0.5, "x"))
 
     params:add_control("lane_" .. i .. "_tape_performance_slew", "Slew Time",
