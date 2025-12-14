@@ -684,6 +684,14 @@ function transforms.get_transform_id_by_ui_name(ui_name)
   return "none"  -- Default to none if not found
 end
 
+-- Get transform description by UI index (1-based param value)
+function transforms.get_description_by_ui_index(ui_index)
+  local ui_name = transforms.ui_names[ui_index]
+  if not ui_name then return nil end
+  local id = transforms.get_transform_id_by_ui_name(ui_name)
+  return transforms.available[id] and transforms.available[id].description
+end
+
 return transforms 
 
 -- Future Transforms:

@@ -97,6 +97,11 @@ local function create_screen_ui()
         -- Update footer to show current stage
         self.name = "Stage " .. stage_idx .. " Config"
 
+        -- Update description to show current transform's description
+        local transform_index = params:get("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
+        local transform_desc = tape_transforms.get_description_by_ui_index(transform_index)
+        self.description = transform_desc or Descriptions.TAPE_STAGE_CONFIG
+
         -- Rebuild params using tape transform module
         tape_transform.rebuild_params(self, lane_idx, stage_idx)
     end
