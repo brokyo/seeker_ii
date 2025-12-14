@@ -74,6 +74,13 @@ local function create_screen_ui()
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
         self:rebuild_params()
+        -- Sync duration param to current lane's motif
+        local focused_lane = _seeker.ui_state.get_focused_lane()
+        local lane = _seeker.lanes[focused_lane]
+        if lane and lane.motif and #lane.motif.events > 0 then
+            local duration = lane.motif.custom_duration or lane.motif.genesis.duration
+            params:set("tape_create_duration", duration, true)
+        end
         original_enter(self)
     end
 
