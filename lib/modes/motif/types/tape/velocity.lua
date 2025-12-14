@@ -50,10 +50,10 @@ local function create_screen_ui()
 
     self.params = {
       { separator = true, title = "Velocity Levels" },
-      { id = "tape_velocity_1" },
-      { id = "tape_velocity_2" },
-      { id = "tape_velocity_3" },
-      { id = "tape_velocity_4" }
+      { id = "tape_velocity_1", arc_multi_float = {10, 5, 1} },
+      { id = "tape_velocity_2", arc_multi_float = {10, 5, 1} },
+      { id = "tape_velocity_3", arc_multi_float = {10, 5, 1} },
+      { id = "tape_velocity_4", arc_multi_float = {10, 5, 1} }
     }
 
     -- Jump to selected velocity parameter
