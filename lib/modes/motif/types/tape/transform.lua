@@ -54,12 +54,6 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
   -- Get the current transform type
   local transform_type = params:string("lane_" .. lane_idx .. "_transform_stage_" .. stage_idx)
 
-  -- Update description based on selected transform
-  local transform_id = tape_transforms.get_transform_id_by_ui_name(transform_type)
-  if transform_id and tape_transforms.available[transform_id] then
-    ui.description = tape_transforms.available[transform_id].description
-  end
-
   local param_table = {
     { separator = true, title = "Settings" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
