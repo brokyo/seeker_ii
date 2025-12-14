@@ -6,14 +6,14 @@ local musicutil = require('musicutil')
 
 local ChordGenerator = {}
 
---- Generate chord notes with octave cycling
+--- Generate chord notes with voicing styles
 -- @param chord_root_degree: Scale degree (1-7) for the chord root
 -- @param chord_type: Chord quality (Major, Minor, Sus2, etc.) or "Diatonic"
 -- @param chord_length: How many notes to generate (cycles through chord tones)
--- @param voice_rotation: Rotates chord voicing (-2 to +2). Negative drops top notes down, positive raises bottom notes up
--- @param octave_span: Octave range (0-3). How many octaves to span when cycling through chord tones
+-- @param voice_rotation: Rotates chord voicing. Negative drops top notes down, positive raises bottom notes up
+-- @param voicing_style: How to spread voices across octaves (Close, Open, Drop 2, etc.)
 -- @return: Table of MIDI note numbers representing the chord
-function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_length, voice_rotation, octave_span)
+function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_length, voice_rotation, voicing_style)
   -- Get global scale settings
   local root_note = params:get("root_note")
   local scale_type_index = params:get("scale_type")
@@ -78,23 +78,66 @@ function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_leng
     end
   end
 
-  -- Generate extended chord by cycling through chord tones with octave jumps
-  -- Span controls how many octaves to jump per cycle (0=tight, 1=normal, 2+=wide)
-  local span_semitones = 12 * (octave_span or 1)
+  -- Generate chord notes with voicing style applied
+  local style = voicing_style or "Close"
+  local num_base_tones = #chord_intervals
   local chord_notes = {}
-  local note_index = 1
-  local octave_offset = 0
 
   for i = 1, chord_length do
-    local interval = chord_intervals[note_index]
-    local note = chord_root_midi + interval + (octave_offset * span_semitones)
-    table.insert(chord_notes, note)
+    -- Cycle through base chord tones
+    local tone_index = ((i - 1) % num_base_tones) + 1
+    local cycle = math.floor((i - 1) / num_base_tones)
+    local interval = chord_intervals[tone_index]
+    local octave_offset = 0
 
-    note_index = note_index + 1
-    if note_index > #chord_intervals then
-      note_index = 1
-      octave_offset = octave_offset + 1
+    if style == "Close" then
+      -- All voices tight, +1 octave per cycle
+      octave_offset = cycle
+
+    elseif style == "Open" then
+      -- Alternate voices spread: even positions +1 octave
+      octave_offset = cycle
+      if i % 2 == 0 then
+        octave_offset = octave_offset + 1
+      end
+
+    elseif style == "Drop 2" then
+      -- 2nd voice from top in each cycle drops an octave
+      octave_offset = cycle
+      if tone_index == num_base_tones - 1 and num_base_tones > 2 then
+        octave_offset = octave_offset - 1
+      end
+
+    elseif style == "Drop 3" then
+      -- 3rd voice from top in each cycle drops an octave
+      octave_offset = cycle
+      if tone_index == num_base_tones - 2 and num_base_tones > 3 then
+        octave_offset = octave_offset - 1
+      end
+
+    elseif style == "Spread" then
+      -- Root stays low, upper voices go high
+      octave_offset = cycle
+      if tone_index > 1 then
+        octave_offset = octave_offset + 1
+      end
+
+    elseif style == "Rising" then
+      -- Each successive voice +1 octave
+      octave_offset = i - 1
+
+    elseif style == "Falling" then
+      -- Each successive voice -1 octave (starts high)
+      octave_offset = chord_length - i
+
+    elseif style == "Scatter" then
+      -- Random octave displacement within 3 octaves
+      math.randomseed(chord_root_degree * 1000 + tone_index * 100 + i)
+      octave_offset = cycle + math.random(0, 2)
     end
+
+    local note = chord_root_midi + interval + (octave_offset * 12)
+    table.insert(chord_notes, note)
   end
 
   return chord_notes

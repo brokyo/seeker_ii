@@ -170,7 +170,7 @@ local function generate_motif(lane_id, stage_id)
   local chord_type = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_type")
   local chord_length = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_length")
   local voice_rotation = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_voice_rotation")
-  local octave_span = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_octave_span")
+  local voicing_style = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_voicing_style")
   local note_duration_percent = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_note_duration")
 
   -- Get velocity curve parameters
@@ -187,7 +187,7 @@ local function generate_motif(lane_id, stage_id)
   local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_phasing") == 1
 
   -- Generate chord
-  local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, voice_rotation, octave_span)
+  local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, voice_rotation, voicing_style)
 
   if not effective_chord or #effective_chord == 0 then
     print("ERROR: Failed to generate chord for composer")
@@ -270,15 +270,15 @@ end
 -- Build parameter list (shared by populate and rebuild)
 local function build_param_list(lane_idx, stage_idx)
   return {
-    { separator = true, title = "Pattern" },
+    { separator = true, title = "Timing" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_pattern" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_note_duration", arc_multi_float = {10, 5, 1} },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_phasing" },
     { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_amount", arc_multi_float = {10, 5, 1} },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_shape" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_note_duration", arc_multi_float = {10, 5, 1} },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_phasing" },
-    { separator = true, title = "Velocity" },
+    { separator = true, title = "Dynamics" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_min", arc_multi_float = {10, 5, 1} },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_max", arc_multi_float = {10, 5, 1} }

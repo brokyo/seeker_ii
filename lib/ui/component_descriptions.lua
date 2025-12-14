@@ -23,7 +23,7 @@ return {
   COMPOSER_PLAYBACK = "Control playback timing and pitch offset.\n\nQuantize snaps notes to a rhythmic grid. Swing delays off-beat notes for groove.",
   COMPOSER_CLEAR = "Hold to clear the currently stored motif.",
   COMPOSER_EXPRESSION_STAGES = "Configure pattern and timing for each stage. Phasing is very cool if you have more unequal step (create) and length (harmonic).",
-  COMPOSER_HARMONIC_STAGES = "Configure pitch and harmonic content for each stage. Rotation moves voices up/down octaves (negative=drop voicing). Span controls octave range (0=tight, 3=wide).",
+  COMPOSER_HARMONIC_STAGES = "Configure pitch and harmonic content for each stage.\n\nLength: Notes per chord (3=triad, 4=7th, etc).\nRotation: Shift voices up/down octaves. Negative = drop voicing.\nOctave: Base register offset.\n\nVOICING STYLES\nClose: Tight cluster, normal cycling.\nOpen: Alternating voices spread an octave.\nDrop 2/3: Jazz voicings, inner voice drops.\nSpread: Root low, upper voices high.\nRising: Each voice +1 octave (ascending).\nFalling: Each voice -1 octave (descending).\nScatter: Random octave displacement.",
   COMPOSER_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts volume, Soft reduces velocity.",
 
   -- Sampler mode

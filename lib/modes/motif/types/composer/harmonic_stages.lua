@@ -51,16 +51,17 @@ local function create_screen_ui()
         -- Update name to show current stage in footer
         self.name = "Stage " .. stage_idx .. " Harmonic"
 
-        -- Populate harmonic params and stage controls for this stage
+        -- Build param list showing chord, voicing, and stage settings
         self.params = {
-            { separator = true, title = "Chord Base" },
+            { separator = true, title = "Chord" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_root" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_type" },
+            { separator = true, title = "Voicing" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_length" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_voice_rotation" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave_span" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_voicing_style" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave" },
-            { separator = true, title = "Stage Control" },
+            { separator = true, title = "Stage" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
@@ -77,16 +78,17 @@ local function create_screen_ui()
         -- Update name to show current stage in footer
         self.name = "Stage " .. stage_idx .. " Harmonic"
 
-        -- Rebuild harmonic params and stage controls for this stage
+        -- Update param list to reflect newly selected stage
         self.params = {
-            { separator = true, title = "Chord Definition" },
+            { separator = true, title = "Chord" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_root" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_type" },
+            { separator = true, title = "Voicing" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_length" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_voice_rotation" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave_span" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_voicing_style" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave" },
-            { separator = true, title = "Control" },
+            { separator = true, title = "Stage" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
@@ -107,7 +109,7 @@ local function create_grid_ui()
         }
     })
 
-    -- Draw four stage buttons showing current stage
+    -- Draw stage buttons: playing=high, selected=medium, inactive=low
     grid_ui.draw = function(self, layers)
         local focused_lane_id = _seeker.ui_state.get_focused_lane()
         local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
@@ -155,7 +157,7 @@ local function create_grid_ui()
         end
     end
 
-    -- Navigate to specific stage config
+    -- Press button to edit that stage's chord settings
     grid_ui.handle_key = function(self, x, y, z)
         if z == 1 then
             local focused_lane_id = _seeker.ui_state.get_focused_lane()
@@ -178,9 +180,9 @@ local function create_grid_ui()
 end
 
 function HarmonicStages.enter(component)
+    -- Preserves stage selection when switching between harmonic and expression sections
     component.screen:enter()
 
-    -- Sync local editing state with global focused stage
     local current_global_stage = _seeker.ui_state.get_focused_stage()
     editing_state.selected_stage_index = current_global_stage
 end

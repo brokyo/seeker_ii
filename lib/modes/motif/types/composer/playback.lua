@@ -93,7 +93,7 @@ local function create_grid_ui()
     }
   })
 
-  -- Override draw
+  -- Render play button with pulsing animation when lane is playing
   grid_ui.draw = function(self, layers)
     -- Draw keyboard outline during long press
     if self:is_holding_long_press() then
@@ -116,7 +116,7 @@ local function create_grid_ui()
     layers.ui[self.layout.x][self.layout.y] = brightness
   end
 
-  -- Override handle_key
+  -- Toggle play/stop on long press
   grid_ui.handle_key = function(self, x, y, z)
     local key_id = string.format("%d,%d", x, y)
 

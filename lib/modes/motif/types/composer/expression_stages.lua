@@ -38,8 +38,8 @@ local function create_composer_params(lane_id)
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_root", "Root", {"I", "ii", "iii", "IV", "V", "vi", "vii°"}, root_defaults[stage_idx])
         params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_type", "Type", {"Diatonic", "Major", "Minor", "Sus4", "Maj7", "Min7", "Dom7", "Dim", "Aug"}, 1)
         params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_chord_length", "Length", 1, 12, 4)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_voice_rotation", "Rotation", -2, 2, 0)
-        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_octave_span", "Span", 0, 3, 1)
+        params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_voice_rotation", "Rotation", -5, 5, 0)
+        params:add_option("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_voicing_style", "Voicing", {"Close", "Open", "Drop 2", "Drop 3", "Spread", "Rising", "Falling", "Scatter"}, 1)
         params:add_number("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_octave", "Octave", 1, 7, 3)
 
         -- Pattern
@@ -207,14 +207,13 @@ local function create_grid_ui()
 end
 
 function ExpressionStages.enter(component)
+    -- screen:enter uses editing_state before sync, preserving user's stage selection
+    -- across section switches (intentional - enables editing same stage in both harmonic/expression)
     component.screen:enter()
 
-    -- Sync local editing state with global focused stage
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local current_global_stage = _seeker.ui_state.get_focused_stage()
     editing_state.selected_stage_index = current_global_stage
-
-    -- Sync the stage param with local state
     params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.selected_stage_index)
 end
 
