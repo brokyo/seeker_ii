@@ -31,7 +31,7 @@ local function test_osc_connection()
 end
 
 local function create_params()
-    params:add_group("osc_config", "OSC CONFIG", 7)
+    params:add_group("osc_config", "OSC CONFIG", 8)
 
     -- Sync all OSC clocks and lanes
     params:add_binary("osc_sync_all_clocks", "Synchronize All", "trigger", 0)

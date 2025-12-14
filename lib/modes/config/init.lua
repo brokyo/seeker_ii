@@ -94,7 +94,7 @@ local function midi_note_formatter(param)
 end
 
 local function create_params()
-    params:add_group("config", "CONFIG", 10)
+    params:add_group("config", "CONFIG", 9)
 
     -- Clock - create wrapper parameter that controls system clock_tempo
     params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
