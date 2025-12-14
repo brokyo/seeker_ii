@@ -976,7 +976,7 @@ local function create_screen_ui()
 
     norns_ui.rebuild_params = function(self)
         local selected_number = params:get("eurorack_selected_number")
-        self.name = "Output Type"
+        self.name = "Crow Output " .. selected_number
 
         local param_table = {}
         local output_num = selected_number
@@ -1621,6 +1621,13 @@ end
 
 function CrowOutput.init()
     create_params()
+
+    -- Update all crow outputs when tempo changes (recalculates beat_sec)
+    params:set_action("clock_tempo", function(_)
+        for i = 1, 4 do
+            CrowOutput.update_crow(i)
+        end
+    end)
 
     local component = {
         screen = create_screen_ui(),

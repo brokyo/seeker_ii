@@ -830,6 +830,13 @@ end
 function TxoCvOutput.init()
     create_params()
 
+    -- Update all TXO CV outputs when tempo changes (recalculates beat_sec)
+    params:set_action("clock_tempo", function(_)
+        for i = 1, 4 do
+            TxoCvOutput.update_txo_cv(i)
+        end
+    end)
+
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
