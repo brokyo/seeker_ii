@@ -4,9 +4,8 @@
 local disting = {}
 
 -- Helper functions for parameter offsets
-local function macro_osc_2_offset()
-    local active_lane = _seeker.ui_state.get_focused_lane()
-    local selected_voice = params:get("lane_" .. active_lane .. "_disting_plaits_voice_select")
+local function macro_osc_2_offset(lane_idx)
+    local selected_voice = params:get("lane_" .. lane_idx .. "_disting_plaits_voice_select")
     return 11 * (selected_voice - 1)
 end
 
@@ -80,7 +79,7 @@ end
 -- Rings algorithm parameters
 local function create_rings_params(i)
     params:add_option("lane_" .. i .. "_disting_rings_mode", "Mode", {
-        "Modal Resonator", "Sympathetic Strings", "String", "FM Voice", "Sympathetic Quantized", "Strings & Reverb", "Syth"
+        "Modal Resonator", "Sympathetic Strings", "String", "FM Voice", "Sympathetic Quantized", "Strings & Reverb", "Synth"
     }, 1)
     params:set_action("lane_" .. i .. "_disting_rings_mode", function(value)
         local shifted_index = value - 1
@@ -95,7 +94,7 @@ local function create_rings_params(i)
         crow.ii.disting.parameter(8, shifted_index)
     end)
 
-    params:add_number("lane_" .. i .. "_disting_rings_polyphony", "Polyphony", 1, 4)
+    params:add_number("lane_" .. i .. "_disting_rings_polyphony", "Polyphony", 1, 4, 1)
     params:set_action("lane_" .. i .. "_disting_rings_polyphony", function(value)
         crow.ii.disting.parameter(9, value)
     end)
@@ -153,56 +152,56 @@ local function create_plaits_params(i)
         "VA VCF", "PD", "6-Op FM", "6-Op FM 2", "6-Op FM 3", "Wave Terrain", "String", "Chiptune"
     }, 1)
     params:set_action("lane_" .. i .. "_disting_plaits_model", function(value)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         local shifted_index = value - 1
         crow.ii.disting.parameter(param_offset + 7, shifted_index)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_harmonics", "Harmonics", 0, 127, 64)
     params:set_action("lane_" .. i .. "_disting_plaits_harmonics", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 10, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_timbre", "Timbre", 0, 127, 64)
     params:set_action("lane_" .. i .. "_disting_plaits_timbre", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 11, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_morph", "Morph", 0, 127, 64)
     params:set_action("lane_" .. i .. "_disting_plaits_morph", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 12, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_fm", "FM", -100, 100, 0)
     params:set_action("lane_" .. i .. "_disting_plaits_fm", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 13, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_timbre_mod", "Timbre Mod", -100, 100, 0)
     params:set_action("lane_" .. i .. "_disting_plaits_timbre_mod", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 14, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_morph_mod", "Morph Mod", -100, 100, 0)
     params:set_action("lane_" .. i .. "_disting_plaits_morph_mod", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 15, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_low_pass_gate", "LPG", 0, 127, 127)
     params:set_action("lane_" .. i .. "_disting_plaits_low_pass_gate", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 16, n)
     end)
 
     params:add_number("lane_" .. i .. "_disting_plaits_time", "Time/decay", 0, 127, 64)
     params:set_action("lane_" .. i .. "_disting_plaits_time", function(n)
-        local param_offset = macro_osc_2_offset()
+        local param_offset = macro_osc_2_offset(i)
         crow.ii.disting.parameter(param_offset + 17, n)
     end)
 end

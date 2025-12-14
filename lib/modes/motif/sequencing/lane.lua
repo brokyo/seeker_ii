@@ -862,42 +862,39 @@ function Lane:on_note_on(event)
   --------------------------------
 
   if self.disting_active then
-    -- Set up event params
     local disting_voice_volume = params:get("lane_" .. self.id .. "_disting_voice_volume")
     local lane_volume = params:get("lane_" .. self.id .. "_volume")
-    -- TODO: volume_scaler is a magic number that seems to work. Need to understand what value range DEX is expecting.
-    local volume_scaler = 12
-    local disting_volume = (event.velocity * disting_voice_volume * lane_volume ) / volume_scaler
-    local adjusted_note = note - 60
-    local v8_note = adjusted_note / 12
-    
+    -- Velocity scaled by voice/lane volume (0-127 range expected by Disting)
+    local disting_velocity = math.floor(event.velocity * disting_voice_volume * lane_volume)
+    -- Pitch in v/oct format (0 = middle C / note 60)
+    local v8_note = (note - 60) / 12
+
     local algorithm = params:get("lane_" .. self.id .. "_disting_algorithm")
     -- Multisample
     if algorithm == 1 then
       crow.ii.disting.note_pitch(note, v8_note)
-      crow.ii.disting.note_velocity(note, disting_volume)
-      -- Rings
+      crow.ii.disting.note_velocity(note, disting_velocity)
+    -- Rings (velocity doesn't affect resonator - use output gain for volume)
     elseif algorithm == 2 then
-      -- N.B. Disting docs say to set voice number to 0. This seems to handle Resonator's internal polyphony.
       crow.ii.disting.voice_pitch(0, v8_note)
-      crow.ii.disting.voice_on(0, disting_volume)
-    -- Plaits
+      crow.ii.disting.voice_on(0, disting_velocity)
+    -- Plaits (velocity maps to LPG/accent depending on model)
     elseif algorithm == 3 then
-      -- Check if we're playing in poly or mono
-      local polyphony = params:get("lane_" .. self.id .. "_disting_plaits_voice_select")
-      if polyphony == 1 then
+      -- Voice select: 1 = All (poly), 2-5 = specific voice (mono)
+      local voice_select = params:get("lane_" .. self.id .. "_disting_plaits_voice_select")
+      if voice_select == 1 then
         crow.ii.disting.note_pitch(note, v8_note)
-        crow.ii.disting.note_velocity(note, disting_volume)
+        crow.ii.disting.note_velocity(note, disting_velocity)
       else
-        -- N.B. Subtract 2 to handle lua 1 index and "All" voice option at start of list.
-        local selected_voice = params:get("lane_" .. self.id .. "_disting_plaits_voice_select") - 2
-        crow.ii.disting.voice_pitch(selected_voice, v8_note)
-        crow.ii.disting.voice_on(selected_voice, disting_volume)
+        -- Convert to Disting voice index (0-3)
+        local voice_index = voice_select - 2
+        crow.ii.disting.voice_pitch(voice_index, v8_note)
+        crow.ii.disting.voice_on(voice_index, disting_velocity)
       end
     -- DX7
     elseif algorithm == 4 then
       crow.ii.disting.note_pitch(note, v8_note)
-      crow.ii.disting.note_velocity(note, disting_volume)
+      crow.ii.disting.note_velocity(note, disting_velocity)
     end
   end
 
@@ -1032,32 +1029,26 @@ function Lane:on_note_off(event)
   --------------------------------
   if self.disting_active then
     local algorithm = params:get("lane_" .. self.id .. "_disting_algorithm")
-    -- Convert note to v8 format for Disting EX
-    local adjusted_note = note - 60
-    local v8_note = adjusted_note / 12
-    
+
     -- Multisample
     if algorithm == 1 then
       crow.ii.disting.note_off(note)
     -- Rings
     elseif algorithm == 2 then
-      -- N.B. Subtract one to handle lua 1 index and disting 0 index
-      local voice_select = params:get("lane_" .. self.id .. "_disting_rings_mode") - 1
-      crow.ii.disting.voice_off(voice_select)
+      crow.ii.disting.note_off(note)
     -- Plaits
     elseif algorithm == 3 then
+      -- Voice select: 1 = All (poly), 2-5 = specific voice (mono)
       local voice_select = params:get("lane_" .. self.id .. "_disting_plaits_voice_select")
       if voice_select == 1 then
-        -- "All" mode uses note-based commands
         crow.ii.disting.note_off(note)
       else
-        -- Specific voice: subtract 2 for lua 1-index + "All" option offset
+        -- Convert to Disting voice index (0-3)
         crow.ii.disting.voice_off(voice_select - 2)
       end
     -- DX7
     elseif algorithm == 4 then
       crow.ii.disting.note_off(note)
-
     end
   end
 
