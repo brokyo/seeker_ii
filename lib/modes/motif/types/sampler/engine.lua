@@ -653,9 +653,23 @@ function SamplerEngine.start_recording(lane)
   SamplerEngine.recording_state = "recording"
   SamplerEngine.record_start_time = util.time()
 
-  -- Show recording modal
+  -- Show recording modal with K3 handler to stop recording
   if _seeker and _seeker.modal then
-    _seeker.modal.show_status({ body = "RECORDING", hint = "k3 to stop" })
+    _seeker.modal.show_status({
+      body = "RECORDING",
+      hint = "k3 to stop",
+      on_key = function(n, z)
+        if n == 3 and z == 1 then
+          SamplerEngine.stop_recording(lane)
+          -- Rebuild params to update "Recording Sample" display
+          if _seeker.lane_config and _seeker.lane_config.screen then
+            _seeker.lane_config.screen:rebuild_params()
+          end
+          return true
+        end
+        return false
+      end
+    })
   end
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()

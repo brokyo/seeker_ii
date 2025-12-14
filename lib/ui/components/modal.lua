@@ -157,6 +157,7 @@ end
 
 -- Show a status modal (centered message, no scroll)
 -- config.blocks_norns: if false, allows norns E2/E3/K3 through (for fileselect). Default true.
+-- config.on_key: optional key handler (e.g., K3 to stop recording)
 function Modal.show_status(config)
   state.active = true
   state.modal_type = Modal.TYPE.STATUS
@@ -166,6 +167,7 @@ function Modal.show_status(config)
   state.wrapped_lines = {}
   state.max_scroll = 0
   state.blocks_norns = config.blocks_norns ~= false  -- Default true unless explicitly false
+  state.on_key = config.on_key
 end
 
 -- Show a recording modal (live waveform visualization)

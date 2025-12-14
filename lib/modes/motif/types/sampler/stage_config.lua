@@ -12,6 +12,16 @@ local SamplerStageConfig = {}
 -- Transform types for sampler
 local transform_types = {"None", "Scatter", "Slide", "Reverse", "Pan Spread", "Filter Drift"}
 
+-- Transform descriptions
+local transform_descriptions = {
+    ["None"] = "Pass-through with no changes.\n\nThe motif plays exactly as recorded.",
+    ["Scatter"] = "Randomize chop timing within the loop.\n\nAmount: How much chops can shift from their original position.\nSize: Maximum shift distance as percentage of loop length.",
+    ["Slide"] = "Shift all chops forward or backward in time.\n\nAmount: How far chops slide from their original position.\nWrap: When enabled, chops that slide past the end wrap to the beginning.",
+    ["Reverse"] = "Randomly reverse individual chop playback.\n\nProbability: Chance each chop plays in reverse.",
+    ["Pan Spread"] = "Randomize stereo position of chops.\n\nProbability: Chance each chop gets a new pan position.\nRange: How far from center chops can pan.",
+    ["Filter Drift"] = "Gradually shift filter cutoff across chops.\n\nDirection: Darken lowers cutoff, Brighten raises it.\nAmount: How much the filter changes per chop."
+}
+
 -- Local state for stage configuration
 local config_state = {
     config_stage = 1
@@ -100,6 +110,15 @@ local function create_screen_ui()
 
         -- Get the current transform type
         local transform_type = params:string("lane_" .. lane_idx .. "_sampler_transform_stage_" .. stage_idx)
+
+        -- Update description: stage overview + transform name header + transform details
+        local transform_desc = transform_descriptions[transform_type]
+        local stage_desc = Descriptions.SAMPLER_STAGE_CONFIG
+        if transform_desc and transform_type then
+            self.description = stage_desc .. "\n\n" .. string.upper(transform_type) .. "\n" .. transform_desc
+        else
+            self.description = stage_desc
+        end
 
         local param_table = {
             { separator = true, title = "Settings" },
