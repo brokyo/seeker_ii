@@ -1,5 +1,5 @@
--- w_tape.lua
--- Self-contained component for WTape functionality.
+-- wtape_config.lua
+-- WTape configuration: speed, recording levels, and navigation.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -10,7 +10,7 @@ WTape.__index = WTape
 
 -- wtape api here: https://github.com/monome/crow/blob/main/lua/ii/wtape.lua
 local function create_params()
-    params:add_group("wtape", "WTAPE", 15)
+    params:add_group("wtape", "WTAPE", 16)
 
     -- Playback
     params:add_binary("wtape_toggle_playing", "Toggle Playing", "toggle", 0)
@@ -24,7 +24,7 @@ local function create_params()
         crow.ii.wtape.speed(value)
     end)
 
-    -- Direction state: 1 = forward, -1 = reverse (tracked locally since reverse() is stateless)
+    -- Direction state: 1 = forward, -1 = reverse
     _seeker.wtape.direction = 1
 
     params:add_binary("wtape_reverse", "Play Direction", "trigger", 0)
@@ -109,8 +109,15 @@ local function create_params()
             _seeker.ui_state.trigger_activated("wtape_loop_end")
         end
     end)
-    
-    
+
+    -- Jump to tape start (timestamp 0)
+    params:add_binary("wtape_goto_start", "Go To Start", "trigger", 0)
+    params:set_action("wtape_goto_start", function(value)
+        if value == 1 then
+            crow.ii.wtape.timestamp(0, 0)
+            _seeker.ui_state.trigger_activated("wtape_goto_start")
+        end
+    end)
 end
 
 local function create_screen_ui()
@@ -125,15 +132,28 @@ local function create_screen_ui()
             { id = "wtape_erase_strength", arc_multi_float = {0.1, 0.01, 0.001}},
             { id = "wtape_monitor_level", arc_multi_float = {0.1, 0.01, 0.001}},
             { id = "wtape_rec_level", arc_multi_float = {0.1, 0.01, 0.001}},
+            { separator = true, title = "Navigation"},
+            { id = "wtape_goto_start", is_action = true },
         }
     })
 end
 
 local function create_grid_ui()
-    -- No grid button - the WTAPE mode button at (13, 2) serves as virtual navigation
-    -- ModeSwitcher handles switching to WTAPE mode and setting default section
-    -- This pattern allows mode buttons to serve dual purpose: mode switching + component access
+    -- Grid UI managed by mode switcher
     return nil
+end
+
+-- Sync all params to W/Tape hardware on init
+local function sync_to_hardware()
+    crow.ii.wtape.timestamp(0, 0)
+    crow.ii.wtape.play(params:get("wtape_toggle_playing"))
+    crow.ii.wtape.speed(params:get("wtape_speed"))
+    crow.ii.wtape.record(params:get("wtape_toggle_recording"))
+    crow.ii.wtape.erase_strength(params:get("wtape_erase_strength"))
+    crow.ii.wtape.monitor_level(params:get("wtape_monitor_level"))
+    crow.ii.wtape.rec_level(params:get("wtape_rec_level"))
+    crow.ii.wtape.echo_mode(params:get("wtape_echo_mode"))
+    crow.ii.wtape.loop_active(params:get("wtape_loop_mode"))
 end
 
 function WTape.init()
@@ -142,7 +162,8 @@ function WTape.init()
         grid = create_grid_ui()
     }
     create_params()
-    
+    sync_to_hardware()
+
     return component
 end
 

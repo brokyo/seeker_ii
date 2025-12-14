@@ -4,6 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local WTapeFF = {}
 WTapeFF.__index = WTapeFF
@@ -12,6 +13,7 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_FF",
         name = "Fast Forward",
+        description = Descriptions.WTAPE_FF,
         params = {
             { id = "wtape_ff_time", arc_multi_float = {10, 1, 0.1} }
         }

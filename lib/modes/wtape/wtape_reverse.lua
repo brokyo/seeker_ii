@@ -4,6 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local WTapeReverse = {}
 WTapeReverse.__index = WTapeReverse
@@ -12,10 +13,16 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_REVERSE",
         name = "Reverse",
+        description = Descriptions.WTAPE_REVERSE,
         params = {}
     })
 
-    screen_ui.draw = function(self)
+    screen_ui.draw_default = function(self)
+        if self.state.showing_description then
+            NornsUI.draw_default(self)
+            return
+        end
+
         screen.clear()
 
         local is_forward = _seeker.wtape.direction == 1
@@ -28,13 +35,7 @@ local function create_screen_ui()
         screen.text(status_text)
 
         screen.font_size(8)
-        screen.level(8)
-        screen.rect(0, 52, 128, 12)
-        screen.fill()
-        screen.level(0)
-        screen.move(2, 60)
-        screen.text("Play Direction")
-
+        self:draw_footer()
         screen.update()
     end
 

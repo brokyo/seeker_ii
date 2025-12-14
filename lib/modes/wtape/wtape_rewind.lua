@@ -4,6 +4,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local Descriptions = include("lib/ui/component_descriptions")
 
 local WTapeRewind = {}
 WTapeRewind.__index = WTapeRewind
@@ -12,6 +13,7 @@ local function create_screen_ui()
     local screen_ui = NornsUI.new({
         id = "WTAPE_REWIND",
         name = "Rewind",
+        description = Descriptions.WTAPE_REWIND,
         params = {
             { id = "wtape_rewind_time", arc_multi_float = {10, 1, 0.1} }
         }

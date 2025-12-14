@@ -24,7 +24,12 @@ local function create_screen_ui()
 
     -- Display recording status below parameters
     screen_ui.draw_default = function(self)
-        NornsUI.draw_default(self)
+        if self.state.showing_description then
+            NornsUI.draw_default(self)
+            return
+        end
+
+        self:_draw_standard_ui()
 
         local is_recording = params:get("wtape_toggle_recording") == 1
         local status_text = is_recording and "REC ON" or "REC OFF"
@@ -34,6 +39,7 @@ local function create_screen_ui()
         screen.move(64 - width/2, 46)
         screen.text(status_text)
 
+        self:draw_footer()
         screen.update()
     end
 
