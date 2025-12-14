@@ -530,8 +530,11 @@ function SamplerEngine.load_file(lane, filepath)
     return false
   end
 
-  -- Show loading overlay
+  -- Show loading modal
   SamplerEngine.loading_state = "loading"
+  if _seeker and _seeker.modal then
+    _seeker.modal.show_status({ body = "LOADING" })
+  end
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
   end
@@ -557,10 +560,13 @@ function SamplerEngine.load_file(lane, filepath)
     -- Auto-chop into fixed chops
     SamplerEngine.set_fixed_chops(lane, duration)
 
-    -- Clear loading overlay after brief delay (buffer_read_mono has no completion callback)
+    -- Clear loading modal after brief delay (buffer_read_mono has no completion callback)
     clock.run(function()
       clock.sleep(1.0)
       SamplerEngine.loading_state = nil
+      if _seeker and _seeker.modal then
+        _seeker.modal.dismiss()
+      end
       if _seeker and _seeker.screen_ui then
         _seeker.screen_ui.set_needs_redraw()
       end
@@ -572,6 +578,9 @@ function SamplerEngine.load_file(lane, filepath)
     -- Free the buffer since load failed
     SamplerEngine.free_buffer(lane)
     SamplerEngine.loading_state = nil
+    if _seeker and _seeker.modal then
+      _seeker.modal.dismiss()
+    end
     if _seeker and _seeker.screen_ui then
       _seeker.screen_ui.set_needs_redraw()
     end
@@ -644,7 +653,10 @@ function SamplerEngine.start_recording(lane)
   SamplerEngine.recording_state = "recording"
   SamplerEngine.record_start_time = util.time()
 
-  -- Request redraw to show recording overlay
+  -- Show recording modal
+  if _seeker and _seeker.modal then
+    _seeker.modal.show_status({ body = "RECORDING", hint = "k3 to stop" })
+  end
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
   end
@@ -680,8 +692,11 @@ function SamplerEngine.stop_recording(lane)
   util.make_dir(audio_path)
   local filepath = audio_path .. "/" .. filename
 
-  -- Update state to show saving overlay
+  -- Update state and show saving modal
   SamplerEngine.recording_state = "saving"
+  if _seeker and _seeker.modal then
+    _seeker.modal.show_status({ body = "SAVING" })
+  end
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
   end

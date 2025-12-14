@@ -156,6 +156,7 @@ function Modal.show_description(config)
 end
 
 -- Show a status modal (centered message, no scroll)
+-- config.blocks_norns: if false, allows norns E2/E3/K3 through (for fileselect). Default true.
 function Modal.show_status(config)
   state.active = true
   state.modal_type = Modal.TYPE.STATUS
@@ -164,6 +165,7 @@ function Modal.show_status(config)
   state.scroll_offset = 0
   state.wrapped_lines = {}
   state.max_scroll = 0
+  state.blocks_norns = config.blocks_norns ~= false  -- Default true unless explicitly false
 end
 
 -- Show a recording modal (live waveform visualization)
@@ -233,6 +235,7 @@ function Modal.dismiss()
   state.adsr_selected = 1
   state.on_key = nil
   state.on_enc = nil
+  state.blocks_norns = true  -- Reset to default
 end
 
 -- Check if modal is currently active
@@ -246,14 +249,19 @@ function Modal.get_type()
 end
 
 -- Handle key input when modal is active
--- Returns true if the modal handled the input
+-- Returns true if the modal handled the input (blocks input from reaching underlying UI)
 function Modal.handle_key(n, z)
   if not state.active then return false end
 
-  -- If modal has a key callback, let it handle input
+  -- If modal has a key callback, let it handle input first
   if state.on_key then
     local handled = state.on_key(n, z)
     if handled then return true end
+  end
+
+  -- Status modals block key input unless blocks_norns is false (for fileselect)
+  if state.modal_type == Modal.TYPE.STATUS then
+    return state.blocks_norns ~= false
   end
 
   return false
@@ -261,7 +269,7 @@ end
 
 -- Handle encoder input (for scrolling descriptions or custom callbacks)
 -- source: "norns" or "arc" to differentiate input device
--- Returns true if the modal handled the input
+-- Returns true if the modal handled the input (blocks input from reaching underlying UI)
 function Modal.handle_enc(n, d, source)
   if not state.active then return false end
 
@@ -281,6 +289,14 @@ function Modal.handle_enc(n, d, source)
       state.max_scroll
     )
     return true
+  end
+
+  -- Status modals: always block Arc, block Norns only if blocks_norns is true
+  if state.modal_type == Modal.TYPE.STATUS then
+    if source == "arc" then
+      return true  -- Always block Arc during status modals
+    end
+    return state.blocks_norns ~= false  -- Block Norns unless explicitly allowed
   end
 
   return false

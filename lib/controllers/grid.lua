@@ -67,8 +67,23 @@ end
 
 
 function GridUI.key(x, y, z)
-  -- Close active modal when user presses grid
+  -- Block grid input during fileselect and show hint overlay
+  if _seeker.sampler and _seeker.sampler.file_select_active then
+    if _seeker.modal then
+      _seeker.modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
+      screen.update()
+    end
+    return
+  end
+
+  -- Handle active modals
   if _seeker.modal and _seeker.modal.is_active() then
+    local modal_type = _seeker.modal.get_type()
+    -- Status modals block all grid input (operations in progress)
+    if modal_type == _seeker.modal.TYPE.STATUS then
+      return
+    end
+    -- Other modals (description, adsr) are dismissed on grid press
     _seeker.modal.dismiss()
   end
 

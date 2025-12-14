@@ -107,6 +107,15 @@ function Arc.init()
 
     -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
     device.delta = function(n, delta)
+      -- Block Arc input during fileselect and show hint overlay
+      if _seeker.sampler and _seeker.sampler.file_select_active then
+        if _seeker.modal then
+          _seeker.modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
+          screen.update()
+        end
+        return
+      end
+
       -- Modal handles Arc encoder input first when active
       if _seeker.modal and _seeker.modal.handle_enc(n, delta, "arc") then
         return
@@ -257,6 +266,15 @@ function Arc.init()
 
     device.key = function(n, d)
       if d == 1 then
+        -- Block Arc input during fileselect and show hint overlay
+        if _seeker.sampler and _seeker.sampler.file_select_active then
+          if _seeker.modal then
+            _seeker.modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
+            screen.update()
+          end
+          return
+        end
+
         -- Modal handles Arc button press first (as K3)
         if _seeker.modal and _seeker.modal.handle_key(3, 1) then
           return

@@ -661,29 +661,14 @@ local function create_screen_ui()
         self:filter_active_params()
     end
 
-    -- Override draw to show recording/fileselect overlays
+    -- Override draw to show fileselect overlay (visual only, doesn't block norns input)
     norns_ui.draw = function(self)
-        -- Draw standard UI
         self:draw_default()
 
+        -- Show fileselect hint overlay (norns fileselect handles its own screen, this shows briefly)
         local Modal = get_modal()
-        if not Modal then return end
-
-        -- Check if recording and draw overlay
-        if _seeker.sampler and _seeker.sampler.recording_state then
-            local message = _seeker.sampler.recording_state == "recording" and "RECORDING" or "SAVING"
-            local hint = _seeker.sampler.recording_state == "recording" and "k3 to stop" or nil
-            Modal.draw_status_immediate({ body = message, hint = hint })
-            screen.update()
-
-        -- Check if fileselect is active and draw overlay
-        elseif _seeker.sampler and _seeker.sampler.file_select_active then
+        if Modal and _seeker.sampler and _seeker.sampler.file_select_active then
             Modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
-            screen.update()
-
-        -- Check if loading sample and draw overlay
-        elseif _seeker.sampler and _seeker.sampler.loading_state then
-            Modal.draw_status_immediate({ body = "LOADING" })
             screen.update()
         end
     end

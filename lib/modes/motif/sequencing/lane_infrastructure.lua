@@ -154,14 +154,13 @@ local function create_basic_lane_params(i)
     params:set_action("lane_" .. i .. "_sample_file", function()
         local audio_path = _path.audio .. "seeker_ii"
 
-        -- Show overlay while fileselect is active
+        -- Track fileselect state (norns fileselect takes over screen, no modal needed)
         if _seeker and _seeker.sampler then
             _seeker.sampler.file_select_active = true
-            _seeker.screen_ui.set_needs_redraw()
         end
 
         fileselect.enter(audio_path, function(filepath)
-            -- Clear overlay state
+            -- Clear fileselect state
             if _seeker and _seeker.sampler then
                 _seeker.sampler.file_select_active = false
             end
