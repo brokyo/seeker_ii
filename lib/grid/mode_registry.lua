@@ -29,9 +29,9 @@ GridModeRegistry.MODES = {
 
   motif = {
     button = { x = 16, y = 2 },
-    default_section = "KEYBOARD",
+    default_section = "MOTIF_CONFIG",
     sections = {
-      "KEYBOARD",
+      "MOTIF_CONFIG",
       "LANE",
       "STAGE",
       "LANE_CONFIG",

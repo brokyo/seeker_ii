@@ -19,7 +19,7 @@ function ScreenUI.init()
     CONFIG = _seeker.config.screen,
 
     -- Motif Mode
-    KEYBOARD = _seeker.keyboard.screen,
+    MOTIF_CONFIG = _seeker.motif_config.screen,
     LANE_CONFIG = _seeker.lane_config.screen,
   }
 

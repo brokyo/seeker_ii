@@ -26,8 +26,8 @@ function theory.grid_to_note(x, y, octave)
   local grid_offset = params:get("lane_" .. focused_lane .. "_grid_offset")
 
   -- Calculate steps from root position
-  local x_steps = (x - 6) * params:get("keyboard_column_steps")  -- Scale degrees per horizontal step
-  local y_steps = (7 - y) * params:get("keyboard_row_steps")     -- Scale degrees per vertical step
+  local x_steps = (x - 6) * params:get("motif_config_column_steps")  -- Scale degrees per horizontal step
+  local y_steps = (7 - y) * params:get("motif_config_row_steps")     -- Scale degrees per vertical step
   local total_steps = x_steps + y_steps + grid_offset
 
   -- Calculate the base MIDI note for the root in the specified octave
@@ -82,9 +82,9 @@ function theory.print_keyboard_layout()
     root_name,
     musicutil.SCALES[scale_type].name,
     octave))
-  print(string.format("Column spacing: %d steps | Row spacing: %d steps", 
-    params:get("keyboard_column_steps"), 
-    params:get("keyboard_row_steps")))
+  print(string.format("Column spacing: %d steps | Row spacing: %d steps",
+    params:get("motif_config_column_steps"),
+    params:get("motif_config_row_steps")))
   print("Root at bottom left (6,7)")
   print("▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔")
   

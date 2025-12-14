@@ -26,7 +26,7 @@ local Config = include("lib/modes/config/init")
 local lane_infrastructure = include("lib/modes/motif/sequencing/lane_infrastructure")
 
 -- Motif Infrastructure
-local Keyboard = include("lib/modes/motif/infrastructure/tuning")
+local MotifConfig = include("lib/modes/motif/infrastructure/motif_config")
 local LaneConfig = include("lib/modes/motif/infrastructure/lane_config")
 
 -- Motif Types
@@ -92,8 +92,8 @@ function init()
   -- Initialize lane infrastructure to provide parameters for lane.lua
   lane_infrastructure.init()
 
-  -- Keyboard Mode
-  _seeker.keyboard = Keyboard.init()
+  -- Motif Config
+  _seeker.motif_config = MotifConfig.init()
   -- NOTE: LaneConfig must be initialized before type modules to avoid race conditions
   _seeker.lane_config = LaneConfig.init()
 

@@ -1,41 +1,41 @@
--- tuning.lua
--- Global motif settings: tuning, scale, keyboard layout, and MIDI triggers
+-- motif_config.lua
+-- Global motif settings: tuning, scale, and keyboard layout
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local Descriptions = include("lib/ui/component_descriptions")
 
-local Keyboard = {}
-Keyboard.__index = Keyboard
+local MotifConfig = {}
+MotifConfig.__index = MotifConfig
 
 local function create_params()
-    params:add_group("keyboard", "KEYBOARD", 6)
+    params:add_group("motif_config", "MOTIF CONFIG", 6)
 
     -- Sync trigger
-    params:add_binary("keyboard_sync_all_clocks", "Synchronize All", "trigger", 0)
-    params:set_action("keyboard_sync_all_clocks", function(value)
+    params:add_binary("motif_config_sync_all_clocks", "Synchronize All", "trigger", 0)
+    params:set_action("motif_config_sync_all_clocks", function(value)
         if value == 1 then
             if _seeker and _seeker.conductor then
                 _seeker.conductor.sync_all()
             end
-            _seeker.ui_state.trigger_activated("keyboard_sync_all_clocks")
+            _seeker.ui_state.trigger_activated("motif_config_sync_all_clocks")
         end
     end)
 
-    -- Keyboard layout parameters (moved from config)
-    params:add_number("keyboard_column_steps", "Column Spacing", 1, 8, 1)
-    params:set_action("keyboard_column_steps", function(value)
+    -- Keyboard layout parameters
+    params:add_number("motif_config_column_steps", "Column Spacing", 1, 8, 1)
+    params:set_action("motif_config_column_steps", function(value)
         local theory = include('lib/modes/motif/core/theory')
         theory.print_keyboard_layout()
     end)
 
-    params:add_number("keyboard_row_steps", "Row Spacing", 1, 8, 4)
-    params:set_action("keyboard_row_steps", function(value)
+    params:add_number("motif_config_row_steps", "Row Spacing", 1, 8, 4)
+    params:set_action("motif_config_row_steps", function(value)
         local theory = include('lib/modes/motif/core/theory')
         theory.print_keyboard_layout()
     end)
 
-    -- Global tuning (moved from config)
+    -- Global tuning
     -- Tuning presets: curated root/scale combinations for emotional palettes
     -- Format: {root_note_index, scale_index} where root 1=C, scale per musicutil.SCALES
     params:add_option("tuning_preset", "Preset",
@@ -96,9 +96,9 @@ local MOTIF_TYPE_TAPE = 1
 
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
-        id = "KEYBOARD",
-        name = "Tuning",
-        description = Descriptions.KEYBOARD,
+        id = "MOTIF_CONFIG",
+        name = "Motif Config",
+        description = Descriptions.MOTIF_CONFIG,
         params = {}
     })
 
@@ -109,7 +109,7 @@ local function create_screen_ui()
 
         local param_table = {
             { separator = true, title = "Actions" },
-            { id = "keyboard_sync_all_clocks", is_action = true },
+            { id = "motif_config_sync_all_clocks", is_action = true },
             { separator = true, title = "Tuning" },
             { id = "tuning_preset" },
             { id = "root_note" },
@@ -118,14 +118,14 @@ local function create_screen_ui()
 
         -- Tape mode: show lane-specific keyboard tuning (octave, grid offset)
         if motif_type == MOTIF_TYPE_TAPE then
-            table.insert(param_table, { separator = true, title = "Lane " .. lane_idx .. " Tuning" })
+            table.insert(param_table, { separator = true, title = "Lane " .. lane_idx .. " Layout" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_keyboard_octave" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_grid_offset" })
         end
 
-        table.insert(param_table, { separator = true, title = "Layout" })
-        table.insert(param_table, { id = "keyboard_column_steps" })
-        table.insert(param_table, { id = "keyboard_row_steps" })
+        table.insert(param_table, { separator = true, title = "Global Layout" })
+        table.insert(param_table, { id = "motif_config_column_steps" })
+        table.insert(param_table, { id = "motif_config_row_steps" })
 
         self.params = param_table
     end
@@ -140,13 +140,11 @@ local function create_screen_ui()
 end
 
 local function create_grid_ui()
-    -- No grid button - the KEYBOARD mode button at (16, 2) serves as virtual navigation
-    -- ModeSwitcher handles switching to KEYBOARD mode and setting default section
-    -- This pattern allows mode buttons to serve dual purpose: mode switching + component access
+    -- Grid UI disabled - navigation handled by mode button at (16, 2)
     return nil
 end
 
-function Keyboard.init()
+function MotifConfig.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui()
@@ -156,4 +154,4 @@ function Keyboard.init()
     return component
 end
 
-return Keyboard
+return MotifConfig
