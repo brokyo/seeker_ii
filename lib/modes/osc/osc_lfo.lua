@@ -117,9 +117,10 @@ local function create_screen_ui()
         self.name = string.format("LFO %d", selected_lfo)
 
         local param_table = {
-            { separator = true, title = "LFO " .. selected_lfo },
+            { separator = true, title = "Timing" },
             { id = "osc_lfo_" .. selected_lfo .. "_sync", name = "Sync" },
             { id = "osc_lfo_" .. selected_lfo .. "_shape", name = "Shape" },
+            { separator = true, title = "Range" },
             { id = "osc_lfo_" .. selected_lfo .. "_min", name = "Min", arc_multi_float = {1.0, 0.1, 0.01} },
             { id = "osc_lfo_" .. selected_lfo .. "_max", name = "Max", arc_multi_float = {1.0, 0.1, 0.01} }
         }

@@ -331,7 +331,7 @@ local function create_screen_ui()
         -- Update description based on selected type
         self.description = TYPE_DESCRIPTIONS[type] or Descriptions.TXO_TR_OUTPUT
 
-        table.insert(param_table, { separator = true, title = "TXO TR " .. output_num })
+        table.insert(param_table, { separator = true, title = "Mode" })
         table.insert(param_table, { id = "txo_tr_" .. output_num .. "_type" })
 
         table.insert(param_table, { separator = true, title = "Clock" })
@@ -340,7 +340,7 @@ local function create_screen_ui()
         table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_offset" })
 
         if type == "Clock" then
-            table.insert(param_table, { separator = true, title = "Clock" })
+            table.insert(param_table, { separator = true, title = "Output" })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_clock_length", arc_multi_float = {10, 5, 1} })
         elseif type == "Pattern" then
             table.insert(param_table, { separator = true, title = "Pattern" })

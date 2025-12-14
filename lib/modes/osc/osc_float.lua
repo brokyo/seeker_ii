@@ -64,7 +64,7 @@ local function create_screen_ui()
         self.name = string.format("Float %d", selected_float)
 
         local param_table = {
-            { separator = true, title = "Float " .. selected_float },
+            { separator = true, title = "Output" },
             { id = "osc_float_" .. selected_float .. "_value", name = "Value", arc_multi_float = {1.0, 0.1, 0.01} },
             { id = "osc_float_" .. selected_float .. "_multiplier", name = "Multiplier", arc_multi_float = {10, 1, 0.1} }
         }

@@ -424,7 +424,7 @@ local function create_screen_ui()
         -- Update description based on selected type
         self.description = TYPE_DESCRIPTIONS[type] or Descriptions.TXO_CV_OUTPUT
 
-        table.insert(param_table, { separator = true, title = "TXO CV " .. output_num })
+        table.insert(param_table, { separator = true, title = "Mode" })
         table.insert(param_table, { id = "txo_cv_" .. output_num .. "_type" })
 
         table.insert(param_table, { separator = true, title = "Clock" })
