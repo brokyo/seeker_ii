@@ -177,6 +177,8 @@ Each output selects a Category (Gate or CV) then a Mode within that category.
 
 Alongside the Seeker II tox components you can directly manipulate param values in TouchDesigner and sequence them with the Norns clock and events. Set the IP in the config menu (3B) and values should automatically show up in TD. Component preview window gives you a sense of values and their path.
 
+Drag the .tox files into your project or My Components folder. Each component provides 4 CHOP outputs.
+
 **Float** — [Float Component](lib/etc/td_components/seeker_ii_floats.tox) Set float values through a base and multiplier. Useful for tuning images or finding the right range for LFOs. Better with Arc.
 
 **LFO** — [LFO Component](lib/etc/td_components/seeker_ii_lfo.tox) Tempo-synced lfos using stock TouchDesigner shapes. Set mix/max ranges for interesting parameter editing.
