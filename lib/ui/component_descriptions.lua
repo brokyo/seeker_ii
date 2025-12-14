@@ -36,15 +36,15 @@ return {
   SAMPLER_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
 
   -- WTape mode
-  WTAPE = "WTape configuration. Speed, recording levels, and navigation.\n\nGo To Start jumps to timestamp 0 for consistent buffer behavior.\n\nAll params sync to hardware on script init.",
-  WTAPE_PLAYBACK = "Toggle tape playback. Speed affects pitch. Negative values reverse pitch; use Reverse button to change playback direction.",
-  WTAPE_RECORD = "Toggle recording. Rec Level sets input gain.\n\nErase Strength: 0=full overdub, 1=full replace.\n\nEcho Mode: plays back audio before erasing (useful for feedback loops).",
-  WTAPE_FF = "Skip forward on the tape. Adjust time to control jump distance.",
-  WTAPE_REWIND = "Skip backward on the tape. Adjust time to control jump distance.",
-  WTAPE_REVERSE = "Flip playback direction.",
-  WTAPE_LOOP_START = "Mark current tape position as loop start point.",
-  WTAPE_LOOP_END = "Mark current position as loop end and jump to loop start.",
-  WTAPE_LOOP_ACTIVE = "Toggle looping on/off. When active, playback loops between start and end points.",
+  WTAPE = "WTape configuration. Monitor level and navigation.\n\nGo To Start jumps to timestamp 0.\n\nInit W/Tape **clears** the tape buffer, resets all params to defaults, and syncs to hardware. Use when W/Tape gets into a weird state.",
+  WTAPE_PLAYBACK = "Toggle tape playback. Speed affects pitch.\n\nLong press: Toggle play/stop.",
+  WTAPE_RECORD = "Toggle recording. Rec Level sets input gain.\n\nLong press: Toggle recording.\n\nEcho Mode: can't actually figure this one out.",
+  WTAPE_FF = "Skip forward on the tape.\n\nLong press: Seek forward.",
+  WTAPE_REWIND = "Skip backward on the tape.\n\nLong press: Seek backward.",
+  WTAPE_REVERSE = "Flip playback direction.\n\nLong press: Toggle direction.",
+  WTAPE_LOOP_ACTIVE = "Toggle looping on/off.\n\nLong press: Toggle loop on/off.",
+  WTAPE_FRIPPERTRONICS = "Frippertronics: tape delay with decay.\n\nHold: Start buffer creation.\nTap: End buffer setup and start looping.\n\nUse Decay param to control fade rate.",
+  WTAPE_DECAY = "Control how fast layers fade.\n\n0 = full overdub (layers accumulate forever)\n0.2-0.4 = Frippertronics\n1 = full replace (old material erased)",
 
   -- Eurorack mode
   EURORACK_CONFIG = "Control Eurorack modules over i2c. Supports Crow and TXO.",

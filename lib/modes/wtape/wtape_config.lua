@@ -1,5 +1,4 @@
--- wtape_config.lua
--- WTape configuration: speed, recording levels, and navigation.
+-- WTape configuration: speed, recording levels, and navigation
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -9,8 +8,27 @@ local WTape = {}
 WTape.__index = WTape
 
 -- wtape api here: https://github.com/monome/crow/blob/main/lua/ii/wtape.lua
+
+-- Sync W/Tape to known defaults on boot
+local function sync_to_hardware()
+    -- Stop everything
+    crow.ii.wtape.play(0)
+    crow.ii.wtape.record(0)
+    crow.ii.wtape.loop_active(0)
+
+    -- Go to tape start
+    crow.ii.wtape.timestamp(0, 0)
+
+    -- Set known defaults
+    crow.ii.wtape.speed(1)
+    crow.ii.wtape.erase_strength(0.3)
+    crow.ii.wtape.monitor_level(0.9)
+    crow.ii.wtape.rec_level(0.9)
+    crow.ii.wtape.echo_mode(0)
+end
+
 local function create_params()
-    params:add_group("wtape", "WTAPE", 16)
+    params:add_group("wtape", "WTAPE", 17)
 
     -- Playback
     params:add_binary("wtape_toggle_playing", "Toggle Playing", "toggle", 0)
@@ -43,7 +61,7 @@ local function create_params()
         _seeker.screen_ui.set_needs_redraw()
     end)
 
-    params:add_control("wtape_erase_strength", "Overdub Strength", controlspec.new(0, 1, 'lin', 0.01, 0.25))
+    params:add_control("wtape_erase_strength", "Decay", controlspec.new(0, 1, 'lin', 0.01, 0.3))
     params:set_action("wtape_erase_strength", function(value)
         crow.ii.wtape.erase_strength(value)
     end)
@@ -118,6 +136,39 @@ local function create_params()
             _seeker.ui_state.trigger_activated("wtape_goto_start")
         end
     end)
+
+    -- Full W/Tape reset: clear tape, reset params to defaults, sync to hardware
+    params:add_binary("wtape_init", "Init W/Tape", "trigger", 0)
+    params:set_action("wtape_init", function(value)
+        if value == 1 then
+            -- Stop everything
+            crow.ii.wtape.play(0)
+            crow.ii.wtape.record(0)
+            crow.ii.wtape.loop_active(0)
+            params:set("wtape_toggle_playing", 0, true)
+            params:set("wtape_toggle_recording", 0, true)
+            params:set("wtape_loop_mode", 0, true)
+
+            -- Clear all tape audio
+            crow.ii.wtape.WARNING_clear_tape()
+
+            -- Go to tape start
+            crow.ii.wtape.timestamp(0, 0)
+
+            -- Reset params to defaults
+            params:set("wtape_speed", 1, true)
+            params:set("wtape_erase_strength", 0.3, true)
+            params:set("wtape_monitor_level", 0.9, true)
+            params:set("wtape_rec_level", 0.9, true)
+            params:set("wtape_echo_mode", 0, true)
+
+            -- Sync all to hardware
+            sync_to_hardware()
+
+            _seeker.ui_state.trigger_activated("wtape_init")
+            _seeker.screen_ui.set_needs_redraw()
+        end
+    end)
 end
 
 local function create_screen_ui()
@@ -126,14 +177,12 @@ local function create_screen_ui()
         name = "WTape Config",
         description = Descriptions.WTAPE,
         params = {
-            { separator = true, title = "Playback" },
-            { id = "wtape_speed", arc_multi_float = {1.0, 0.1, 0.01}},
-            { separator = true, title = "Recording"},
-            { id = "wtape_erase_strength", arc_multi_float = {0.1, 0.01, 0.001}},
-            { id = "wtape_monitor_level", arc_multi_float = {0.1, 0.01, 0.001}},
-            { id = "wtape_rec_level", arc_multi_float = {0.1, 0.01, 0.001}},
-            { separator = true, title = "Navigation"},
+            { separator = true, title = "Levels" },
+            { id = "wtape_monitor_level", arc_multi_float = {0.1, 0.01, 0.001} },
+            { separator = true, title = "Navigation" },
             { id = "wtape_goto_start", is_action = true },
+            { separator = true, title = "Reset" },
+            { id = "wtape_init", is_action = true },
         }
     })
 end
@@ -141,19 +190,6 @@ end
 local function create_grid_ui()
     -- Grid UI managed by mode switcher
     return nil
-end
-
--- Sync all params to W/Tape hardware on init
-local function sync_to_hardware()
-    crow.ii.wtape.timestamp(0, 0)
-    crow.ii.wtape.play(params:get("wtape_toggle_playing"))
-    crow.ii.wtape.speed(params:get("wtape_speed"))
-    crow.ii.wtape.record(params:get("wtape_toggle_recording"))
-    crow.ii.wtape.erase_strength(params:get("wtape_erase_strength"))
-    crow.ii.wtape.monitor_level(params:get("wtape_monitor_level"))
-    crow.ii.wtape.rec_level(params:get("wtape_rec_level"))
-    crow.ii.wtape.echo_mode(params:get("wtape_echo_mode"))
-    crow.ii.wtape.loop_active(params:get("wtape_loop_mode"))
 end
 
 function WTape.init()

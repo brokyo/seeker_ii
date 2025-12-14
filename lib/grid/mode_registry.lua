@@ -9,7 +9,7 @@ GridModeRegistry.MODES = {
   WTAPE = {
     button = { x = 13, y = 2 },
     default_section = "WTAPE",
-    sections = { "WTAPE", "WTAPE_PLAYBACK", "WTAPE_RECORD", "WTAPE_FF", "WTAPE_REWIND", "WTAPE_LOOP_START", "WTAPE_LOOP_END", "WTAPE_REVERSE", "WTAPE_LOOP_ACTIVE" },
+    sections = { "WTAPE", "WTAPE_PLAYBACK", "WTAPE_RECORD", "WTAPE_FF", "WTAPE_REWIND", "WTAPE_REVERSE", "WTAPE_LOOP_ACTIVE", "WTAPE_FRIPPERTRONICS", "WTAPE_DECAY" },
     path = "lib/grid/layouts/wtape_mode"
   },
 

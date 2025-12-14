@@ -14,28 +14,24 @@ local function create_screen_ui()
         id = "WTAPE_REVERSE",
         name = "Reverse",
         description = Descriptions.WTAPE_REVERSE,
-        params = {}
+        params = {
+            { separator = true, title = "Direction" }
+        }
     })
 
     screen_ui.draw_default = function(self)
-        if self.state.showing_description then
-            NornsUI.draw_default(self)
-            return
+        NornsUI.draw_default(self)
+
+        if not self.state.showing_description then
+            local is_forward = _seeker.wtape.direction == 1
+            local status_text = is_forward and "FORWARD" or "REVERSE"
+
+            local width = screen.text_extents(status_text)
+            screen.level(15)
+            screen.move(64 - width/2, 46)
+            screen.text(status_text)
         end
 
-        screen.clear()
-
-        local is_forward = _seeker.wtape.direction == 1
-        local status_text = is_forward and "FWD" or "REV"
-
-        screen.font_size(16)
-        screen.level(15)
-        local text_width = screen.text_extents(status_text)
-        screen.move((128 - text_width) / 2, 30)
-        screen.text(status_text)
-
-        screen.font_size(8)
-        self:draw_footer()
         screen.update()
     end
 
@@ -50,7 +46,8 @@ local function create_grid_ui()
             y = 6,
             width = 1,
             height = 1
-        }
+        },
+        long_press_threshold = 0.3
     })
 
     grid_ui.draw = function(self, layers)
@@ -59,12 +56,26 @@ local function create_grid_ui()
             GridConstants.BRIGHTNESS.UI.FOCUSED or
             GridConstants.BRIGHTNESS.UI.NORMAL
         layers.ui[self.layout.x][self.layout.y] = brightness
+
+        -- Show hold indicator while button is pressed or release animating
+        if self:is_any_key_held() or self:is_release_animating() then
+            self:draw_hold_indicator(layers)
+        end
     end
 
     grid_ui.handle_key = function(self, x, y, z)
+        local key_id = string.format("%d,%d", x, y)
+
         if z == 1 then
-            params:set("wtape_reverse", 1)
+            self:key_down(key_id)
             _seeker.ui_state.set_current_section("WTAPE_REVERSE")
+        else
+            local was_long_press = self:is_long_press(key_id)
+            self:key_release(key_id)
+
+            if was_long_press then
+                params:set("wtape_reverse", 1)
+            end
         end
     end
 

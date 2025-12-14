@@ -27,7 +27,8 @@ local function create_screen_ui()
             return
         end
 
-        self:_draw_standard_ui()
+        screen.clear()
+        self:draw_params(0)
 
         local is_playing = params:get("wtape_toggle_playing") == 1
         local status_text = is_playing and "> PLAYING" or "[] STOPPED"
@@ -52,7 +53,8 @@ local function create_grid_ui()
             y = 7,
             width = 1,
             height = 1
-        }
+        },
+        long_press_threshold = 0.3
     })
 
     grid_ui.draw = function(self, layers)
@@ -60,12 +62,25 @@ local function create_grid_ui()
             GridConstants.BRIGHTNESS.UI.FOCUSED or
             GridConstants.BRIGHTNESS.UI.NORMAL
         layers.ui[self.layout.x][self.layout.y] = brightness
+
+        if self:is_any_key_held() or self:is_release_animating() then
+            self:draw_hold_indicator(layers)
+        end
     end
 
     grid_ui.handle_key = function(self, x, y, z)
+        local key_id = string.format("%d,%d", x, y)
+
         if z == 1 then
-            params:set("wtape_toggle_playing", 1 - params:get("wtape_toggle_playing"))
+            self:key_down(key_id)
             _seeker.ui_state.set_current_section("WTAPE_PLAYBACK")
+        else
+            local was_long_press = self:is_long_press(key_id)
+            self:key_release(key_id)
+
+            if was_long_press then
+                params:set("wtape_toggle_playing", 1 - params:get("wtape_toggle_playing"))
+            end
         end
     end
 

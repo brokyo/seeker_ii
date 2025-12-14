@@ -10,10 +10,10 @@ local modules = {
     record = include("lib/modes/wtape/wtape_record"),
     ff = include("lib/modes/wtape/wtape_ff"),
     rewind = include("lib/modes/wtape/wtape_rewind"),
-    loop_start = include("lib/modes/wtape/wtape_loop_start"),
-    loop_end = include("lib/modes/wtape/wtape_loop_end"),
     reverse = include("lib/modes/wtape/wtape_reverse"),
     loop_active = include("lib/modes/wtape/wtape_loop_active"),
+    frippertronics = include("lib/modes/wtape/wtape_frippertronics"),
+    decay = include("lib/modes/wtape/wtape_decay"),
 }
 
 -- Map module names to section IDs
@@ -23,14 +23,14 @@ local SECTION_IDS = {
     record = "WTAPE_RECORD",
     ff = "WTAPE_FF",
     rewind = "WTAPE_REWIND",
-    loop_start = "WTAPE_LOOP_START",
-    loop_end = "WTAPE_LOOP_END",
     reverse = "WTAPE_REVERSE",
     loop_active = "WTAPE_LOOP_ACTIVE",
+    frippertronics = "WTAPE_FRIPPERTRONICS",
+    decay = "WTAPE_DECAY",
 }
 
 -- Ordered init: config must come first so direction state is available
-local INIT_ORDER = {"config", "playback", "record", "ff", "rewind", "loop_start", "loop_end", "reverse", "loop_active"}
+local INIT_ORDER = {"config", "playback", "record", "ff", "rewind", "reverse", "loop_active", "frippertronics", "decay"}
 
 function WTape.init()
     local instance = {

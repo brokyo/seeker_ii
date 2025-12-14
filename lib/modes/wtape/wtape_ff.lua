@@ -15,12 +15,19 @@ local function create_screen_ui()
         name = "Fast Forward",
         description = Descriptions.WTAPE_FF,
         params = {
+            { separator = true, title = "Fast Forward" },
             { id = "wtape_ff_time", arc_multi_float = {10, 1, 0.1} }
         }
     })
 
     screen_ui.draw_default = function(self)
-        NornsUI.draw_default(self)
+        if self.state.showing_description then
+            NornsUI.draw_default(self)
+            return
+        end
+
+        screen.clear()
+        self:draw_params(0)
 
         local recently_triggered = _seeker.ui_state.is_recently_triggered("wtape_fast_forward")
         if recently_triggered then
@@ -33,6 +40,7 @@ local function create_screen_ui()
             screen.text(status_text)
         end
 
+        self:draw_footer()
         screen.update()
     end
 
@@ -47,7 +55,8 @@ local function create_grid_ui()
             y = 7,
             width = 1,
             height = 1
-        }
+        },
+        long_press_threshold = 0.3
     })
 
     grid_ui.draw = function(self, layers)
@@ -56,12 +65,26 @@ local function create_grid_ui()
             GridConstants.BRIGHTNESS.UI.FOCUSED or
             GridConstants.BRIGHTNESS.UI.NORMAL
         layers.ui[self.layout.x][self.layout.y] = brightness
+
+        -- Show hold indicator while button is pressed or release animating
+        if self:is_any_key_held() or self:is_release_animating() then
+            self:draw_hold_indicator(layers)
+        end
     end
 
     grid_ui.handle_key = function(self, x, y, z)
+        local key_id = string.format("%d,%d", x, y)
+
         if z == 1 then
-            params:set("wtape_fast_forward", 1)
+            self:key_down(key_id)
             _seeker.ui_state.set_current_section("WTAPE_FF")
+        else
+            local was_long_press = self:is_long_press(key_id)
+            self:key_release(key_id)
+
+            if was_long_press then
+                params:set("wtape_fast_forward", 1)
+            end
         end
     end
 

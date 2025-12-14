@@ -14,28 +14,24 @@ local function create_screen_ui()
         id = "WTAPE_LOOP_END",
         name = "Loop End",
         description = Descriptions.WTAPE_LOOP_END,
-        params = {}
+        params = {
+            { separator = true, title = "Set Loop End" }
+        }
     })
 
     screen_ui.draw_default = function(self)
-        if self.state.showing_description then
-            NornsUI.draw_default(self)
-            return
+        NornsUI.draw_default(self)
+
+        if not self.state.showing_description then
+            local recently_triggered = _seeker.ui_state.is_recently_triggered("wtape_loop_end")
+            local status_text = recently_triggered and "SET" or "press grid to set"
+
+            local width = screen.text_extents(status_text)
+            screen.level(recently_triggered and 15 or 2)
+            screen.move(64 - width/2, 46)
+            screen.text(status_text)
         end
 
-        screen.clear()
-
-        local recently_triggered = _seeker.ui_state.is_recently_triggered("wtape_loop_end")
-        local status_text = recently_triggered and "SET" or "] LOOP"
-
-        screen.font_size(16)
-        screen.level(15)
-        local text_width = screen.text_extents(status_text)
-        screen.move((128 - text_width) / 2, 30)
-        screen.text(status_text)
-
-        screen.font_size(8)
-        self:draw_footer()
         screen.update()
     end
 
