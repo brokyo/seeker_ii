@@ -45,7 +45,7 @@ function Arc.init()
         return
       end
 
-      -- Drawn a dimmed LED ring
+      -- Draw dimmed LED ring as base layer
       for i = 1, 64 do
         device:led(1, i, 3)
       end
@@ -53,7 +53,7 @@ function Arc.init()
       -- Calculate the number of LEDs to illuminate based on the number of params
       local num_leds = math.floor(64 / device.current_section_param_count)
 
-      -- And set illuminate the first parameter cluster
+      -- Illuminate first parameter cluster
       for i = 1, num_leds do
         device:led(1, i, 10)
       end
@@ -174,7 +174,7 @@ function Arc.init()
         end
 
         local current_section = _seeker.screen_ui.sections[current_section_id]
-        local selected_param = current_section.params[current_section.state.selected_index]
+        local selected_param = current_section.active_params[current_section.state.selected_index]
 
         -- Action-only components (e.g., wtape) have no params
         if not selected_param then return end
@@ -256,11 +256,8 @@ function Arc.init()
         device:refresh()
         clock.sleep(0.2)
         
-        -- Final step: Clear the ring
-        for i = 1, 64 do
-          device:led(2, i, 0)
-        end
-        device:refresh()
+        -- Restore normal param value display after animation
+        device.update_param_value_display()
       end)
     end
 
@@ -465,13 +462,17 @@ function Arc.init()
       end)
     end
     
-    -- Stop the pulse animation (caller handles display update)
+    -- Stop the pulse animation and clear ring 2
     device.stop_action_pulse = function()
       if device.action_pulse_clock then
         clock.cancel(device.action_pulse_clock)
         device.action_pulse_clock = nil
       end
       device.pulse_action_param = nil
+      -- Clear ring 2 to prevent stale animation state
+      for i = 1, 64 do
+        device:led(2, i, 0)
+      end
     end
     
     -- Display numeric value across 2-3 rings showing place values
@@ -479,7 +480,7 @@ function Arc.init()
         local current_value = params:get(param_id)
         local current_section_id = _seeker.ui_state.get_current_section()
         local current_section = _seeker.screen_ui.sections[current_section_id]
-        local param = current_section.params[current_section.state.selected_index]
+        local param = current_section.active_params[current_section.state.selected_index]
         local num_encoders = #param.arc_multi_float
 
         -- Light active rings (ring 1 + number of encoders, capped at ring 4)
@@ -581,7 +582,18 @@ function Arc.init()
 
       -- Get current param info
       local current_section = _seeker.screen_ui.sections[current_section_id]
-      local param = current_section.params[current_section.state.selected_index]
+      local param = current_section.active_params[current_section.state.selected_index]
+
+      -- Sections with no params: clear rings 2-4
+      if not param then
+        for ring = 2, 4 do
+          for i = 1, 64 do
+            device:led(ring, i, 0)
+          end
+        end
+        device:refresh()
+        return
+      end
 
       -- For action parameters, start or update the pulse animation
       if param and param.is_action then

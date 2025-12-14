@@ -180,6 +180,8 @@ function UIState.set_current_section(section_id)
   local new_section = _seeker.screen_ui.sections[section_id]
   if new_section then
     new_section:enter()
+  else
+    print("WARNING: section not found: " .. section_id)
   end
 
   if _seeker and _seeker.screen_ui then

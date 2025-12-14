@@ -197,18 +197,21 @@ Transport control for the Whimsical Raps W/ module in tape mode. I think this is
 **Transport:**
 - **Rewind** — Jump back configurable time (0.1-60s, default 10s).
 - **Fast Forward** — Jump forward configurable time (0.1-60s, default 10s).
+- **Go To Start** — Jump to tape beginning.
 
 **Recording:**
 - **Record** — Arm recording on/off.
 - **Recording Level** — Input level to tape.
-- **Overdub Strength** — 0 = pure overdub, 1 = full replace.
+- **Decay** — 0 = pure overdub (layers accumulate), 1 = full replace.
 - **Echo Mode** — Plays back existing audio before erasing.
 - **Monitor Level** — Direct input monitoring.
 
 **Loop:**
 - **Loop Active** — Enable/disable loop playback.
-- **Loop Start** — Set loop in point at current position.
-- **Loop End** — Set loop out point at current position. 
+- **Frippertronics** — Quick loop capture workflow. Press once to start recording and mark loop start. Press again to close the loop and begin layering. Long-press to clear and reset.
+
+**Maintenance:**
+- **Init W/Tape** — Full reset: stops playback/recording, clears tape, returns to start. 
 
 ## Settings | Mode (3D)
 

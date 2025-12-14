@@ -151,10 +151,6 @@ function MotifConfig.init()
     }
     create_params()
 
-    -- Randomize tuning preset on load (indices 2-17, skip "Custom")
-    local random_preset = math.random(2, 17)
-    params:set("tuning_preset", random_preset)
-
     return component
 end
 
