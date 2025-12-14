@@ -16,7 +16,7 @@ It's intended to travel with you and scale to what you have on hand. I've been r
 
 **Recommended**
 - Arc — Seeker has a lot of configurability. The Arc makes that configurability pleasant. Encoders mapped to different significant figures for high-resolution control and realtime performability.
-- [Seeker TouchDesigner tox](lib/etc/seeker.tox) — Seeker connects fairly naturally to TouchDesigner and enables a kind of visual painting that I think is a lot of fun. This tox handles all the connections. More on this further down.
+- [Seeker TouchDesigner tox](lib/etc/td_components) — Seeker connects fairly naturally to TouchDesigner and enables a kind of visual painting that I think is a lot of fun. I've included toxs for each type of output. More on this further down.
 
 **Optional**
 - Crow — Lots of CV and gate output patterns. Clock-synced modulation with some unusual approaches.
@@ -59,7 +59,7 @@ The main performance space. Eight lanes run in parallel, each playing one of thr
 
 ### Tape | Motif Type
 
-![Tape Layout](lib/etc/Tape%20Layout.png)
+![Tape Layout](lib/etc/readme_layout_images/Tape%20Layout.png)
 
 Record motifs on a 6x6 Tonnetz/interval keyboard (2A). After recording, motifs can be overdubbed by holding Create Motif (5B). After a configurable number of loops, motifs move to the next "Stage" (1A). Scale and intervals can be set in Keyboard Config (E3 long-press).
 
@@ -80,7 +80,7 @@ Record motifs on a 6x6 Tonnetz/interval keyboard (2A). After recording, motifs c
 
 ### Composer | Motif Type
 
-![Composer Layout](lib/etc/Compose%20Layout.png)
+![Composer Layout](lib/etc/readme_layout_images/Compose%20Layout.png)
 
 An algorithmic chord sequencer is represented by an interval keyboard (2A). Hold Create Motif (5B) to begin a sequence. Optionally, select from expression presets to give it character. Arpeggios move through stages with configurable chord voicings and performance characteristics.
 
@@ -90,7 +90,7 @@ An algorithmic chord sequencer is represented by an interval keyboard (2A). Hold
 
 ### Sampler | Motif Type
 
-![Sampler Layout](lib/etc/Sampler%20Layout.png)
+![Sampler Layout](lib/etc/readme_layout_images/Sampler%20Layout.png)
 
 Load a sample or record from the Norns input (4A). Via Softcut, the sample will be chopped and distributed across a 4x4 pad grid (2A). Record pad performances and transform them across stages just like Tape mode. Good for percussion and textural sound mangling.
 
@@ -140,7 +140,7 @@ Each lane can output to multiple destinations simultaneously:
 
 ## Eurorack | Mode (3C)
 
-![Eurorack Layout](lib/etc/Eurorack%20Layout.png)
+![Eurorack Layout](lib/etc/readme_layout_images/Eurorack%20Layout.png)
 
 I find Seeker most interesting when it's directly communicating with Eurorack rather than just being played through it. Accordingly, I've included a bunch of Crow and TXO output options that stay true to the music and its timing. 
 
@@ -173,21 +173,25 @@ Each output selects a Category (Gate or CV) then a Mode within that category.
 
 ## OSC | Mode (3B)
 
-![OSC Layout](lib/etc/OSC%20Layout.png)
+![OSC Layout](lib/etc/readme_layout_images/OSC%20Layout.png)
 
-Built with the Seeker_II TOX in mind, this mode enables you to control TOP values in TouchDesigner in sequence with the Seeker clock and events. Set the IP in the config menu (3B) and values should automatically show up in TD. 
+Alongside the Seeker II tox components you can directly manipulate param values in TouchDesigner and sequence them with the Norns clock and events. Set the IP in the config menu (3B) and values should automatically show up in TD. Component preview window gives you a sense of values and their path.
 
-**Float** — Direct value + multiplier. Useful for tuning images.
+**Float** — [Float Component](lib/etc/td_components/seeker_ii_floats.tox) Set float values through a base and multiplier. Useful for tuning images or finding the right range for LFOs. Better with Arc.
 
-**LFO** — Tempo-synced oscillation using stock TouchDesigner shapes.
+**LFO** — [LFO Component](lib/etc/td_components/seeker_ii_lfo.tox) Tempo-synced lfos using stock TouchDesigner shapes. Set mix/max ranges for interesting parameter editing.
 
-**Trigger** — Clock-driven pulses with envelope parameters (attack, decay, sustain, release)
+**Envelopes** — [Envelope Component](lib/etc/td_components/seeker_ii_envelope.tox) Clock-driven triggers with TD-based envelope parameters. Cool with rhythms.
 
 ## W/Tape | Mode (3A)
 
-![W/Tape Layout](lib/etc/W%3ATape%20Layout.png)
+![W/Tape Layout](lib/etc/readme_layout_images/W%3ATape%20Layout.png)
 
-Transport control for the Whimsical Raps W/ module in tape mode. I think this is such an interesting module (the W/Synth used in Motif mode is amazing) and I believe it becomes much more performable with grid control.
+Transport control for the Whimsical Raps W/ module in tape mode with a particular focus on Frippertronics/buffer manipulation. Designed to act as a looper for foley or as a decaying delay.
+
+I think this is such a cool module (the W/Synth used in Motif mode is amazing) and I shimmed in a bunch of convenience methods so you can focus on sound design rather than config.
+
+**Quickstart:** Hold Frippertronics (2C) to mark loop start and begin recording. Perform, then press again to close the loop—playback engages automatically. Set Buffer Decay (2D) to control how quickly layers fade. Long-press Frippertronics to clear and start over.
 
 **Playback:**
 - **Play** — Toggle playback on/off.
