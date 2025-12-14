@@ -116,7 +116,20 @@ function init()
   
   -- Initialize Arc
   _seeker.arc = Arc.init()
-  
+
+  -- Centralized tempo change handler (syncs all clocked outputs)
+  params:set_action("clock_tempo", function(_)
+    if _seeker.eurorack then
+      _seeker.eurorack.crow_output.sync()
+      _seeker.eurorack.txo_cv_output.sync()
+      _seeker.eurorack.txo_tr_output.sync()
+    end
+    if _seeker.osc then
+      _seeker.osc.lfo.sync()
+      _seeker.osc.trigger.sync()
+    end
+  end)
+
   -- Start the clock
   clock.run(function()
     print("⎆ Conductor watching")

@@ -73,10 +73,11 @@ local function update_trigger_clock(trigger_index)
         active_trigger_clocks["trigger_" .. trigger_index] = nil
     end
 
-    local sync_div = params:string("osc_trigger_" .. trigger_index .. "_sync")
-    local beats = OscUtils.division_to_beats(sync_div)
+    local interval = params:string("osc_trigger_" .. trigger_index .. "_interval")
+    local modifier = params:string("osc_trigger_" .. trigger_index .. "_modifier")
+    local beats = OscUtils.interval_to_beats(interval) * OscUtils.modifier_to_value(modifier)
 
-    if beats <= 0 or sync_div == "Off" then
+    if beats <= 0 or interval == "Off" then
         return
     end
 
@@ -107,11 +108,16 @@ local function update_trigger_clock(trigger_index)
 end
 
 local function create_params()
-    params:add_group("osc_trigger", "OSC TRIGGER", 36)
+    params:add_group("osc_trigger", "OSC TRIGGER", 40)
 
     for i = 1, 4 do
-        params:add_option("osc_trigger_" .. i .. "_sync", "Trigger " .. i .. " Sync", OscUtils.sync_options, 1)
-        params:set_action("osc_trigger_" .. i .. "_sync", function(value)
+        params:add_option("osc_trigger_" .. i .. "_interval", "Trigger " .. i .. " Interval", OscUtils.interval_options, 1)
+        params:set_action("osc_trigger_" .. i .. "_interval", function(_)
+            update_trigger_clock(i)
+        end)
+
+        params:add_option("osc_trigger_" .. i .. "_modifier", "Trigger " .. i .. " Modifier", OscUtils.modifier_options, OscUtils.DEFAULT_MODIFIER_INDEX)
+        params:set_action("osc_trigger_" .. i .. "_modifier", function(_)
             update_trigger_clock(i)
         end)
 
@@ -182,8 +188,9 @@ local function create_screen_ui()
         self.name = string.format("Trigger %d", selected_trigger)
 
         local param_table = {
-            { separator = true, title = "Trigger " .. selected_trigger },
-            { id = "osc_trigger_" .. selected_trigger .. "_sync", name = "Sync" },
+            { separator = true, title = "Timing" },
+            { id = "osc_trigger_" .. selected_trigger .. "_interval", name = "Interval" },
+            { id = "osc_trigger_" .. selected_trigger .. "_modifier", name = "Modifier" },
             { separator = true, title = "Envelope" },
             { id = "osc_trigger_" .. selected_trigger .. "_env_gate_length", name = "Gate Length", arc_multi_float = {10.0, 1.0, 0.1} },
             { id = "osc_trigger_" .. selected_trigger .. "_attack", name = "Attack", arc_multi_float = {10.0, 1.0, 0.1} },
@@ -280,8 +287,7 @@ function OscTrigger.init()
     }
     create_params()
 
-    -- Send initial OSC values to external receivers
-    -- Set multipliers to 1 before sending to ensure non-zero default
+    -- Initialize OSC values with non-zero multiplier default
     for i = 1, 4 do
         params:set("osc_trigger_" .. i .. "_env_multiplier", 1)
         send_trigger_envelope(i)

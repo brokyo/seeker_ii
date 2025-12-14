@@ -18,8 +18,9 @@ local active_lfo_sync_clocks = {}
 
 -- Send LFO frequency
 local function send_lfo_frequency(lfo_index)
-    local sync_div = params:string("osc_lfo_" .. lfo_index .. "_sync")
-    local frequency = OscUtils.sync_to_frequency(sync_div)
+    local interval = params:string("osc_lfo_" .. lfo_index .. "_interval")
+    local modifier = params:string("osc_lfo_" .. lfo_index .. "_modifier")
+    local frequency = OscUtils.sync_to_frequency(interval, modifier)
 
     -- Stop existing LFO sync clock if any
     if active_lfo_sync_clocks["lfo_" .. lfo_index] then
@@ -31,8 +32,8 @@ local function send_lfo_frequency(lfo_index)
         local path = "/lfo/" .. lfo_index .. "/freq"
         _seeker.osc.send_message(path, {frequency})
 
-        -- Send sync pulse on next beat boundary
-        local beats = OscUtils.division_to_beats(sync_div)
+        -- Send sync pulse on next beat boundary (using effective beats with modifier)
+        local beats = OscUtils.interval_to_beats(interval) * OscUtils.modifier_to_value(modifier)
         local function send_single_sync_pulse()
             clock.sync(beats)
             local sync_path = "/lfo/" .. lfo_index .. "/sync"
@@ -73,26 +74,31 @@ local function send_lfo_shape(lfo_index)
 end
 
 local function create_params()
-    params:add_group("osc_lfo", "OSC LFO", 16)
+    params:add_group("osc_lfo", "OSC LFO", 20)
 
     for i = 1, 4 do
-        params:add_option("osc_lfo_" .. i .. "_sync", "LFO " .. i .. " Sync", OscUtils.sync_options, 1)
-        params:set_action("osc_lfo_" .. i .. "_sync", function(value)
+        params:add_option("osc_lfo_" .. i .. "_interval", "LFO " .. i .. " Interval", OscUtils.interval_options, 1)
+        params:set_action("osc_lfo_" .. i .. "_interval", function(_)
+            send_lfo_frequency(i)
+        end)
+
+        params:add_option("osc_lfo_" .. i .. "_modifier", "LFO " .. i .. " Modifier", OscUtils.modifier_options, OscUtils.DEFAULT_MODIFIER_INDEX)
+        params:set_action("osc_lfo_" .. i .. "_modifier", function(_)
             send_lfo_frequency(i)
         end)
 
         params:add_option("osc_lfo_" .. i .. "_shape", "LFO " .. i .. " Shape", OscUtils.lfo_shape_options, 1)
-        params:set_action("osc_lfo_" .. i .. "_shape", function(value)
+        params:set_action("osc_lfo_" .. i .. "_shape", function(_)
             send_lfo_shape(i)
         end)
 
         params:add_control("osc_lfo_" .. i .. "_min", "LFO " .. i .. " Min", controlspec.new(-100.0, 100.0, 'lin', 0.01, 0.0))
-        params:set_action("osc_lfo_" .. i .. "_min", function(value)
+        params:set_action("osc_lfo_" .. i .. "_min", function(_)
             send_lfo_range(i)
         end)
 
         params:add_control("osc_lfo_" .. i .. "_max", "LFO " .. i .. " Max", controlspec.new(-100.0, 100.0, 'lin', 0.01, 10.0))
-        params:set_action("osc_lfo_" .. i .. "_max", function(value)
+        params:set_action("osc_lfo_" .. i .. "_max", function(_)
             send_lfo_range(i)
         end)
     end
@@ -118,7 +124,8 @@ local function create_screen_ui()
 
         local param_table = {
             { separator = true, title = "Timing" },
-            { id = "osc_lfo_" .. selected_lfo .. "_sync", name = "Sync" },
+            { id = "osc_lfo_" .. selected_lfo .. "_interval", name = "Interval" },
+            { id = "osc_lfo_" .. selected_lfo .. "_modifier", name = "Modifier" },
             { id = "osc_lfo_" .. selected_lfo .. "_shape", name = "Shape" },
             { separator = true, title = "Range" },
             { id = "osc_lfo_" .. selected_lfo .. "_min", name = "Min", arc_multi_float = {1.0, 0.1, 0.01} },
@@ -208,13 +215,6 @@ function OscLfo.init()
         sync = OscLfo.sync
     }
     create_params()
-
-    -- Update LFO frequencies when tempo changes
-    params:set_action("clock_tempo", function(value)
-        for i = 1, 4 do
-            send_lfo_frequency(i)
-        end
-    end)
 
     -- Initialize TouchDesigner with current param values
     for i = 1, 4 do

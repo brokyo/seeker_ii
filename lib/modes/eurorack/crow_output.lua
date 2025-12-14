@@ -1622,13 +1622,6 @@ end
 function CrowOutput.init()
     create_params()
 
-    -- Update all crow outputs when tempo changes (recalculates beat_sec)
-    params:set_action("clock_tempo", function(_)
-        for i = 1, 4 do
-            CrowOutput.update_crow(i)
-        end
-    end)
-
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),

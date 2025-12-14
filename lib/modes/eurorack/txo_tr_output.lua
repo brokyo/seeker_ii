@@ -529,13 +529,6 @@ end
 function TxoTrOutput.init()
     create_params()
 
-    -- Update all TXO TR outputs when tempo changes (recalculates beat_sec)
-    params:set_action("clock_tempo", function(_)
-        for i = 1, 4 do
-            TxoTrOutput.update_txo_tr(i)
-        end
-    end)
-
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
