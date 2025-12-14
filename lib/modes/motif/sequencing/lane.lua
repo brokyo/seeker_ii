@@ -1046,9 +1046,14 @@ function Lane:on_note_off(event)
       crow.ii.disting.voice_off(voice_select)
     -- Plaits
     elseif algorithm == 3 then
-      -- N.B. Subtract one to handle lua 1 index and disting 0 index
-      local voice_select = params:get("lane_" .. self.id .. "_disting_plaits_voice_select") - 1
-      crow.ii.disting.voice_off(voice_select)
+      local voice_select = params:get("lane_" .. self.id .. "_disting_plaits_voice_select")
+      if voice_select == 1 then
+        -- "All" mode uses note-based commands
+        crow.ii.disting.note_off(note)
+      else
+        -- Specific voice: subtract 2 for lua 1-index + "All" option offset
+        crow.ii.disting.voice_off(voice_select - 2)
+      end
     -- DX7
     elseif algorithm == 4 then
       crow.ii.disting.note_off(note)
