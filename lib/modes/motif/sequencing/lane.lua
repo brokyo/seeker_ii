@@ -883,14 +883,14 @@ function Lane:on_note_on(event)
       crow.ii.disting.voice_on(0, disting_volume)
     -- Plaits
     elseif algorithm == 3 then
-      -- TODO: Check if we're playing in poly or mono. For code based on trigger.
-      local polyphony = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select")
+      -- Check if we're playing in poly or mono
+      local polyphony = params:get("lane_" .. self.id .. "_disting_plaits_voice_select")
       if polyphony == 1 then
         crow.ii.disting.note_pitch(note, v8_note)
         crow.ii.disting.note_velocity(note, disting_volume)
       else
         -- N.B. Subtract 2 to handle lua 1 index and "All" voice option at start of list.
-        local selected_voice = params:get("lane_" .. self.id .. "_disting_ex_macro_osc_2_voice_select") - 2
+        local selected_voice = params:get("lane_" .. self.id .. "_disting_plaits_voice_select") - 2
         crow.ii.disting.voice_pitch(selected_voice, v8_note)
         crow.ii.disting.voice_on(selected_voice, disting_volume)
       end
@@ -1047,7 +1047,7 @@ function Lane:on_note_off(event)
     -- Plaits
     elseif algorithm == 3 then
       -- N.B. Subtract one to handle lua 1 index and disting 0 index
-      local voice_select = params:get("lane_" .. self.id .. "_disting_macro_osc_2_voice_select") - 1
+      local voice_select = params:get("lane_" .. self.id .. "_disting_plaits_voice_select") - 1
       crow.ii.disting.voice_off(voice_select)
     -- DX7
     elseif algorithm == 4 then
