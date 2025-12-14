@@ -661,17 +661,6 @@ local function create_screen_ui()
         self:filter_active_params()
     end
 
-    -- Override draw to show fileselect overlay (visual only, doesn't block norns input)
-    norns_ui.draw = function(self)
-        self:draw_default()
-
-        -- Show fileselect hint overlay (norns fileselect handles its own screen, this shows briefly)
-        local Modal = get_modal()
-        if Modal and _seeker.sampler and _seeker.sampler.file_select_active then
-            Modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
-            screen.update()
-        end
-    end
 
     return norns_ui
 end

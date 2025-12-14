@@ -700,8 +700,7 @@ function SamplerEngine.stop_recording(lane)
   local duration = util.time() - SamplerEngine.record_start_time
 
   -- Create filename with timestamp
-  local timestamp = os.date("%Y%m%d_%H%M%S")
-  local filename = string.format("lane_%d_%s.wav", lane, timestamp)
+  local filename = os.date("%Y%m%d_%H%M%S") .. ".wav"
   local audio_path = _path.audio .. "seeker_ii"
   util.make_dir(audio_path)
   local filepath = audio_path .. "/" .. filename
