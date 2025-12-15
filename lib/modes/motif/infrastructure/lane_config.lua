@@ -358,6 +358,8 @@ local function create_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
     end
+
+    voice_txo_osc.init()
 end
 
 local function create_screen_ui()
@@ -677,6 +679,7 @@ local function create_screen_ui()
                     table.insert(param_table, { separator = true, title = "Per-Osc" })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_selected" })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_morph", arc_multi_float = {100, 50, 10} })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 end
             end
         end

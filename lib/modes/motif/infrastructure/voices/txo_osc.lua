@@ -24,11 +24,14 @@ local MODES = {"drone", "triggered"}
 local osc_pools = {}
 -- Per-oscillator morph values: osc_morphs[lane_id][osc_num] = morph_value
 local osc_morphs = {}
+-- Per-oscillator volume values: osc_volumes[lane_id][osc_num] = volume_value
+local osc_volumes = {}
 for i = 1, 8 do
     osc_pools[i] = {
         next_index = 1  -- Position within lane's oscillator range (1 to count)
     }
     osc_morphs[i] = {0, 0, 0, 0}  -- Default morph for oscillators 1-4
+    osc_volumes[i] = {1, 1, 1, 1}  -- Default volume for oscillators 1-4
 end
 
 -- Get stored morph value for a specific oscillator
@@ -39,6 +42,16 @@ end
 -- Set stored morph value for a specific oscillator
 function txo_osc.set_osc_morph(lane_id, osc_num, value)
     osc_morphs[lane_id][osc_num] = value
+end
+
+-- Get stored volume for a specific oscillator
+function txo_osc.get_osc_volume(lane_id, osc_num)
+    return osc_volumes[lane_id][osc_num] or 1
+end
+
+-- Set stored volume for a specific oscillator
+function txo_osc.set_osc_volume(lane_id, osc_num, value)
+    osc_volumes[lane_id][osc_num] = value
 end
 
 -- Get next oscillator output for a lane using round-robin allocation
@@ -99,12 +112,32 @@ local function reinit_all_oscs(lane_id)
     end
 end
 
+-- Reset all TXO oscillators to defaults on script boot
+function txo_osc.init()
+    for osc_num = 1, 4 do
+        crow.ii.txo.cv_set(osc_num, 0)
+        crow.ii.txo.env_act(osc_num, 0)
+        crow.ii.txo.osc_wave(osc_num, 0)
+        crow.ii.txo.osc_width(osc_num, 50)
+        crow.ii.txo.osc_slew(osc_num, 0)
+    end
+end
+
 function txo_osc.create_params(i)
     params:add_binary("lane_" .. i .. "_txo_osc_active", "TXO Osc Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_txo_osc_active", function(value)
         _seeker.lanes[i].txo_osc_active = (value == 1)
 
-        if value == 1 then
+        if value == 0 then
+            -- Reset oscillators to defaults (silence, disable envelope, sine wave)
+            apply_to_all_oscs(i, function(osc_num)
+                crow.ii.txo.cv_set(osc_num, 0)  -- Silence
+                crow.ii.txo.env_act(osc_num, 0)  -- Disable envelope
+                crow.ii.txo.osc_wave(osc_num, 0)  -- Reset to sine
+                crow.ii.txo.osc_width(osc_num, 50)  -- Reset pulse width
+                crow.ii.txo.osc_slew(osc_num, 0)  -- Reset slew
+            end)
+        elseif value == 1 then
             -- Check for CV output conflicts and warn user
             local start = params:get("lane_" .. i .. "_txo_osc_start")
             local count = params:get("lane_" .. i .. "_txo_osc_count")
@@ -152,9 +185,13 @@ function txo_osc.create_params(i)
         _seeker.screen_ui.set_needs_redraw()
     end)
 
-    params:add_control("lane_" .. i .. "_txo_osc_volume", "Voice Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
+    params:add_control("lane_" .. i .. "_txo_osc_volume", "Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
     params:set_action("lane_" .. i .. "_txo_osc_volume", function(value)
         _seeker.lanes[i].txo_osc_volume = value
+        -- Top-level volume overwrites all active oscillators
+        apply_to_all_oscs(i, function(osc_num)
+            osc_volumes[i][osc_num] = value
+        end)
         -- Update CV immediately in drone mode
         local mode = params:get("lane_" .. i .. "_txo_osc_mode")
         if mode == 1 and params:get("lane_" .. i .. "_txo_osc_active") == 1 then
@@ -168,10 +205,11 @@ function txo_osc.create_params(i)
     params:set_action("lane_" .. i .. "_txo_osc_start", function(value)
         _seeker.lanes[i].txo_osc_start = value
         osc_pools[i].next_index = 1
-        -- Reset selection and update osc_morph display
+        -- Reset selection and update per-osc displays
         params:set("lane_" .. i .. "_txo_osc_selected", 1, true)
         local osc_num = value  -- start + (1-1) = start
         params:set("lane_" .. i .. "_txo_osc_ind_morph", osc_morphs[i][osc_num] or 0, true)
+        params:set("lane_" .. i .. "_txo_osc_ind_volume", osc_volumes[i][osc_num] or 1, true)
         reinit_all_oscs(i)
         _seeker.lane_config.screen:rebuild_params()
         _seeker.screen_ui.set_needs_redraw()
@@ -181,7 +219,7 @@ function txo_osc.create_params(i)
     params:set_action("lane_" .. i .. "_txo_osc_count", function(value)
         _seeker.lanes[i].txo_osc_count = value
         osc_pools[i].next_index = 1
-        -- Clamp selection and update osc_morph display
+        -- Clamp selection and update per-osc displays
         local selected = params:get("lane_" .. i .. "_txo_osc_selected")
         if selected > value then
             params:set("lane_" .. i .. "_txo_osc_selected", value, true)
@@ -190,6 +228,7 @@ function txo_osc.create_params(i)
         local start = params:get("lane_" .. i .. "_txo_osc_start")
         local osc_num = start + selected - 1
         params:set("lane_" .. i .. "_txo_osc_ind_morph", osc_morphs[i][osc_num] or 0, true)
+        params:set("lane_" .. i .. "_txo_osc_ind_volume", osc_volumes[i][osc_num] or 1, true)
         reinit_all_oscs(i)
         _seeker.lane_config.screen:rebuild_params()
         _seeker.screen_ui.set_needs_redraw()
@@ -299,11 +338,11 @@ function txo_osc.create_params(i)
             params:set("lane_" .. i .. "_txo_osc_selected", count, true)
             return
         end
-        -- Update individual morph display to show selected oscillator's current value
+        -- Update per-osc displays to show selected oscillator's current values
         local start = params:get("lane_" .. i .. "_txo_osc_start")
         local osc_num = start + value - 1
-        local current_morph = osc_morphs[i][osc_num] or 0
-        params:set("lane_" .. i .. "_txo_osc_ind_morph", current_morph, true)
+        params:set("lane_" .. i .. "_txo_osc_ind_morph", osc_morphs[i][osc_num] or 0, true)
+        params:set("lane_" .. i .. "_txo_osc_ind_volume", osc_volumes[i][osc_num] or 1, true)
         _seeker.lane_config.screen:rebuild_params()
         _seeker.screen_ui.set_needs_redraw()
     end)
@@ -317,6 +356,20 @@ function txo_osc.create_params(i)
         local osc_num = start + selected - 1
         osc_morphs[i][osc_num] = value
         crow.ii.txo.osc_wave(osc_num, value)
+    end)
+
+    -- Per-oscillator volume: affects only the selected oscillator
+    params:add_control("lane_" .. i .. "_txo_osc_ind_volume", "Osc Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
+    params:set_action("lane_" .. i .. "_txo_osc_ind_volume", function(value)
+        local start = params:get("lane_" .. i .. "_txo_osc_start")
+        local selected = params:get("lane_" .. i .. "_txo_osc_selected")
+        local osc_num = start + selected - 1
+        osc_volumes[i][osc_num] = value
+        -- Update CV immediately in drone mode
+        local mode = params:get("lane_" .. i .. "_txo_osc_mode")
+        if mode == 1 and params:get("lane_" .. i .. "_txo_osc_active") == 1 then
+            crow.ii.txo.cv_set(osc_num, value * 5)
+        end
     end)
 end
 
