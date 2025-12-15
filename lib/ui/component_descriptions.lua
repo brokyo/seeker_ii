@@ -13,7 +13,7 @@ return {
   -- Tape mode
   TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two tonnetz with independent octaves. Arc rings 3/4 control velocity for each side.",
   TAPE_PLAYBACK = "Control playback timing and transposition.\n\nQuantize snaps notes to a rhythmic grid. Swing delays off-beat notes for groove.",
-  TAPE_CLEAR = "Hold to clear the recorded motif and reset to a blank canvas.",
+  TAPE_CLEAR = "Hold to clear the motif. With overdubs, select a generation to erase just that layer.",
   TAPE_VELOCITY = "Control note loudness. Press grid keys to select level.",
   TAPE_STAGE_CONFIG = "Sequence changes to the loop. Structured and probabilistic options. Harmonize is a lot of fun.",
   TAPE_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
@@ -29,7 +29,7 @@ return {
   -- Sampler mode
   SAMPLER_CREATE = "Record pad triggers as a looping motif. Hold to record, tap to stop, hold again to overdub.\n\nLoad samples in Lane Config first. The 4x4 pad grid triggers chops from the loaded sample.\n\nDuration can be adjusted after recording to trim or extend the loop.",
   SAMPLER_PLAYBACK = "Control playback timing.\n\nQuantize snaps triggers to a rhythmic grid. Swing delays off-beat triggers for groove.",
-  SAMPLER_CLEAR = "Hold to clear the recorded motif and reset to a blank canvas.",
+  SAMPLER_CLEAR = "Hold to clear the motif. With overdubs, select a generation to erase just that layer.",
   SAMPLER_VELOCITY = "Control chop playback volume. Press grid keys to select level. Tweak as needed. Performable.",
   SAMPLER_STAGE_CONFIG = "Transform chop parameters across stages. Primarily time and rate manipulation.",
   SAMPLER_CHOP_CONFIG = "Configure individual chop points and envelopes. Each pad controls one chop. Pitch and Speed combine.",
