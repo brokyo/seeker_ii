@@ -650,7 +650,15 @@ local function create_screen_ui()
 
             -- Only show additional TXO Osc params if active
             if params:get("lane_" .. lane_idx .. "_txo_osc_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Range" })
+                -- Show effective range (excluding CV-claimed outputs)
+                local available = voice_txo_osc.get_available_outputs(lane_idx)
+                local range_title = "Range"
+                if #available > 0 then
+                    range_title = "Range: " .. available[1] .. "-" .. available[#available]
+                elseif #available == 0 then
+                    range_title = "Range: none"
+                end
+                table.insert(param_table, { separator = true, title = range_title })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_start" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_count" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_volume", arc_multi_float = {0.1, 0.05, 0.01} })

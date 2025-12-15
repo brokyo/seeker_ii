@@ -7,11 +7,6 @@ local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 local txo_osc = {}
 
--- Get modal dialog for displaying conflict warnings
-local function get_modal()
-    return _seeker and _seeker.modal
-end
-
 -- Waveform presets: sine=0, tri=1000, saw=2000, pulse=3000, noise=4000
 -- "custom" shown when morph is at a non-preset value (user controlling manually)
 local WAVEFORMS = {"sine", "triangle", "saw", "pulse", "noise", "custom"}
@@ -54,19 +49,41 @@ function txo_osc.set_osc_volume(lane_id, osc_num, value)
     osc_volumes[lane_id][osc_num] = value
 end
 
+-- Get list of available (non-CV-claimed) outputs for a lane
+function txo_osc.get_available_outputs(lane_id)
+    local start = params:get("lane_" .. lane_id .. "_txo_osc_start")
+    local count = params:get("lane_" .. lane_id .. "_txo_osc_count")
+    local available = {}
+
+    for i = 0, count - 1 do
+        local osc_num = start + i
+        if not EurorackUtils.is_txo_cv_active(osc_num) then
+            table.insert(available, osc_num)
+        end
+    end
+
+    return available
+end
+
 -- Get next oscillator output for a lane using round-robin allocation
+-- Skips outputs that are claimed by CV mode
 function txo_osc.get_next_osc(lane_id)
     local start = params:get("lane_" .. lane_id .. "_txo_osc_start")
     local count = params:get("lane_" .. lane_id .. "_txo_osc_count")
     local pool = osc_pools[lane_id]
 
-    -- Calculate physical oscillator number from current position
-    local osc_num = start + pool.next_index - 1
+    -- Try each output in range, skip CV-active ones
+    for _ = 1, count do
+        local osc_num = start + pool.next_index - 1
+        pool.next_index = (pool.next_index % count) + 1
 
-    -- Advance to next oscillator in pool (round-robin)
-    pool.next_index = (pool.next_index % count) + 1
+        if not EurorackUtils.is_txo_cv_active(osc_num) then
+            return osc_num
+        end
+    end
 
-    return osc_num
+    -- All outputs in range are CV-active, no available voices
+    return nil
 end
 
 -- Apply a function to each oscillator in this lane's output range
@@ -138,20 +155,6 @@ function txo_osc.create_params(i)
                 crow.ii.txo.osc_slew(osc_num, 0)  -- Reset slew
             end)
         elseif value == 1 then
-            -- Check for CV output conflicts and warn user
-            local start = params:get("lane_" .. i .. "_txo_osc_start")
-            local count = params:get("lane_" .. i .. "_txo_osc_count")
-            local conflicts = EurorackUtils.find_txo_osc_conflicts(i, start, count)
-            if conflicts.cv_outputs and #conflicts.cv_outputs > 0 then
-                local Modal = get_modal()
-                if Modal then
-                    Modal.show_warning({
-                        body = "CV " .. table.concat(conflicts.cv_outputs, ",") .. " in use",
-                        timeout_ms = 2000
-                    })
-                end
-            end
-
             local mode = params:get("lane_" .. i .. "_txo_osc_mode")
             local morph = params:get("lane_" .. i .. "_txo_osc_morph")
             local width = params:get("lane_" .. i .. "_txo_osc_width")
@@ -188,7 +191,7 @@ function txo_osc.create_params(i)
     params:add_control("lane_" .. i .. "_txo_osc_volume", "Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
     params:set_action("lane_" .. i .. "_txo_osc_volume", function(value)
         _seeker.lanes[i].txo_osc_volume = value
-        -- Top-level volume overwrites all active oscillators
+        -- Set all oscillators in range to this volume
         apply_to_all_oscs(i, function(osc_num)
             osc_volumes[i][osc_num] = value
         end)
@@ -272,7 +275,7 @@ function txo_osc.create_params(i)
     params:add_control("lane_" .. i .. "_txo_osc_morph", "Morph", controlspec.new(0, 5000, 'lin', 1, 0, ""),
         function(param) return string.format("%d", param:get()) end)
     params:set_action("lane_" .. i .. "_txo_osc_morph", function(value)
-        -- Top-level morph overwrites all active oscillators
+        -- Set all oscillators in range to this morph value
         apply_to_all_oscs(i, function(osc_num)
             osc_morphs[i][osc_num] = value
             crow.ii.txo.osc_wave(osc_num, value)

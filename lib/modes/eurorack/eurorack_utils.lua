@@ -91,6 +91,12 @@ function EurorackUtils.find_txo_cv_conflicts(output_num)
     return conflicts
 end
 
+-- Check if a specific TXO output is being used by CV mode
+function EurorackUtils.is_txo_cv_active(output_num)
+    local cv_interval = params:string("txo_cv_" .. output_num .. "_clock_interval")
+    return cv_interval and cv_interval ~= "Off"
+end
+
 -- Format conflicts as readable string for warning modal
 function EurorackUtils.format_txo_conflicts(conflicts)
     local parts = {}

@@ -905,19 +905,21 @@ function Lane:on_note_on(event)
 
   if self.txo_osc_active then
     local osc_num = txo_osc.get_next_osc(self.id)
-    local mode = params:get("lane_" .. self.id .. "_txo_osc_mode")
+    if osc_num then  -- nil if all outputs claimed by CV
+      local mode = params:get("lane_" .. self.id .. "_txo_osc_mode")
 
-    -- Set oscillator pitch
-    crow.ii.txo.osc_n(osc_num, note)
+      -- Set oscillator pitch
+      crow.ii.txo.osc_n(osc_num, note)
 
-    if mode == 2 then -- triggered mode: set CV and trigger AD envelope
-      local osc_volume = txo_osc.get_osc_volume(self.id, osc_num)
-      local lane_volume = params:get("lane_" .. self.id .. "_volume")
-      local amplitude_volts = osc_volume * lane_volume * (event.velocity / 127) * 5
-      crow.ii.txo.cv(osc_num, amplitude_volts)
-      crow.ii.txo.env_trig(osc_num, 1)
+      if mode == 2 then -- triggered mode: set CV and trigger AD envelope
+        local osc_volume = txo_osc.get_osc_volume(self.id, osc_num)
+        local lane_volume = params:get("lane_" .. self.id .. "_volume")
+        local amplitude_volts = osc_volume * lane_volume * (event.velocity / 127) * 5
+        crow.ii.txo.cv(osc_num, amplitude_volts)
+        crow.ii.txo.env_trig(osc_num, 1)
+      end
+      -- drone mode: CV already set per-osc on activation/param change, just pitch changes
     end
-    -- drone mode: CV already set per-osc on activation/param change, just pitch changes
   end
 
   --------------------------------
