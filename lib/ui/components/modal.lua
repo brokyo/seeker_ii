@@ -31,7 +31,8 @@ Modal.TYPE = {
   DESCRIPTION = "description",
   STATUS = "status",
   RECORDING = "recording",
-  ADSR = "adsr"
+  ADSR = "adsr",
+  WARNING = "warning"
 }
 
 -- Internal state
@@ -51,7 +52,9 @@ local state = {
   adsr_selected = 1,          -- currently selected stage (1=A, 2=D, 3=S, 4=R)
   -- Input callbacks (optional, for multi-step interactions)
   on_key = nil,               -- function(n, z) -> bool (return true to block default handling)
-  on_enc = nil                -- function(n, d, source) -> bool (return true to block default handling)
+  on_enc = nil,               -- function(n, d, source) -> bool (return true to block default handling)
+  -- Warning modal state
+  warning_clock_id = nil      -- clock ID for auto-dismiss timer
 }
 
 -- Word-wrap text to fit within max_width using current font settings
@@ -200,6 +203,37 @@ function Modal.show_adsr(config)
   state.on_enc = config.on_enc
 end
 
+-- Show a warning modal (auto-dismisses after timeout, allows grid passthrough)
+-- config.body: warning message text
+-- config.timeout_ms: auto-dismiss time in milliseconds (default 2000)
+function Modal.show_warning(config)
+  -- Cancel any existing warning timer
+  if state.warning_clock_id then
+    clock.cancel(state.warning_clock_id)
+    state.warning_clock_id = nil
+  end
+
+  state.active = true
+  state.modal_type = Modal.TYPE.WARNING
+  state.body = config.body or ""
+  state.hint = nil
+  state.scroll_offset = 0
+  state.wrapped_lines = {}
+  state.max_scroll = 0
+
+  -- Auto-dismiss after timeout
+  local timeout_sec = (config.timeout_ms or 2000) / 1000
+  state.warning_clock_id = clock.run(function()
+    clock.sleep(timeout_sec)
+    if state.modal_type == Modal.TYPE.WARNING then
+      Modal.dismiss()
+      if _seeker and _seeker.screen_ui then
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end
+  end)
+end
+
 -- Get/set ADSR selected stage (for Norns E2 navigation)
 function Modal.get_adsr_selected()
   return state.adsr_selected
@@ -224,6 +258,12 @@ end
 
 -- Dismiss the modal
 function Modal.dismiss()
+  -- Cancel warning auto-dismiss timer if active
+  if state.warning_clock_id then
+    clock.cancel(state.warning_clock_id)
+    state.warning_clock_id = nil
+  end
+
   state.active = false
   state.modal_type = nil
   state.body = nil
@@ -320,6 +360,8 @@ function Modal.draw()
     Modal._draw_description()
   elseif state.modal_type == Modal.TYPE.STATUS then
     Modal._draw_status()
+  elseif state.modal_type == Modal.TYPE.WARNING then
+    Modal._draw_warning()
   elseif state.modal_type == Modal.TYPE.RECORDING then
     Modal._draw_recording()
   elseif state.modal_type == Modal.TYPE.ADSR then
@@ -458,6 +500,44 @@ function Modal._draw_status()
     screen.move(SCREEN_WIDTH / 2 - hint_width / 2, modal_y + modal_height + 10)
     screen.text(state.hint)
   end
+end
+
+-- Draw warning modal (centered box, auto-dismisses)
+function Modal._draw_warning()
+  local modal_x = 10
+  local modal_y = 18
+  local modal_width = SCREEN_WIDTH - 20
+  local modal_height = 28
+
+  -- Dark background overlay
+  screen.level(0)
+  screen.rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+  screen.fill()
+
+  -- Shadow
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
+
+  -- Modal background
+  screen.level(1)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.fill()
+
+  -- Border
+  screen.level(8)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.stroke()
+
+  -- Warning text (centered)
+  screen.level(15)
+  screen.font_face(FONTS.STATUS)
+  screen.font_size(SIZES.STATUS)
+  local text_width = screen.text_extents(state.body)
+  screen.move(SCREEN_WIDTH / 2 - text_width / 2, modal_y + modal_height / 2 + SIZES.STATUS / 3)
+  screen.text(state.body)
+
+  -- Reset font to default to prevent bleed into next draw
+  screen.font_face(FONTS.BODY)
+  screen.font_size(SIZES.BODY)
 end
 
 -- Draw recording modal (live waveform visualization)

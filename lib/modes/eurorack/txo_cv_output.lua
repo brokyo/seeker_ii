@@ -410,6 +410,17 @@ local function create_screen_ui()
     norns_ui.enter = function(self)
         self:rebuild_params()  -- Rebuild params BEFORE entering (so arc.new_section gets valid params)
         original_enter(self)
+
+        -- Check for conflicts with lane TXO Osc and show warning
+        local selected_number = params:get("eurorack_selected_number")
+        local conflicts = EurorackUtils.find_txo_cv_conflicts(selected_number)
+        if #conflicts.lanes > 0 then
+            local Modal = get_modal()
+            if Modal then
+                Modal.show_warning({ body = "IN USE: Lane " .. table.concat(conflicts.lanes, ",") })
+                _seeker.screen_ui.set_needs_redraw()
+            end
+        end
     end
 
     norns_ui.rebuild_params = function(self)
@@ -540,6 +551,15 @@ local function create_grid_ui()
 
       -- Switch to TXO CV output section
       _seeker.ui_state.set_current_section("TXO_CV_OUTPUT")
+
+      -- Check for conflicts with lane TXO Osc and show warning
+      local conflicts = EurorackUtils.find_txo_cv_conflicts(output_num)
+      if #conflicts.lanes > 0 then
+        local Modal = get_modal()
+        if Modal then
+          Modal.show_warning({ body = "IN USE: Lane " .. table.concat(conflicts.lanes, ",") })
+        end
+      end
 
       -- Trigger UI updates
       _seeker.screen_ui.set_needs_redraw()

@@ -11,6 +11,7 @@
 -- The on_note_on/on_note_off methods handle 8 different voice types inline.
 
 local mx_samples = include('lib/modes/motif/infrastructure/voices/mx_samples')
+local txo_osc = include('lib/modes/motif/infrastructure/voices/txo_osc')
 local Motif = include('lib/modes/motif/core/motif')
 -- Stage type modules for mode-specific preparation
 local tape_transform = include('lib/modes/motif/types/tape/transform')
@@ -899,22 +900,22 @@ function Lane:on_note_on(event)
   end
 
   --------------------------------
-  -- TXO Oscillator Output
+  -- TXO Oscillator Output (polyphonic round-robin)
   --------------------------------
 
   if self.txo_osc_active then
-    local osc_select = params:get("lane_" .. self.id .. "_txo_osc_select")
+    local osc_num = txo_osc.get_next_voice(self.id)
     local mode = params:get("lane_" .. self.id .. "_txo_osc_mode")
 
     -- Set oscillator pitch (MIDI note number)
-    crow.ii.txo.osc_n(osc_select, note)
+    crow.ii.txo.osc_n(osc_num, note)
 
     if mode == 2 then -- triggered mode: set CV and trigger AD envelope
       local txo_voice_volume = params:get("lane_" .. self.id .. "_txo_osc_volume")
       local lane_volume = params:get("lane_" .. self.id .. "_volume")
       local amplitude_volts = txo_voice_volume * lane_volume * (event.velocity / 127) * 5
-      crow.ii.txo.cv(osc_select, amplitude_volts)
-      crow.ii.txo.env_trig(osc_select, 1)
+      crow.ii.txo.cv(osc_num, amplitude_volts)
+      crow.ii.txo.env_trig(osc_num, 1)
     end
     -- drone mode: CV already set high on activation, just pitch changes
   end

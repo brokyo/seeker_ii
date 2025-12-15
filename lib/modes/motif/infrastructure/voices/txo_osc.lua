@@ -1,8 +1,16 @@
 -- txo_osc.lua
 -- TXO oscillator voice parameters for lane configuration
 -- Uses TXO's built-in oscillators as sound source (not CV/Gate to external gear)
+-- Supports polyphonic round-robin voice allocation across configurable output range
+
+local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 local txo_osc = {}
+
+-- Get modal dialog for displaying conflict warnings
+local function get_modal()
+    return _seeker and _seeker.modal
+end
 
 -- Waveform presets: sine=0, tri=1000, saw=2000, pulse=3000, noise=4000
 -- "custom" shown when morph is at a non-preset value (user controlling manually)
@@ -12,28 +20,114 @@ local PRESET_MORPH_VALUES = {0, 1000, 2000, 3000, 4000}
 -- Mode options for envelope behavior
 local MODES = {"drone", "triggered"}
 
+-- Voice pool state per lane (for round-robin allocation)
+local voice_pools = {}
+for i = 1, 4 do
+    voice_pools[i] = {
+        next_voice_index = 1  -- Position within lane's voice range (1 to count)
+    }
+end
+
+-- Get next oscillator output for a lane using round-robin allocation
+-- Returns the physical oscillator number (1-4)
+function txo_osc.get_next_voice(lane_id)
+    local start = params:get("lane_" .. lane_id .. "_txo_osc_start")
+    local count = params:get("lane_" .. lane_id .. "_txo_osc_count")
+    local pool = voice_pools[lane_id]
+
+    -- Calculate physical oscillator number
+    local osc_num = start + pool.next_voice_index - 1
+
+    -- Advance to next voice in pool (round-robin)
+    pool.next_voice_index = (pool.next_voice_index % count) + 1
+
+    return osc_num
+end
+
+-- Apply a function to each oscillator in this lane's output range
+local function apply_to_all_voices(lane_id, fn)
+    local start = params:get("lane_" .. lane_id .. "_txo_osc_start")
+    local count = params:get("lane_" .. lane_id .. "_txo_osc_count")
+    for offset = 0, count - 1 do
+        local osc_num = start + offset
+        fn(osc_num)
+    end
+end
+
+-- Reinitialize all oscillators with current param values (called when range or mode changes)
+local function reinit_all_voices(lane_id)
+    if params:get("lane_" .. lane_id .. "_txo_osc_active") ~= 1 then return end
+
+    local mode = params:get("lane_" .. lane_id .. "_txo_osc_mode")
+    local morph = params:get("lane_" .. lane_id .. "_txo_osc_morph")
+    local width = params:get("lane_" .. lane_id .. "_txo_osc_width")
+    local slew = params:get("lane_" .. lane_id .. "_txo_osc_slew")
+    local attack = params:get("lane_" .. lane_id .. "_txo_osc_attack") * 1000
+    local decay = params:get("lane_" .. lane_id .. "_txo_osc_decay") * 1000
+    local volume = params:get("lane_" .. lane_id .. "_txo_osc_volume")
+
+    apply_to_all_voices(lane_id, function(osc_num)
+        crow.ii.txo.osc_wave(osc_num, morph)
+        crow.ii.txo.osc_width(osc_num, width)
+        crow.ii.txo.osc_slew(osc_num, slew)
+
+        if mode == 2 then -- triggered mode
+            crow.ii.txo.env_act(osc_num, 1)
+            crow.ii.txo.env_att(osc_num, attack)
+            crow.ii.txo.env_dec(osc_num, decay)
+        else -- drone mode
+            crow.ii.txo.env_act(osc_num, 0)
+            crow.ii.txo.cv_set(osc_num, volume * 5)
+        end
+    end)
+end
+
 function txo_osc.create_params(i)
     params:add_binary("lane_" .. i .. "_txo_osc_active", "TXO Osc Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_txo_osc_active", function(value)
         _seeker.lanes[i].txo_osc_active = (value == 1)
 
         if value == 1 then
-            local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-            local mode = params:get("lane_" .. i .. "_txo_osc_mode")
-
-            -- Initialize oscillator settings
-            crow.ii.txo.osc_wave(osc_select, params:get("lane_" .. i .. "_txo_osc_morph"))
-            crow.ii.txo.osc_width(osc_select, params:get("lane_" .. i .. "_txo_osc_width"))
-            crow.ii.txo.osc_slew(osc_select, params:get("lane_" .. i .. "_txo_osc_slew"))
-
-            if mode == 2 then -- triggered mode: enable envelope
-                crow.ii.txo.env_act(osc_select, 1)
-                crow.ii.txo.env_att(osc_select, params:get("lane_" .. i .. "_txo_osc_attack") * 1000)
-                crow.ii.txo.env_dec(osc_select, params:get("lane_" .. i .. "_txo_osc_decay") * 1000)
-            else -- drone mode: disable envelope, set CV high and leave it
-                crow.ii.txo.env_act(osc_select, 0)
-                crow.ii.txo.cv_set(osc_select, params:get("lane_" .. i .. "_txo_osc_volume") * 5)
+            -- Check for CV output conflicts and warn user
+            local start = params:get("lane_" .. i .. "_txo_osc_start")
+            local count = params:get("lane_" .. i .. "_txo_osc_count")
+            local conflicts = EurorackUtils.find_txo_osc_conflicts(i, start, count)
+            if conflicts.cv_outputs and #conflicts.cv_outputs > 0 then
+                local Modal = get_modal()
+                if Modal then
+                    Modal.show_warning({
+                        body = "CV " .. table.concat(conflicts.cv_outputs, ",") .. " in use",
+                        timeout_ms = 2000
+                    })
+                end
             end
+
+            local mode = params:get("lane_" .. i .. "_txo_osc_mode")
+            local morph = params:get("lane_" .. i .. "_txo_osc_morph")
+            local width = params:get("lane_" .. i .. "_txo_osc_width")
+            local slew = params:get("lane_" .. i .. "_txo_osc_slew")
+            local attack = params:get("lane_" .. i .. "_txo_osc_attack") * 1000
+            local decay = params:get("lane_" .. i .. "_txo_osc_decay") * 1000
+            local volume = params:get("lane_" .. i .. "_txo_osc_volume")
+
+            -- Initialize all oscillators in the voice range
+            apply_to_all_voices(i, function(osc_num)
+                crow.ii.txo.osc_wave(osc_num, morph)
+                crow.ii.txo.osc_width(osc_num, width)
+                crow.ii.txo.osc_slew(osc_num, slew)
+
+                if mode == 2 then -- triggered mode: enable envelope
+                    crow.ii.txo.env_act(osc_num, 1)
+                    crow.ii.txo.env_att(osc_num, attack)
+                    crow.ii.txo.env_dec(osc_num, decay)
+                else -- drone mode: disable envelope, set CV high
+                    crow.ii.txo.env_act(osc_num, 0)
+                    crow.ii.txo.cv_set(osc_num, volume * 5)
+                end
+            end)
+
+            -- Reset voice pool to start fresh
+            voice_pools[i].next_voice_index = 1
         end
 
         _seeker.lane_config.screen:rebuild_params()
@@ -43,31 +137,50 @@ function txo_osc.create_params(i)
     params:add_control("lane_" .. i .. "_txo_osc_volume", "Voice Volume", controlspec.new(0, 1, 'lin', 0.01, 1, ""))
     params:set_action("lane_" .. i .. "_txo_osc_volume", function(value)
         _seeker.lanes[i].txo_osc_volume = value
-        -- Update CV immediately in drone mode
+        -- Update CV immediately in drone mode (apply to all voices)
         local mode = params:get("lane_" .. i .. "_txo_osc_mode")
         if mode == 1 and params:get("lane_" .. i .. "_txo_osc_active") == 1 then
-            local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-            crow.ii.txo.cv_set(osc_select, value * 5)
+            apply_to_all_voices(i, function(osc_num)
+                crow.ii.txo.cv_set(osc_num, value * 5)
+            end)
         end
     end)
 
-    params:add_option("lane_" .. i .. "_txo_osc_select", "Oscillator", {"1", "2", "3", "4"}, 1)
-    params:set_action("lane_" .. i .. "_txo_osc_select", function(value)
-        _seeker.lanes[i].txo_osc_select = value
+    params:add_option("lane_" .. i .. "_txo_osc_start", "Start Output", {"1", "2", "3", "4"}, 1)
+    params:set_action("lane_" .. i .. "_txo_osc_start", function(value)
+        _seeker.lanes[i].txo_osc_start = value
+        voice_pools[i].next_voice_index = 1
+        reinit_all_voices(i)
+        _seeker.lane_config.screen:rebuild_params()
+        _seeker.screen_ui.set_needs_redraw()
+    end)
+
+    params:add_option("lane_" .. i .. "_txo_osc_count", "Voice Count", {"1", "2", "3", "4"}, 1)
+    params:set_action("lane_" .. i .. "_txo_osc_count", function(value)
+        _seeker.lanes[i].txo_osc_count = value
+        voice_pools[i].next_voice_index = 1
+        reinit_all_voices(i)
+        _seeker.lane_config.screen:rebuild_params()
+        _seeker.screen_ui.set_needs_redraw()
     end)
 
     params:add_option("lane_" .. i .. "_txo_osc_mode", "Mode", MODES, 1)
     params:set_action("lane_" .. i .. "_txo_osc_mode", function(value)
         _seeker.lanes[i].txo_osc_mode = value
-        local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-        if value == 2 then -- triggered mode: enable envelope for AD shaping
-            crow.ii.txo.env_act(osc_select, 1)
-            crow.ii.txo.env_att(osc_select, params:get("lane_" .. i .. "_txo_osc_attack") * 1000)
-            crow.ii.txo.env_dec(osc_select, params:get("lane_" .. i .. "_txo_osc_decay") * 1000)
-        else -- drone mode: disable envelope, set CV high and leave it on
-            crow.ii.txo.env_act(osc_select, 0)
-            crow.ii.txo.cv_set(osc_select, params:get("lane_" .. i .. "_txo_osc_volume") * 5)
-        end
+        local attack = params:get("lane_" .. i .. "_txo_osc_attack") * 1000
+        local decay = params:get("lane_" .. i .. "_txo_osc_decay") * 1000
+        local volume = params:get("lane_" .. i .. "_txo_osc_volume")
+
+        apply_to_all_voices(i, function(osc_num)
+            if value == 2 then -- triggered mode: enable envelope for AD shaping
+                crow.ii.txo.env_act(osc_num, 1)
+                crow.ii.txo.env_att(osc_num, attack)
+                crow.ii.txo.env_dec(osc_num, decay)
+            else -- drone mode: disable envelope, set CV high
+                crow.ii.txo.env_act(osc_num, 0)
+                crow.ii.txo.cv_set(osc_num, volume * 5)
+            end
+        end)
         _seeker.lane_config.screen:rebuild_params()
         _seeker.screen_ui.set_needs_redraw()
     end)
@@ -75,9 +188,11 @@ function txo_osc.create_params(i)
     params:add_option("lane_" .. i .. "_txo_osc_wave", "Waveform", WAVEFORMS, 1)
     params:set_action("lane_" .. i .. "_txo_osc_wave", function(value)
         if value <= 5 then -- Preset selected: set morph to preset value
-            params:set("lane_" .. i .. "_txo_osc_morph", PRESET_MORPH_VALUES[value], true)
-            local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-            crow.ii.txo.osc_wave(osc_select, PRESET_MORPH_VALUES[value])
+            local morph_value = PRESET_MORPH_VALUES[value]
+            params:set("lane_" .. i .. "_txo_osc_morph", morph_value, true)
+            apply_to_all_voices(i, function(osc_num)
+                crow.ii.txo.osc_wave(osc_num, morph_value)
+            end)
         end
         -- "custom" (6): don't change morph, user controls it directly
         _seeker.lane_config.screen:rebuild_params()
@@ -87,8 +202,9 @@ function txo_osc.create_params(i)
     params:add_control("lane_" .. i .. "_txo_osc_morph", "Morph", controlspec.new(0, 5000, 'lin', 1, 0, ""),
         function(param) return string.format("%d", param:get()) end)
     params:set_action("lane_" .. i .. "_txo_osc_morph", function(value)
-        local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-        crow.ii.txo.osc_wave(osc_select, value)
+        apply_to_all_voices(i, function(osc_num)
+            crow.ii.txo.osc_wave(osc_num, value)
+        end)
         -- Update waveform display: show preset name or "custom"
         local preset_idx = nil
         for idx, preset_val in ipairs(PRESET_MORPH_VALUES) do
@@ -103,30 +219,36 @@ function txo_osc.create_params(i)
     params:add_control("lane_" .. i .. "_txo_osc_width", "Pulse Width", controlspec.new(0, 100, 'lin', 1, 50, "%"),
         function(param) return string.format("%d%%", param:get()) end)
     params:set_action("lane_" .. i .. "_txo_osc_width", function(value)
-        local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-        crow.ii.txo.osc_width(osc_select, value)
+        apply_to_all_voices(i, function(osc_num)
+            crow.ii.txo.osc_width(osc_num, value)
+        end)
     end)
 
     params:add_control("lane_" .. i .. "_txo_osc_slew", "Slew", controlspec.new(0, 2000, 'lin', 1, 0, "ms"),
         function(param) return string.format("%d ms", param:get()) end)
     params:set_action("lane_" .. i .. "_txo_osc_slew", function(value)
-        local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-        crow.ii.txo.osc_slew(osc_select, value)
+        apply_to_all_voices(i, function(osc_num)
+            crow.ii.txo.osc_slew(osc_num, value)
+        end)
     end)
 
     -- Envelope params (used in triggered mode) - values in seconds, converted to ms for TXO
     params:add_control("lane_" .. i .. "_txo_osc_attack", "Attack", controlspec.new(0, 10, 'lin', 0.01, 0, "s"),
         function(param) return string.format("%.2f s", param:get()) end)
     params:set_action("lane_" .. i .. "_txo_osc_attack", function(value)
-        local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-        crow.ii.txo.env_att(osc_select, value * 1000)
+        local attack_ms = value * 1000
+        apply_to_all_voices(i, function(osc_num)
+            crow.ii.txo.env_att(osc_num, attack_ms)
+        end)
     end)
 
     params:add_control("lane_" .. i .. "_txo_osc_decay", "Decay", controlspec.new(0, 10, 'lin', 0.01, 1, "s"),
         function(param) return string.format("%.2f s", param:get()) end)
     params:set_action("lane_" .. i .. "_txo_osc_decay", function(value)
-        local osc_select = params:get("lane_" .. i .. "_txo_osc_select")
-        crow.ii.txo.env_dec(osc_select, value * 1000)
+        local decay_ms = value * 1000
+        apply_to_all_voices(i, function(osc_num)
+            crow.ii.txo.env_dec(osc_num, decay_ms)
+        end)
     end)
 end
 

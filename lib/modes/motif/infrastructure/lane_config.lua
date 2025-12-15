@@ -640,17 +640,6 @@ local function create_screen_ui()
 
             -- Only show additional TXO Osc params if active
             if params:get("lane_" .. lane_idx .. "_txo_osc_active") == 1 then
-                -- Check for conflicts and show warning
-                local start = params:get("lane_" .. lane_idx .. "_txo_osc_start")
-                local count = params:get("lane_" .. lane_idx .. "_txo_osc_count")
-                local conflicts = EurorackUtils.find_txo_osc_conflicts(lane_idx, start, count)
-                if #conflicts.lanes > 0 or #conflicts.cv_outputs > 0 then
-                    local Modal = get_modal()
-                    if Modal then
-                        Modal.show_warning({ body = EurorackUtils.format_txo_conflicts(conflicts) })
-                    end
-                end
-
                 table.insert(param_table, { separator = true, title = "Voice Range" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_start" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_count" })
