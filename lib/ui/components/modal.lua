@@ -261,6 +261,14 @@ function Modal.handle_key(n, z)
     if handled then return true end
   end
 
+  -- K3 press dismisses description/adsr modals
+  if n == 3 and z == 1 then
+    if state.modal_type == Modal.TYPE.DESCRIPTION or state.modal_type == Modal.TYPE.ADSR then
+      Modal.dismiss()
+      return true
+    end
+  end
+
   -- Status modals block key input unless allows_norns_input is true
   if state.modal_type == Modal.TYPE.STATUS then
     return not state.allows_norns_input

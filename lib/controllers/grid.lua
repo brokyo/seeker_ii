@@ -83,8 +83,7 @@ function GridUI.key(x, y, z)
     if modal_type == _seeker.modal.TYPE.STATUS or modal_type == _seeker.modal.TYPE.RECORDING then
       return
     end
-    -- Other modals (description, adsr) are dismissed on grid press
-    _seeker.modal.dismiss()
+    -- Other modals (description, adsr) allow grid input to reach the mode handlers below
   end
 
   -- Skip mode switcher in dual keyboard mode (fullscreen takes over)

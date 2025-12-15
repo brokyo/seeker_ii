@@ -112,7 +112,15 @@ end
 
 function UIState.set_focused_lane(lane_idx)
   if lane_idx == UIState.state.focused_lane then return end
-  
+
+  -- Dismiss description/adsr modals when switching focused lane
+  if _seeker.modal and _seeker.modal.is_active() then
+    local modal_type = _seeker.modal.get_type()
+    if modal_type ~= _seeker.modal.TYPE.STATUS and modal_type ~= _seeker.modal.TYPE.RECORDING then
+      _seeker.modal.dismiss()
+    end
+  end
+
   UIState.state.focused_lane = lane_idx
   
   -- Update UI
@@ -148,6 +156,14 @@ end
 
 function UIState.set_current_section(section_id)
   if section_id == UIState.state.current_section then return end
+
+  -- Dismiss description/adsr modals when switching sections
+  if _seeker.modal and _seeker.modal.is_active() then
+    local modal_type = _seeker.modal.get_type()
+    if modal_type ~= _seeker.modal.TYPE.STATUS and modal_type ~= _seeker.modal.TYPE.RECORDING then
+      _seeker.modal.dismiss()
+    end
+  end
 
   -- Stop active recording when leaving lane config section
   if UIState.state.current_section == "LANE_CONFIG" and _seeker.sampler and _seeker.sampler.is_recording then
