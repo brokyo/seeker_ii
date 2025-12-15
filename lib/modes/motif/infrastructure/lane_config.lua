@@ -394,6 +394,13 @@ local function create_screen_ui()
             { id = "lane_" .. lane_idx .. "_motif_type" }
         }
 
+        -- Tape mode: keyboard layout settings (octave, grid offset)
+        if motif_type == MOTIF_TYPE_TAPE then
+            table.insert(param_table, { separator = true, title = "Layout" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_keyboard_octave" })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_grid_offset" })
+        end
+
         -- Sampler parameters: audio source, recording, filter
         if motif_type == MOTIF_TYPE_SAMPLER then
             -- Sample source first (most important)

@@ -116,13 +116,6 @@ local function create_screen_ui()
             { id = "scale_type" }
         }
 
-        -- Tape mode: show lane-specific keyboard tuning (octave, grid offset)
-        if motif_type == MOTIF_TYPE_TAPE then
-            table.insert(param_table, { separator = true, title = "Lane " .. lane_idx .. " Layout" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_keyboard_octave" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_grid_offset" })
-        end
-
         table.insert(param_table, { separator = true, title = "Global Layout" })
         table.insert(param_table, { id = "motif_config_column_steps" })
         table.insert(param_table, { id = "motif_config_row_steps" })

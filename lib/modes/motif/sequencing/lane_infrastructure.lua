@@ -192,7 +192,7 @@ local function create_basic_lane_params(i)
     end)
 
     -- Per-Lane keyboard tuning
-    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 2)
+    params:add_number("lane_" .. i .. "_keyboard_octave", "Keyboard Octave", 1, 7, 3)
     params:add_number("lane_" .. i .. "_grid_offset", "Grid Offset", -8, 8, -4)
 
     -- Volume parameter that lane.lua expects

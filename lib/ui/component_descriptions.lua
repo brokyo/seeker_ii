@@ -8,7 +8,7 @@ return {
 
   -- Motif mode
   LANE_CONFIG = "Select motif type and configure voices. Multiple voices can run simultaneously.",
-  MOTIF_CONFIG = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout only applies to modal Tonnetz in Tape.",
+  MOTIF_CONFIG = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout controls how notes map to the grid.",
 
   -- Tape mode
   TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two tonnetz with independent octaves. Arc rings 3/4 control velocity for each side.",
