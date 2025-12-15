@@ -23,7 +23,7 @@ local editing_state = {
 -- Create all composer parameters for a single lane
 local function create_composer_params(lane_id)
     -- 62 params total: 2 lane-level (sequence structure) + (15 per stage x 4 stages)
-    params:add_group("lane_" .. lane_id .. "_composer", "COMPOSER", 62)
+    params:add_group("lane_" .. lane_id .. "_composer", "LANE " .. lane_id .. " COMPOSER", 62)
 
     -- Lane-level params (sequence structure)
     params:add_number("lane_" .. lane_id .. "_composer_num_steps", "Number of Steps", 4, 24, 4)

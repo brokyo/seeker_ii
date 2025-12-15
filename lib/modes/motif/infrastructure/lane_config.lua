@@ -21,6 +21,7 @@ local voice_wsyn = include("lib/modes/motif/infrastructure/voices/wsyn")
 local voice_osc = include("lib/modes/motif/infrastructure/voices/osc")
 local voice_disting = include("lib/modes/motif/infrastructure/voices/disting")
 local voice_txo_osc = include("lib/modes/motif/infrastructure/voices/txo_osc")
+local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
@@ -31,7 +32,8 @@ local LaneConfig = {}
 LaneConfig.__index = LaneConfig
 
 local function create_params()
-    -- Global sampler voice count (shared across all lanes)
+    -- Global sampler settings (shared across all lanes)
+    params:add_group("sampler_global", "SAMPLER GLOBAL", 1)
     params:add_number("sampler_voice_count", "Sampler Voices", 1, 6, 6)
     params:set_action("sampler_voice_count", function(value)
         if _seeker and _seeker.sampler then
@@ -41,7 +43,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 99)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 100)
 
         -- Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Voice",
@@ -638,8 +640,20 @@ local function create_screen_ui()
 
             -- Only show additional TXO Osc params if active
             if params:get("lane_" .. lane_idx .. "_txo_osc_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Output" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_select" })
+                -- Check for conflicts and show warning
+                local start = params:get("lane_" .. lane_idx .. "_txo_osc_start")
+                local count = params:get("lane_" .. lane_idx .. "_txo_osc_count")
+                local conflicts = EurorackUtils.find_txo_osc_conflicts(lane_idx, start, count)
+                if #conflicts.lanes > 0 or #conflicts.cv_outputs > 0 then
+                    local Modal = get_modal()
+                    if Modal then
+                        Modal.show_warning({ body = EurorackUtils.format_txo_conflicts(conflicts) })
+                    end
+                end
+
+                table.insert(param_table, { separator = true, title = "Voice Range" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_start" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_count" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_volume", arc_multi_float = {0.1, 0.05, 0.01} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_mode" })
 

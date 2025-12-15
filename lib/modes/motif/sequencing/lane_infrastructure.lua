@@ -19,7 +19,7 @@ local lane_infrastructure = {}
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
 
-    params:add_group("lane_" .. i .. "_stage_setup", "STAGE SETUP", 24)
+    params:add_group("lane_" .. i .. "_stage_setup", "LANE " .. i .. " STAGE SETUP", 24)
     -- Create four stages per lane with their defaults
     for stage_idx = 1, 4 do
         -- Stage volume (used by all motif types)
@@ -63,7 +63,7 @@ end
 -- Create motif playback parameters that lane.lua uses
 -- TODO: These should be moved to @play_motif.lua when that component is refactored
 local function create_motif_playback_params(i)
-    params:add_group("lane_" .. i .. "_motif_playback", "MOTIF PLAYBACK", 4)
+    params:add_group("lane_" .. i .. "_motif_playback", "LANE " .. i .. " PLAYBACK", 4)
     -- Octave offset for playback transposition
     params:add_number("lane_" .. i .. "_octave_offset", "Octave Offset", -8, 8, 0)
 
@@ -87,7 +87,7 @@ end
 -- Create basic lane parameters that lane.lua needs
 local function create_basic_lane_params(i)
     -- Core lane parameters
-    params:add_group("lane_" .. i .. "_infrastructure", "INFRASTRUCTURE", 7)
+    params:add_group("lane_" .. i .. "_infrastructure", "LANE " .. i .. " CORE", 7)
 
     -- Per-lane motif creation type
     params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler"}, 1)

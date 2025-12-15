@@ -85,7 +85,7 @@ end
 
 local function create_params()
   for i = 1, 8 do
-    params:add_group("lane_" .. i .. "_composer_performance", "LANE " .. i .. " COMPOSER PERF", 5)
+    params:add_group("lane_" .. i .. "_composer_performance", "LANE " .. i .. " COMPOSER PERFORM", 5)
 
     params:add_option("lane_" .. i .. "_composer_performance_mode", "Mode", mode_names, MODE_MUTE)
     params:set_action("lane_" .. i .. "_composer_performance_mode", function(value)

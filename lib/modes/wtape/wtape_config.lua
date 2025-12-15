@@ -28,7 +28,7 @@ local function sync_to_hardware()
 end
 
 local function create_params()
-    params:add_group("wtape", "WTAPE", 17)
+    params:add_group("wtape", "W/TAPE", 17)
 
     -- Playback
     params:add_binary("wtape_toggle_playing", "Toggle Playing", "toggle", 0)

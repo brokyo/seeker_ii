@@ -1165,7 +1165,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("crow_output", "CROW OUTPUT", 208)
+    params:add_group("crow_output", "CROW OUTPUT", 212)
 
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
