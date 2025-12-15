@@ -904,10 +904,10 @@ function Lane:on_note_on(event)
   --------------------------------
 
   if self.txo_osc_active then
-    local osc_num = txo_osc.get_next_voice(self.id)
+    local osc_num = txo_osc.get_next_osc(self.id)
     local mode = params:get("lane_" .. self.id .. "_txo_osc_mode")
 
-    -- Set oscillator pitch (MIDI note number)
+    -- Set oscillator pitch
     crow.ii.txo.osc_n(osc_num, note)
 
     if mode == 2 then -- triggered mode: set CV and trigger AD envelope

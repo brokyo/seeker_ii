@@ -670,6 +670,14 @@ local function create_screen_ui()
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_attack", arc_multi_float = {0.1, 0.05, 0.01} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_decay", arc_multi_float = {0.1, 0.05, 0.01} })
                 end
+
+                -- Per-oscillator config when using multiple oscillators
+                local osc_count = params:get("lane_" .. lane_idx .. "_txo_osc_count")
+                if osc_count > 1 then
+                    table.insert(param_table, { separator = true, title = "Per-Osc" })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_selected" })
+                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_morph", arc_multi_float = {100, 50, 10} })
+                end
             end
         end
         end -- Close else block for tape/composer voice params
