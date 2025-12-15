@@ -78,6 +78,36 @@ function Motif:get_duration()
   return self.duration
 end
 
+-- Get the maximum generation number in the motif
+function Motif:get_max_generation()
+  local max_gen = 0
+  for _, evt in ipairs(self.genesis.events) do
+    local gen = evt.generation or 1
+    if gen > max_gen then
+      max_gen = gen
+    end
+  end
+  return max_gen
+end
+
+-- Clear a specific generation from the motif
+-- Removes events from both genesis and working state
+function Motif:clear_generation(target_gen)
+  -- Filter genesis events
+  local new_genesis = {}
+  for _, evt in ipairs(self.genesis.events) do
+    local gen = evt.generation or 1
+    if gen ~= target_gen then
+      table.insert(new_genesis, evt)
+    end
+  end
+  self.genesis.events = new_genesis
+
+  -- Reset working state from updated genesis
+  self:reset_to_genesis()
+  print(string.format("⊖ Cleared generation %d", target_gen))
+end
+
 -- Clear all motif data
 function Motif:clear()
   -- Clear genesis state

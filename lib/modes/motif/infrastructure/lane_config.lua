@@ -63,6 +63,14 @@ local function create_params()
         voice_disting.create_params(i)
         voice_txo_osc.create_params(i)
 
+        -- Clear generation selector (0=all, 1+=specific generation)
+        params:add_number("lane_" .. i .. "_clear_generation", "Clear Generation", 0, 10, 0,
+            function(param)
+                local val = param:get()
+                if val == 0 then return "all" end
+                return tostring(val)
+            end)
+
         -- Global sampler filter (applies to all chops in lane)
         local lane_idx = i  -- Capture for closures
         params:add_option("lane_" .. i .. "_sampler_filter_type", "Filter Type",

@@ -20,6 +20,38 @@ local function create_screen_ui()
     }
   })
 
+  norns_ui.rebuild_params = function(self)
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local lane = _seeker.lanes[focused_lane]
+    local max_gen = lane and lane.motif and lane.motif:get_max_generation() or 0
+
+    self.params = {
+      { separator = true, title = "Clear Motif" }
+    }
+
+    -- Only show generation selector if there's more than one generation
+    if max_gen >= 2 then
+      -- Update param max to match actual generations
+      local param = params:lookup_param("lane_" .. focused_lane .. "_clear_generation")
+      if param then
+        param.max = max_gen
+        -- Clamp current value if needed
+        local current = params:get("lane_" .. focused_lane .. "_clear_generation")
+        if current > max_gen then
+          params:set("lane_" .. focused_lane .. "_clear_generation", 0)
+        end
+      end
+
+      table.insert(self.params, {
+        id = "lane_" .. focused_lane .. "_clear_generation",
+        name = "Generation"
+      })
+    else
+      -- Reset to "all" when only one generation exists
+      params:set("lane_" .. focused_lane .. "_clear_generation", 0)
+    end
+  end
+
   norns_ui.draw_default = function(self)
     NornsUI.draw_default(self)
 
@@ -29,7 +61,12 @@ local function create_screen_ui()
       local lane = _seeker.lanes[focused_lane]
 
       if lane and lane.motif and #lane.motif.events > 0 then
-        tooltip = "clear: hold"
+        local gen = params:get("lane_" .. focused_lane .. "_clear_generation")
+        if gen > 0 then
+          tooltip = "clear gen " .. gen .. ": hold"
+        else
+          tooltip = "clear all: hold"
+        end
       else
         tooltip = "no motif to clear"
       end
@@ -47,6 +84,12 @@ local function create_screen_ui()
     end
 
     screen.update()
+  end
+
+  local original_enter = norns_ui.enter
+  norns_ui.enter = function(self)
+    self:rebuild_params()
+    original_enter(self)
   end
 
   return norns_ui
@@ -136,11 +179,23 @@ local function create_grid_ui()
             end
           end
 
-          lane:clear()
+          local target_gen = params:get("lane_" .. focused_lane .. "_clear_generation")
+
+          if target_gen > 0 then
+            lane.motif:clear_generation(target_gen)
+            -- Reset selector after clearing
+            params:set("lane_" .. focused_lane .. "_clear_generation", 0)
+          else
+            lane:clear()
+          end
 
           -- Rebuild sampler create params
           if _seeker.sampler_type and _seeker.sampler_type.create and _seeker.sampler_type.create.screen then
             _seeker.sampler_type.create.screen:rebuild_params()
+          end
+          -- Rebuild clear screen to update generation options
+          if _seeker.sampler_type and _seeker.sampler_type.clear and _seeker.sampler_type.clear.screen then
+            _seeker.sampler_type.clear.screen:rebuild_params()
           end
         end
 
