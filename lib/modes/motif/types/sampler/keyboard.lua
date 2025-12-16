@@ -9,11 +9,6 @@ local GridLayers = include("lib/grid/layers")
 
 local SamplerKeyboard = {}
 
--- Note: Perform state is accessed via _seeker.sampler_type.perform
-
--- Playback mode constants for sampler behavior
-local MODE_GATE = 1
-
 -- Layout definition - 4x4 grid centered in the keyboard area
 local layout = {
   x = 7,
@@ -45,15 +40,15 @@ local function pad_to_position(pad)
   }
 end
 
--- Find all grid positions for a given pad
--- Maintains keyboard interface compatibility (treats pad as note)
+-- Converts pad number to grid position array
+-- Returns array for consistency with tape keyboard's note_to_positions API
 local function note_to_positions(note)
   local pos = pad_to_position(note)
   return pos and {pos} or nil
 end
 
--- Create a standardized note event for sampler pads
--- Captures chop config at record time (like tape captures ADSR/pan)
+-- Creates note event from pad press
+-- Captures current chop config so recorded motifs reproduce exact sound
 local function create_note_event(x, y, pad, velocity)
   local pos = pad_to_position(pad)
   local event = {
@@ -61,7 +56,7 @@ local function create_note_event(x, y, pad, velocity)
     velocity = velocity or 127,
     x = x,
     y = y,
-    all_positions = pos and {pos} or nil
+    positions = pos and {pos} or {{x = x, y = y}}
   }
 
   -- Capture chop's filter/envelope values at record time
@@ -94,35 +89,25 @@ local function pad_on(x, y)
   local pad = position_to_pad(x, y)
   if not pad then return end
 
-  -- Trigger samples during recording, navigate to pad config otherwise
-  local is_recording = _seeker and _seeker.motif_recorder and _seeker.motif_recorder.is_recording
+  local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  local is_recording = _seeker.motif_recorder and _seeker.motif_recorder.is_recording
 
+  -- Switch to chop config screen for editing the pressed pad
   if not is_recording then
-    -- Navigate to chop configuration screen
-    if _seeker and _seeker.sampler_type and _seeker.sampler_type.chop_config then
+    if _seeker.sampler_type and _seeker.sampler_type.chop_config then
       _seeker.sampler_type.chop_config.select_pad(pad)
     end
   end
 
-  -- Trigger sample playback (unless muted by perform button)
-  if _seeker and _seeker.sampler then
-    local lane = _seeker.ui_state.get_focused_lane()
-    local perf = _seeker.sampler_type and _seeker.sampler_type.perform
-    if not perf or not perf.is_muted(lane) then
-      local velocity = _seeker.sampler_type and _seeker.sampler_type.velocity and _seeker.sampler_type.velocity.get_current_velocity() or 127
-      if perf then
-        velocity = velocity * perf.get_velocity_multiplier(lane)
-      end
-      _seeker.sampler.trigger_pad(lane, pad, velocity)
-    end
-  end
+  -- Route through lane (applies perform settings, lane volume, triggers sampler)
+  local velocity = _seeker.sampler_type and _seeker.sampler_type.velocity and _seeker.sampler_type.velocity.get_current_velocity() or 127
+  local event = create_note_event(x, y, pad, velocity)
 
-  -- Record pad event if motif recorder is active
   if is_recording then
-    local velocity = _seeker.sampler_type and _seeker.sampler_type.velocity and _seeker.sampler_type.velocity.get_current_velocity() or 127
-    local event = create_note_event(x, y, pad, velocity)
     _seeker.motif_recorder:on_note_on(event)
   end
+
+  focused_lane:on_note_on(event)
 end
 
 -- Handle pad release
@@ -130,20 +115,14 @@ local function pad_off(x, y)
   local pad = position_to_pad(x, y)
   if not pad then return end
 
-  -- Gate mode: stop playback on release
-  if _seeker and _seeker.sampler then
-    local lane = _seeker.ui_state.get_focused_lane()
-    local chop = _seeker.sampler.get_chop(lane, pad)
-    if chop and chop.mode == MODE_GATE then
-      _seeker.sampler.stop_pad(lane, pad)
-    end
-  end
+  local focused_lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  local event = create_note_event(x, y, pad, 0)
 
-  -- Record pad release if motif recorder is active
-  if _seeker and _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
-    local event = create_note_event(x, y, pad, 0)
+  if _seeker.motif_recorder and _seeker.motif_recorder.is_recording then
     _seeker.motif_recorder:on_note_off(event)
   end
+
+  focused_lane:on_note_off(event)
 end
 
 local function create_grid_ui()
