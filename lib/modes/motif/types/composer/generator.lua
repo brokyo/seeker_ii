@@ -273,7 +273,6 @@ local function build_param_list(lane_idx, stage_idx)
     { separator = true, title = "Timing" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_pattern" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_note_duration", arc_multi_float = {10, 5, 1} },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_phasing" },
     { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_amount", arc_multi_float = {10, 5, 1} },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_curve" },
