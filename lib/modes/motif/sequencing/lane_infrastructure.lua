@@ -166,13 +166,20 @@ local function create_basic_lane_params(i)
             end
 
             if filepath and filepath ~= "cancel" then
-                if _seeker and _seeker.sampler then
-                    _seeker.sampler.load_file(i, filepath)
+                -- Delay load to let fileselect screen cleanup complete
+                clock.run(function()
+                    clock.sleep(0.1)
+                    if _seeker and _seeker.sampler then
+                        _seeker.sampler.load_file(i, filepath)
+                    end
+                    if _seeker and _seeker.screen_ui then
+                        _seeker.screen_ui.set_needs_redraw()
+                    end
+                end)
+            else
+                if _seeker and _seeker.screen_ui then
+                    _seeker.screen_ui.set_needs_redraw()
                 end
-            end
-
-            if _seeker and _seeker.screen_ui then
-                _seeker.screen_ui.set_needs_redraw()
             end
         end)
     end)

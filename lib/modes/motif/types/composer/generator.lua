@@ -19,10 +19,65 @@ local function interval_to_beats(interval_str)
   return 1/8
 end
 
+-- Reorders index based on shape pattern
+-- Used for both voice assignment and timing direction
+-- Returns a reordered index (1-based) for mapping to chord voices
+local function apply_shape_to_index(index, total, shape_type)
+  if shape_type == "Forward" then
+    return index
+  elseif shape_type == "Reverse" then
+    return total - index + 1
+  elseif shape_type == "Center Out" then
+    -- Middle indices get low values (play first), edges get high values
+    local center = (total + 1) / 2
+    local distance = math.abs(index - center)
+    -- Create ranking: items closest to center get lowest ranks
+    -- For 4 items: indices 2,3 are closest, then 1,4
+    -- We need to convert distance to a rank
+    local rank = 1
+    for i = 1, total do
+      local other_distance = math.abs(i - center)
+      if other_distance < distance then
+        rank = rank + 1
+      elseif other_distance == distance and i < index then
+        rank = rank + 1
+      end
+    end
+    return rank
+  elseif shape_type == "Edges In" then
+    -- Edges get low values (play first), middle gets high values
+    local center = (total + 1) / 2
+    local distance = math.abs(index - center)
+    local rank = 1
+    for i = 1, total do
+      local other_distance = math.abs(i - center)
+      if other_distance > distance then
+        rank = rank + 1
+      elseif other_distance == distance and i < index then
+        rank = rank + 1
+      end
+    end
+    return rank
+  elseif shape_type == "Alternating" then
+    -- Odds first, then evens: 1,3,5,7,2,4,6,8
+    if index % 2 == 1 then
+      return math.ceil(index / 2)
+    else
+      return math.ceil(total / 2) + (index / 2)
+    end
+  elseif shape_type == "Random" then
+    -- Random uses original index (timing randomness provides variation)
+    return index
+  end
+  return index
+end
+
 -- Maps step index to chord voice index
--- Phase offset rotates which chord voice plays on each loop
-local function map_step_to_chord_voice(active_step_index, chord_length, phase_offset)
-  return ((active_step_index - 1 + phase_offset) % chord_length) + 1
+-- Shape reorders which voice plays on which step
+-- Phase offset rotates voices on each loop
+local function map_step_to_chord_voice(active_step_index, total_active, chord_length, phase_offset, shape_type)
+  local shaped_index = apply_shape_to_index(active_step_index, total_active, shape_type)
+  return ((shaped_index - 1 + phase_offset) % chord_length) + 1
 end
 
 -- Returns MIDI velocity value (1-127) based on curve shape and position in sequence
@@ -55,7 +110,7 @@ end
 
 -- Spreads notes across time (like strumming a guitar)
 -- Returns time offset in beats for this voice
-local function calculate_strum_position(note_index, total_steps, curve_type, amount_percent, direction, sequence_duration)
+local function calculate_strum_position(note_index, total_steps, curve_type, amount_percent, shape, sequence_duration)
   if curve_type == "None" or amount_percent == 0 then
     return (note_index - 1) * (sequence_duration / total_steps)
   end
@@ -64,7 +119,7 @@ local function calculate_strum_position(note_index, total_steps, curve_type, amo
   local progress = (note_index - 1) / math.max(total_steps - 1, 1)
   local position_in_window = 0
 
-  -- Apply curve shape
+  -- Apply curve
   if curve_type == "Linear" then
     position_in_window = progress * window_duration
   elseif curve_type == "Accelerating" then
@@ -75,22 +130,22 @@ local function calculate_strum_position(note_index, total_steps, curve_type, amo
     position_in_window = math.sin(progress * math.pi / 2) * window_duration
   end
 
-  -- Apply direction
-  if direction == "Forward" then
+  -- Apply shape
+  if shape == "Forward" then
     return position_in_window
-  elseif direction == "Reverse" then
+  elseif shape == "Reverse" then
     return window_duration - position_in_window
-  elseif direction == "Center Out" then
+  elseif shape == "Center Out" then
     local center = (total_steps + 1) / 2
     local distance = math.abs(note_index - center)
     local max_distance = math.max(center - 1, total_steps - center)
     return (distance / max_distance) * window_duration
-  elseif direction == "Edges In" then
+  elseif shape == "Edges In" then
     local center = (total_steps + 1) / 2
     local distance = math.abs(note_index - center)
     local max_distance = math.max(center - 1, total_steps - center)
     return window_duration - ((distance / max_distance) * window_duration)
-  elseif direction == "Alternating" then
+  elseif shape == "Alternating" then
     local half_window = window_duration / 2
     if note_index % 2 == 1 then
       local odd_index = math.floor((note_index - 1) / 2)
@@ -103,7 +158,7 @@ local function calculate_strum_position(note_index, total_steps, curve_type, amo
       local even_progress = even_index / math.max(total_evens - 1, 1)
       return half_window + (even_progress * half_window)
     end
-  elseif direction == "Random" then
+  elseif shape == "Random" then
     return math.random() * window_duration
   end
 
@@ -215,7 +270,7 @@ local function generate_motif(lane_id, stage_id)
   local events = {}
   for active_index, step in ipairs(active_steps) do
     local step_time = calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_shape, sequence_duration)
-    local chord_voice = map_step_to_chord_voice(active_index, #effective_chord, phase_offset)
+    local chord_voice = map_step_to_chord_voice(active_index, #active_steps, #effective_chord, phase_offset, strum_shape)
     local chord_note = effective_chord[chord_voice]
     -- Octave param is 1-indexed, MIDI calculation needs 0-indexed
     local final_note = chord_note + ((octave + 1) * 12)
@@ -270,13 +325,14 @@ end
 -- Build parameter list (shared by populate and rebuild)
 local function build_param_list(lane_idx, stage_idx)
   return {
-    { separator = true, title = "Timing" },
+    { separator = true, title = "Rhythm" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_pattern" },
+    { separator = true, title = "Shape" },
+    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_shape" },
+    { separator = true, title = "Articulation" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_note_duration", arc_multi_float = {10, 5, 1} },
-    { separator = true, title = "Strum" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_amount", arc_multi_float = {10, 5, 1} },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_curve" },
-    { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_strum_shape" },
     { separator = true, title = "Dynamics" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_curve" },
     { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_velocity_min", arc_multi_float = {10, 5, 1} },

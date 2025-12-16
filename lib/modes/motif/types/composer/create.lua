@@ -12,83 +12,152 @@ local Descriptions = include("lib/ui/component_descriptions")
 local ComposerCreate = {}
 ComposerCreate.__index = ComposerCreate
 
--- Configures sequence structure and performance parameters for all stages
+-- Configures sequence structure, performance, and harmonic parameters for all stages
 local function apply_expression_preset(lane_id, preset_name)
     local presets = {
-        Mechanical = {
-            -- Structure (lane-level)
+        Clockwork = {
             num_steps = 8,
             step_length = 12, -- 1/4
-            -- Performance (applied to all stages)
             pattern = 1, -- All
             note_duration = 100,
             velocity_curve = 1, -- Flat
             velocity_min = 90,
             velocity_max = 90,
             strum_amount = 0,
-            chord_phasing = 0, -- Off
+            chord_phasing = 0,
             strum_curve = 1, -- None
-            strum_shape = 1 -- Forward
+            strum_shape = 1, -- Forward
+            chord_type = 1, -- Diatonic
+            chord_length = 4,
+            voice_rotation = 0,
+            voicing_style = 1, -- Close
+            octave = 2
         },
-        Whisper = {
-            -- Structure: 8 beats = sparse, delicate cascade
+        Breath = {
             num_steps = 8,
             step_length = 15, -- 1 beat
-            -- Performance
+            pattern = 1, -- All
+            note_duration = 150,
+            velocity_curve = 4, -- Wave
+            velocity_min = 50,
+            velocity_max = 100,
+            strum_amount = 30,
+            chord_phasing = 1,
+            strum_curve = 5, -- Sweep
+            strum_shape = 1, -- Forward
+            chord_type = 5, -- Maj7
+            chord_length = 4,
+            voice_rotation = 0,
+            voicing_style = 2, -- Open
+            octave = 3
+        },
+        Whisper = {
+            num_steps = 8,
+            step_length = 15, -- 1 beat
             pattern = 1, -- All
             note_duration = 200,
             velocity_curve = 8, -- Random
             velocity_min = 40,
             velocity_max = 70,
             strum_amount = 60,
-            chord_phasing = 1, -- On
+            chord_phasing = 1,
             strum_curve = 5, -- Sweep
-            strum_shape = 5 -- Alternating
+            strum_shape = 5, -- Alternating
+            chord_type = 4, -- Sus4
+            chord_length = 3,
+            voice_rotation = 0,
+            voicing_style = 5, -- Spread
+            octave = 3
         },
         Shimmer = {
-            -- Structure: 8 beats = dense, rippling texture
             num_steps = 16,
             step_length = 14, -- 1/2 beat
-            -- Performance
             pattern = 1, -- All
             note_duration = 250,
             velocity_curve = 4, -- Wave
             velocity_min = 60,
             velocity_max = 90,
             strum_amount = 45,
-            chord_phasing = 1, -- On
+            chord_phasing = 1,
             strum_curve = 5, -- Sweep
-            strum_shape = 3 -- Center Out
+            strum_shape = 3, -- Center Out
+            chord_type = 5, -- Maj7
+            chord_length = 5,
+            voice_rotation = 1,
+            voicing_style = 8, -- Scatter
+            octave = 3
         },
-        Percussive = {
-            -- Structure: 2 beats with rhythmic gaps
+        Cascade = {
             num_steps = 8,
             step_length = 12, -- 1/4
-            -- Performance: flat max velocity for consistent punch
-            pattern = 2, -- Odds
-            note_duration = 30,
-            velocity_curve = 1, -- Flat
-            velocity_min = 127,
-            velocity_max = 127,
-            strum_amount = 0,
-            chord_phasing = 0, -- Off
-            strum_curve = 1, -- None
-            strum_shape = 1 -- Forward
+            pattern = 1, -- All
+            note_duration = 80,
+            velocity_curve = 3, -- Decrescendo
+            velocity_min = 60,
+            velocity_max = 100,
+            strum_amount = 70,
+            chord_phasing = 0,
+            strum_curve = 3, -- Accelerating
+            strum_shape = 2, -- Reverse
+            chord_type = 1, -- Diatonic
+            chord_length = 5,
+            voice_rotation = 0,
+            voicing_style = 7, -- Falling
+            octave = 3
+        },
+        Glass = {
+            num_steps = 12,
+            step_length = 12, -- 1/4
+            pattern = 6, -- Sparse
+            note_duration = 60,
+            velocity_curve = 3, -- Decrescendo
+            velocity_min = 40,
+            velocity_max = 80,
+            strum_amount = 25,
+            chord_phasing = 1,
+            strum_curve = 5, -- Sweep
+            strum_shape = 3, -- Center Out
+            chord_type = 5, -- Maj7
+            chord_length = 4,
+            voice_rotation = 0,
+            voicing_style = 8, -- Scatter
+            octave = 4
+        },
+        Swarm = {
+            num_steps = 16,
+            step_length = 8, -- 1/8
+            pattern = 1, -- All
+            note_duration = 50,
+            velocity_curve = 8, -- Random
+            velocity_min = 50,
+            velocity_max = 100,
+            strum_amount = 80,
+            chord_phasing = 1,
+            strum_curve = 2, -- Linear
+            strum_shape = 6, -- Random
+            chord_type = 6, -- Min7
+            chord_length = 6,
+            voice_rotation = 2,
+            voicing_style = 8, -- Scatter
+            octave = 2
         },
         Pluck = {
-            -- Structure: 3 beats = 3/4 time signature feel
             num_steps = 6,
             step_length = 14, -- 1/2 beat
-            -- Performance: accented downbeat creates rhythmic emphasis
             pattern = 1, -- All
             note_duration = 40,
             velocity_curve = 6, -- Accent First
             velocity_min = 70,
             velocity_max = 100,
             strum_amount = 0,
-            chord_phasing = 0, -- Off
+            chord_phasing = 0,
             strum_curve = 1, -- None
-            strum_shape = 1 -- Forward
+            strum_shape = 1, -- Forward
+            chord_type = 1, -- Diatonic
+            chord_length = 4,
+            voice_rotation = 0,
+            voicing_style = 3, -- Drop 2
+            octave = 3
         }
     }
 
@@ -119,9 +188,9 @@ local function create_params()
 
     -- Expression preset selector for composer mode
     params:add_option("composer_create_expression_preset", "Preset",
-        {"Mechanical", "Whisper", "Shimmer", "Percussive", "Pluck", "Custom"}, 1)
+        {"Clockwork", "Breath", "Whisper", "Shimmer", "Cascade", "Glass", "Swarm", "Pluck", "Custom"}, 1)
     params:set_action("composer_create_expression_preset", function(value)
-        local preset_names = {"Mechanical", "Whisper", "Shimmer", "Percussive", "Pluck", "Custom"}
+        local preset_names = {"Clockwork", "Breath", "Whisper", "Shimmer", "Cascade", "Glass", "Swarm", "Pluck", "Custom"}
         local preset_name = preset_names[value]
 
         -- Custom preset is display-only, no parameter changes needed
