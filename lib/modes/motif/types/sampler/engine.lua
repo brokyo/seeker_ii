@@ -732,8 +732,14 @@ function SamplerEngine.stop_recording(lane)
     SamplerEngine.load_file(lane, filepath)
     print(string.format("≋ Sampler: Recording loaded into lane %d", lane))
 
-    -- Clear recording state to hide overlay
+    -- Complete save operation: clear UI state, dismiss modal, refresh params
     SamplerEngine.recording_state = nil
+    if _seeker and _seeker.modal then
+      _seeker.modal.dismiss()
+    end
+    if _seeker.lane_config and _seeker.lane_config.screen then
+      _seeker.lane_config.screen:rebuild_params()
+    end
     if _seeker and _seeker.screen_ui then
       _seeker.screen_ui.set_needs_redraw()
     end
