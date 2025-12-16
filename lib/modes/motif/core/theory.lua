@@ -13,10 +13,8 @@ local scale_cache = {
   scale = nil
 }
 
--- Converts grid x,y coordinates to a MIDI note number using modal Tonnetz layout
--- The layout creates a grid where:
--- Root note is at bottom left (6,7)
--- All notes stay within the selected scale
+-- Converts grid x,y to MIDI note using scale-degree grid layout
+-- Root note at bottom left (6,7), all notes constrained to selected scale
 function theory.grid_to_note(x, y, octave)
   local root = params:get("root_note")  -- Use 1-based root directly
   local scale_type = params:get("scale_type")
@@ -77,7 +75,7 @@ function theory.print_keyboard_layout()
   local root_name = root_names[root]
   
   -- Print header
-  print(string.format("\n▓ Modal Tonnetz Layout (Lane %d) ▓", focused_lane))
+  print(string.format("\n▓ Scale Keyboard Layout (Lane %d) ▓", focused_lane))
   print(string.format("Root: %s | Scale: %s | Lane Octave: %d", 
     root_name,
     musicutil.SCALES[scale_type].name,

@@ -1,5 +1,5 @@
 -- dual_keyboard.lua
--- Two independent tonnetz keyboards with separate octave controls
+-- Two independent scale keyboards with separate octave controls
 -- Includes record/clear buttons and beat counter display
 -- Part of lib/modes/motif/types/tape/
 

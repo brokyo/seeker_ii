@@ -1,5 +1,5 @@
 -- keyboard.lua
--- Tape type keyboard: Tonnetz-style keyboard for tape recording mode
+-- Tape type keyboard: 6x6 scale keyboard for tape recording mode
 -- Part of lib/modes/motif/types/tape/
 
 local GridUI = include("lib/ui/base/grid_ui")

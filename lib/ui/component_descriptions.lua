@@ -11,7 +11,7 @@ return {
   MOTIF_CONFIG = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout controls how notes map to the grid.",
 
   -- Tape mode
-  TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two tonnetz with independent octaves. Arc rings 3/4 control velocity for each side.",
+  TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two scale keyboards with independent octaves. Arc rings 3/4 control velocity for each side.",
   TAPE_PLAYBACK = "Control playback timing and transposition.\n\nQuantize snaps notes to a rhythmic grid. Swing delays off-beat notes for groove.",
   TAPE_CLEAR = "Hold to clear the motif. With overdubs, select a generation to erase just that layer.",
   TAPE_VELOCITY = "Control note loudness. Press grid keys to select level.",

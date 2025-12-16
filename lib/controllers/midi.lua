@@ -161,7 +161,7 @@ function MidiInput.handle_note_on(msg)
     note = musicutil.snap_note_to_array(note, scale_notes)
   end
   
-  -- Map MIDI note to all grid positions (tape keyboard handles tonnetz mapping)
+  -- Map MIDI note to all grid positions (tape keyboard handles scale grid mapping)
   local grid_positions = _seeker.tape.keyboard.grid.note_to_positions(note)
     
   -- Create standardized note event

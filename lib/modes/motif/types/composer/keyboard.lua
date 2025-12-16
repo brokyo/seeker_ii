@@ -1,7 +1,7 @@
 -- keyboard.lua
 -- Composer type keyboard: scale position visualization
 -- 8 rows x 6 columns (2 blocks of 3 columns each)
--- Shows first 16 scale positions with block illumination and tonnetz-style decay
+-- Shows first 16 scale positions with block illumination and fading trails
 -- Part of lib/modes/motif/types/composer/
 
 local GridUI = include("lib/ui/base/grid_ui")
@@ -159,7 +159,7 @@ local function create_grid_ui()
     layout = layout
   })
 
-  -- Tail state for tonnetz-style decay
+  -- Tail state for fading brightness trails
   grid_ui.note_tails = {}  -- {[scale_position] = {brightness, timestamp}}
 
   -- Track held notes for live playback
@@ -184,7 +184,7 @@ local function create_grid_ui()
     end
   end
 
-  -- Draw motif events with tonnetz-style tail decay
+  -- Draw motif events with fading brightness trails
   grid_ui.draw_motif_events = function(self, layers)
     local focused_lane_id = _seeker.ui_state.get_focused_lane()
     local focused_lane = _seeker.lanes[focused_lane_id]
