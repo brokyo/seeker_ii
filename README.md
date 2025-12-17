@@ -1,6 +1,6 @@
 # Seeker II
 
-![Seeker II](seeker_ii.png)
+![Seeker II](doc/seeker_ii.png)
 
 Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially built on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. I've since spent the last year traveling with my Norns and have added a full sampling engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication.
 

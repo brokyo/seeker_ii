@@ -274,6 +274,7 @@ function Arc.init()
 
         -- Modal handles Arc button press first (as K3)
         if _seeker.modal and _seeker.modal.handle_key(3, 1) then
+          _seeker.screen_ui.set_needs_redraw()
           return
         end
 
