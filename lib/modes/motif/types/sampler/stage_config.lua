@@ -123,7 +123,7 @@ local function create_screen_ui()
         local param_table = {
             { separator = true, title = "Settings" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
             { separator = true, title = "Transform" },
             { id = "lane_" .. lane_idx .. "_sampler_transform_stage_" .. stage_idx },
         }
