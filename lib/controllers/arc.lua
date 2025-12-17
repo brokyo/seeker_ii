@@ -570,6 +570,12 @@ function Arc.init()
           return
         end
 
+        -- Waveform modal: show start/stop selection on ring 1, value position on rings 2-4
+        if modal_type == _seeker.modal.TYPE.WAVEFORM then
+          device.update_waveform_display()
+          return
+        end
+
         -- Other modals: clear rings 3 and 4
         for ring = 3, 4 do
           for i = 1, 64 do
@@ -775,6 +781,53 @@ function Arc.init()
 
       -- Normalize value to 0-1 range
       local normalized = (value - min_val) / (max_val - min_val)
+      normalized = util.clamp(normalized, 0, 1)
+
+      -- Calculate LED position for rings 2-4
+      local led_pos = math.floor(normalized * 63) + 1
+
+      for ring = 2, 4 do
+        -- Dim base illumination
+        for i = 1, 64 do
+          device:led(ring, i, 2)
+        end
+        -- Highlight value position
+        device:led(ring, led_pos, 15)
+        if led_pos > 1 then device:led(ring, led_pos - 1, 10) end
+        if led_pos < 64 then device:led(ring, led_pos + 1, 10) end
+      end
+
+      device:refresh()
+    end
+
+    -- Display waveform modal: ring 1 shows start/stop selection, rings 2-4 show value position
+    device.update_waveform_display = function()
+      local Modal = _seeker.modal
+      if not Modal then return end
+
+      local selected = Modal.get_waveform_selected()  -- 1 = start, 2 = stop
+      local positions = Modal.get_waveform_positions()
+      local start_pos = positions.start_pos or 0
+      local stop_pos = positions.stop_pos or 1
+      local duration = positions.duration or 1
+
+      -- Ring 1: Selection indicator (Start/Stop at opposite positions)
+      for i = 1, 64 do
+        device:led(1, i, 0)
+      end
+      -- Show both positions dimly, selected brightly
+      local stage_positions = {1, 33}  -- Left for start, right for stop
+      for stage = 1, 2 do
+        local brightness = (stage == selected) and 15 or 4
+        local pos = stage_positions[stage]
+        device:led(1, pos, brightness)
+        device:led(1, pos + 1, math.floor(brightness * 0.5))
+        if pos > 1 then device:led(1, pos - 1, math.floor(brightness * 0.5)) end
+      end
+
+      -- Normalize selected value position relative to total duration
+      local value = (selected == 1) and start_pos or stop_pos
+      local normalized = (duration > 0) and (value / duration) or 0
       normalized = util.clamp(normalized, 0, 1)
 
       -- Calculate LED position for rings 2-4

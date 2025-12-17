@@ -32,7 +32,8 @@ Modal.TYPE = {
   STATUS = "status",
   RECORDING = "recording",
   ADSR = "adsr",
-  WARNING = "warning"
+  WARNING = "warning",
+  WAVEFORM = "waveform"
 }
 
 -- Internal state
@@ -54,7 +55,21 @@ local state = {
   on_key = nil,               -- function(n, z) -> bool (return true to block default handling)
   on_enc = nil,               -- function(n, d, source) -> bool (return true to block default handling)
   -- Warning modal state
-  warning_clock_id = nil      -- clock ID for auto-dismiss timer
+  warning_clock_id = nil,     -- clock ID for auto-dismiss timer
+  -- Waveform modal state
+  waveform_peaks = nil,       -- array of peak values (0-1)
+  waveform_duration = 0,      -- total sample duration in seconds
+  waveform_start = 0,         -- chop start position in seconds
+  waveform_stop = 0,          -- chop stop position in seconds
+  waveform_view_start = 0,    -- view window start (peaks cover this range)
+  waveform_view_end = 0,      -- view window end
+  waveform_pad = 1,           -- current pad number
+  waveform_lane = 1,          -- current lane number
+  waveform_filepath = nil,    -- path to audio file for recomputing peaks
+  waveform_on_change = nil,   -- callback when start/stop changes
+  waveform_on_reload = nil,   -- callback when view needs reload (boundary crossed)
+  waveform_selected = 1,      -- 1 = start, 2 = stop
+  waveform_reload_clock = nil -- debounce clock for reload
 }
 
 -- Word-wrap text to fit within max_width using current font settings
@@ -234,6 +249,132 @@ function Modal.show_warning(config)
   end)
 end
 
+-- Show a waveform editor modal for sample chopping
+-- config.peaks: array of peak values (0-1) for waveform display
+-- config.duration: total sample duration in seconds
+-- config.start_pos: initial start position in seconds
+-- config.stop_pos: initial stop position in seconds
+-- config.pad: current pad number (for display)
+-- config.lane: current lane number
+-- config.filepath: path to audio file (for recomputing peaks on chop change)
+-- config.on_change: callback(start_pos, stop_pos) when values change
+-- config.on_key: optional key handler
+-- config.on_enc: optional encoder handler
+function Modal.show_waveform(config)
+  state.active = true
+  state.modal_type = Modal.TYPE.WAVEFORM
+  state.waveform_peaks = config.peaks or {}
+  state.waveform_duration = config.duration or 1
+  state.waveform_start = config.start_pos or 0
+  state.waveform_stop = config.stop_pos or state.waveform_duration
+  state.waveform_view_start = config.view_start or 0
+  state.waveform_view_end = config.view_end or state.waveform_duration
+  state.waveform_pad = config.pad or 1
+  state.waveform_lane = config.lane or 1
+  state.waveform_filepath = config.filepath
+  state.waveform_on_change = config.on_change
+  state.waveform_on_reload = config.on_reload
+  state.hint = config.hint or "e2 select  e3 adjust"
+  state.on_key = config.on_key
+  state.on_enc = config.on_enc
+end
+
+-- Update waveform modal with new chop data (when switching pads)
+-- Keeps modal open but updates displayed waveform region
+function Modal.update_waveform_chop(config)
+  if state.modal_type ~= Modal.TYPE.WAVEFORM then return end
+
+  state.waveform_start = config.start_pos or state.waveform_start
+  state.waveform_stop = config.stop_pos or state.waveform_stop
+  state.waveform_pad = config.pad or state.waveform_pad
+
+  -- Update peaks and view window if provided
+  if config.peaks then
+    state.waveform_peaks = config.peaks
+  end
+  if config.view_start then
+    state.waveform_view_start = config.view_start
+  end
+  if config.view_end then
+    state.waveform_view_end = config.view_end
+  end
+  if config.duration then
+    state.waveform_duration = config.duration
+  end
+  if config.on_change then
+    state.waveform_on_change = config.on_change
+  end
+end
+
+-- Get current waveform positions (for external updates)
+function Modal.get_waveform_positions()
+  return {
+    start_pos = state.waveform_start,
+    stop_pos = state.waveform_stop,
+    duration = state.waveform_duration,
+    pad = state.waveform_pad,
+    lane = state.waveform_lane
+  }
+end
+
+-- Waveform selection (1 = start, 2 = stop)
+function Modal.get_waveform_selected()
+  return state.waveform_selected
+end
+
+function Modal.set_waveform_selected(idx)
+  state.waveform_selected = util.clamp(idx, 1, 2)
+end
+
+-- Adjust waveform position with multifloat step sizes
+-- step_type: 2 = coarse, 3 = medium, 4 = fine
+local WAVEFORM_STEPS = {
+  [2] = 1.0,    -- coarse: 1 second
+  [3] = 0.1,    -- medium: 100ms
+  [4] = 0.01    -- fine: 10ms
+}
+
+local WAVEFORM_RELOAD_DEBOUNCE = 0.35  -- seconds to wait before reloading peaks
+
+function Modal.adjust_waveform_selected(step_type, delta)
+  if state.modal_type ~= Modal.TYPE.WAVEFORM then return end
+
+  local step = WAVEFORM_STEPS[step_type] or 0.1
+
+  if state.waveform_selected == 1 then
+    -- Adjust start
+    state.waveform_start = util.clamp(
+      state.waveform_start + (delta * step),
+      0,
+      state.waveform_stop - 0.01
+    )
+  else
+    -- Adjust stop
+    state.waveform_stop = util.clamp(
+      state.waveform_stop + (delta * step),
+      state.waveform_start + 0.01,
+      state.waveform_duration
+    )
+  end
+
+  if state.waveform_on_change then
+    state.waveform_on_change(state.waveform_start, state.waveform_stop)
+  end
+
+  -- Debounce reload: cancel pending reload and schedule new one
+  if state.waveform_reload_clock then
+    clock.cancel(state.waveform_reload_clock)
+  end
+
+  if state.waveform_on_reload then
+    state.waveform_reload_clock = clock.run(function()
+      clock.sleep(WAVEFORM_RELOAD_DEBOUNCE)
+      state.waveform_on_reload(state.waveform_start, state.waveform_stop)
+      state.waveform_reload_clock = nil
+    end)
+  end
+end
+
 -- Get/set ADSR selected stage (for Norns E2 navigation)
 function Modal.get_adsr_selected()
   return state.adsr_selected
@@ -264,6 +405,12 @@ function Modal.dismiss()
     state.warning_clock_id = nil
   end
 
+  -- Cancel waveform reload debounce if active
+  if state.waveform_reload_clock then
+    clock.cancel(state.waveform_reload_clock)
+    state.waveform_reload_clock = nil
+  end
+
   state.active = false
   state.modal_type = nil
   state.body = nil
@@ -278,6 +425,18 @@ function Modal.dismiss()
   state.on_key = nil
   state.on_enc = nil
   state.allows_norns_input = false
+  state.waveform_peaks = nil
+  state.waveform_duration = 0
+  state.waveform_start = 0
+  state.waveform_stop = 0
+  state.waveform_view_start = 0
+  state.waveform_view_end = 0
+  state.waveform_pad = 1
+  state.waveform_lane = 1
+  state.waveform_filepath = nil
+  state.waveform_on_change = nil
+  state.waveform_on_reload = nil
+  state.waveform_selected = 1
 end
 
 -- Check if modal is currently active
@@ -301,9 +460,11 @@ function Modal.handle_key(n, z)
     if handled then return true end
   end
 
-  -- K3 press dismisses description/adsr modals
+  -- K3 press dismisses description/adsr/waveform modals
   if n == 3 and z == 1 then
-    if state.modal_type == Modal.TYPE.DESCRIPTION or state.modal_type == Modal.TYPE.ADSR then
+    if state.modal_type == Modal.TYPE.DESCRIPTION or
+       state.modal_type == Modal.TYPE.ADSR or
+       state.modal_type == Modal.TYPE.WAVEFORM then
       Modal.dismiss()
       return true
     end
@@ -349,6 +510,41 @@ function Modal.handle_enc(n, d, source)
     return not state.allows_norns_input
   end
 
+  -- Waveform modals: E1 selects start/stop, E2-E4 adjust with multifloat
+  if state.modal_type == Modal.TYPE.WAVEFORM then
+    if source == "arc" then
+      if n == 1 then
+        -- Arc ring 1: select start/stop
+        local current = Modal.get_waveform_selected()
+        local new_sel = util.clamp(current + util.round(d), 1, 2)
+        Modal.set_waveform_selected(new_sel)
+        if _seeker.arc then _seeker.arc.update_waveform_display() end
+        _seeker.screen_ui.set_needs_redraw()
+        return true
+      elseif n >= 2 and n <= 4 then
+        -- Arc rings 2-4: adjust with coarse/medium/fine
+        Modal.adjust_waveform_selected(n, d)
+        if _seeker.arc then _seeker.arc.update_waveform_display() end
+        _seeker.screen_ui.set_needs_redraw()
+        return true
+      end
+    else
+      -- Norns E2: select, E3: adjust (medium step)
+      if n == 2 then
+        local current = Modal.get_waveform_selected()
+        local new_sel = util.clamp(current + util.round(d), 1, 2)
+        Modal.set_waveform_selected(new_sel)
+        _seeker.screen_ui.set_needs_redraw()
+        return true
+      elseif n == 3 then
+        Modal.adjust_waveform_selected(3, d)
+        _seeker.screen_ui.set_needs_redraw()
+        return true
+      end
+    end
+    return true  -- Block all encoder input during waveform modal
+  end
+
   return false
 end
 
@@ -366,6 +562,8 @@ function Modal.draw()
     Modal._draw_recording()
   elseif state.modal_type == Modal.TYPE.ADSR then
     Modal._draw_adsr()
+  elseif state.modal_type == Modal.TYPE.WAVEFORM then
+    Modal._draw_waveform()
   end
 end
 
@@ -456,6 +654,10 @@ function Modal._draw_description()
     screen.move(modal_x + modal_width / 2 - screen.text_extents(state.hint) / 2, hint_y)
     screen.text(state.hint)
   end
+
+  -- Reset font to default
+  screen.font_face(1)
+  screen.font_size(8)
 end
 
 -- Draw status modal (centered, prominent)
@@ -500,6 +702,10 @@ function Modal._draw_status()
     screen.move(SCREEN_WIDTH / 2 - hint_width / 2, modal_y + modal_height + 10)
     screen.text(state.hint)
   end
+
+  -- Reset font to default
+  screen.font_face(1)
+  screen.font_size(8)
 end
 
 -- Draw warning modal (centered box, auto-dismisses)
@@ -535,7 +741,7 @@ function Modal._draw_warning()
   screen.move(SCREEN_WIDTH / 2 - text_width / 2, modal_y + modal_height / 2 + SIZES.STATUS / 3)
   screen.text(state.body)
 
-  -- Reset font to default to prevent bleed into next draw
+  -- Reset font to default for subsequent draw operations
   screen.font_face(FONTS.BODY)
   screen.font_size(SIZES.BODY)
 end
@@ -810,6 +1016,165 @@ function Modal._draw_adsr()
   screen.level(10)
   screen.move(modal_x + modal_width / 2 - screen.text_extents("ENVELOPE") / 2, modal_y + 8)
   screen.text("ENVELOPE")
+
+  -- Hint text (bottom, centered)
+  if state.hint then
+    screen.level(4)
+    local hint_width = screen.text_extents(state.hint)
+    screen.move(modal_x + modal_width / 2 - hint_width / 2, modal_y + modal_height - 4)
+    screen.text(state.hint)
+  end
+end
+
+-- Draw waveform editor modal
+function Modal._draw_waveform()
+  local modal_x = MODAL_MARGIN
+  local modal_y = MODAL_MARGIN
+  local modal_width = SCREEN_WIDTH - (MODAL_MARGIN * 2)
+  local modal_height = SCREEN_HEIGHT - (MODAL_MARGIN * 2)
+
+  local peaks = state.waveform_peaks or {}
+  local duration = state.waveform_duration
+  local start_pos = state.waveform_start
+  local stop_pos = state.waveform_stop
+  local view_start = state.waveform_view_start
+  local view_end = state.waveform_view_end
+  local view_duration = view_end - view_start
+  local pad = state.waveform_pad
+  local selected = state.waveform_selected  -- 1 = start, 2 = stop
+
+  -- Dark background overlay
+  screen.level(0)
+  screen.rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+  screen.fill()
+
+  -- Shadow
+  draw_shadow(modal_x, modal_y, modal_width, modal_height)
+
+  -- Modal background
+  screen.level(1)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.fill()
+
+  -- Border
+  screen.level(6)
+  screen.rect(modal_x, modal_y, modal_width, modal_height)
+  screen.stroke()
+
+  -- Waveform area
+  local wave_x = modal_x + PADDING
+  local wave_y = modal_y + 14
+  local wave_width = modal_width - (PADDING * 2)
+  local wave_height = 24
+
+  -- Draw waveform background
+  screen.level(2)
+  screen.rect(wave_x, wave_y, wave_width, wave_height)
+  screen.fill()
+
+  -- Draw center line
+  local center_y = wave_y + wave_height / 2
+  screen.level(3)
+  screen.move(wave_x, center_y)
+  screen.line(wave_x + wave_width, center_y)
+  screen.stroke()
+
+  -- Draw waveform peaks (mirrored around center)
+  if #peaks > 0 then
+    local half_height = wave_height / 2
+
+    -- Draw filled waveform shape
+    screen.level(8)
+    for i, peak in ipairs(peaks) do
+      local x = wave_x + ((i - 1) / #peaks) * wave_width
+      local peak_height = peak * half_height
+
+      -- Draw vertical line from center outward both directions
+      if peak_height > 0 then
+        screen.move(x, center_y - peak_height)
+        screen.line(x, center_y + peak_height)
+      end
+    end
+    screen.stroke()
+  end
+
+  -- Calculate marker positions relative to view window
+  local start_x = wave_x + ((start_pos - view_start) / view_duration) * wave_width
+  local stop_x = wave_x + ((stop_pos - view_start) / view_duration) * wave_width
+
+  -- Draw selected region highlight
+  screen.level(4)
+  screen.rect(start_x, wave_y, stop_x - start_x, wave_height)
+  screen.fill()
+
+  -- Re-draw waveform in selected region with higher brightness
+  if #peaks > 0 then
+    local half_height = wave_height / 2
+    screen.level(12)
+    for i, peak in ipairs(peaks) do
+      local x = wave_x + ((i - 1) / #peaks) * wave_width
+      if x >= start_x and x <= stop_x then
+        local peak_height = peak * half_height
+        if peak_height > 0 then
+          screen.move(x, center_y - peak_height)
+          screen.line(x, center_y + peak_height)
+        end
+      end
+    end
+    screen.stroke()
+  end
+
+  -- Draw start marker (selected = bright, unselected = dim)
+  screen.level(selected == 1 and 15 or 6)
+  screen.move(start_x, wave_y)
+  screen.line(start_x, wave_y + wave_height)
+  screen.stroke()
+
+  -- Draw stop marker (selected = bright, unselected = dim)
+  screen.level(selected == 2 and 15 or 6)
+  screen.move(stop_x, wave_y)
+  screen.line(stop_x, wave_y + wave_height)
+  screen.stroke()
+
+  -- Draw marker labels with selection highlight
+  screen.font_face(1)
+  screen.font_size(8)
+
+  -- Start time label (highlight if selected)
+  local start_label = string.format("%.2fs", start_pos)
+  if selected == 1 then
+    -- Draw selection box
+    screen.level(15)
+    local label_width = screen.text_extents(start_label)
+    screen.rect(wave_x - 2, wave_y + wave_height + 1, label_width + 4, 10)
+    screen.fill()
+    screen.level(0)
+  else
+    screen.level(8)
+  end
+  screen.move(wave_x, wave_y + wave_height + 8)
+  screen.text(start_label)
+
+  -- Stop time label (highlight if selected)
+  local stop_label = string.format("%.2fs", stop_pos)
+  local stop_label_width = screen.text_extents(stop_label)
+  if selected == 2 then
+    -- Draw selection box
+    screen.level(15)
+    screen.rect(wave_x + wave_width - stop_label_width - 2, wave_y + wave_height + 1, stop_label_width + 4, 10)
+    screen.fill()
+    screen.level(0)
+  else
+    screen.level(8)
+  end
+  screen.move(wave_x + wave_width - stop_label_width, wave_y + wave_height + 8)
+  screen.text(stop_label)
+
+  -- Title with pad number
+  screen.level(10)
+  local title = "PAD " .. pad
+  screen.move(modal_x + modal_width / 2 - screen.text_extents(title) / 2, modal_y + 10)
+  screen.text(title)
 
   -- Hint text (bottom, centered)
   if state.hint then

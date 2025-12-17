@@ -160,10 +160,12 @@ local function create_basic_lane_params(i)
         end
 
         fileselect.enter(audio_path, function(filepath)
-            -- Clear fileselect state
+            -- Clear fileselect state and reset screen styles (fileselect leaves font dirty)
             if _seeker and _seeker.sampler then
                 _seeker.sampler.file_select_active = false
             end
+            screen.font_face(1)
+            screen.font_size(8)
 
             if filepath and filepath ~= "cancel" then
                 -- Delay load to let fileselect screen cleanup complete

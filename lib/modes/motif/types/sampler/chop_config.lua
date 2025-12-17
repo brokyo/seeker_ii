@@ -9,6 +9,7 @@
 local NornsUI = include("lib/ui/base/norns_ui")
 local theory = include("lib/modes/motif/core/theory")
 local Descriptions = include("lib/ui/component_descriptions")
+local WavPeaks = include("lib/modes/motif/types/sampler/wav_peaks")
 
 -- Filter type constants
 local FILTER_OFF = 1
@@ -58,6 +59,7 @@ local function create_screen_ui()
       {id = "spc_mode"},
       {id = "spc_max_volume", arc_multi_float = {0.1, 0.05, 0.01}},
       {separator = true, title = "Slice Points"},
+      {id = "spc_visual_edit", is_action = true, custom_name = "Visual Edit", custom_value = "..."},
       {id = "spc_start_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {id = "spc_stop_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {separator = true, title = "Playback"},
@@ -103,7 +105,13 @@ function SamplerChopConfig.init()
   SamplerChopConfig.screen = create_screen_ui()
 
   -- Create parameter group for pad configuration UI
-  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 14)
+  params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 15)
+
+  -- Visual edit trigger for waveform modal
+  params:add_trigger("spc_visual_edit", "Visual Edit")
+  params:set_action("spc_visual_edit", function()
+    SamplerChopConfig.show_waveform()
+  end)
 
   params:add_control("spc_start_pos", "Start Position",
     controlspec.new(0, 10, 'lin', 0.001, 0, 's'))
@@ -239,6 +247,9 @@ function SamplerChopConfig.select_pad(pad)
     SamplerChopConfig.screen:rebuild_params()
   end
 
+  -- Update waveform modal if open (keeps modal up when switching pads)
+  SamplerChopConfig.update_waveform_if_open()
+
   if _seeker and _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
   end
@@ -313,6 +324,127 @@ end
 -- Get current selected pad (for grid visualization)
 function SamplerChopConfig.get_selected_pad()
   return SamplerChopConfig.state.selected_pad
+end
+
+-- Compute peaks for a zoomed view around a chop region
+local function compute_zoomed_peaks(lane, chop_start, chop_stop)
+  local filepath = _seeker.sampler.get_sample_filepath(lane)
+  if not filepath then return nil, 0, 0 end
+
+  local duration = _seeker.sampler.get_sample_duration(lane)
+  if duration <= 0 then return nil, 0, 0 end
+
+  -- Calculate view window: chop region + 30% padding on each side (min 0.2s)
+  local chop_length = chop_stop - chop_start
+  local padding = math.max(0.2, chop_length * 0.3)
+
+  local view_start = math.max(0, chop_start - padding)
+  local view_end = math.min(duration, chop_stop + padding)
+
+  local peaks = WavPeaks.compute_peaks(filepath, 100, view_start, view_end)
+
+  return peaks, view_start, view_end
+end
+
+-- Show waveform modal for current pad
+function SamplerChopConfig.show_waveform()
+  local lane = SamplerChopConfig.state.current_lane
+  local pad = SamplerChopConfig.state.selected_pad
+
+  if not _seeker or not _seeker.sampler then return end
+
+  local chop = _seeker.sampler.get_chop(lane, pad)
+  if not chop then return end
+
+  local duration = _seeker.sampler.get_sample_duration(lane)
+  if duration <= 0 then return end
+
+  local filepath = _seeker.sampler.get_sample_filepath(lane)
+  if not filepath then return end
+
+  local peaks, view_start, view_end = compute_zoomed_peaks(lane, chop.start_pos, chop.stop_pos)
+  if not peaks then return end
+
+  -- Reload callback for when markers cross view boundary
+  local function reload_view(new_start, new_stop)
+    local new_peaks, new_view_start, new_view_end = compute_zoomed_peaks(lane, new_start, new_stop)
+    if new_peaks then
+      _seeker.modal.update_waveform_chop({
+        peaks = new_peaks,
+        view_start = new_view_start,
+        view_end = new_view_end
+      })
+      if _seeker and _seeker.screen_ui then
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end
+  end
+
+  _seeker.modal.show_waveform({
+    peaks = peaks,
+    duration = duration,
+    start_pos = chop.start_pos,
+    stop_pos = chop.stop_pos,
+    view_start = view_start,
+    view_end = view_end,
+    pad = pad,
+    lane = lane,
+    filepath = filepath,
+    on_change = function(start_pos, stop_pos)
+      -- Update chop positions
+      params:set("spc_start_pos", start_pos)
+      params:set("spc_stop_pos", stop_pos)
+      if _seeker and _seeker.screen_ui then
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end,
+    on_reload = reload_view
+  })
+
+  if _seeker and _seeker.screen_ui then
+    _seeker.screen_ui.set_needs_redraw()
+  end
+
+  -- Update Arc display to show waveform controls
+  if _seeker and _seeker.arc then
+    _seeker.arc.update_param_value_display()
+  end
+end
+
+-- Update waveform modal with new pad data without closing
+function SamplerChopConfig.update_waveform_if_open()
+  if not _seeker or not _seeker.modal then return end
+  if _seeker.modal.get_type() ~= _seeker.modal.TYPE.WAVEFORM then return end
+
+  local lane = SamplerChopConfig.state.current_lane
+  local pad = SamplerChopConfig.state.selected_pad
+
+  local chop = _seeker.sampler.get_chop(lane, pad)
+  if not chop then return end
+
+  -- Recompute zoomed peaks for new chop
+  local peaks, view_start, view_end = compute_zoomed_peaks(lane, chop.start_pos, chop.stop_pos)
+
+  _seeker.modal.update_waveform_chop({
+    peaks = peaks,
+    view_start = view_start,
+    view_end = view_end,
+    start_pos = chop.start_pos,
+    stop_pos = chop.stop_pos,
+    pad = pad,
+    on_change = function(start_pos, stop_pos)
+      params:set("spc_start_pos", start_pos)
+      params:set("spc_stop_pos", stop_pos)
+      if _seeker and _seeker.screen_ui then
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end
+  })
+
+  -- Update Arc display for new pad values
+  if _seeker.arc then
+    _seeker.arc.update_param_value_display()
+  end
 end
 
 return SamplerChopConfig

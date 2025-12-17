@@ -467,6 +467,11 @@ function NornsUI:handle_key(n, z)
     return
   end
 
+  -- Custom key handler can override default behavior
+  if self.on_key and self.on_key(n, z) then
+    return
+  end
+
   -- Toggle description display on K2 press/release
   if n == 2 then
     if z == 1 then

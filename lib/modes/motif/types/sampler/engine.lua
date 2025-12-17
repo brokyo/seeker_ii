@@ -53,6 +53,7 @@ SamplerEngine.num_voices = 6  -- Configurable voice count
 SamplerEngine.voices = {}  -- voice[i] = {lane = lane_number, pad = pad_number, active = bool}
 SamplerEngine.voice_generation = {}  -- Tracks assignment generation to prevent stale clock callbacks
 SamplerEngine.lane_durations = {}  -- lane_durations[lane] = sample_duration
+SamplerEngine.lane_filepaths = {}  -- lane_filepaths[lane] = path to loaded audio file
 SamplerEngine.lane_to_buffer = {}  -- lane_to_buffer[lane] = buffer_id (1 or 2)
 SamplerEngine.buffer_occupied = {false, false}  -- tracks which buffers are in use
 SamplerEngine.initialized = false
@@ -172,6 +173,7 @@ function SamplerEngine.clear_lane(lane)
     end
   end
   SamplerEngine.lane_durations[lane] = 0
+  SamplerEngine.lane_filepaths[lane] = nil
 end
 
 -- Initialize chop storage on _seeker.sampler if needed
@@ -256,6 +258,11 @@ end
 -- Get sample duration for a lane
 function SamplerEngine.get_sample_duration(lane)
   return SamplerEngine.lane_durations[lane] or 0
+end
+
+-- Get sample filepath for a lane (for waveform display)
+function SamplerEngine.get_sample_filepath(lane)
+  return SamplerEngine.lane_filepaths[lane]
 end
 
 -- Configure post-filter for a voice based on chop settings
@@ -556,6 +563,9 @@ function SamplerEngine.load_file(lane, filepath)
   if samples and rate then
     local duration = samples / rate
     print(string.format("≋ Sampler: File loaded - %.2fs, %dHz, %d channels", duration, rate, ch))
+
+    -- Store filepath for waveform display
+    SamplerEngine.lane_filepaths[lane] = filepath
 
     -- Auto-chop into fixed chops
     SamplerEngine.set_fixed_chops(lane, duration)
