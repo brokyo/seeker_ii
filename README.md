@@ -2,9 +2,13 @@
 
 ![Seeker II](doc/seeker_ii.png)
 
-Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially built on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. I've since spent the last year traveling with my Norns and have added a full sampling engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication.
+Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially written on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. 
 
-At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Motifs can be changed after sequencable interval. There's a library of built-in transforms that affect harmonic structure, music accompanyment, rhythm, speed, and timing. The goal is to let you record simple phrases and sculpt changes over time. 
+I've since spent the last year using it almost daily and slowly adding news things whenever I found gaps between what I wanted to do and what Seeker supported. There's software instruments (via MxSamples), a full sampling engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
+
+At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Those motifs can be changed after sequencable interval. 
+
+There's a library of built-in transforms that affect harmonic structure, music accompanyment, rhythm, speed, and timing. The goal is to let you record simple phrases and sculpt changes over time. Plus a little bit of probability to keep it interesting.
 
 Seeker is the center of my studio and connects to the things I regularly use. If you're reading this, you likely use them too. There is a Eurorack Gate/CV, a bunch of fairly-complete i2c implementations, a W/Tape recorder for frippertronics, and a set of TouchDesigner/Arc plugins. 
 
