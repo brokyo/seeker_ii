@@ -1,5 +1,5 @@
 -- modals/adsr.lua
--- ADSR envelope editor modal
+-- ADSR envelope editor modal with integrated encoder handling
 
 local Base = include("lib/ui/components/modals/base")
 
@@ -13,11 +13,64 @@ ADSR.state_keys = {
   "adsr_selected"
 }
 
+-- Get the fine step size for a param by looking up its controlspec
+local function get_fine_step(param_id)
+  local p = params:lookup_param(param_id)
+  if not p then return 0.01 end
+
+  if p.controlspec then
+    -- Use controlspec step, or derive from range
+    local step = p.controlspec.step
+    if step and step > 0 then
+      return step
+    end
+    -- Fallback: 1% of range
+    local range = p.controlspec.maxval - p.controlspec.minval
+    return range * 0.01
+  elseif p.min ~= nil and p.max ~= nil then
+    -- Number param: use 1 for integer-like ranges, derive for others
+    local range = p.max - p.min
+    if range <= 10 then
+      return 0.01
+    else
+      return 1
+    end
+  end
+  return 0.01
+end
+
+-- Adjust a specific ADSR stage by delta using fine step
+local function adjust_stage(state, stage, delta)
+  local param_ids = state.adsr_param_ids
+  if not param_ids or not param_ids[stage] then return end
+
+  local param_id = param_ids[stage]
+  local step = get_fine_step(param_id)
+  local current = params:get(param_id)
+  local new_val = current + (delta * step)
+  params:set(param_id, new_val)
+
+  -- Update Arc display
+  if _seeker.arc and _seeker.arc.update_adsr_display then
+    _seeker.arc.update_adsr_display()
+  end
+end
+
 function ADSR.show(state, config)
   state.adsr_data = config.get_data
   state.adsr_param_ids = config.param_ids
   state.adsr_selected = config.selected or 1
-  state.hint = config.hint or "k2 cancel - k3 save"
+  state.hint = config.hint or "e2 select e3 adjust k3 close"
+
+  -- Stop Arc pulse animation and update display
+  if _seeker.arc then
+    if _seeker.arc.stop_action_pulse then
+      _seeker.arc.stop_action_pulse()
+    end
+    if _seeker.arc.update_adsr_display then
+      _seeker.arc.update_adsr_display()
+    end
+  end
 end
 
 function ADSR.draw(state)
@@ -120,6 +173,40 @@ function ADSR.draw(state)
   screen.text("ENVELOPE")
 
   Base.draw_hint(state.hint, modal_x, modal_y, modal_width, modal_height)
+end
+
+-- Encoder handling: Arc 1-4 map to A/D/S/R, Norns E2 selects E3 adjusts
+function ADSR.handle_enc(state, n, d, source)
+  source = source or "norns"
+
+  if source == "arc" then
+    -- Arc encoders 1-4 directly control A/D/S/R stages
+    if n >= 1 and n <= 4 then
+      adjust_stage(state, n, d)
+      _seeker.screen_ui.set_needs_redraw()
+      return true
+    end
+  else
+    -- Norns E2: select stage
+    if n == 2 then
+      local current = state.adsr_selected or 1
+      local new_sel = util.clamp(current + util.round(d), 1, 4)
+      state.adsr_selected = new_sel
+      if _seeker.arc and _seeker.arc.update_adsr_display then
+        _seeker.arc.update_adsr_display()
+      end
+      _seeker.screen_ui.set_needs_redraw()
+      return true
+    -- Norns E3: adjust selected stage with fine step
+    elseif n == 3 then
+      local selected = state.adsr_selected or 1
+      adjust_stage(state, selected, d)
+      _seeker.screen_ui.set_needs_redraw()
+      return true
+    end
+  end
+
+  return false
 end
 
 -- Getters for external access (Arc display)

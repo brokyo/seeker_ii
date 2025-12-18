@@ -729,7 +729,7 @@ function Arc.init()
       device:refresh()
     end
 
-    -- Display ADSR modal: ring 1 shows selected stage, rings 2-4 show value position
+    -- Display ADSR modal: rings 1-4 show A/D/S/R values, selected stage is brighter
     device.update_adsr_display = function()
       local Modal = _seeker.modal
       if not Modal then return end
@@ -748,54 +748,47 @@ function Arc.init()
         }
       end
 
-      -- Ring 1: Selection indicator (A/D/S/R at cardinal positions)
-      for i = 1, 64 do
-        device:led(1, i, 0)
-      end
-      -- Show all 4 stages dimly, selected brightly
-      local stage_positions = {1, 17, 33, 49}  -- Cardinal positions for A, D, S, R
-      for stage = 1, 4 do
-        local brightness = (stage == selected) and 15 or 4
-        local pos = stage_positions[stage]
-        device:led(1, pos, brightness)
-        device:led(1, pos + 1, math.floor(brightness * 0.5))
-        if pos > 1 then device:led(1, pos - 1, math.floor(brightness * 0.5)) end
-      end
+      -- Each ring displays its corresponding ADSR stage value
+      for ring = 1, 4 do
+        local param_id = param_ids[ring]
+        local value = params:get(param_id)
 
-      -- Rings 2-4: Value position for selected stage
-      local param_id = param_ids[selected]
-      local value = params:get(param_id)
+        -- Get param range
+        local p = params:lookup_param(param_id)
+        local min_val, max_val
+        if p.controlspec then
+          min_val = p.controlspec.minval
+          max_val = p.controlspec.maxval
+        elseif p.min and p.max then
+          min_val = p.min
+          max_val = p.max
+        else
+          min_val = 0
+          max_val = 1
+        end
 
-      -- Get param range
-      local p = params:lookup_param(param_id)
-      local min_val, max_val
-      if p.controlspec then
-        min_val = p.controlspec.minval
-        max_val = p.controlspec.maxval
-      elseif p.min and p.max then
-        min_val = p.min
-        max_val = p.max
-      else
-        min_val = 0
-        max_val = 1
-      end
+        -- Normalize value to 0-1 range
+        local normalized = (value - min_val) / (max_val - min_val)
+        normalized = util.clamp(normalized, 0, 1)
 
-      -- Normalize value to 0-1 range
-      local normalized = (value - min_val) / (max_val - min_val)
-      normalized = util.clamp(normalized, 0, 1)
+        -- Calculate LED position
+        local led_pos = math.floor(normalized * 63) + 1
 
-      -- Calculate LED position for rings 2-4
-      local led_pos = math.floor(normalized * 63) + 1
+        -- Selected stage (for Norns E3) is brighter
+        local is_selected = (ring == selected)
+        local base_level = is_selected and 3 or 1
+        local highlight_level = is_selected and 15 or 10
+        local edge_level = is_selected and 10 or 6
 
-      for ring = 2, 4 do
         -- Dim base illumination
         for i = 1, 64 do
-          device:led(ring, i, 2)
+          device:led(ring, i, base_level)
         end
+
         -- Highlight value position
-        device:led(ring, led_pos, 15)
-        if led_pos > 1 then device:led(ring, led_pos - 1, 10) end
-        if led_pos < 64 then device:led(ring, led_pos + 1, 10) end
+        device:led(ring, led_pos, highlight_level)
+        if led_pos > 1 then device:led(ring, led_pos - 1, edge_level) end
+        if led_pos < 64 then device:led(ring, led_pos + 1, edge_level) end
       end
 
       device:refresh()
