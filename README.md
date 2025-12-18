@@ -5,7 +5,7 @@
 Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially written on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. I've since spent the last year using it almost daily and slowly adding news things whenever I found gaps 
 between what I wanted to do and what Seeker could do. 
 
-Today there's software instruments (via MxSamples), a full sample chopping engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
+Today there's software instruments, a full sample chopping engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
 
 At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Those motifs can be changed after sequencable interval. 
 
@@ -22,6 +22,7 @@ It's intended to travel with you and scale to what you have on hand. I've been r
 - Grid
 
 **Recommended**
+- [mx.samples](https://github.com/schollz/mx.samples) - Seeker's default engine is fantastic mx.samples from [infinitedigits](https://norns.community/author#infinitedigits). If you purely want to use Eurorack it's not necessary, but so much of this script was designed with it in mind.
 - Arc — Seeker has a lot of configurability. Arc makes that configurability pleasant. Encoders 2, 3, 4 are mapped to different significant figures for high-resolution control and realtime performability of parameters. Everything works with out it but strongly recommended.
 - [Seeker TouchDesigner tox](lib/etc/td_components) — Seeker connects fairly naturally to TouchDesigner and enables a kind of visual painting that I think is a lot of fun, particularly with Arc. I've included toxs for each type of output. More on this further down.
 
