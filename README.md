@@ -2,9 +2,10 @@
 
 ![Seeker II](doc/seeker_ii.png)
 
-Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially written on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. 
+Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially written on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. I've since spent the last year using it almost daily and slowly adding news things whenever I found gaps 
+between what I wanted to do and what Seeker could do. 
 
-I've since spent the last year using it almost daily and slowly adding news things whenever I found gaps between what I wanted to do and what Seeker supported. There's software instruments (via MxSamples), a full sampling engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
+There's software instruments (via MxSamples), a full sample chopping engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
 
 At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Those motifs can be changed after sequencable interval. 
 
@@ -57,7 +58,7 @@ When you first boot the app you will be on Lane 1 in Tape mode.
 
 The above sets a base but seeker is about more than tape loops. Try these
 
-- **Composer mode** — In Lane config (4A) select the Composer type to build an evolving arpeggio over four stages. Each stage is a chord who pattern, voicing, and phasing can be manipulated (1A) and played across configurable strum and velocity curves (2A). Connected to Eurorack you can play some really unusual things.
+- **Composer mode** — In Lane config (4A) select the Composer type to build an evolving arpeggio over four stages. Each stage is a chord who pattern, voicing, and phasing can be manipulated (1A) and played across configurable strum and velocity curves (2A). Connected to Eurorack you can play some really unusual things. Think of it as expressive strumming rather than rigid note playing.
 
 - **Sampler mode** — Seeker's looping structure works well with audio clips, particularly for glitching otherwise placid sounds. Select the Sampler type in Lane config (4a) and load a file or record from input. The 4x4 pad in the center (2A) will be loaded with equally-sized chopped segments from your original audio. Each pad has configurable envelope and filter. Try the "Pan Spread" transformation for engaging foley.
 
