@@ -35,12 +35,21 @@ function ScreenUI.init()
   end
   
   ScreenSaver.init()
-  
+
   clock.run(function()
+    local was_screensaver_active = false
+
     while true do
-      if ScreenSaver.check_timeout() then
+      local screensaver_active = ScreenSaver.check_timeout()
+
+      if screensaver_active then
         redraw()
       else
+        -- Force redraw when exiting screensaver to restore normal UI
+        if was_screensaver_active then
+          ScreenUI.set_needs_redraw()
+        end
+
         -- Refresh visualization-heavy sections during playback
         -- Sections opt-in via needs_playback_refresh property
         local current_section = _seeker.ui_state.get_current_section()
@@ -55,6 +64,8 @@ function ScreenUI.init()
           redraw()
         end
       end
+
+      was_screensaver_active = screensaver_active
       clock.sync(1/ScreenUI.state.fps)
     end
   end)

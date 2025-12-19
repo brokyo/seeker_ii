@@ -219,6 +219,8 @@ end
 
 function UIState.register_activity()
   UIState.state.last_action_time = util.time()
+  -- Ping norns screen to prevent system-level screen sleep
+  screen.ping()
 end
 
 function UIState.key(n, z)
