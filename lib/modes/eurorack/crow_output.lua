@@ -348,6 +348,31 @@ local function get_recording_data(output_num)
     end
 end
 
+-- Arc display for recording modal - shows voltage position on rings 2-4
+local function create_recording_arc_display(output_num)
+    return function()
+        local arc = _seeker.arc
+        if not arc then return end
+
+        local state = recording_states[output_num]
+        local voltage = state.voltage
+        local normalized = (voltage + 10) / 20
+        normalized = util.clamp(normalized, 0, 1)
+        local led_pos = math.floor(normalized * 63) + 1
+
+        for ring = 2, 4 do
+            for i = 1, 64 do
+                arc:led(ring, i, 2)
+            end
+            arc:led(ring, led_pos, 15)
+            if led_pos > 1 then arc:led(ring, led_pos - 1, 10) end
+            if led_pos < 64 then arc:led(ring, led_pos + 1, 10) end
+        end
+
+        arc:refresh()
+    end
+end
+
 -- Creates key callback for recording modal that advances stages or cancels
 local function create_recording_key_handler(output_num)
     return function(n, z)
@@ -369,6 +394,7 @@ local function create_recording_key_handler(output_num)
             if Modal then Modal.dismiss() end
             reset_recording_state(output_num)
             _seeker.ui_state.state.knob_recording_active = false
+            if _seeker.arc then _seeker.arc.display_override = nil end
             crow.output[output_num].volts = 0
             _seeker.screen_ui.set_needs_redraw()
             return true
@@ -383,22 +409,31 @@ local function create_recording_key_handler(output_num)
     end
 end
 
--- Creates encoder callback for recording modal voltage control
+-- Arc uses fixed multi-float steps, Norns uses sensitivity param
+local ARC_VOLTAGE_STEPS = { [2] = 0.1, [3] = 0.05, [4] = 0.01 }
+
 local function create_recording_enc_handler(output_num)
     return function(n, d, source)
         local state = recording_states[output_num]
+        local step_size = nil
 
-        -- Norns E3 or Arc E2 controls voltage
-        local is_voltage_control = (source == "norns" and n == 3) or (source == "arc" and n == 2)
-        if is_voltage_control then
-            local sensitivity = params:get("crow_" .. output_num .. "_knob_sensitivity")
-            state.voltage = state.voltage + (d * sensitivity)
+        if source == "arc" then
+            step_size = ARC_VOLTAGE_STEPS[n]
+        elseif source == "norns" and n == 3 then
+            step_size = params:get("crow_" .. output_num .. "_knob_sensitivity")
+        end
+
+        if step_size then
+            state.voltage = state.voltage + (d * step_size)
             state.voltage = util.clamp(state.voltage, -10, 10)
             crow.output[output_num].volts = state.voltage
+            if _seeker.arc and _seeker.arc.display_override then
+                _seeker.arc.display_override()
+            end
+            _seeker.screen_ui.set_needs_redraw()
             return true
         end
 
-        -- Block other encoders during recording
         return true
     end
 end
@@ -422,9 +457,10 @@ function CrowOutput.toggle_knob_recording(output_num)
 
         _seeker.ui_state.state.knob_recording_active = true
 
-        -- Clear Arc outer rings for modal mode
-        if _seeker.arc and _seeker.arc.clear_outer_rings then
-            _seeker.arc.clear_outer_rings()
+        -- Set Arc to show voltage display
+        if _seeker.arc then
+            _seeker.arc.display_override = create_recording_arc_display(output_num)
+            _seeker.arc.display_override()
         end
 
         if Modal then
@@ -546,6 +582,7 @@ function CrowOutput.stop_recording_knob(output_num)
         if Modal then Modal.dismiss() end
         reset_recording_state(output_num)
         _seeker.ui_state.state.knob_recording_active = false
+        if _seeker.arc then _seeker.arc.display_override = nil end
         _seeker.screen_ui.set_needs_redraw()
     end)
 end
@@ -577,6 +614,12 @@ function CrowOutput.update_crow(output_num)
     random_walk_states[output_num].initialized = false
 
     local mode = get_output_mode(output_num)
+
+    -- Knob Recorder: stop any running output, user controls voltage manually
+    if mode == "Knob Recorder" then
+        crow.output[output_num].volts = 0
+        return
+    end
 
     if mode == "LFO" then
         local clock_interval = params:string("crow_" .. output_num .. "_clock_interval")

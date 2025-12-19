@@ -52,6 +52,12 @@ function ScreenSaver.check_timeout()
     return false
   end
 
+  -- Don't activate while modal is open
+  if _seeker.modal and _seeker.modal.is_active() then
+    ScreenSaver.state.is_active = false
+    return false
+  end
+
   local time_since_last_action = util.time() - _seeker.ui_state.state.last_action_time
   local should_be_active = time_since_last_action > ScreenSaver.state.timeout_seconds
 
