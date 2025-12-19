@@ -192,6 +192,19 @@ local function setup_clock(output_id, clock_fn)
     end
 end
 
+-- ASL helpers - see https://monome.org/docs/crow/reference/
+local function asl_to(volts, time, shape)
+    return string.format("to(%f,%f,'%s')", volts, time, shape)
+end
+
+local function asl_loop(stages)
+    return "loop({ " .. table.concat(stages, ", ") .. " })"
+end
+
+local function asl_once(stages)
+    return "{ " .. table.concat(stages, ", ") .. " }"
+end
+
 -- Pattern generation and management
 
 -- Generate random pattern with hits distributed randomly across length
@@ -579,12 +592,12 @@ function CrowOutput.update_crow(output_num)
         local shape = params:string("crow_" .. output_num .. "_lfo_shape")
         local min = params:get("crow_" .. output_num .. "_lfo_min")
         local max = params:get("crow_" .. output_num .. "_lfo_max")
+        local half_cycle = timing.total_sec / 2
 
-        local asl_string = string.format("loop( { to(%f,%f,'%s'), to(%f,%f,'%s') } )",
-            min, timing.total_sec/2, shape,
-            max, timing.total_sec/2, shape)
-
-        crow.output[output_num].action = asl_string
+        crow.output[output_num].action = asl_loop({
+            asl_to(min, half_cycle, shape),
+            asl_to(max, half_cycle, shape)
+        })
         crow.output[output_num]()
         return
     end
@@ -619,16 +632,13 @@ function CrowOutput.update_crow(output_num)
         end
 
         local function generate_asl_pattern()
-            local asl_steps = {}
+            local stages = {}
             for i = 1, steps do
                 local random_value = min + math.random() * (max - min)
-                local asl_step = string.format("to(%f, %f, '%s')", random_value, time, shape)
-                table.insert(asl_steps, asl_step)
+                table.insert(stages, asl_to(random_value, time, shape))
             end
 
-            local asl_loop = string.format("loop( { %s } )", table.concat(asl_steps, ", "))
-
-            crow.output[output_num].action = asl_loop
+            crow.output[output_num].action = asl_loop(stages)
             crow.output[output_num]()
         end
 
@@ -660,8 +670,7 @@ function CrowOutput.update_crow(output_num)
                 random_value = min_value + math.random() * (max_value - min_value)
             end
 
-            local asl_string = string.format("to(%f,0.1,'%s')", random_value, shape)
-            crow.output[output_num].action = asl_string
+            crow.output[output_num].action = asl_once({ asl_to(random_value, 0.1, shape) })
             crow.output[output_num]()
         end
 
@@ -826,8 +835,10 @@ function CrowOutput.update_crow(output_num)
             local sustain_voltage = max_voltage * sustain_level
             local beat_sec = clock.get_beat_sec()
             local cycle_time = beat_sec * timing.beats
-
             local envelope_time = cycle_time * (duration_percent / 100)
+            local wait_time = cycle_time - envelope_time
+
+            local stages = {}
 
             if mode == "ADSR" then
                 local total_percent = attack_percent + decay_percent + release_percent
@@ -838,21 +849,10 @@ function CrowOutput.update_crow(output_num)
                 local sustain_time = envelope_time * (sustain_percent / 100)
                 local release_time = envelope_time * (release_percent / 100)
 
-                local envelope = string.format(
-                    "to(%f,%f,'%s'), to(%f,%f,'%s'), to(%f,%f,'%s'), to(0,%f,'%s')",
-                    max_voltage, attack_time, shape,
-                    sustain_voltage, decay_time, shape,
-                    sustain_voltage, sustain_time, shape,
-                    release_time, shape
-                )
-
-                local wait_time = cycle_time - envelope_time
-                if wait_time > 0 then
-                    envelope = envelope .. string.format(", to(0,%f,'now')", wait_time)
-                end
-
-                return "loop({ " .. envelope .. " })"
-
+                table.insert(stages, asl_to(max_voltage, attack_time, shape))
+                table.insert(stages, asl_to(sustain_voltage, decay_time, shape))
+                table.insert(stages, asl_to(sustain_voltage, sustain_time, shape))
+                table.insert(stages, asl_to(0, release_time, shape))
             else
                 local total_percent = attack_percent + release_percent
                 local scale_factor = 100 / total_percent
@@ -860,19 +860,15 @@ function CrowOutput.update_crow(output_num)
                 local attack_time = envelope_time * ((attack_percent * scale_factor) / 100)
                 local release_time = envelope_time * ((release_percent * scale_factor) / 100)
 
-                local envelope = string.format(
-                    "to(%f,%f,'%s'), to(0,%f,'%s')",
-                    max_voltage, attack_time, shape,
-                    release_time, shape
-                )
-
-                local wait_time = cycle_time - envelope_time
-                if wait_time > 0 then
-                    envelope = envelope .. string.format(", to(0,%f,'now')", wait_time)
-                end
-
-                return "loop({ " .. envelope .. " })"
+                table.insert(stages, asl_to(max_voltage, attack_time, shape))
+                table.insert(stages, asl_to(0, release_time, shape))
             end
+
+            if wait_time > 0 then
+                table.insert(stages, asl_to(0, wait_time, "now"))
+            end
+
+            return asl_loop(stages)
         end
 
         if active_clocks["crow_" .. output_num] then
@@ -942,8 +938,7 @@ function CrowOutput.update_crow(output_num)
                 local slew_time = timing.total_sec * slew
 
                 if slew_time > 0 then
-                    local asl_string = string.format("to(%f, %f, '%s')", new_value, slew_time, shape)
-                    crow.output[output_num].action = asl_string
+                    crow.output[output_num].action = asl_once({ asl_to(new_value, slew_time, shape) })
                     crow.output[output_num]()
                 else
                     crow.output[output_num].volts = new_value

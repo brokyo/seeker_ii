@@ -13,8 +13,8 @@ EurorackUtils.division_to_beats = TimingUtils.division_to_beats
 EurorackUtils.modifier_to_value = TimingUtils.modifier_to_value
 EurorackUtils.interval_to_beats = TimingUtils.interval_to_beats
 
--- Crow ASL shape options (eurorack-specific)
-EurorackUtils.shape_options = {"sine", "linear", "now", "wait", "over", "under", "rebound"}
+-- Crow ASL shape options - see https://monome.org/docs/crow/reference/
+EurorackUtils.shape_options = {"linear", "sine", "logarithmic", "exponential", "now", "wait", "over", "under", "rebound"}
 
 -- TXO output conflict detection
 -- TXO has 4 physical outputs that can be used as either oscillators (txo_osc) or CV (txo_cv)
