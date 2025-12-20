@@ -227,7 +227,7 @@ local function create_screen_ui()
         if motif_type == MOTIF_TYPE_SAMPLER then
             -- Sample source first (most important)
             table.insert(param_table, { separator = true, title = "Sample Source" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_sample_file", is_action = true })
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_load_sample", is_action = true })
 
             -- Show recording state in param name and icon
             if _seeker.sampler and _seeker.sampler.is_recording then

@@ -150,8 +150,8 @@ local function create_basic_lane_params(i)
     end)
 
     -- File selector for loading audio samples into softcut buffers
-    params:add_binary("lane_" .. i .. "_sample_file", "Load Sample", "trigger", 0)
-    params:set_action("lane_" .. i .. "_sample_file", function()
+    params:add_binary("lane_" .. i .. "_load_sample", "Load Sample", "trigger", 0)
+    params:set_action("lane_" .. i .. "_load_sample", function()
         local audio_path = _path.audio .. "seeker_ii"
 
         -- Track fileselect state (norns fileselect takes over screen, no modal needed)
