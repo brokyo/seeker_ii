@@ -5,11 +5,9 @@
 Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially written on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. I've since spent the last year using it almost daily and slowly adding news things whenever I found gaps 
 between what I wanted to do and what Seeker could do. 
 
-Today there's software instruments, a full sample chopping engine, a heavily parameterized arpeggiator, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
+Today there's software instruments, a full sample chopping engine, a heavily parameterized arpeggiator, a sequencable transformation engine, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
 
-At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Those motifs can be changed after sequencable interval. 
-
-There's a library of built-in transforms that affect harmonic structure, music accompanyment, rhythm, speed, and timing. The goal is to let you record simple phrases and sculpt changes over time. Plus a little bit of probability to keep it interesting.
+At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Those motifs can be procedurally transformed as the program loops creating evolving music while maintaing a sense of structure and intentionality. 
 
 Seeker is the center of my studio and connects to the things I regularly use. If you're reading this, you likely use them too. There is a Eurorack Gate/CV, a bunch of fairly-complete i2c implementations, a W/Tape recorder for frippertronics, and a set of TouchDesigner/Arc plugins. 
 
@@ -190,27 +188,25 @@ Global configuration: BPM, root note, scale, and MIDI clock settings. Tap tempo 
 
 ## Transform Reference
 
-Transforms modify motifs as they pass through stages. Each motif type has its own transform library. Stack them across stages for compound effects.
+Transforms modify motifs as they pass through four stages of a user-configurable number of loops. Each motif type has its own transform library. Set variations on a theme or change "reset motif" to off to compound the effects over time.
 
 ### Tape Transforms
 
 **Harmonize** — Layer harmonic intervals over notes. Sub-octave, fifth, and octave above with independent chance and volume. Timing and velocity are subtly humanized.
 
-**Echo** — Cascading repetitions with decay. Each note spawns quieter copies trailing behind it. Clock-synced timing. Direction moves echoes up or down the scale.
+**Echo** — Cascading repetitions with decay. Each note generates quieter copies trailing behind it. Clock-synced timing. Direction moves echoes up or down the scale.
 
 **Drift** — Subtle melodic variation. Notes randomly wander by scale degrees. Stability controls how much of the melody stays fixed (Very Low=25%, Low=50%, Medium=75%, High=90%).
 
-**Ripple** — A ghost copy of the entire phrase. Delayed, quieter, and optionally transposed. Creates depth and atmosphere.
-
-**Ratchet** — Rapid-fire note repeats. Probability-based bursts within a timing window.
+**Ripple** — Repeats the entire phrase at a configurable delay, volume, and transposition. Great for atomsphere.
 
 **Overdub Filter** — Filter notes by recording generation. Keep early layers, remove specific generations, or isolate the original.
 
 ### Sampler Transforms
 
-**Scatter** — Chaotic micro-loops. Amount controls playhead drift, Size controls minimum chop length. Good for glitchy textures.
+**Scatter** — Create micro-loops from your sample. Amount controls playhead drift, Size controls minimum chop length. Good for glitchy textures.
 
-**Slide** — Shift chop windows through the buffer while preserving duration. Optional wrap around buffer boundaries.
+**Slide** — Shift the played audio from within the chop window. Optional wrap around buffer boundaries. Add variation to repeated sounds.
 
 **Reverse** — Flip playback direction with probability per chop.
 
@@ -222,6 +218,6 @@ Transforms modify motifs as they pass through stages. Each motif type has its ow
 
 Composer uses harmonic and expression stages rather than transforms. Each stage defines a chord and how it's played.
 
-**Harmonic Config** — Chord root, type, length, inversion, octave, and voicing style per stage.
+**Harmonic Config** — Chord root, type, length, inversion, octave, and voicing style per stage. Check out Chord Phasing in particular.
 
-**Expression Config** — Velocity curves, strum timing and shape, note duration, and pattern filtering per stage.
+**Expression Config** — Velocity curves, strum timing and shape, note duration, and pattern filtering per stage. Shape creates very interesting effects with phasing.
