@@ -214,20 +214,52 @@ function Waveform.adjust_selected(state, ring_number, delta)
   end
 end
 
+-- Adjust a specific marker (1=start, 2=stop) with given step size
+function Waveform.adjust_marker(state, marker, step, delta)
+  if marker == 1 then
+    state.waveform_start = util.clamp(
+      state.waveform_start + (delta * step),
+      0,
+      state.waveform_stop - 0.01
+    )
+  else
+    state.waveform_stop = util.clamp(
+      state.waveform_stop + (delta * step),
+      state.waveform_start + 0.01,
+      state.waveform_duration
+    )
+  end
+
+  if state.waveform_on_change then
+    state.waveform_on_change(state.waveform_start, state.waveform_stop)
+  end
+
+  -- Debounce reload
+  if state.waveform_reload_clock then
+    clock.cancel(state.waveform_reload_clock)
+  end
+
+  if state.waveform_on_reload then
+    state.waveform_reload_clock = clock.run(function()
+      clock.sleep(RELOAD_DEBOUNCE)
+      state.waveform_on_reload(state.waveform_start, state.waveform_stop)
+      state.waveform_reload_clock = nil
+    end)
+  end
+end
+
+-- Arc step sizes: E1/E3 medium (0.1s), E2/E4 fine (0.01s)
+local ARC_STEP = { [1] = 0.1, [2] = 0.01, [3] = 0.1, [4] = 0.01 }
+
 function Waveform.handle_enc(state, n, d, source)
   if source == "arc" then
-    if n == 1 then
-      local new_sel = util.clamp(state.waveform_selected + util.round(d), 1, 2)
-      state.waveform_selected = new_sel
-      if _seeker.arc then _seeker.arc.update_waveform_display() end
-      _seeker.screen_ui.set_needs_redraw()
-      return true
-    elseif n >= 2 and n <= 4 then
-      Waveform.adjust_selected(state, n, d)
-      if _seeker.arc then _seeker.arc.update_waveform_display() end
-      _seeker.screen_ui.set_needs_redraw()
-      return true
-    end
+    -- E1/E2 control start, E3/E4 control end
+    local marker = (n <= 2) and 1 or 2
+    local step = ARC_STEP[n]
+    Waveform.adjust_marker(state, marker, step, d)
+    if _seeker.arc then _seeker.arc.update_waveform_display() end
+    _seeker.screen_ui.set_needs_redraw()
+    return true
   else
     if n == 2 then
       local new_sel = util.clamp(state.waveform_selected + util.round(d), 1, 2)

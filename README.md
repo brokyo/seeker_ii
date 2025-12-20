@@ -194,11 +194,11 @@ Transforms modify motifs as they pass through stages. Each motif type has its ow
 
 ### Tape Transforms
 
-**Harmonize** — Layer harmonic intervals over notes. Sub-octave, fifth, and octave above with independent chance and volume. Strum Spread fans harmonics out in time like a strummed chord.
+**Harmonize** — Layer harmonic intervals over notes. Sub-octave, fifth, and octave above with independent chance and volume. Timing and velocity are subtly humanized.
 
-**Echo** — Cascading repetitions with decay. Each note spawns quieter copies trailing behind it. Clock-synced timing. Drift moves echoes up or down the scale.
+**Echo** — Cascading repetitions with decay. Each note spawns quieter copies trailing behind it. Clock-synced timing. Direction moves echoes up or down the scale.
 
-**Drift** — Subtle melodic variation. Notes randomly wander by scale degrees. Stability controls how much of the melody stays fixed (High=90%, Medium=75%, Low=50%).
+**Drift** — Subtle melodic variation. Notes randomly wander by scale degrees. Stability controls how much of the melody stays fixed (Very Low=25%, Low=50%, Medium=75%, High=90%).
 
 **Ripple** — A ghost copy of the entire phrase. Delayed, quieter, and optionally transposed. Creates depth and atmosphere.
 
