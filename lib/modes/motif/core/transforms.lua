@@ -3,6 +3,7 @@
 -- Called by Lane:prepare_stage() for tape mode stages
 
 local musicutil = require('musicutil')
+local theory = include('lib/modes/motif/core/theory')
 
 local transforms = {}
 
@@ -87,7 +88,7 @@ transforms.available = {
     name = "Resonate",
     ui_name = "Harmonize",
     ui_order = 3,
-    description = "Layer harmonic intervals over notes.\n\nSub Octave: One octave below (-12 semitones).\nFifth Above: Perfect fifth (+7 semitones).\nOctave Above: One octave up (+12 semitones).\n\nEach has independent chance and volume. Timing is subtly humanized.",
+    description = "Layer harmonic intervals over notes.\n\nSub Octave: One octave below.\nFifth Above: Perfect fifth.\nOctave Above: One octave up.\n\nEach has independent chance and volume. Timing and velocity are subtly humanized.",
     fn = function(events, lane_id, stage_id)
       -- Helper function to convert option to chance percentage
       local function option_to_chance(option_value)
@@ -178,7 +179,7 @@ transforms.available = {
             humanize_value(sub_octave_volume, SUB_OCTAVE_VELOCITY_VARIATION)
           )
 
-          -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+          -- Exclude generation to prevent recursive harmonization
           local sub_octave_on = {}
           for k, v in pairs(original_note_on) do
             if k ~= "generation" then
@@ -197,7 +198,7 @@ transforms.available = {
             humanize_value(fifth_volume, FIFTH_VELOCITY_VARIATION)
           )
 
-          -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+          -- Exclude generation to prevent recursive harmonization
           local fifth_on = {}
           for k, v in pairs(original_note_on) do
             if k ~= "generation" then
@@ -216,7 +217,7 @@ transforms.available = {
             humanize_value(octave_volume, OCTAVE_VELOCITY_VARIATION)
           )
 
-          -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+          -- Exclude generation to prevent recursive harmonization
           local octave_on = {}
           for k, v in pairs(original_note_on) do
             if k ~= "generation" then
@@ -239,7 +240,7 @@ transforms.available = {
 
           -- Add harmonic note_offs
           if harmonics.has_sub_octave then
-            -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+            -- Exclude generation to prevent recursive harmonization
             local sub_octave_off = {}
             for k, v in pairs(original_note_off) do
               if k ~= "generation" then
@@ -252,7 +253,7 @@ transforms.available = {
           end
 
           if harmonics.has_fifth then
-            -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+            -- Exclude generation to prevent recursive harmonization
             local fifth_off = {}
             for k, v in pairs(original_note_off) do
               if k ~= "generation" then
@@ -265,7 +266,7 @@ transforms.available = {
           end
 
           if harmonics.has_octave then
-            -- Copy all note properties except generation (prevents harmonic notes from creating their own harmonics)
+            -- Exclude generation to prevent recursive harmonization
             local octave_off = {}
             for k, v in pairs(original_note_off) do
               if k ~= "generation" then
@@ -296,31 +297,248 @@ transforms.available = {
       return result
     end
   },
-  
-  transpose = {
-    name = "Transpose",
-    ui_name = "Transpose",
+
+  echo = {
+    name = "Echo",
+    ui_name = "Echo",
     ui_order = 4,
-    description = "Shift all notes by semitones.\n\nPositive values raise pitch, negative lower it. Common intervals: +7 (fifth), +12 (octave), -12 (octave down).\n\nUse across stages for chord progressions or melodic variation.",
+    description = "Cascading repetitions with decay.\n\nDirection: Pitch movement (None/Up/Down by scale degree).\nRepeats: Number of echoes per note.\nDecay: Volume reduction per echo.\nTime: Delay between echoes (clock-synced).",
     fn = function(events, lane_id, stage_id)
-      local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_transpose_amount")
-      
+      local repeats = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_repeats")
+      local decay = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_decay") / 100
+      local time_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_time")
+      local direction_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_direction")
+
+      -- Convert time option to beat fraction
+      local time_map = {1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8}
+      local echo_beats = time_map[time_option] or 1/8
+
+      -- Convert beats to seconds using current tempo
+      local tempo = params:get("clock_tempo")
+      local echo_time = (60 / tempo) * echo_beats
+
+      -- Direction: 1=None, 2=Up, 3=Down
+      local scale_degree_step = 0
+      if direction_option == 2 then scale_degree_step = 1
+      elseif direction_option == 3 then scale_degree_step = -1
+      end
+
       local result = {}
-      
+
+      for _, event in ipairs(events) do
+        -- Copy original event
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+        table.insert(result, new_event)
+
+        -- Generate echoes for note_on events
+        if event.type == "note_on" then
+          local current_velocity = event.velocity
+          local current_note = event.note
+
+          for i = 1, repeats do
+            -- Decay velocity
+            current_velocity = math.floor(current_velocity * (1 - decay))
+            if current_velocity < 10 then break end
+
+            -- Transpose echo pitch by scale degree
+            if scale_degree_step ~= 0 then
+              current_note = theory.transpose_by_scale_degrees(current_note, scale_degree_step)
+            end
+
+            -- Create echo note_on
+            local echo_on = {}
+            for k, v in pairs(event) do
+              if k ~= "generation" then
+                echo_on[k] = v
+              end
+            end
+            echo_on.time = event.time + (echo_time * i)
+            echo_on.note = current_note
+            echo_on.velocity = current_velocity
+            table.insert(result, echo_on)
+          end
+        elseif event.type == "note_off" then
+          -- Generate matching note_offs for echoes
+          local current_note = event.note
+
+          for i = 1, repeats do
+            if scale_degree_step ~= 0 then
+              current_note = theory.transpose_by_scale_degrees(current_note, scale_degree_step)
+            end
+
+            local echo_off = {}
+            for k, v in pairs(event) do
+              if k ~= "generation" then
+                echo_off[k] = v
+              end
+            end
+            echo_off.time = event.time + (echo_time * i)
+            echo_off.note = current_note
+            table.insert(result, echo_off)
+          end
+        end
+      end
+
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
+
+      return result
+    end
+  },
+
+  drift = {
+    name = "Drift",
+    ui_name = "Drift",
+    ui_order = 5,
+    description = "Subtle melodic variation.\n\nNotes randomly wander by scale degrees while preserving the original melody's shape.\n\nStability: How much stays fixed (High=90%, Medium=75%, Low=50%, Very Low=25%).\nRange: How far notes can wander (1-7 scale degrees).",
+    fn = function(events, lane_id, stage_id)
+      local stability_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_drift_stability")
+      local range_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_drift_range")
+
+      -- Stability: 1=Very Low (25% fixed), 2=Low (50% fixed), 3=Medium (75% fixed), 4=High (90% fixed)
+      local drift_chance_map = {0.75, 0.50, 0.25, 0.10}
+      local drift_chance = drift_chance_map[stability_option] or 0.50
+
+      -- Range: 1-7 scale degrees (up to an octave)
+      local max_drift_degrees = range_option
+
+      -- Collect note_on events to determine which will drift
+      local note_on_indices = {}
+      for i, event in ipairs(events) do
+        if event.type == "note_on" then
+          table.insert(note_on_indices, i)
+        end
+      end
+
+      -- Decide which notes drift and by how much
+      local drift_amounts = {}
+      for _, idx in ipairs(note_on_indices) do
+        if math.random() < drift_chance then
+          -- Random direction and amount within range
+          local amount = math.random(1, max_drift_degrees)
+          if math.random() < 0.5 then amount = -amount end
+          drift_amounts[idx] = amount
+        else
+          drift_amounts[idx] = 0
+        end
+      end
+
+      -- Build result with drifted notes
+      local result = {}
+      local note_drift_map = {}  -- Track drift for matching note_offs
+
+      for i, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+
+        if event.type == "note_on" and drift_amounts[i] and drift_amounts[i] ~= 0 then
+          local new_note = theory.transpose_by_scale_degrees(event.note, drift_amounts[i])
+          note_drift_map[event.note] = new_note
+          new_event.note = new_note
+        elseif event.type == "note_off" and note_drift_map[event.note] then
+          new_event.note = note_drift_map[event.note]
+          note_drift_map[event.note] = nil  -- Clear after use
+        end
+
+        table.insert(result, new_event)
+      end
+
+      return result
+    end
+  },
+
+  ripple = {
+    name = "Ripple",
+    ui_name = "Ripple",
+    ui_order = 6,
+    description = "A ghost copy of the entire phrase.\n\nDelay: How far behind the ripple plays.\nVolume: How quiet the ripple is.\nTranspose: Pitch offset in scale degrees.\n\nCreates depth and atmosphere. Pairs well with octave-down or fifth-up transposition.",
+    fn = function(events, lane_id, stage_id)
+      local delay_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ripple_delay")
+      local volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ripple_volume") / 100
+      local transpose_degrees = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ripple_transpose")
+
+      -- Convert delay option to beat fraction
+      local delay_map = {1/16, 1/8, 1/4, 1/2, 1, 2}
+      local delay_beats = delay_map[delay_option] or 1/4
+
+      -- Convert beats to seconds
+      local tempo = params:get("clock_tempo")
+      local delay_time = (60 / tempo) * delay_beats
+
+      local result = {}
+
+      -- Add all original events
       for _, event in ipairs(events) do
         local new_event = {}
         for k, v in pairs(event) do
           new_event[k] = v
         end
-        
-        -- Only modify pitch for note events
-        if event.type == "note_on" or event.type == "note_off" then
-          new_event.note = event.note + amount
-        end
-        
         table.insert(result, new_event)
       end
-      
+
+      -- Add delayed copy of all events (the ripple)
+      for _, event in ipairs(events) do
+        local ripple_event = {}
+        for k, v in pairs(event) do
+          if k ~= "generation" then
+            ripple_event[k] = v
+          end
+        end
+
+        -- Time shift
+        ripple_event.time = event.time + delay_time
+
+        -- Transpose and velocity adjust for note events
+        if event.type == "note_on" then
+          if transpose_degrees ~= 0 then
+            ripple_event.note = theory.transpose_by_scale_degrees(event.note, transpose_degrees)
+          end
+          ripple_event.velocity = math.floor(event.velocity * volume)
+        elseif event.type == "note_off" then
+          if transpose_degrees ~= 0 then
+            ripple_event.note = theory.transpose_by_scale_degrees(event.note, transpose_degrees)
+          end
+        end
+
+        table.insert(result, ripple_event)
+      end
+
+      -- Sort by time
+      table.sort(result, function(a, b) return a.time < b.time end)
+
+      return result
+    end
+  },
+
+  transpose = {
+    name = "Transpose",
+    ui_name = "Transpose",
+    ui_order = 7,
+    description = "Shift all notes by scale degrees.\n\nPositive values move up the scale, negative down. Notes stay in key. +1 = next scale note, +7 = one octave up in a 7-note scale.\n\nUse across stages for chord progressions or melodic variation.",
+    fn = function(events, lane_id, stage_id)
+      local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_transpose_amount")
+
+      local result = {}
+
+      for _, event in ipairs(events) do
+        local new_event = {}
+        for k, v in pairs(event) do
+          new_event[k] = v
+        end
+
+        -- Transpose note events by scale degrees
+        if event.type == "note_on" or event.type == "note_off" then
+          new_event.note = theory.transpose_by_scale_degrees(event.note, amount)
+        end
+
+        table.insert(result, new_event)
+      end
+
       return result
     end
   },
@@ -328,7 +546,7 @@ transforms.available = {
   rotate = {
     name = "Rotate",
     ui_name = "Rotate",
-    ui_order = 5,
+    ui_order = 8,
     description = "Rotate note order in time.\n\nNotes shift position while keeping original rhythmic slots. Amount sets how many positions to rotate.\n\nCreates melodic permutations from the same material.",
     fn = function(events, lane_id, stage_id)
       local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_rotate_amount")
@@ -379,7 +597,7 @@ transforms.available = {
   reverse = {
     name = "Reverse",
     ui_name = "Reverse",
-    ui_order = 6,
+    ui_order = 9,
     description = "Play the motif backwards.\n\nNotes play in reverse order while preserving their individual durations. The last note becomes first.\n\nClassic technique for retrograde variations.",
     fn = function(events, lane_id, stage_id)
       -- First pass: collect note_on/note_off pairs and their durations
@@ -453,7 +671,7 @@ transforms.available = {
   skip = {
     name = "Skip",
     ui_name = "Skip",
-    ui_order = 7,
+    ui_order = 10,
     description = "Play every Nth note.\n\nInterval: Play every 2nd, 3rd, 4th note, etc.\nOffset: Which note in the pattern to start from.\n\nThins out busy passages or creates rhythmic variations.",
     fn = function(events, lane_id, stage_id)
       local n = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_interval")
@@ -500,7 +718,7 @@ transforms.available = {
   ratchet = {
     name = "Ratchet",
     ui_name = "Ratchet",
-    ui_order = 8,
+    ui_order = 11,
     description = "Rapid-fire note repeats.\n\nChance: Probability each note ratchets.\nMax Repeats: Upper limit of repeats per note.\nTiming Window: Duration for all repeats.\n\nAdds rhythmic complexity and drive.",
     fn = function(events, lane_id, stage_id)
       local repeat_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_chance") / 100

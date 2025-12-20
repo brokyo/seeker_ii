@@ -43,7 +43,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 100)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 104)
 
         -- Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Voice",

@@ -230,4 +230,32 @@ function theory.offset_to_display(semitones)
   end
 end
 
+-- Transpose a MIDI note by scale degrees
+-- Finds the note's position in the scale (or nearest), moves by degrees, returns new note
+function theory.transpose_by_scale_degrees(note, degrees)
+  if degrees == 0 then return note end
+
+  local scale = theory.get_scale()
+
+  -- Find the closest scale note index
+  local closest_scale_index = 1
+  local closest_distance = math.abs(note - scale[1])
+  for i, scale_note in ipairs(scale) do
+    local distance = math.abs(note - scale_note)
+    if distance < closest_distance then
+      closest_distance = distance
+      closest_scale_index = i
+    end
+  end
+
+  -- Calculate new index
+  local new_index = closest_scale_index + degrees
+
+  -- Clamp to valid range
+  if new_index < 1 then new_index = 1 end
+  if new_index > #scale then new_index = #scale end
+
+  return scale[new_index]
+end
+
 return theory

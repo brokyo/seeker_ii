@@ -12,14 +12,14 @@ local function get_max_generation(lane_idx)
     return 1
   end
 
-  local max_gen = 1
+  local max_generation = 1
   for _, event in ipairs(lane.motif.events) do
-    if event.generation and event.generation > max_gen then
-      max_gen = event.generation
+    if event.generation and event.generation > max_generation then
+      max_generation = event.generation
     end
   end
 
-  return max_gen
+  return max_generation
 end
 
 -- Populate initial parameters when entering stage config
@@ -39,15 +39,15 @@ end
 -- Rebuild parameters based on selected transform
 function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
   -- Set overdub filter round parameter max to match the motif's generation count
-  local max_gen = get_max_generation(lane_idx)
+  local max_generation = get_max_generation(lane_idx)
   local filter_round_param = params:lookup_param("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round")
   if filter_round_param then
     -- Ensure max is at least 2 to avoid division by zero in Arc controller
-    filter_round_param.max = math.max(max_gen, 2)
+    filter_round_param.max = math.max(max_generation, 2)
     -- Clamp current value to actual max generation
     local current_value = params:get("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round")
-    if current_value > max_gen then
-      params:set("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", max_gen)
+    if current_value > max_generation then
+      params:set("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", max_generation)
     end
   end
 
@@ -81,19 +81,60 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_chance"
     })
     table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_volume"
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_sub_octave_volume",
+      arc_multi_float = {10, 5, 1}
     })
     table.insert(param_table, {
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_chance"
     })
     table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_volume"
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_fifth_above_volume",
+      arc_multi_float = {10, 5, 1}
     })
     table.insert(param_table, {
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_chance"
     })
     table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_volume"
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_volume",
+      arc_multi_float = {10, 5, 1}
+    })
+
+  elseif transform_type == "Echo" then
+    table.insert(param_table, { separator = true, title = "Echo Config" })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_direction"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_repeats"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_decay",
+      arc_multi_float = {10, 5, 1}
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_time"
+    })
+
+  elseif transform_type == "Drift" then
+    table.insert(param_table, { separator = true, title = "Drift Config" })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_stability"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_range"
+    })
+
+  elseif transform_type == "Ripple" then
+    table.insert(param_table, { separator = true, title = "Ripple Config" })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_delay"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_volume",
+      arc_multi_float = {10, 5, 1}
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_transpose"
     })
 
   elseif transform_type == "Transpose" then
@@ -120,7 +161,8 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
   elseif transform_type == "Ratchet" then
     table.insert(param_table, { separator = true, title = "Ratchet Config" })
     table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_chance"
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_chance",
+      arc_multi_float = {10, 5, 1}
     })
     table.insert(param_table, {
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats"
@@ -131,22 +173,6 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
 
   elseif transform_type == "Reverse" then
     -- No additional parameters
-
-  elseif transform_type == "Arpeggio" then
-    -- Arpeggio TRANSFORM (not mode) - transforms existing notes into arpeggios
-    table.insert(param_table, { separator = true, title = "Arpeggio Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_scale_degree"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_pattern"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_direction"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_arpeggio_inversion"
-    })
   end
 
   -- Config section with reset and loop count

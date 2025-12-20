@@ -185,3 +185,43 @@ I think this is such a cool module (the W/Synth used in Motif mode is amazing) a
 ## Settings | Mode (3D)
 
 Global configuration: BPM, root note, scale, and MIDI clock settings. Tap tempo available. "Sync All" restarts all lanes and outputs simultaneously.
+
+---
+
+## Transform Reference
+
+Transforms modify motifs as they pass through stages. Each motif type has its own transform library. Stack them across stages for compound effects.
+
+### Tape Transforms
+
+**Harmonize** — Layer harmonic intervals over notes. Sub-octave, fifth, and octave above with independent chance and volume. Strum Spread fans harmonics out in time like a strummed chord.
+
+**Echo** — Cascading repetitions with decay. Each note spawns quieter copies trailing behind it. Clock-synced timing. Drift moves echoes up or down the scale.
+
+**Drift** — Subtle melodic variation. Notes randomly wander by scale degrees. Stability controls how much of the melody stays fixed (High=90%, Medium=75%, Low=50%).
+
+**Ripple** — A ghost copy of the entire phrase. Delayed, quieter, and optionally transposed. Creates depth and atmosphere.
+
+**Ratchet** — Rapid-fire note repeats. Probability-based bursts within a timing window.
+
+**Overdub Filter** — Filter notes by recording generation. Keep early layers, remove specific generations, or isolate the original.
+
+### Sampler Transforms
+
+**Scatter** — Chaotic micro-loops. Amount controls playhead drift, Size controls minimum chop length. Good for glitchy textures.
+
+**Slide** — Shift chop windows through the buffer while preserving duration. Optional wrap around buffer boundaries.
+
+**Reverse** — Flip playback direction with probability per chop.
+
+**Pan Spread** — Randomly offset pan position. Probability and range controls. Good for spatial movement.
+
+**Filter Drift** — Progressively darken or brighten the filter across stages. Direction controls whether it opens or closes.
+
+### Composer Stages
+
+Composer uses harmonic and expression stages rather than transforms. Each stage defines a chord and how it's played.
+
+**Harmonic Config** — Chord root, type, length, inversion, octave, and voicing style per stage.
+
+**Expression Config** — Velocity curves, strum timing and shape, note duration, and pattern filtering per stage.
