@@ -58,7 +58,7 @@ local function create_params()
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_time", "Time", {"1/32", "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "8"}, 3)
 
             -- Drift Params
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_stability", "Stability", {"Very Low", "Low", "Medium", "High"}, 2)
+            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_stability", "Stability", {"Very Low", "Low", "Medium", "High"}, 3)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_range", "Range", 1, 7, 1)
 
             -- Ripple Params
