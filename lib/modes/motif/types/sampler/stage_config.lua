@@ -206,6 +206,7 @@ local function create_screen_ui()
         -- Jump cursor to first param when switching between stages
         if self._stage_on_last_rebuild ~= stage_idx then
             self.state.selected_index = 1
+            self.state.scroll_offset = 0
             self._stage_on_last_rebuild = stage_idx
         end
 
