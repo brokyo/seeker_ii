@@ -82,7 +82,8 @@ local function create_screen_ui()
       table.insert(param_list, {id = "spc_hpf", arc_multi_float = {1000, 100, 10}})
       table.insert(param_list, {id = "spc_resonance", arc_multi_float = {0.5, 0.1, 0.05}})
     elseif filter_type == FILTER_BANDPASS or filter_type == FILTER_NOTCH then
-      table.insert(param_list, {id = "spc_lpf", arc_multi_float = {1000, 100, 10}, custom_name = "Center Freq"})
+      table.insert(param_list, {id = "spc_lpf", arc_multi_float = {1000, 100, 10}})
+      table.insert(param_list, {id = "spc_hpf", arc_multi_float = {1000, 100, 10}})
       table.insert(param_list, {id = "spc_resonance", arc_multi_float = {0.5, 0.1, 0.05}})
     end
 

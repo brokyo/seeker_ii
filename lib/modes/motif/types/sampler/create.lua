@@ -253,16 +253,17 @@ local function create_screen_ui()
                         local row_height = VIS_HEIGHT / 4
                         local row_y = VIS_Y + (row * row_height)
 
+                        local x_end
                         if event_pair.end_time then
                             local clamped_end = math.min(event_pair.end_time, loop_duration)
-                            local x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
-                            screen.rect(x_start, row_y, math.max(x_end - x_start, 1), row_height - 1)
-                            screen.fill()
+                            x_end = VIS_X + (clamped_end / loop_duration * VIS_WIDTH)
                         else
-                            screen.move(x_start, row_y)
-                            screen.line(x_start, row_y + row_height - 1)
-                            screen.stroke()
+                            -- Note still held: extend to current position
+                            local current_pos = clock.get_beats() - _seeker.motif_recorder.start_time
+                            x_end = VIS_X + (current_pos / loop_duration * VIS_WIDTH)
                         end
+                        screen.rect(x_start, row_y, math.max(x_end - x_start, 1), row_height - 1)
+                        screen.fill()
                     end
                 end
 

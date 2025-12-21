@@ -258,6 +258,7 @@ local function create_screen_ui()
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
             elseif filter_type == 4 or filter_type == 5 then -- Bandpass or Notch
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_lpf", arc_multi_float = {1000, 100, 10} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_hpf", arc_multi_float = {1000, 100, 10} })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
             end
 
