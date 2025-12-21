@@ -219,6 +219,10 @@ function Lane:stop()
   self.current_stage_index = 1
   -- Clear any pending events for this lane
   _seeker.conductor.clear_events_for_lane(self.id)
+  -- Stop any looping sampler voices for this lane
+  if _seeker.sampler then
+    _seeker.sampler.stop_lane(self.id)
+  end
   print(string.format('֎ Stopped LANE_%d', self.id))
 end
 

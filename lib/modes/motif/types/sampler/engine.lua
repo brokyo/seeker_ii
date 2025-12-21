@@ -14,6 +14,7 @@ local MONO_MIX_LEVEL = 0.707  -- Equal power stereo-to-mono mix (maintains perce
 -- Playback modes
 local MODE_GATE = 1      -- Plays while held, enables looping for sustain (default)
 local MODE_ONE_SHOT = 2  -- Plays once, ignores release
+local MODE_LOOP = 3      -- Loops continuously until stopped explicitly
 
 -- Recording always uses softcut voice 6, separate from playback voice pool
 local RECORDING_VOICE = 6
@@ -368,6 +369,11 @@ function SamplerEngine.trigger_pad(lane, pad, velocity, event)
   local hpf = source.hpf
   local resonance = source.resonance
 
+  -- Loop mode: don't re-trigger if already playing
+  if mode == MODE_LOOP and SamplerEngine.get_pad_voice(lane, pad) then
+    return
+  end
+
   -- Build a config table for filter application
   local config = {
     filter_type = filter_type,
@@ -391,8 +397,8 @@ function SamplerEngine.trigger_pad(lane, pad, velocity, event)
   softcut.position(voice, start_position)
 
   -- Set loop mode based on playback mode
-  -- Enable looping for Gate mode, disable for One-shot mode
-  local loop_enabled = (mode == MODE_GATE) and 1 or 0
+  -- Enable looping for Gate and Loop modes, disable for One-shot
+  local loop_enabled = (mode == MODE_GATE or mode == MODE_LOOP) and 1 or 0
   softcut.loop(voice, loop_enabled)
 
   -- Set crossfade time for smooth loop points (prevents clicks)
@@ -496,6 +502,18 @@ function SamplerEngine.stop_pad(lane, pad)
         SamplerEngine.voices[v].pad = nil
       end
       -- Don't return - continue checking for other voices playing this pad
+    end
+  end
+end
+
+-- Stop all voices for a specific lane
+function SamplerEngine.stop_lane(lane)
+  for v = 1, SamplerEngine.num_voices do
+    if SamplerEngine.voices[v].active and SamplerEngine.voices[v].lane == lane then
+      softcut.play(v, 0)
+      SamplerEngine.voices[v].active = false
+      SamplerEngine.voices[v].lane = nil
+      SamplerEngine.voices[v].pad = nil
     end
   end
 end

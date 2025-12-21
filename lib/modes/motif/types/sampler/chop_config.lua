@@ -187,7 +187,7 @@ function SamplerChopConfig.init()
     SamplerChopConfig.update_chop('pan', value)
   end)
 
-  params:add_option("spc_mode", "Mode", {"Gate", "One-Shot"}, 1)
+  params:add_option("spc_mode", "Mode", {"Gate", "One-Shot", "Loop"}, 1)
   params:set_action("spc_mode", function(value)
     SamplerChopConfig.update_chop('mode', value)
 

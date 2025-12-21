@@ -132,15 +132,22 @@ local function create_grid_ui()
   })
 
   grid_ui.draw = function(self, layers)
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+
     -- Draw all pads
     for y = layout.y, layout.y + layout.height - 1 do
       for x = layout.x, layout.x + layout.width - 1 do
+        local pad = position_to_pad(x, y)
         local brightness = GridConstants.BRIGHTNESS.UI.NORMAL
+
+        -- Highlight pads with active looping voices
+        if _seeker.sampler and _seeker.sampler.get_pad_voice(focused_lane, pad) then
+          brightness = GridConstants.BRIGHTNESS.HIGH
+        end
 
         -- Highlight selected pad when in config section
         local current_section = _seeker.ui_state.get_current_section()
         if current_section == "SAMPLER_CHOP_CONFIG" then
-          local pad = position_to_pad(x, y)
           if _seeker and _seeker.sampler_type and _seeker.sampler_type.chop_config then
             local selected_pad = _seeker.sampler_type.chop_config.get_selected_pad()
             if pad == selected_pad then
