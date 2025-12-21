@@ -244,10 +244,7 @@ local function create_screen_ui()
             return
         end
 
-        -- Draw parameters
-        self:_draw_standard_ui()
-
-        -- Draw help text
+        -- Render help text in background layer beneath parameter display
         local help_text = "generate: hold"
         local width = screen.text_extents(help_text)
 
@@ -260,6 +257,9 @@ local function create_screen_ui()
 
         screen.move(64 - width/2, 46)
         screen.text(help_text)
+
+        -- Draw parameters on top of help text
+        self:_draw_standard_ui()
 
         -- Draw footer
         self:draw_footer()

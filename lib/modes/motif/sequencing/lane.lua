@@ -450,6 +450,10 @@ function Lane:schedule_stage(stage_index, start_time)
         -- Continue to next loop of current stage
         stage.current_loop = stage.current_loop + 1
         self:schedule_stage(stage_index, end_time)  -- Use end_time as the start of next loop
+        -- Trigger screen redraw to update footer's loop counter
+        if self.id == _seeker.ui_state.get_focused_lane() then
+          _seeker.screen_ui.set_needs_redraw()
+        end
       else
         -- Move to next stage
         print(string.format('╚══ L_%d S_%d complete @%.2f', self.id, stage_index, end_time))

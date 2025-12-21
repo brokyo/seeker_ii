@@ -34,8 +34,10 @@ local function create_params()
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)
             config_state.config_stage = value
-            _seeker.sampler_type.stage_config.screen:rebuild_params()
-            _seeker.screen_ui.set_needs_redraw()
+            if _seeker.sampler_type and _seeker.sampler_type.stage_config and _seeker.sampler_type.stage_config.screen then
+                _seeker.sampler_type.stage_config.screen:rebuild_params()
+                _seeker.screen_ui.set_needs_redraw()
+            end
         end)
 
         for stage_idx = 1, 4 do
@@ -105,6 +107,12 @@ local function create_screen_ui()
         local lane_idx = _seeker.ui_state.get_focused_lane()
         local stage_idx = config_state.config_stage
 
+        -- Jump cursor to first param when switching between stages
+        if self._stage_on_last_rebuild ~= stage_idx then
+            self.state.selected_index = 1
+            self._stage_on_last_rebuild = stage_idx
+        end
+
         -- Update footer to show current stage
         self.name = "Stage " .. stage_idx .. " Config"
 
@@ -152,6 +160,7 @@ local function create_screen_ui()
 
         -- Update the UI with the new parameter table
         self.params = param_table
+        self:filter_active_params()
     end
 
     return norns_ui

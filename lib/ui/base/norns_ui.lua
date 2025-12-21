@@ -213,17 +213,19 @@ function NornsUI:draw_footer()
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local lane = _seeker.lanes[lane_idx]
     local stage_idx = lane.current_stage_index
-    local info_text = string.format("L%d:S%d", lane_idx, stage_idx)
+    local stage = lane.stages[stage_idx]
+    local loop_num = stage and (stage.current_loop + 1) or 1
+    local stage_loop_display = string.format("S%d:L%d", stage_idx, loop_num)
 
     -- Calculate position to be right-aligned
     local SCREEN_WIDTH = 128
     local PADDING = 6
-    local text_width = screen.text_extents(info_text)
+    local text_width = screen.text_extents(stage_loop_display)
     local x = SCREEN_WIDTH - PADDING - text_width
 
     screen.level(0)
     screen.move(x, 60)
-    screen.text(info_text)
+    screen.text(stage_loop_display)
   end
 end
 

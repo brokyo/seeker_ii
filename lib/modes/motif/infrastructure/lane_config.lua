@@ -47,7 +47,7 @@ local function create_params()
 
         -- Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Voice",
-            {"MX Samples", "MIDI", "Eurorack", "Just Friends", "w/syn", "OSC", "Disting", "TXO Osc"})
+            {"mx. samples", "MIDI", "Eurorack", "Just Friends", "w/syn", "OSC", "Disting", "TXO Osc"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
@@ -554,10 +554,11 @@ local function create_grid_ui()
                 local lane = _seeker.lanes[lane_idx]
                 
                 local brightness
-                if is_lane_section and is_focused then
+                if is_focused then
+                    -- Focused lane uses full brightness regardless of playing state
                     brightness = GridConstants.BRIGHTNESS.FULL
                 elseif lane.playing then
-                    -- Pulsing bright when playing, unless focused
+                    -- Pulsing when playing but not focused
                     brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
                 elseif is_lane_section then
                     brightness = GridConstants.BRIGHTNESS.MEDIUM
