@@ -1,17 +1,19 @@
 # Seeker II
 
-![Seeker II](doc/seeker_ii.png)
+![hqdefault](https://github.com/user-attachments/assets/7b5fe37a-5ed3-4332-be59-d5967a2e190b)
+[https://www.youtube.com/watch?v=sDeOvZlGJTs](Intro Video on YouTube)
 
-Seeker II is an interface for writing and procedurally manipulating music and visuals. Initially written on New Year's Day 2025 to make Discreet Music's phasing style simple on a Norns. I've since spent the last year using it almost daily and slowly adding news things whenever I found gaps 
-between what I wanted to do and what Seeker could do. 
+Seeker II is an interface for writing and procedurally manipulating music and visuals. I originally wrote it on New Year’s Day 2025 to make Discreet Music-style phasing simple on a Norns. I’ve since spent the past year using it almost daily, slowly adding features whenever I found gaps between what I wanted to do and what Seeker could do.
 
-Today there's software instruments, a full sample chopping engine, a heavily parameterized arpeggiator, a sequencable transformation engine, lots of Eurorack control via i2c, and TouchDesigner communication all on a performable clock.
+Today it includes software instruments, a full sample chopping engine, a heavily parameterized tonal arpeggiator, a sequenceable motif transformation engine, extensive Eurorack control via I2C, a W/Tape Frippertronics effect, and TouchDesigner communication — all in cross-communication on a shared clock.
 
-At its core, Seeker is eight musical lanes that can be run in parallel with each performing its own motif that can be recorded on the Grid. Those motifs can be procedurally transformed as the program loops creating evolving music while maintaing a sense of structure and intentionality. 
+Seeker begins with eight musical lanes that run in parallel, each performing its own motif recorded on Grid. Those motifs can be procedurally transformed as the program loops, creating evolving music while maintaining structure and intentionality.
 
-Seeker is the center of my studio and connects to the things I regularly use. If you're reading this, you likely use them too. There is a Eurorack Gate/CV, a bunch of fairly-complete i2c implementations, a W/Tape recorder for frippertronics, and a set of TouchDesigner/Arc plugins. 
+It continues with Grid/Arc UIs connected to modulation sources covering every way of moving through voltage I could think of: strums, bursts, LFOs, knob recording, random walks, non-linear distributions. If it’s a way of moving through numbers, it’s probably in there.
 
-It's intended to travel with you and scale to what you have on hand. I've been relentless about the user-experience and I hope despite its complexity it's easy to pick up and make something that expresses how you're feeling at that moment. Open the next.
+Seeker is intended to travel with you and scale to whatever you have on hand. It works as well in a studio with towers of modules as it does on a train with a Grid and a field recorder. I’ve been relentless about user experience, and I hope that despite its complexity, it’s easy to pick up and make something that helps you expresses how you’re feeling at that moment.
+
+Open the next.
 
 ## Requirements
 
