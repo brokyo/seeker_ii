@@ -55,7 +55,15 @@ function Lane.new(config)
   lane.volume = params:get("lane_" .. lane.id .. "_volume")
   lane.speed = config.speed or 1.0
   lane.current_stage_index = 1
-  lane.midi_out_device = params:get("lane_" .. lane.id .. "_midi_device")
+  -- Connect MIDI device if configured (param value 1 = "none", 2+ = device index)
+  local midi_device_param = params:get("lane_" .. lane.id .. "_midi_device")
+  if midi_device_param > 1 then
+    lane.midi_out_device = midi.connect(midi_device_param - 1)
+  else
+    lane.midi_out_device = nil
+  end
+  lane.midi_channel = params:get("lane_" .. lane.id .. "_midi_channel")
+  lane.midi_voice_volume = params:get("lane_" .. lane.id .. "_midi_voice_volume")
   lane.delay_send = params:get("lane_" .. lane.id .. "_delay_send")
   lane.reverb_send = params:get("lane_" .. lane.id .. "_reverb_send")
   lane.chord_phase_offset = 0  -- Track chord position for phasing across loops
@@ -690,14 +698,9 @@ function Lane:on_note_on(event)
   --------------------------------
 
   -- MIDI Output
-  if self.midi_active then
-    local midi_voice_volume = params:get("lane_" .. self.id .. "_midi_voice_volume")
-    local lane_volume = params:get("lane_" .. self.id .. "_volume")
-    local device_idx = params:get("lane_" .. self.id .. "_midi_device")
-    local channel = params:get("lane_" .. self.id .. "_midi_channel")
-    if device_idx > 1 and channel > 0 then
-      self.midi_out_device:note_on(note, event.velocity * midi_voice_volume * lane_volume, channel)
-    end
+  if self.midi_active and self.midi_out_device and self.midi_channel > 0 then
+    local velocity = event.velocity * self.midi_voice_volume * self.volume
+    self.midi_out_device:note_on(note, velocity, self.midi_channel)
   end
 
   --------------------------------
@@ -1003,11 +1006,9 @@ function Lane:on_note_off(event)
     note = note + octave_offset
   end
 
-  -- Stop MIDI if configured
-  local device_idx = params:get("lane_" .. self.id .. "_midi_device")
-  local channel = params:get("lane_" .. self.id .. "_midi_channel")
-  if device_idx > 1 and channel > 0 then
-    self.midi_out_device:note_off(note, 0, channel)
+  -- Send MIDI note_off message
+  if self.midi_out_device and self.midi_channel > 0 then
+    self.midi_out_device:note_off(note, 0, self.midi_channel)
   end
   
   -- Send OSC note_off if configured
