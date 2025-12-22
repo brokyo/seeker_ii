@@ -1,7 +1,8 @@
 # Seeker II
 
 ![hqdefault](https://github.com/user-attachments/assets/7b5fe37a-5ed3-4332-be59-d5967a2e190b)
-[https://www.youtube.com/watch?v=sDeOvZlGJTs](Intro Video on YouTube)
+
+[Full Intro on YouTube](https://www.youtube.com/watch?v=sDeOvZlGJTs)
 
 Seeker II is an interface for writing and procedurally manipulating music and visuals. I originally wrote it on New Year’s Day 2025 to make Discreet Music-style phasing simple on a Norns. I’ve since spent the past year using it almost daily, slowly adding features whenever I found gaps between what I wanted to do and what Seeker could do.
 
