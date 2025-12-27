@@ -21,6 +21,7 @@ local voice_wsyn = include("lib/modes/motif/infrastructure/voices/wsyn")
 local voice_osc = include("lib/modes/motif/infrastructure/voices/osc")
 local voice_disting = include("lib/modes/motif/infrastructure/voices/disting")
 local voice_txo_osc = include("lib/modes/motif/infrastructure/voices/txo_osc")
+local voice_disting_nt = include("lib/modes/motif/infrastructure/voices/disting_nt")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 -- Motif type constants
@@ -43,11 +44,11 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 104)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 107)
 
         -- Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Voice",
-            {"mx. samples", "MIDI", "Eurorack", "Just Friends", "w/syn", "OSC", "Disting", "TXO Osc"})
+            {"mx. samples", "MIDI", "Eurorack", "Just Friends", "w/syn", "OSC", "Disting", "TXO Osc", "Disting NT"})
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
@@ -62,6 +63,7 @@ local function create_params()
         voice_osc.create_params(i)
         voice_disting.create_params(i)
         voice_txo_osc.create_params(i)
+        voice_disting_nt.create_params(i)
 
         -- Clear generation selector (0=all, 1+=specific generation)
         params:add_number("lane_" .. i .. "_clear_generation", "Clear Generation", 0, 10, 0,
@@ -499,6 +501,27 @@ local function create_screen_ui()
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_selected" })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_morph", arc_multi_float = {100, 50, 10} })
                     table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+                end
+            end
+        elseif visible_voice == 9 then -- Disting NT
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_active" })
+
+            -- Only show additional Disting NT params if active
+            if params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1 then
+                table.insert(param_table, { separator = true, title = "Lane Routing" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_channel" })
+
+                -- Global view params for editing channel config
+                table.insert(param_table, { separator = true, title = "Channel Config" })
+                table.insert(param_table, { id = "dnt_edit_channel" })
+                table.insert(param_table, { id = "dnt_algorithm" })
+
+                -- Get algorithm-specific params from helper
+                local algorithm_index = params:get("dnt_algorithm")
+                local algorithm_params = voice_disting_nt.get_params_for_ui(algorithm_index)
+                for _, entry in ipairs(algorithm_params) do
+                    table.insert(param_table, entry)
                 end
             end
         end

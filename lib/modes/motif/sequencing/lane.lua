@@ -12,6 +12,7 @@
 
 local mx_samples = include('lib/modes/motif/infrastructure/voices/mx_samples')
 local txo_osc = include('lib/modes/motif/infrastructure/voices/txo_osc')
+local disting_nt = include('lib/modes/motif/infrastructure/voices/disting_nt')
 local Motif = include('lib/modes/motif/core/motif')
 -- Stage type modules for mode-specific preparation
 local tape_transform = include('lib/modes/motif/types/tape/transform')
@@ -77,6 +78,7 @@ function Lane.new(config)
   lane.osc_active = params:get("lane_" .. lane.id .. "_osc_active") == 1
   lane.disting_active = params:get("lane_" .. lane.id .. "_disting_active") == 1
   lane.txo_osc_active = params:get("lane_" .. lane.id .. "_txo_osc_active") == 1
+  lane.disting_nt_active = params:get("lane_" .. lane.id .. "_disting_nt_active") == 1
 
   -- Stage configuration (4 stages per lane, each with loops/active/reset_motif/transforms)
   -- Stage 1 defaults active, stages 2-4 default inactive
@@ -911,6 +913,14 @@ function Lane:on_note_on(event)
   end
 
   --------------------------------
+  -- Disting NT Note On
+  --------------------------------
+
+  if self.disting_nt_active then
+    disting_nt.handle_note_on(self.id, note, event.velocity)
+  end
+
+  --------------------------------
   -- TXO Oscillator Output (polyphonic round-robin)
   --------------------------------
 
@@ -1062,6 +1072,13 @@ function Lane:on_note_off(event)
     elseif algorithm == 4 then
       crow.ii.disting.note_off(note)
     end
+  end
+
+  --------------------------------
+  -- Disting NT note off
+  --------------------------------
+  if self.disting_nt_active then
+    disting_nt.handle_note_off(self.id, note)
   end
 
   --------------------------------
