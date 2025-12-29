@@ -130,6 +130,9 @@ function init()
     end
   end)
 
+  -- Set default tempo
+  params:set("clock_tempo", 60)
+
   -- Start the clock
   clock.run(function()
     print("⎆ Conductor watching")

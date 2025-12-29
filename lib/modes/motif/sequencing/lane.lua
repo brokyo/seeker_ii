@@ -185,7 +185,10 @@ function Lane.new(config)
   
   -- Add active notes tracking
   lane.active_notes = {}  -- Track currently active notes with their grid positions
-  
+
+  -- Track last-used offset to detect parameter changes between loop iterations
+  lane.last_scheduled_offset = 0
+
   print(string.format('⌸ LANE_%d Manifested', lane.id))
   return lane
 end
@@ -212,8 +215,10 @@ function Lane:play()
   end
 
   print(string.format('֍ Started LANE_%d', self.id))
-  -- schedule the first iteration
-  self:schedule_stage(self.current_stage_index, clock.get_beats())
+  -- Schedule first iteration, delayed by offset parameter for lane alignment
+  local offset = params:get("lane_" .. self.id .. "_offset") or 0
+  self.last_scheduled_offset = offset
+  self:schedule_stage(self.current_stage_index, clock.get_beats() + offset)
 end
 
 ---------------------------------------------------------
@@ -319,7 +324,7 @@ function Lane:schedule_stage(stage_index, start_time)
 
   -- Get quantization and swing settings
   local quantize_option = params:get("lane_" .. self.id .. "_quantize")
-  local quantize_values = {0, 1/32, 1/16, 1/12, 1/11, 1/10, 1/9, 1/8, 1/7, 1/6, 1/5, 1/4, 1/3, 1/2, 1}
+  local quantize_values = {0, 1/8, 1/4, 1/2, 1}
   local quantize_interval = quantize_values[quantize_option]
   local swing_amount = params:get("lane_" .. self.id .. "_swing") / 100
 
@@ -463,7 +468,11 @@ function Lane:schedule_stage(stage_index, start_time)
       if stage.current_loop < (stage.loops - 1) then
         -- Continue to next loop of current stage
         stage.current_loop = stage.current_loop + 1
-        self:schedule_stage(stage_index, end_time)  -- Use end_time as the start of next loop
+        -- Adjust timing if offset parameter changed since last loop
+        local current_offset = params:get("lane_" .. self.id .. "_offset") or 0
+        local offset_change = current_offset - self.last_scheduled_offset
+        self.last_scheduled_offset = current_offset
+        self:schedule_stage(stage_index, end_time + offset_change)
         -- Trigger screen redraw to update footer's loop counter
         if self.id == _seeker.ui_state.get_focused_lane() then
           _seeker.screen_ui.set_needs_redraw()
@@ -583,7 +592,11 @@ function Lane:on_motif_end(stage_index, end_time)
   end
   
   self.current_stage_index = next_index
-  self:schedule_stage(next_index, end_time)
+  -- Adjust timing if offset parameter changed since last stage
+  local current_offset = params:get("lane_" .. self.id .. "_offset") or 0
+  local offset_change = current_offset - self.last_scheduled_offset
+  self.last_scheduled_offset = current_offset
+  self:schedule_stage(next_index, end_time + offset_change)
   _seeker.ui_state.set_focused_stage(next_index)
 end
 

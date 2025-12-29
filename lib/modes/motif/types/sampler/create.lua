@@ -380,31 +380,43 @@ local function create_grid_ui()
         _seeker.screen_ui.set_needs_redraw()
     end
 
-    -- Count display helper
+    -- Count display helper: crossing tick matching tape/create.lua
     local function draw_count_display(self, layers)
-        local current_quarter = math.floor(clock.get_beats()) % 4
+        local left_group = {6, 7, 8}
+        local right_group = {9, 10, 11}
 
-        local count_display = {
-            x_start = 7,
-            x_end = 10,
-            y = 1
-        }
-
-        for x_count = count_display.x_start, count_display.x_end do
-            layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW
-        end
-
-        local highlight_x = count_display.x_start + current_quarter
+        local beat = math.floor(clock.get_beats())
         local beat_phase = clock.get_beats() % 1
+        local is_a = (beat % 2 == 0)
+
         local brightness
-        if beat_phase < 0.25 then
-            local decay = math.exp(-beat_phase * 12)
+        if beat_phase < 0.2 then
+            local decay = math.exp(-beat_phase * 20)
             local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
             brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
         else
             brightness = GridConstants.BRIGHTNESS.LOW
         end
-        layers.ui[highlight_x][count_display.y] = brightness
+
+        -- Top row (y=1)
+        local top_active = is_a and left_group or right_group
+        local top_inactive = is_a and right_group or left_group
+        for _, x in ipairs(top_active) do
+            layers.ui[x][1] = brightness
+        end
+        for _, x in ipairs(top_inactive) do
+            layers.ui[x][1] = GridConstants.BRIGHTNESS.LOW
+        end
+
+        -- Bottom row (y=8) - opposite of top
+        local bottom_active = is_a and right_group or left_group
+        local bottom_inactive = is_a and left_group or right_group
+        for _, x in ipairs(bottom_active) do
+            layers.ui[x][8] = brightness
+        end
+        for _, x in ipairs(bottom_inactive) do
+            layers.ui[x][8] = GridConstants.BRIGHTNESS.LOW
+        end
     end
 
     grid_ui.draw = function(self, layers)

@@ -30,6 +30,8 @@ function MotifRecorder:reset_state()
   self.waiting_for_first_note = false
   self.original_motif = nil
   self.current_generation = 1
+  self.duration_limit = nil
+  self.duration_limit_clock_id = nil
 
   -- Track active notes to handle held notes on recording stop and overdub wraparound
   -- Keys are note_key strings, values are {position, event_data} tables
@@ -56,6 +58,8 @@ function MotifRecorder:on_note_on(event)
     if self.waiting_for_first_note then
       self.start_time = clock.get_beats() - 0.02  -- Small offset for better scheduling. Things can break otherwise.
       self.waiting_for_first_note = false
+      -- Start timer to auto-stop when duration limit is reached
+      self:_schedule_duration_limit_stop()
     end
 
     position = now - self.start_time
@@ -259,19 +263,46 @@ function MotifRecorder:start_recording(existing_motif)
     self.current_generation = max_gen + 1
     print(string.format("⊕ Starting overdub with generation %d", self.current_generation))
   else
-    -- New tape recording. Only set this for tape recordings
+    -- First recording on this lane (not overdubbing existing motif)
     self.waiting_for_first_note = true
     self.current_generation = 1
+
+    -- If lane has a duration limit set, recording will auto-stop at that length
+    local focused_lane = _seeker.ui_state.get_focused_lane()
+    local limit = params:get("lane_" .. focused_lane .. "_tape_duration")
+    if limit and limit > 0 then
+      self.duration_limit = limit
+      print(string.format("⊙ Tape duration limit: %.2f beats", limit))
+    end
   end
 
   -- Start recording
   self.is_recording = true
 end
 
+-- Schedule auto-stop after duration limit is reached (called from on_note_on)
+function MotifRecorder:_schedule_duration_limit_stop()
+  if self.duration_limit and not self.duration_limit_clock_id then
+    self.duration_limit_clock_id = clock.run(function()
+      -- Wait for the duration limit, measured in beats from the first recorded note
+      clock.sleep(clock.get_beat_sec() * self.duration_limit)
+      if self.is_recording then
+        _seeker.tape.create.grid:trigger_auto_stop()
+      end
+    end)
+  end
+end
+
 --- Stop recording and return the event table
 -- Grid interaction: Called from GridUI.handle_record_toggle
 function MotifRecorder:stop_recording()
   if not self.is_recording then return end
+
+  -- Cancel duration limit clock if running
+  if self.duration_limit_clock_id then
+    clock.cancel(self.duration_limit_clock_id)
+    self.duration_limit_clock_id = nil
+  end
 
   -- Inject note_off events for any notes still held
   local now = clock.get_beats()
@@ -317,7 +348,15 @@ end
 -- Private method for tape recording
 function MotifRecorder:_stop_tape_recording()
   table.sort(self.events, function(a, b) return a.time < b.time end)
-  local duration = clock.get_beats() - self.start_time
+  local duration
+  if self.duration_limit then
+    -- Use configured duration limit
+    duration = self.duration_limit
+  else
+    -- No duration limit: quantize recorded length to nearest whole beat
+    local raw_duration = clock.get_beats() - self.start_time
+    duration = math.max(1, math.floor(raw_duration + 0.5))
+  end
   return {events = self.events, duration = duration}
 end
 

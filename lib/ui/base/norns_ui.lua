@@ -239,15 +239,24 @@ function NornsUI:draw_params(start_y)
   -- Filter active_params table to only show params that pass the conditional check
   self:filter_active_params()
 
-  -- Count separators to calculate total spacing padding
-  local total_separators = 0
-  for _, p in ipairs(self.active_params) do
-    if p.separator then total_separators = total_separators + 1 end
+  -- Count separators in visible window (not all separators) for padding calculation
+  -- Use a conservative estimate: at most 3 separators visible at once
+  local function count_visible_separators(start_idx, count)
+    local sep_count = 0
+    for i = start_idx, math.min(start_idx + count - 1, #self.active_params) do
+      if self.active_params[i] and self.active_params[i].separator then
+        sep_count = sep_count + 1
+      end
+    end
+    return sep_count
   end
-  local extra_padding = (total_separators > 1) and ((total_separators - 1) * SEPARATOR_PADDING) or 0
+
+  -- Calculate visible items accounting for separator padding in visible window only
+  local visible_separators = count_visible_separators(self.state.scroll_offset + 1, max_visible_items)
+  local extra_padding = (visible_separators > 1) and ((visible_separators - 1) * SEPARATOR_PADDING) or 0
   local effective_visible_items = math.floor((visible_height - extra_padding) / ITEM_HEIGHT)
 
-  -- Ensure scroll offset stays in valid range (use effective count to account for separator padding)
+  -- Ensure scroll offset stays in valid range
   local max_scroll = math.max(0, #self.active_params - effective_visible_items)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
 
@@ -307,7 +316,7 @@ function NornsUI:draw_params(start_y)
       -- Get param metadata using Norns paramset api
       local param_base = params:lookup_param(param.id)
       local param_name = param.custom_name or param.name or param_base.name
-      local param_value = param.custom_value or params:string(param.id)
+      local param_value = param.custom_value or self:get_param_value(param)
 
       -- Display toggle/trigger params as symbols (unless custom_value provided)
       -- Toggles (encoder): circles ○/●
@@ -423,26 +432,30 @@ function NornsUI:handle_enc_default(n, d)
     end
     
     self.state.selected_index = new_index
-    
+
     -- Adjust scroll offset to keep selection visible
     local FOOTER_Y = 52
     local ITEM_HEIGHT = 10
     local SEPARATOR_PADDING = 4
     local visible_height = FOOTER_Y
 
-    -- Count separators to calculate total spacing padding
-    local total_separators = 0
-    for _, p in ipairs(self.active_params) do
-      if p.separator then total_separators = total_separators + 1 end
+    -- Count separators in visible window only (not all separators)
+    local visible_separators = 0
+    local check_start = self.state.scroll_offset + 1
+    local check_end = math.min(check_start + 5, #self.active_params)  -- ~5 items visible
+    for i = check_start, check_end do
+      if self.active_params[i] and self.active_params[i].separator then
+        visible_separators = visible_separators + 1
+      end
     end
-    local extra_padding = (total_separators > 1) and ((total_separators - 1) * SEPARATOR_PADDING) or 0
+    local extra_padding = (visible_separators > 1) and ((visible_separators - 1) * SEPARATOR_PADDING) or 0
     local max_visible_items = math.floor((visible_height - extra_padding) / ITEM_HEIGHT)
-    
+
     -- Scroll up if selection is above visible area
     if new_index <= self.state.scroll_offset then
       self.state.scroll_offset = new_index - 1
     end
-    
+
     -- Scroll down if selection is below visible area
     if new_index > self.state.scroll_offset + max_visible_items then
       self.state.scroll_offset = new_index - max_visible_items

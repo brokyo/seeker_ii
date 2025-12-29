@@ -29,7 +29,8 @@ local function create_screen_ui()
       { separator = true, title = "Rhythm" },
       { id = "lane_" .. lane_idx .. "_speed" },
       { id = "lane_" .. lane_idx .. "_quantize" },
-      { id = "lane_" .. lane_idx .. "_swing", arc_multi_float = {10, 5, 1} }
+      { id = "lane_" .. lane_idx .. "_swing", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_idx .. "_offset", arc_multi_float = {1, 0.25, 0.125} }
     }
   end
 

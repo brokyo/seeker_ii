@@ -12,24 +12,25 @@ local Descriptions = include("lib/ui/component_descriptions")
 local TapeCreate = {}
 
 local function create_params()
-    params:add_group("tape_create_group", "TAPE CREATE", 2)
+    params:add_group("tape_create_group", "TAPE CREATE", 9)
 
-    -- Duration parameter for tape mode
-    params:add_control("tape_create_duration", "Duration",
-        controlspec.new(0.25, 128, 'lin', 0.25, 4, "beats", 0.25 / 128))
-    params:set_action("tape_create_duration", function(value)
-        local focused_lane = _seeker.ui_state.get_focused_lane()
-        if _seeker.lanes[focused_lane] and _seeker.lanes[focused_lane].motif then
-            if value == 0 then
-                _seeker.lanes[focused_lane].motif.custom_duration = nil
-            else
-                _seeker.lanes[focused_lane].motif.custom_duration = value
+    -- Per-lane duration parameter for tape mode (0 = free record)
+    for i = 1, 8 do
+        params:add_control("lane_" .. i .. "_tape_duration", "Lane " .. i .. " Duration",
+            controlspec.new(0, 128, 'lin', 0.125, 0, "beats", 0.125 / 128))
+        params:set_action("lane_" .. i .. "_tape_duration", function(value)
+            if _seeker.lanes[i] and _seeker.lanes[i].motif then
+                if value == 0 then
+                    _seeker.lanes[i].motif.custom_duration = nil
+                else
+                    _seeker.lanes[i].motif.custom_duration = value
+                end
+                if _seeker.screen_ui then
+                    _seeker.screen_ui.set_needs_redraw()
+                end
             end
-            if _seeker.screen_ui then
-                _seeker.screen_ui.set_needs_redraw()
-            end
-        end
-    end)
+        end)
+    end
 
     -- Switches between single keyboard and dual keyboard display
     params:add_option("tape_keyboard_layout", "Keyboard Layout", {"Single", "Dual"}, 1)
@@ -55,31 +56,23 @@ local function create_screen_ui()
     })
 
     norns_ui.rebuild_params = function(self)
-        local focused_lane = _seeker.ui_state.get_focused_lane()
-        local lane = _seeker.lanes[focused_lane]
-
-        local param_table = {
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        self.params = {
             { separator = true, title = "Create Motif" },
+            { id = "lane_" .. lane_idx .. "_tape_duration", name = "Duration", arc_multi_float = {1, 0.25, 0.125} },
             { id = "tape_keyboard_layout" }
         }
-
-        -- Duration param only when there's an active motif
-        if lane and lane.motif and #lane.motif.events > 0 then
-            table.insert(param_table, { id = "tape_create_duration" })
-        end
-
-        self.params = param_table
     end
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
         self:rebuild_params()
         -- Sync duration param to current lane's motif
-        local focused_lane = _seeker.ui_state.get_focused_lane()
-        local lane = _seeker.lanes[focused_lane]
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        local lane = _seeker.lanes[lane_idx]
         if lane and lane.motif and #lane.motif.events > 0 then
             local duration = lane.motif.custom_duration or lane.motif.genesis.duration
-            params:set("tape_create_duration", duration, true)
+            params:set("lane_" .. lane_idx .. "_tape_duration", duration, true)
         end
         original_enter(self)
     end
@@ -87,14 +80,16 @@ local function create_screen_ui()
     -- Override get_param_value for duration display
     local original_get_param_value = norns_ui.get_param_value
     norns_ui.get_param_value = function(self, param)
-        if param.id == "tape_create_duration" then
-            local focused_lane = _seeker.ui_state.get_focused_lane()
-            local lane = _seeker.lanes[focused_lane]
-            if lane and lane.motif then
-                local duration = lane.motif.custom_duration or lane.motif.genesis.duration
-                return string.format("%.2f", duration)
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        if param.id == "lane_" .. lane_idx .. "_tape_duration" then
+            local value = params:get("lane_" .. lane_idx .. "_tape_duration")
+            if value == 0 then
+                return "Free"
             end
-            return "4.00"
+            -- Remove trailing zeros for cleaner display (4.000 → 4, 2.500 → 2.5)
+            local formatted = string.format("%.3f", value)
+            formatted = formatted:gsub("%.?0+$", "")
+            return formatted .. " beats"
         end
         return original_get_param_value(self, param)
     end
@@ -102,9 +97,9 @@ local function create_screen_ui()
     -- Override modify_param for duration adjustment
     local original_modify_param = norns_ui.modify_param
     norns_ui.modify_param = function(self, param, delta)
-        if param.id == "tape_create_duration" then
-            local focused_lane = _seeker.ui_state.get_focused_lane()
-            local lane = _seeker.lanes[focused_lane]
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        if param.id == "lane_" .. lane_idx .. "_tape_duration" then
+            local lane = _seeker.lanes[lane_idx]
             if lane and lane.motif then
                 local current = lane.motif.custom_duration or lane.motif.genesis.duration
                 if not lane.motif.custom_duration then
@@ -112,7 +107,7 @@ local function create_screen_ui()
                 end
                 local new_value = util.clamp(current + (delta * 0.25), 0.25, 128)
                 lane.motif.custom_duration = new_value
-                params:set("tape_create_duration", new_value)
+                params:set("lane_" .. lane_idx .. "_tape_duration", new_value)
                 if _seeker.screen_ui then
                     _seeker.screen_ui.set_needs_redraw()
                 end
@@ -125,15 +120,15 @@ local function create_screen_ui()
     -- K3 reset functionality for duration
     local original_handle_key = norns_ui.handle_key
     norns_ui.handle_key = function(self, n, z)
+        local lane_idx = _seeker.ui_state.get_focused_lane()
         if n == 3 and z == 1 and self.state.selected_index > 0 then
             local param = self.params[self.state.selected_index]
-            if param.id == "tape_create_duration" then
-                local focused_lane = _seeker.ui_state.get_focused_lane()
-                local lane = _seeker.lanes[focused_lane]
+            if param.id == "lane_" .. lane_idx .. "_tape_duration" then
+                local lane = _seeker.lanes[lane_idx]
                 if lane and lane.motif then
                     lane.motif.custom_duration = nil
                     local genesis_duration = lane.motif.genesis.duration
-                    params:set("tape_create_duration", genesis_duration)
+                    params:set("lane_" .. lane_idx .. "_tape_duration", genesis_duration)
                     if _seeker.screen_ui then
                         _seeker.screen_ui.set_needs_redraw()
                     end
@@ -438,7 +433,7 @@ local function create_grid_ui()
         current_lane:set_motif(recorded_motif)
 
         -- Sync duration param to recorded motif's actual duration
-        params:set("tape_create_duration", recorded_motif.duration, true)
+        params:set("lane_" .. focused_lane_idx .. "_tape_duration", recorded_motif.duration, true)
 
         if not was_overdubbing then
             current_lane:play()
@@ -474,29 +469,42 @@ local function create_grid_ui()
     end
 
     local function draw_count_display(self, layers)
-        local current_quarter = math.floor(clock.get_beats()) % 4
+        local left_group = {6, 7, 8}
+        local right_group = {9, 10, 11}
 
-        local count_display = {
-            x_start = 7,
-            x_end = 10,
-            y = 1
-        }
-
-        for x_count = count_display.x_start, count_display.x_end do
-            layers.ui[x_count][count_display.y] = GridConstants.BRIGHTNESS.LOW
-        end
-
-        local highlight_x = count_display.x_start + current_quarter
+        -- Crossing tick: top-left/bottom-right, then top-right/bottom-left
+        local beat = math.floor(clock.get_beats())
         local beat_phase = clock.get_beats() % 1
+        local is_a = (beat % 2 == 0)
+
         local brightness
-        if beat_phase < 0.25 then
-            local decay = math.exp(-beat_phase * 12)
+        if beat_phase < 0.2 then
+            local decay = math.exp(-beat_phase * 20)
             local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
             brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
         else
             brightness = GridConstants.BRIGHTNESS.LOW
         end
-        layers.ui[highlight_x][count_display.y] = brightness
+
+        -- Top row (y=1)
+        local top_active = is_a and left_group or right_group
+        local top_inactive = is_a and right_group or left_group
+        for _, x in ipairs(top_active) do
+            layers.ui[x][1] = brightness
+        end
+        for _, x in ipairs(top_inactive) do
+            layers.ui[x][1] = GridConstants.BRIGHTNESS.LOW
+        end
+
+        -- Bottom row (y=8) - opposite of top
+        local bottom_active = is_a and right_group or left_group
+        local bottom_inactive = is_a and left_group or right_group
+        for _, x in ipairs(bottom_active) do
+            layers.ui[x][8] = brightness
+        end
+        for _, x in ipairs(bottom_inactive) do
+            layers.ui[x][8] = GridConstants.BRIGHTNESS.LOW
+        end
     end
 
     grid_ui.draw = function(self, layers)
@@ -540,6 +548,13 @@ local function create_grid_ui()
             _seeker.ui_state.set_long_press_state(false, nil)
             _seeker.screen_ui.set_needs_redraw()
             self:key_release(key_id)
+        end
+    end
+
+    -- Auto-stop trigger for pre-cut tape (called from recorder clock)
+    grid_ui.trigger_auto_stop = function(self)
+        if _seeker.motif_recorder.is_recording then
+            handle_recording_stop(self)
         end
     end
 

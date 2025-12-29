@@ -311,11 +311,7 @@ transforms.available = {
 
       -- Convert time option to beat fraction
       local time_map = {1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8}
-      local echo_beats = time_map[time_option] or 1/8
-
-      -- Convert beats to seconds using current tempo
-      local tempo = params:get("clock_tempo")
-      local echo_time = (60 / tempo) * echo_beats
+      local echo_time = time_map[time_option] or 1/8
 
       -- Direction: 1=None, 2=Up, 3=Down
       local scale_degree_step = 0
@@ -464,11 +460,7 @@ transforms.available = {
 
       -- Convert delay option to beat fraction
       local delay_map = {1/16, 1/8, 1/4, 1/2, 1, 2}
-      local delay_beats = delay_map[delay_option] or 1/4
-
-      -- Convert beats to seconds
-      local tempo = params:get("clock_tempo")
-      local delay_time = (60 / tempo) * delay_beats
+      local delay_time = delay_map[delay_option] or 1/4
 
       local result = {}
 

@@ -293,7 +293,7 @@ local function handle_record_button(x, y, z)
       current_lane:set_motif(recorded_motif)
 
       -- Sync duration param to recorded motif's actual duration
-      params:set("tape_create_duration", recorded_motif.duration, true)
+      params:set("lane_" .. focused_lane_idx .. "_tape_duration", recorded_motif.duration, true)
 
       if not was_overdubbing then
         current_lane:play()
@@ -426,27 +426,29 @@ local function create_grid_ui()
     GridLayers.set(layers.ui, layout.right_octave_up.x, layout.right_octave_up.y, GridConstants.BRIGHTNESS.LOW)
     GridLayers.set(layers.ui, layout.right_octave_down.x, layout.right_octave_down.y, GridConstants.BRIGHTNESS.LOW)
 
-    -- Draw beat counter when recording
+    -- Draw beat counter when recording: left/right tick on row 1
     if _seeker.motif_recorder.is_recording then
-      local current_quarter = math.floor(clock.get_beats()) % 4
-      local count_x_start = 7
-      local count_y = 1
+      local left_pos = {8, 1}
+      local right_pos = {9, 1}
 
-      for i = 0, 3 do
-        GridLayers.set(layers.ui, count_x_start + i, count_y, GridConstants.BRIGHTNESS.LOW)
-      end
-
-      local highlight_x = count_x_start + current_quarter
+      local beat = math.floor(clock.get_beats())
       local beat_phase = clock.get_beats() % 1
+      local is_left = (beat % 2 == 0)
+
       local brightness
-      if beat_phase < 0.25 then
-        local decay = math.exp(-beat_phase * 12)
+      if beat_phase < 0.2 then
+        local decay = math.exp(-beat_phase * 20)
         local range = GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW
         brightness = math.floor(GridConstants.BRIGHTNESS.LOW + range * decay)
       else
         brightness = GridConstants.BRIGHTNESS.LOW
       end
-      GridLayers.set(layers.ui, highlight_x, count_y, brightness)
+
+      local active_pos = is_left and left_pos or right_pos
+      local inactive_pos = is_left and right_pos or left_pos
+
+      GridLayers.set(layers.ui, active_pos[1], active_pos[2], brightness)
+      GridLayers.set(layers.ui, inactive_pos[1], inactive_pos[2], GridConstants.BRIGHTNESS.LOW)
     end
 
     -- Draw record button
