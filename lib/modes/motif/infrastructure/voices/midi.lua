@@ -3,6 +3,8 @@
 
 local midi_voice = {}
 
+midi_voice.name = "MIDI"
+
 function midi_voice.create_params(i)
     params:add_binary("lane_" .. i .. "_midi_active", "MIDI Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_midi_active", function(value)
@@ -39,6 +41,20 @@ function midi_voice.create_params(i)
     params:set_action("lane_" .. i .. "_midi_channel", function(value)
         _seeker.lanes[i].midi_channel = value
     end)
+end
+
+function midi_voice.get_ui_params(lane_idx)
+    local ui_params = {}
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_midi_active" })
+
+    if params:get("lane_" .. lane_idx .. "_midi_active") == 1 then
+        table.insert(ui_params, { separator = true, title = "Voice Settings" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_midi_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_midi_device" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_midi_channel" })
+    end
+
+    return ui_params
 end
 
 return midi_voice

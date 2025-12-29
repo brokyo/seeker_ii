@@ -3,6 +3,8 @@
 
 local just_friends = {}
 
+just_friends.name = "Just Friends"
+
 function just_friends.create_params(i)
     params:add_binary("lane_" .. i .. "_just_friends_active", "Just Friends Active", "toggle", 0)
     params:set_action("lane_" .. i .. "_just_friends_active", function(value)
@@ -27,6 +29,19 @@ function just_friends.create_params(i)
     params:set_action("lane_" .. i .. "_just_friends_voice_select", function(value)
         _seeker.lanes[i].just_friends_voice_select = value
     end)
+end
+
+function just_friends.get_ui_params(lane_idx)
+    local ui_params = {}
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_just_friends_active" })
+
+    if params:get("lane_" .. lane_idx .. "_just_friends_active") == 1 then
+        table.insert(ui_params, { separator = true, title = "Voice Settings" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_just_friends_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_just_friends_voice_select" })
+    end
+
+    return ui_params
 end
 
 return just_friends

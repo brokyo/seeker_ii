@@ -7,6 +7,8 @@ local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 
 local txo_osc = {}
 
+txo_osc.name = "TXO Osc"
+
 -- Waveform presets: sine=0, tri=1000, saw=2000, pulse=3000, noise=4000
 -- "custom" shown when morph is at a non-preset value (user controlling manually)
 local WAVEFORMS = {"sine", "triangle", "saw", "pulse", "noise", "custom"}
@@ -374,6 +376,55 @@ function txo_osc.create_params(i)
             crow.ii.txo.cv_set(osc_num, value * 5)
         end
     end)
+end
+
+function txo_osc.get_ui_params(lane_idx)
+    local ui_params = {}
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_active" })
+
+    if params:get("lane_" .. lane_idx .. "_txo_osc_active") == 1 then
+        -- Show effective range (excluding CV-claimed outputs)
+        local available = txo_osc.get_available_outputs(lane_idx)
+        local range_title = "Range"
+        if #available > 0 then
+            range_title = "Range: " .. available[1] .. "-" .. available[#available]
+        elseif #available == 0 then
+            range_title = "Range: none"
+        end
+        table.insert(ui_params, { separator = true, title = range_title })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_start" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_count" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_mode" })
+
+        table.insert(ui_params, { separator = true, title = "Oscillator" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_wave" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_morph", arc_multi_float = {100, 50, 10} })
+        -- Show pulse width only for pulse waveform
+        local wave = params:get("lane_" .. lane_idx .. "_txo_osc_wave")
+        if wave == 4 then
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_width", arc_multi_float = {10, 5, 1} })
+        end
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_slew", arc_multi_float = {10, 5, 1} })
+
+        -- Only show envelope params in triggered mode
+        if params:get("lane_" .. lane_idx .. "_txo_osc_mode") == 2 then
+            table.insert(ui_params, { separator = true, title = "Envelope" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_attack", arc_multi_float = {0.1, 0.05, 0.01} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_decay", arc_multi_float = {0.1, 0.05, 0.01} })
+        end
+
+        -- Per-oscillator config when using multiple oscillators
+        local osc_count = params:get("lane_" .. lane_idx .. "_txo_osc_count")
+        if osc_count > 1 then
+            table.insert(ui_params, { separator = true, title = "Per-Osc" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_selected" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_ind_morph", arc_multi_float = {100, 50, 10} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_txo_osc_ind_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        end
+    end
+
+    return ui_params
 end
 
 return txo_osc

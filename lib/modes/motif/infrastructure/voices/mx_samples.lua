@@ -3,6 +3,8 @@
 
 local mx_samples = {}
 
+mx_samples.name = "mx. samples"
+
 function mx_samples.get_instrument_list()
     local instruments = {}
     for k, v in pairs(_seeker.skeys.instrument) do
@@ -90,6 +92,41 @@ function mx_samples.create_params(i)
     params:set_action("lane_" .. i .. "_reverb_send", function(value)
         _seeker.lanes[i].reverb_send = value
     end)
+end
+
+function mx_samples.get_ui_params(lane_idx)
+    local ui_params = {}
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_mx_samples_active" })
+
+    if params:get("lane_" .. lane_idx .. "_mx_samples_active") == 1 then
+        table.insert(ui_params, { separator = true, title = "Voice Settings" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_mx_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_instrument" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
+
+        table.insert(ui_params, { separator = true, title = "Envelope" })
+        table.insert(ui_params, {
+            id = "lane_" .. lane_idx .. "_adsr_visual_edit",
+            is_action = true,
+            custom_name = "Visual Edit",
+            custom_value = "..."
+        })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.5, 0.1} })
+
+        table.insert(ui_params, { separator = true, title = "Filter" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_lpf", arc_multi_float = {1000, 100, 10} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_hpf", arc_multi_float = {1000, 100, 10} })
+
+        table.insert(ui_params, { separator = true, title = "Effects" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_delay_send", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_reverb_send", arc_multi_float = {0.1, 0.05, 0.01} })
+    end
+
+    return ui_params
 end
 
 return mx_samples

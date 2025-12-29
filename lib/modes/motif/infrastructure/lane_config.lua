@@ -12,17 +12,24 @@ local function get_modal()
   return _seeker and _seeker.modal
 end
 
--- Voice parameter modules
-local voice_mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
-local voice_midi = include("lib/modes/motif/infrastructure/voices/midi")
-local voice_eurorack_cv = include("lib/modes/motif/infrastructure/voices/eurorack_cv")
-local voice_just_friends = include("lib/modes/motif/infrastructure/voices/just_friends")
-local voice_wsyn = include("lib/modes/motif/infrastructure/voices/wsyn")
-local voice_osc = include("lib/modes/motif/infrastructure/voices/osc")
-local voice_disting = include("lib/modes/motif/infrastructure/voices/disting")
-local voice_txo_osc = include("lib/modes/motif/infrastructure/voices/txo_osc")
-local voice_disting_nt = include("lib/modes/motif/infrastructure/voices/disting_nt")
-local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
+-- Voice parameter modules (order: mx.samples first, then alphabetical)
+local VOICES = {
+    include("lib/modes/motif/infrastructure/voices/mx_samples"),      -- 1. mx. samples
+    include("lib/modes/motif/infrastructure/voices/disting"),         -- 2. Disting Ex
+    include("lib/modes/motif/infrastructure/voices/disting_nt"),      -- 3. Disting NT
+    include("lib/modes/motif/infrastructure/voices/eurorack_cv"),     -- 4. Eurorack
+    include("lib/modes/motif/infrastructure/voices/just_friends"),    -- 5. Just Friends
+    include("lib/modes/motif/infrastructure/voices/midi"),            -- 6. MIDI
+    include("lib/modes/motif/infrastructure/voices/osc"),             -- 7. OSC
+    include("lib/modes/motif/infrastructure/voices/txo_osc"),         -- 8. TXO Osc
+    include("lib/modes/motif/infrastructure/voices/wsyn"),            -- 9. w/syn
+}
+
+-- Build voice names from registry
+local VOICE_NAMES = {}
+for _, voice in ipairs(VOICES) do
+    table.insert(VOICE_NAMES, voice.name)
+end
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
@@ -46,24 +53,17 @@ local function create_params()
     for i = 1, 8 do
         params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 250)
 
-        -- Voice selector
-        params:add_option("lane_" .. i .. "_visible_voice", "Voice",
-            {"mx. samples", "MIDI", "Eurorack", "Just Friends", "w/syn", "OSC", "Disting", "TXO Osc", "Disting NT"})
+        -- Voice selector (uses registry-built names)
+        params:add_option("lane_" .. i .. "_visible_voice", "Voice", VOICE_NAMES)
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
         end)
 
-        -- Create all voice-specific parameters
-        voice_mx_samples.create_params(i)
-        voice_midi.create_params(i)
-        voice_eurorack_cv.create_params(i)
-        voice_just_friends.create_params(i)
-        voice_wsyn.create_params(i)
-        voice_osc.create_params(i)
-        voice_disting.create_params(i)
-        voice_txo_osc.create_params(i)
-        voice_disting_nt.create_params(i)
+        -- Create all voice-specific parameters via registry
+        for _, voice in ipairs(VOICES) do
+            voice.create_params(i)
+        end
 
         -- Clear generation selector (0=all, 1+=specific generation)
         params:add_number("lane_" .. i .. "_clear_generation", "Clear Generation", 0, 10, 0,
@@ -256,7 +256,8 @@ local function create_params()
         end)
     end
 
-    voice_txo_osc.init()
+    -- Initialize TXO oscillators (VOICES[8] = txo_osc)
+    if VOICES[8].init then VOICES[8].init() end
 end
 
 local function create_screen_ui()
@@ -350,254 +351,14 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Voice Routing" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
 
-            -- Add params based on visible voice selection
-            if visible_voice == 1 then -- MX Samples
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_samples_active" })
-
-            -- Only show additional MX Samples params if active
-            if params:get("lane_" .. lane_idx .. "_mx_samples_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_mx_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_instrument" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_pan", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { separator = true, title = "Envelope" })
-                table.insert(param_table, {
-                    id = "lane_" .. lane_idx .. "_adsr_visual_edit",
-                    is_action = true,
-                    custom_name = "Visual Edit",
-                    custom_value = "..."
-                })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_sustain", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_release", arc_multi_float = {1.0, 0.5, 0.1} })
-                table.insert(param_table, { separator = true, title = "Filter" })
-                table.insert(param_table, {
-                    id = "lane_" .. lane_idx .. "_lpf",
-                    arc_multi_float = {1000, 100, 10}
-                })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_resonance", arc_multi_float = {0.5, 0.1, 0.05} })
-                table.insert(param_table, {
-                    id = "lane_" .. lane_idx .. "_hpf",
-                    arc_multi_float = {1000, 100, 10}
-                })
-                table.insert(param_table, { separator = true, title = "Effects" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_delay_send", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_reverb_send", arc_multi_float = {0.1, 0.05, 0.01} })
-            end
-        elseif visible_voice == 2 then -- MIDI
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_active" })
-
-            -- Only show additional MIDI params if active
-            if params:get("lane_" .. lane_idx .. "_midi_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_device" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_midi_channel" })
-            end
-        elseif visible_voice == 3 then -- CV/Gate via i2c
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_active" })
-
-            -- Only show additional Eurorack CV/Gate params if active
-            if params:get("lane_" .. lane_idx .. "_eurorack_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_eurorack_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_gate_out" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_cv_out" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_loop_start_trigger" })
-            end
-        elseif visible_voice == 4 then -- Just Friends
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_active" })
-
-            -- Only show additional Just Friends params if active
-            if params:get("lane_" .. lane_idx .. "_just_friends_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_just_friends_voice_select" })
-            end
-        elseif visible_voice == 5 then -- w/syn
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_active" })
-
-            -- Only show additional w/syn params if active
-            if params:get("lane_" .. lane_idx .. "_wsyn_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_voice_select" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
-
-                table.insert(param_table, { separator = true, title = "Oscillator" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_curve", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_ramp", arc_multi_float = {1.0, 0.1, 0.01} })
-
-                table.insert(param_table, { separator = true, title = "FM" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_index", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_env", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_num", arc_multi_float = {0.1, 0.01, 0.001} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_denom", arc_multi_float = {0.1, 0.01, 0.001} })
-
-                table.insert(param_table, { separator = true, title = "LPG" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_time", arc_multi_float = {1.0, 0.1, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_lpg_symmetry", arc_multi_float = {1.0, 0.1, 0.01} })
-
-                table.insert(param_table, { separator = true, title = "CV Patching" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_this" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_wsyn_patch_that" })
-            end
-        elseif visible_voice == 6 then -- OSC
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_osc_active" })
-        elseif visible_voice == 7 then -- Disting
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_active" })
-
-            -- Only show additional Disting params if active
-            if params:get("lane_" .. lane_idx .. "_disting_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_algorithm" })
-
-                -- Multisample algorithm
-                if params:get("lane_" .. lane_idx .. "_disting_algorithm") == 1 then
-                    table.insert(param_table, { separator = true, title = "Sample" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sample_folder" })
-
-                    table.insert(param_table, { separator = true, title = "Envelope" })
-                    table.insert(param_table, {
-                        id = "lane_" .. lane_idx .. "_disting_multisample_visual_edit",
-                        is_action = true,
-                        custom_name = "Visual Edit",
-                        custom_value = "..."
-                    })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_attack", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_decay", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_sustain", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_release", arc_multi_float = {10, 5, 1} })
-
-                    table.insert(param_table, { separator = true, title = "Output" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_gain", arc_multi_float = {10, 5, 1} })
-
-                    table.insert(param_table, { separator = true, title = "Delay" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_mode" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_level", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_time", arc_multi_float = {100, 50, 10} })
-
-                    table.insert(param_table, { separator = true, title = "Tone" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_tone_bass", arc_multi_float = {50, 10, 5} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_multisample_tone_treble", arc_multi_float = {50, 10, 5} })
-                end
-                -- Rings algorithm
-                if params:get("lane_" .. lane_idx .. "_disting_algorithm") == 2 then
-                    table.insert(param_table, { separator = true, title = "Mode" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_mode" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_effect" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_polyphony" })
-
-                    table.insert(param_table, { separator = true, title = "Resonator" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_structure", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_brightness", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_damping", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_position", arc_multi_float = {10, 5, 1} })
-
-                    table.insert(param_table, { separator = true, title = "Output" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_output_gain", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_rings_dry_gain", arc_multi_float = {10, 5, 1} })
-                end
-
-                -- Plaits algorithm
-                if params:get("lane_" .. lane_idx .. "_disting_algorithm") == 3 then
-                    table.insert(param_table, { separator = true, title = "Voice" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_voice_select" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_output" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_model" })
-
-                    table.insert(param_table, { separator = true, title = "Oscillator" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_harmonics", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_timbre", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_morph", arc_multi_float = {10, 5, 1} })
-
-                    table.insert(param_table, { separator = true, title = "Modulation" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_fm", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_timbre_mod", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_morph_mod", arc_multi_float = {10, 5, 1} })
-
-                    table.insert(param_table, { separator = true, title = "Envelope" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_low_pass_gate", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_plaits_time", arc_multi_float = {10, 5, 1} })
-                end
-
-                -- DX7 algorithm
-                if params:get("lane_" .. lane_idx .. "_disting_algorithm") == 4 then
-                    table.insert(param_table, { separator = true, title = "Voice" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_bank" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice" })
-
-                    table.insert(param_table, { separator = true, title = "Output" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_gain", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_pan", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_brightness", arc_multi_float = {10, 5, 1} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_morph", arc_multi_float = {10, 5, 1} })
-                end
-            end
-        elseif visible_voice == 8 then -- TXO Osc
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_active" })
-
-            -- Only show additional TXO Osc params if active
-            if params:get("lane_" .. lane_idx .. "_txo_osc_active") == 1 then
-                -- Show effective range (excluding CV-claimed outputs)
-                local available = voice_txo_osc.get_available_outputs(lane_idx)
-                local range_title = "Range"
-                if #available > 0 then
-                    range_title = "Range: " .. available[1] .. "-" .. available[#available]
-                elseif #available == 0 then
-                    range_title = "Range: none"
-                end
-                table.insert(param_table, { separator = true, title = range_title })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_start" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_count" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_mode" })
-
-                table.insert(param_table, { separator = true, title = "Oscillator" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_wave" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_morph", arc_multi_float = {100, 50, 10} })
-                -- Show pulse width only for pulse waveform
-                local wave = params:get("lane_" .. lane_idx .. "_txo_osc_wave")
-                if wave == 4 then
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_width", arc_multi_float = {10, 5, 1} })
-                end
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_slew", arc_multi_float = {10, 5, 1} })
-
-                -- Only show envelope params in triggered mode
-                if params:get("lane_" .. lane_idx .. "_txo_osc_mode") == 2 then
-                    table.insert(param_table, { separator = true, title = "Envelope" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_attack", arc_multi_float = {0.1, 0.05, 0.01} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_decay", arc_multi_float = {0.1, 0.05, 0.01} })
-                end
-
-                -- Per-oscillator config when using multiple oscillators
-                local osc_count = params:get("lane_" .. lane_idx .. "_txo_osc_count")
-                if osc_count > 1 then
-                    table.insert(param_table, { separator = true, title = "Per-Osc" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_selected" })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_morph", arc_multi_float = {100, 50, 10} })
-                    table.insert(param_table, { id = "lane_" .. lane_idx .. "_txo_osc_ind_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                end
-            end
-        elseif visible_voice == 9 then -- Disting NT
-            -- Algorithm/chain selector first (future: triggers NT setup)
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_dnt_chain" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_active" })
-
-            -- Only show additional Disting NT params if active
-            if params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Voice Settings" })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-
-                -- Get algorithm-specific params from helper (per-lane)
-                local algorithm_params = voice_disting_nt.get_params_for_ui(lane_idx)
-                for _, entry in ipairs(algorithm_params) do
+            -- Get UI params from the selected voice module
+            local voice_module = VOICES[visible_voice]
+            if voice_module and voice_module.get_ui_params then
+                local voice_params = voice_module.get_ui_params(lane_idx)
+                for _, entry in ipairs(voice_params) do
                     table.insert(param_table, entry)
                 end
             end
-        end
         end -- Close else block for tape/composer voice params
 
         -- Update the UI with the new parameter table

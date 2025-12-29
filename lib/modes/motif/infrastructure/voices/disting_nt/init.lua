@@ -15,6 +15,8 @@ local ui = include("lib/modes/motif/infrastructure/voices/disting_nt/ui")
 
 local disting_nt = {}
 
+disting_nt.name = "Disting NT"
+
 ------------------------------------------------------------
 -- i2c Channel Allocation
 ------------------------------------------------------------
@@ -314,8 +316,31 @@ end
 -- UI Helper (called by lane_config)
 ------------------------------------------------------------
 
+-- Returns algorithm-specific params (delegated to ui module)
 function disting_nt.get_params_for_ui(lane_idx)
   return ui.get_params_for_ui(lane_idx)
+end
+
+-- Returns full voice UI structure for lane_config registry
+function disting_nt.get_ui_params(lane_idx)
+  local ui_params = {}
+
+  -- Chain/algorithm selector first
+  table.insert(ui_params, { id = "lane_" .. lane_idx .. "_dnt_chain" })
+  table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_nt_active" })
+
+  if params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1 then
+    table.insert(ui_params, { separator = true, title = "Voice Settings" })
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+
+    -- Append algorithm-specific params
+    local algorithm_params = ui.get_params_for_ui(lane_idx)
+    for _, entry in ipairs(algorithm_params) do
+      table.insert(ui_params, entry)
+    end
+  end
+
+  return ui_params
 end
 
 ------------------------------------------------------------

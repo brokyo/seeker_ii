@@ -3,6 +3,8 @@
 
 local wsyn = {}
 
+wsyn.name = "w/syn"
+
 -- Send all current param values to w/syn hardware
 function wsyn.init(i)
     crow.ii.wsyn.ar_mode(params:get("lane_" .. i .. "_wsyn_ar_mode"))
@@ -112,6 +114,38 @@ function wsyn.create_params(i)
     params:set_action("lane_" .. i .. "_wsyn_patch_that", function(value)
         crow.ii.wsyn.patch(2, value)
     end)
+end
+
+function wsyn.get_ui_params(lane_idx)
+    local ui_params = {}
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_active" })
+
+    if params:get("lane_" .. lane_idx .. "_wsyn_active") == 1 then
+        table.insert(ui_params, { separator = true, title = "Voice" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_voice_select" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_ar_mode" })
+
+        table.insert(ui_params, { separator = true, title = "Oscillator" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_curve", arc_multi_float = {1.0, 0.1, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_ramp", arc_multi_float = {1.0, 0.1, 0.01} })
+
+        table.insert(ui_params, { separator = true, title = "FM" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_fm_index", arc_multi_float = {1.0, 0.1, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_fm_env", arc_multi_float = {1.0, 0.1, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_num", arc_multi_float = {0.1, 0.01, 0.001} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_fm_ratio_denom", arc_multi_float = {0.1, 0.01, 0.001} })
+
+        table.insert(ui_params, { separator = true, title = "LPG" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_lpg_time", arc_multi_float = {1.0, 0.1, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_lpg_symmetry", arc_multi_float = {1.0, 0.1, 0.01} })
+
+        table.insert(ui_params, { separator = true, title = "CV Patching" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_patch_this" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_wsyn_patch_that" })
+    end
+
+    return ui_params
 end
 
 return wsyn

@@ -3,6 +3,8 @@
 
 local disting = {}
 
+disting.name = "Disting Ex"
+
 -- Helper functions for parameter offsets
 local function macro_osc_2_offset(lane_idx)
     local selected_voice = params:get("lane_" .. lane_idx .. "_disting_plaits_voice_select")
@@ -287,6 +289,101 @@ function disting.create_params(i)
     create_rings_params(i)
     create_plaits_params(i)
     create_dx7_params(i)
+end
+
+function disting.get_ui_params(lane_idx)
+    local ui_params = {}
+    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_active" })
+
+    if params:get("lane_" .. lane_idx .. "_disting_active") == 1 then
+        table.insert(ui_params, { separator = true, title = "Voice Settings" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_voice_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_algorithm" })
+
+        local algorithm = params:get("lane_" .. lane_idx .. "_disting_algorithm")
+
+        -- Multisample algorithm
+        if algorithm == 1 then
+            table.insert(ui_params, { separator = true, title = "Sample" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_sample_folder" })
+
+            table.insert(ui_params, { separator = true, title = "Envelope" })
+            table.insert(ui_params, {
+                id = "lane_" .. lane_idx .. "_disting_multisample_visual_edit",
+                is_action = true,
+                custom_name = "Visual Edit",
+                custom_value = "..."
+            })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_attack", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_decay", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_sustain", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_release", arc_multi_float = {10, 5, 1} })
+
+            table.insert(ui_params, { separator = true, title = "Output" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_gain", arc_multi_float = {10, 5, 1} })
+
+            table.insert(ui_params, { separator = true, title = "Delay" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_mode" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_level", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_delay_time", arc_multi_float = {100, 50, 10} })
+
+            table.insert(ui_params, { separator = true, title = "Tone" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_tone_bass", arc_multi_float = {50, 10, 5} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_tone_treble", arc_multi_float = {50, 10, 5} })
+
+        -- Rings algorithm
+        elseif algorithm == 2 then
+            table.insert(ui_params, { separator = true, title = "Mode" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_mode" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_effect" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_polyphony" })
+
+            table.insert(ui_params, { separator = true, title = "Resonator" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_structure", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_brightness", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_damping", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_position", arc_multi_float = {10, 5, 1} })
+
+            table.insert(ui_params, { separator = true, title = "Output" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_output_gain", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_rings_dry_gain", arc_multi_float = {10, 5, 1} })
+
+        -- Plaits algorithm
+        elseif algorithm == 3 then
+            table.insert(ui_params, { separator = true, title = "Voice" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_voice_select" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_output" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_model" })
+
+            table.insert(ui_params, { separator = true, title = "Oscillator" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_harmonics", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_timbre", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_morph", arc_multi_float = {10, 5, 1} })
+
+            table.insert(ui_params, { separator = true, title = "Modulation" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_fm", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_timbre_mod", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_morph_mod", arc_multi_float = {10, 5, 1} })
+
+            table.insert(ui_params, { separator = true, title = "Envelope" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_low_pass_gate", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_plaits_time", arc_multi_float = {10, 5, 1} })
+
+        -- DX7 algorithm
+        elseif algorithm == 4 then
+            table.insert(ui_params, { separator = true, title = "Voice" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_bank" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice" })
+
+            table.insert(ui_params, { separator = true, title = "Output" })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_gain", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_pan", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_brightness", arc_multi_float = {10, 5, 1} })
+            table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_poly_fm_voice_morph", arc_multi_float = {10, 5, 1} })
+        end
+    end
+
+    return ui_params
 end
 
 return disting
