@@ -44,7 +44,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 132)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 250)
 
         -- Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Voice",
@@ -302,13 +302,6 @@ local function create_screen_ui()
             { id = "lane_" .. lane_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
             { id = "lane_" .. lane_idx .. "_motif_type" }
         }
-
-        -- Tape mode: keyboard layout settings (octave, grid offset)
-        if motif_type == MOTIF_TYPE_TAPE then
-            table.insert(param_table, { separator = true, title = "Layout" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_keyboard_octave" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_grid_offset" })
-        end
 
         -- Sampler parameters: audio source, recording, filter
         if motif_type == MOTIF_TYPE_SAMPLER then
@@ -589,13 +582,14 @@ local function create_screen_ui()
                 end
             end
         elseif visible_voice == 9 then -- Disting NT
+            -- Algorithm/chain selector first (future: triggers NT setup)
+            table.insert(param_table, { id = "lane_" .. lane_idx .. "_dnt_chain" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_active" })
 
             -- Only show additional Disting NT params if active
             if params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1 then
                 table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_dnt_algorithm" })
 
                 -- Get algorithm-specific params from helper (per-lane)
                 local algorithm_params = voice_disting_nt.get_params_for_ui(lane_idx)

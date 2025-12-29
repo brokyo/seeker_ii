@@ -41,6 +41,7 @@ function TapeType.draw(layers)
 
   -- Single keyboard mode shows all components
   _seeker.tape.velocity.grid:draw(layers)
+  _seeker.tape.tuning.grid:draw(layers)
   _seeker.tape.stage_nav.grid:draw(layers)
   _seeker.tape.playback.grid:draw(layers)
   _seeker.tape.clear.grid:draw(layers)
@@ -70,6 +71,11 @@ function TapeType.handle_key(x, y, z)
 
   if _seeker.tape.velocity.grid:contains(x, y) then
     _seeker.tape.velocity.grid:handle_key(x, y, z)
+    return true
+  end
+
+  if _seeker.tape.tuning.grid:contains(x, y) then
+    _seeker.tape.tuning.grid:handle_key(x, y, z)
     return true
   end
 

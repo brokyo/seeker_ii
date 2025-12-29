@@ -12,14 +12,12 @@ local TapeVelocity = {}
 
 -- Tape-specific velocity params
 local function create_params()
-  params:add_group("tape_velocity", "TAPE VELOCITY", 5)
+  params:add_group("tape_velocity", "TAPE VELOCITY", 3)
 
-  params:add_number("tape_velocity_1", "pp Velocity", 0, 127, 40)
-  params:add_number("tape_velocity_2", "mp Velocity", 0, 127, 70)
-  params:add_number("tape_velocity_3", "f Velocity", 0, 127, 100)
-  params:add_number("tape_velocity_4", "ff Velocity", 0, 127, 127)
+  params:add_number("tape_velocity_1", "Low Velocity", 0, 127, 50)
+  params:add_number("tape_velocity_2", "High Velocity", 0, 127, 110)
 
-  params:add_number("tape_velocity_selected", "Selected", 1, 4, 3)
+  params:add_number("tape_velocity_selected", "Selected", 1, 2, 2)
   params:set_action("tape_velocity_selected", function(value)
     if _seeker and _seeker.tape and _seeker.tape.velocity and _seeker.tape.velocity.screen then
       _seeker.tape.velocity.screen:rebuild_params()
@@ -38,9 +36,7 @@ local function create_screen_ui()
     params = {
       { separator = true, title = "Velocity Levels" },
       { id = "tape_velocity_1" },
-      { id = "tape_velocity_2" },
-      { id = "tape_velocity_3" },
-      { id = "tape_velocity_4" }
+      { id = "tape_velocity_2" }
     }
   })
 
@@ -51,9 +47,7 @@ local function create_screen_ui()
     self.params = {
       { separator = true, title = "Velocity Levels" },
       { id = "tape_velocity_1", arc_multi_float = {10, 5, 1} },
-      { id = "tape_velocity_2", arc_multi_float = {10, 5, 1} },
-      { id = "tape_velocity_3", arc_multi_float = {10, 5, 1} },
-      { id = "tape_velocity_4", arc_multi_float = {10, 5, 1} }
+      { id = "tape_velocity_2", arc_multi_float = {10, 5, 1} }
     }
 
     -- Jump to selected velocity parameter
@@ -76,7 +70,7 @@ local function create_grid_ui()
     layout = {
       x = 1,
       y = 3,
-      width = 4,
+      width = 2,
       height = 1
     }
   })

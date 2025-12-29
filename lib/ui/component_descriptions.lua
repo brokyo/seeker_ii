@@ -15,6 +15,7 @@ return {
   TAPE_PLAYBACK = "Control playback timing and transposition.\n\nQuantize snaps notes to a rhythmic grid. Swing delays off-beat notes for groove.",
   TAPE_CLEAR = "Hold to clear the motif. With overdubs, select a generation to erase just that layer.",
   TAPE_VELOCITY = "Control note loudness. Press grid keys to select level.",
+  TAPE_TUNING = "Transpose the keyboard by octave. Left button = octave down, right = octave up. Grid offset shifts the scale mapping.",
   TAPE_STAGE_CONFIG = "Sequence changes to the loop. Structured and probabilistic options. Harmonize is a lot of fun.",
   TAPE_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
 

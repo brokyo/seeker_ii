@@ -9,6 +9,7 @@ local TapeType = include("lib/modes/motif/types/tape/type")
 local modules = {
   keyboard = include("lib/modes/motif/types/tape/keyboard"),
   velocity = include("lib/modes/motif/types/tape/velocity"),
+  tuning = include("lib/modes/motif/types/tape/tuning"),
   stage_nav = include("lib/modes/motif/types/tape/stage_nav"),
   playback = include("lib/modes/motif/types/tape/playback"),
   create = include("lib/modes/motif/types/tape/create"),
@@ -20,6 +21,7 @@ local modules = {
 -- Maps component name to screen section ID
 local SECTION_IDS = {
   velocity = "TAPE_VELOCITY",
+  tuning = "TAPE_TUNING",
   stage_nav = "TAPE_STAGE_NAV",
   playback = "TAPE_PLAYBACK",
   create = "TAPE_CREATE",

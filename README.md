@@ -87,7 +87,8 @@ Record motifs on a 6x6 scale keyboard (2A) the note velocity buttons (1B) can he
 
 **Controls:**
 - **Stage Config** (1A) — Configure transforms and loop counts.
-- **Note Velocity** (1B) — Four dynamic levels (pp, mp, f, ff). Select from grid.
+- **Note Velocity** (1B) — Two dynamic levels (low, high). Select from grid.
+- **Keyboard Tuning** (1C) — Octave up/down buttons to transpose the keyboard.
 - **Dual Keyboard** — Toggle the option in Create (5B) to split the keyboard into two zones with separate octaves.
 
 **Try:** Play one rhythmic pulse and keep recording for awhile. Overdub several generations of harmony onto the loop. Then set Overdub Filter in Stage Config (1A) to selectively add and remove those overdubs.
