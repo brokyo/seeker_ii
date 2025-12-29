@@ -1,29 +1,27 @@
 -- arc.lua
+-- Arc controller with hot-plug support via arc.add() callback
 
 local Arc = {}
 
-function Arc.init()
-  local device = arc.connect()
-  
-  if device then 
-    print("☯ Arc Connected")
-    
-    -- Add remove handler for proper disconnection management
-    device.remove = function()
-      print("◈ Arc Disconnected")
-    end
-    
-    --  Append some useful UI stuff to the device so we can use it from the rest of the app
+-- Sets up all Arc handlers on a connected device
+local function setup_device(device)
+  print("☯ Arc Connected")
 
-    -- Parameters for state tracking
-    device.index = {0, 0, 0, 0}
-    device.movement_count = {0, 0, 0, 0}  -- Track movements since last trigger for consistent sensitivity
-    device.current_section_param_count = 0
+  -- Disconnect handler
+  device.remove = function()
+    print("◈ Arc Disconnected")
+    _seeker.arc = nil
+  end
 
-    -- Custom display function - components provide their own arc rendering when active
-    device.display_override = nil
+  -- State tracking
+  device.index = {0, 0, 0, 0}
+  device.movement_count = {0, 0, 0, 0}
+  device.current_section_param_count = 0
 
-    -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
+  -- Custom display function - components provide their own arc rendering when active
+  device.display_override = nil
+
+  -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
     device.new_section = function(params)
       -- Use custom display if a component has registered one
       if device.display_override then
@@ -283,15 +281,16 @@ function Arc.init()
         local current_section = _seeker.screen_ui.sections[current_section_id]
         local selected_param = current_section:get_selected_param()
 
-        -- If selected parameter is an action, execute it
-        if selected_param and selected_param.is_action then
-          params:set(selected_param.id, 1)
-          device.animate_trigger(selected_param.id)
-
-        -- If selected parameter is a binary toggle, toggle it
-        elseif selected_param and selected_param.id then
+        if selected_param and selected_param.id then
           local param_base = params:lookup_param(selected_param.id)
-          if param_base and param_base.behavior == "toggle" then
+
+          -- Trigger: visual feedback first, then fire action (action may change UI)
+          if param_base and param_base.behavior == "trigger" then
+            _seeker.ui_state.trigger_activated(selected_param.id)
+            params:set(selected_param.id, 1)
+
+          -- Toggle: flip between 0 and 1
+          elseif param_base and param_base.behavior == "toggle" then
             local current = params:get(selected_param.id)
             params:set(selected_param.id, current == 0 and 1 or 0)
             device.update_param_value_display()
@@ -841,11 +840,24 @@ function Arc.init()
       device:refresh()
     end
 
-  else
-    print("No Arc device found")
-  end
-
   return device
 end
 
-return Arc 
+function Arc.init()
+  -- Register hot-plug callback for when Arc connects after boot
+  arc.add = function(dev)
+    local device = setup_device(dev)
+    _seeker.arc = device
+  end
+
+  -- Try connecting to already-attached Arc
+  local device = arc.connect()
+  if device then
+    return setup_device(device)
+  end
+
+  print("No Arc device found (will auto-connect when plugged in)")
+  return nil
+end
+
+return Arc

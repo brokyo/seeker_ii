@@ -141,15 +141,7 @@ end
 -- Used by drawing methods to display the value of a parameter on screen
 -- This exists because we may eventually have custom parameters that need a conditional tree
 function NornsUI:get_param_value(param)
-  local param_value = nil
-
-  if param.is_action then
-    param_value = "○"
-  else
-    param_value = params:string(param.id)
-  end
-
-  return param_value
+  return params:string(param.id)
 end
 
 -- Modifies parameter value via encoder delta, with special handling for actions and binary params
@@ -232,55 +224,25 @@ end
 function NornsUI:draw_params(start_y)
   local FOOTER_Y = 52
   local ITEM_HEIGHT = 10
-  local SEPARATOR_PADDING = 4
-  local visible_height = FOOTER_Y - start_y
-  local max_visible_items = math.floor(visible_height / ITEM_HEIGHT)
 
   -- Filter active_params table to only show params that pass the conditional check
   self:filter_active_params()
 
-  -- Count separators in visible window (not all separators) for padding calculation
-  -- Use a conservative estimate: at most 3 separators visible at once
-  local function count_visible_separators(start_idx, count)
-    local sep_count = 0
-    for i = start_idx, math.min(start_idx + count - 1, #self.active_params) do
-      if self.active_params[i] and self.active_params[i].separator then
-        sep_count = sep_count + 1
-      end
-    end
-    return sep_count
-  end
+  -- Uniform item heights - simple math
+  local visible_height = FOOTER_Y - start_y
+  local max_visible = math.floor(visible_height / ITEM_HEIGHT)
 
-  -- Calculate visible items accounting for separator padding in visible window only
-  local visible_separators = count_visible_separators(self.state.scroll_offset + 1, max_visible_items)
-  local extra_padding = (visible_separators > 1) and ((visible_separators - 1) * SEPARATOR_PADDING) or 0
-  local effective_visible_items = math.floor((visible_height - extra_padding) / ITEM_HEIGHT)
-
-  -- Ensure scroll offset stays in valid range
-  local max_scroll = math.max(0, #self.active_params - effective_visible_items)
+  -- Clamp scroll offset
+  local max_scroll = math.max(0, #self.active_params - max_visible)
   self.state.scroll_offset = util.clamp(self.state.scroll_offset, 0, max_scroll)
 
-
-  -- Track if we've seen a separator (to skip padding on first)
-  local separator_count = 0
-  local y_offset = 0
-
-  -- Draw visible, active parameters (use effective count to avoid clipping footer)
-  for i = 1, math.min(effective_visible_items, #self.active_params) do
+  -- Draw visible items
+  for i = 1, max_visible do
     local param_idx = i + self.state.scroll_offset
     local param = self.active_params[param_idx]
-    -- Stop drawing if we've scrolled past available parameters
     if not param then break end
 
-    -- Add padding before non-first separators
-    if param.separator then
-      separator_count = separator_count + 1
-      if separator_count > 1 then
-        y_offset = y_offset + SEPARATOR_PADDING
-      end
-    end
-
-    local y = start_y + (i * ITEM_HEIGHT) + y_offset
+    local y = start_y + (i * ITEM_HEIGHT)
     local is_selected = self.state.selected_index == param_idx
 
     if param.separator then
@@ -296,21 +258,23 @@ function NornsUI:draw_params(start_y)
       local upper_title = string.upper(title)
       local title_width = screen.text_extents(upper_title)
 
+      local line_y = y - 3
+
       -- Left line up to title
-      screen.level(3)
-      screen.move(line_start, y - 3)
-      screen.line(center_x - title_width/2 - title_margin, y - 3)
+      screen.level(1)
+      screen.move(line_start, line_y)
+      screen.line(center_x - title_width/2 - title_margin, line_y)
       screen.stroke()
 
       -- Title text
-      screen.level(6)
+      screen.level(2)
       screen.move(center_x - title_width/2, y)
       screen.text(upper_title)
 
       -- Right line from title to edge
-      screen.level(3)
-      screen.move(center_x + title_width/2 + title_margin, y - 3)
-      screen.line(line_end, y - 3)
+      screen.level(1)
+      screen.move(center_x + title_width/2 + title_margin, line_y)
+      screen.line(line_end, line_y)
       screen.stroke()
     else
       -- Get param metadata using Norns paramset api
@@ -318,9 +282,9 @@ function NornsUI:draw_params(start_y)
       local param_name = param.custom_name or param.name or param_base.name
       local param_value = param.custom_value or self:get_param_value(param)
 
-      -- Display toggle/trigger params as symbols (unless custom_value provided)
-      -- Toggles (encoder): circles ○/●
-      -- Triggers (K3 press): squares [ ]/[x]
+      -- Binary params display symbols instead of numeric values:
+      -- Toggle (encoder rotation): ○ = off, ● = on
+      -- Trigger (K3/Arc button): [ ] = ready, [x] = recently fired
       if not param.custom_value and param_base.behavior == "toggle" then
         if param_value == 0 then
           param_value = "○"
@@ -436,20 +400,8 @@ function NornsUI:handle_enc_default(n, d)
     -- Adjust scroll offset to keep selection visible
     local FOOTER_Y = 52
     local ITEM_HEIGHT = 10
-    local SEPARATOR_PADDING = 4
     local visible_height = FOOTER_Y
-
-    -- Count separators in visible window only (not all separators)
-    local visible_separators = 0
-    local check_start = self.state.scroll_offset + 1
-    local check_end = math.min(check_start + 5, #self.active_params)  -- ~5 items visible
-    for i = check_start, check_end do
-      if self.active_params[i] and self.active_params[i].separator then
-        visible_separators = visible_separators + 1
-      end
-    end
-    local extra_padding = (visible_separators > 1) and ((visible_separators - 1) * SEPARATOR_PADDING) or 0
-    local max_visible_items = math.floor((visible_height - extra_padding) / ITEM_HEIGHT)
+    local max_visible = math.floor(visible_height / ITEM_HEIGHT)
 
     -- Scroll up if selection is above visible area
     if new_index <= self.state.scroll_offset then
@@ -457,8 +409,8 @@ function NornsUI:handle_enc_default(n, d)
     end
 
     -- Scroll down if selection is below visible area
-    if new_index > self.state.scroll_offset + max_visible_items then
-      self.state.scroll_offset = new_index - max_visible_items
+    if new_index > self.state.scroll_offset + max_visible then
+      self.state.scroll_offset = new_index - max_visible
     end
     
   elseif n == 3 and self.state.selected_index > 0 then
@@ -502,13 +454,15 @@ function NornsUI:handle_key(n, z)
       if Modal then Modal.dismiss() end
     end
 
-  -- Handle K3 press for actions and toggles
+  -- Handle K3 press for triggers and toggles
   elseif n == 3 and z == 1 and self.state.selected_index > 0 then
     local param = self:get_selected_param()
     if param and param.id then
       local param_base = params:lookup_param(param.id)
-      if param.is_action then
-        -- Trigger params fire once
+      if param_base and param_base.behavior == "trigger" then
+        -- Visual feedback first - action may rebuild UI or open modal, hiding the animation
+        _seeker.ui_state.trigger_activated(param.id)
+        -- Then fire the trigger action
         params:set(param.id, 1)
       elseif param_base and param_base.behavior == "toggle" then
         -- Toggle params flip between 0 and 1
@@ -532,9 +486,11 @@ function NornsUI:enter()
   self.state.selected_index = self:find_first_selectable()
 
   -- Initialize Arc with current parameter list and refresh all rings
-  _seeker.arc.new_section(self.params)
-  _seeker.arc.update_param_key_display()
-  _seeker.arc.update_param_value_display()
+  if _seeker.arc then
+    _seeker.arc.new_section(self.params)
+    _seeker.arc.update_param_key_display()
+    _seeker.arc.update_param_value_display()
+  end
 
   self:update()
 end

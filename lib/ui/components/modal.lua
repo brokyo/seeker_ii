@@ -60,6 +60,37 @@ function Modal.show_status(config)
   Status.show(state, config)
 end
 
+-- Brief auto-dismissing status message (toast notification)
+-- config.body: message text
+-- config.duration: seconds before auto-dismiss (default 0.75)
+function Modal.show_toast(config)
+  -- Cancel any existing toast timer
+  if state.toast_clock then
+    clock.cancel(state.toast_clock)
+    state.toast_clock = nil
+  end
+
+  state.active = true
+  state.modal_type = Modal.TYPE.STATUS
+  state.on_key = nil
+  state.on_enc = nil
+  Status.show(state, config)
+
+  -- Auto-dismiss after duration
+  local duration = config.duration or 0.75
+  state.toast_clock = clock.run(function()
+    clock.sleep(duration)
+    -- Only dismiss if still showing this toast (not replaced by another modal)
+    if state.active and state.modal_type == Modal.TYPE.STATUS then
+      Modal.dismiss()
+      if _seeker and _seeker.screen_ui then
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end
+    state.toast_clock = nil
+  end)
+end
+
 function Modal.show_warning(config)
   state.active = true
   state.modal_type = Modal.TYPE.WARNING
