@@ -1,42 +1,31 @@
 -- disting_nt.lua
 -- Disting NT voice parameters for lane configuration
 --
--- Architecture:
---   - Per-lane: active, channel, volume (which channel receives notes)
---   - Global view: edit one channel's algorithm config at a time
---   - Storage: channel_configs[N] tracks what we've sent to each channel (in-memory only)
---
--- Channel is purely an addressing mechanism - it routes i2c commands to a
--- specific algorithm instance. Each algorithm listens on its assigned channel.
---
--- No persistence: NT holds actual state. channel_configs is just a session cache
--- so the view pattern knows what values to display when switching channels.
+-- User selects algorithm type and slot number, then adjusts algorithm-specific parameters.
+-- Assumes NT already has the matching algorithm at the specified slot.
 
 local disting_nt = {}
 
 -- Algorithm types available on the NT
 local ALGORITHMS = {
-  "DX7",
-  "Plaits",
+  "Poly FM",
+  "Poly Plaits",
   "Poly Multisample",
-  "Rings",
+  "Poly Resonator",
+  "Poly Wavetable",
+  "Seaside Jawari",
+  "VCO Pulsar",
+  "VCO Waveshaping",
+  "VCO Wavetable",
 }
 
--- Default channel for each algorithm type (so common setups "just work")
-local DEFAULT_CHANNELS = {
-  ["DX7"] = 1,
-  ["Plaits"] = 2,
-  ["Poly Multisample"] = 3,
-  ["Rings"] = 4,
-}
-
--- Plaits model names (0-23)
+-- Plaits model names (0-23) - from NT preset editor
 local PLAITS_MODELS = {
   "Virtual Analog",
   "Waveshaping",
   "FM",
-  "Grain",
-  "Additive",
+  "Granular",
+  "Harmonic",
   "Wavetable",
   "Chord",
   "Speech",
@@ -48,171 +37,320 @@ local PLAITS_MODELS = {
   "Bass Drum",
   "Snare Drum",
   "Hi-Hat",
-  "FM Drum",
-  "Chirp",
-  "Dust",
-  "Sync",
-  "Grain FM",
-  "Resonator",
+  "VA VCF",
+  "PD",
+  "6-op FM (1)",
+  "6-op FM (2)",
+  "6-op FM (3)",
+  "Wave Terrain",
+  "String 2",
   "Chiptune",
-  "Wavefold",
 }
 
--- I2C mode options
-local I2C_MODES = {
-  "Off",
-  "Pitch",
-  "Trigger",
-  "Pitch & Trigger",
+-- Sustain mode options
+local SUSTAIN_MODES = {"Synth", "Piano"}
+
+-- Poly Resonator mode options (based on Rings)
+local RESONATOR_MODES = {"Modal", "Sympathetic", "String", "FM", "Quantized"}
+
+-- Filter type options for Poly Wavetable
+local FILTER_TYPES = {"Off", "Lowpass", "Bandpass", "Highpass"}
+
+-- Output bus options (0-28: None, Input 1-12, Output 1-8, Aux 1-8)
+local OUTPUT_OPTIONS = {
+  "None",
+  "Input 1", "Input 2", "Input 3", "Input 4", "Input 5", "Input 6",
+  "Input 7", "Input 8", "Input 9", "Input 10", "Input 11", "Input 12",
+  "Output 1", "Output 2", "Output 3", "Output 4",
+  "Output 5", "Output 6", "Output 7", "Output 8",
+  "Aux 1", "Aux 2", "Aux 3", "Aux 4", "Aux 5", "Aux 6", "Aux 7", "Aux 8",
 }
 
--- i2c parameter numbers by algorithm (sequential from NT docs)
--- nil = not yet mapped, will skip i2c send
+-- Output mode options
+local OUTPUT_MODES = {"Add", "Replace"}
+
+-- LFO retrigger options for Poly Wavetable
+local LFO_RETRIGGER_MODES = {"Poly", "Mono", "Off"}
+
+-- Spread mode options for Poly Wavetable
+local SPREAD_MODES = {"By Voice", "By Pitch", "Random"}
+
+-- Jawari strum type options
+local STRUM_TYPES = {"Flat", "Ramped"}
+
+-- VCO Pulsar window options
+local WINDOW_TYPES = {"Rectangular", "Linear Atk", "Linear Dcy", "Gaussian"}
+
+-- VCO Pulsar pitch mode options
+local PITCH_MODES = {"Independent", "Tracking"}
+
+-- VCO Pulsar masking mode options
+local MASKING_MODES = {"Stochastic", "Burst"}
+
+-- VCO Waveshaping oversampling options
+local OVERSAMPLING_OPTIONS = {"None", "2x", "4x"}
+
+-- Note names for filter frequency display (MIDI note 0-127)
+local NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
+local function midi_to_note_name(midi_note)
+  local octave = math.floor(midi_note / 12) - 1
+  local note_idx = (midi_note % 12) + 1
+  return NOTE_NAMES[note_idx] .. octave
+end
+
+-- Algorithm index to PARAM_NUMS key mapping
+local ALGORITHM_KEYS = {
+  "poly_fm", "plaits", "poly_multisample", "poly_resonator", "poly_wavetable",
+  "seaside_jawari", "vco_pulsar", "vco_waveshaping", "vco_wavetable"
+}
+
+-- i2c parameter numbers by algorithm (1-based per NT docs)
 local PARAM_NUMS = {
-  dx7 = {
-    -- Globals (0-1)
-    -- global_gain = 0 (skipped)
-    -- sustain_mode = 1 (skipped)
-    -- Per-timbre (2-13)
-    bank = 2,
-    voice = 3,
-    -- transpose = 4 (skipped)
-    -- fine_tune = 5 (skipped)
-    brightness = 6,
-    envelope_scale = 7,
-    -- gain = 8 (skipped)
-    -- sustain = 9 (skipped)
-    -- press_volume = 10 (skipped - MPE)
-    -- press_bright = 11 (skipped - MPE)
-    -- mpe_y_volume = 12 (skipped - MPE)
-    -- mpe_y_bright = 13 (skipped - MPE)
-    -- Per-timbre setup (14-19)
+  poly_fm = {
+    sustain_mode = 8,
+    bank = 10,
+    voice = 11,
+    i2c_channel = 13,
     left_output = 14,
     right_output = 15,
-    -- midi_channel = 16 (skipped)
-    -- mpe_channels = 17 (skipped)
-    i2c_channel = 18,
-    -- bend_range = 19 (skipped)
+    brightness = 28,
+    envelope_scale = 29,
+    fine_tune = 31,
+    gain = 32,
+    sustain = 50,
   },
 
   plaits = {
-    -- Params are sequential; skipped params still count
-    model = 0,
-    -- coarse_tune = 1 (skipped)
-    -- fine_tune = 2 (skipped)
-    harmonics = 3,
-    timbre = 4,
-    morph = 5,
-    fm = 6,
-    timbre_mod = 7,
-    morph_mod = 8,
-    lpg = 9,
-    decay = 10,
-    -- trigger_input = 11 (skipped)
-    -- level_input = 12 (skipped)
-    -- cv_input = 13 (skipped)
-    fm_input = 14,
-    harmonics_input = 15,
-    timbre_input = 16,
-    morph_input = 17,
-    main_output = 18,
-    aux_output = 19,
-    output_mode = 20,
-    -- main_gain = 21 (skipped)
-    -- aux_gain = 22 (skipped)
-    -- midi_mode = 23 (skipped)
-    i2c_mode = 24,
-    -- midi_channel = 25 (skipped)
-    i2c_channel = 26,
+    sustain_mode = 8,
+    model = 9,
+    fine_tune = 11,
+    harmonics = 12,
+    timbre = 13,
+    morph = 14,
+    fm = 15,
+    timbre_mod = 16,
+    morph_mod = 17,
+    lpg = 18,
+    decay = 19,
+    level_input = 20,
+    fm_input = 21,
+    harmonics_input = 22,
+    timbre_input = 23,
+    morph_input = 24,
+    main_output = 25,
+    aux_output = 26,
+    output_mode = 27,
+    i2c_channel = 31,
   },
 
   poly_multisample = {
-    -- Sample params (0-5)
-    folder = 0,
-    -- sample = 1 (skipped - usually -1 for auto)
-    gain = 2,
-    pan = 3,
-    -- transpose = 4 (skipped)
-    -- fine_tune = 5 (skipped)
-    -- Crossfade (6-7)
-    -- crossfade_mode = 6 (skipped)
-    -- crossfade_length = 7 (skipped)
-    -- Trim (8-9)
-    -- loop_point_coarse = 8 (skipped)
-    -- loop_point_fine = 9 (skipped)
-    -- Setup (10-16)
-    -- sustain_mode = 10 (skipped)
-    -- sustain = 11 (skipped)
-    -- gate_offset = 12 (skipped)
-    -- round_robin = 13 (skipped)
-    loop = 14,
-    -- bend_range = 15 (skipped)
-    -- confirm_change = 16 (skipped)
-    -- Envelope (17-24)
-    envelope = 17,
-    attack = 18,
-    decay = 19,
-    sustain = 20,
-    release = 21,
-    -- velocity = 22 (skipped)
-    -- press_volume = 23 (skipped - MPE)
-    -- mpe_y_volume = 24 (skipped - MPE)
-    -- Routing (25-29)
-    left_output = 25,
-    right_output = 26,
-    -- midi_channel = 27 (skipped)
-    -- mpe_channels = 28 (skipped)
+    folder = 22,
+    left_output = 23,
+    right_output = 24,
+    gain = 25,
+    pan = 26,
+    i2c_channel = 28,
+    envelope = 29,
+    attack = 30,
+    decay = 31,
+    sustain = 32,
+    release = 33,
+    loop = 66,
+  },
+
+  poly_resonator = {
+    sustain_mode = 8,
+    mode = 9,
+    synth_effect = 10,
+    fine_tune = 12,
+    resolution = 13,
+    structure = 14,
+    brightness = 15,
+    damping = 16,
+    position = 17,
+    noise_gate = 19,
+    input_gain = 20,
+    audio_input = 21,
+    odd_output = 22,
+    even_output = 23,
+    odd_output_mode = 24,
+    even_output_mode = 25,
+    output_gain = 26,
+    dry_gain = 27,
     i2c_channel = 29,
   },
 
-  rings = {
-    -- Rings params (0-11)
-    mode = 0,
-    synth_effect = 1,
-    -- coarse_tune = 2 (skipped)
-    -- fine_tune = 3 (skipped)
-    resolution = 4,
-    structure = 5,
-    brightness = 6,
-    damping = 7,
-    position = 8,
-    chord = 9,
-    noise_gate = 10,
-    input_gain = 11,
-    -- Routing (12-18)
-    audio_input = 12,
-    odd_output = 13,
-    even_output = 14,
-    -- odd_output_mode = 15 (skipped)
-    -- even_output_mode = 16 (skipped)
-    -- output_gain = 17 (skipped)
-    -- dry_gain = 18 (skipped)
-    -- Setup (19-24)
-    -- midi_channel = 19 (skipped)
-    -- mpe_channels = 20 (skipped)
-    i2c_channel = 21,
-    -- bend_range = 22 (skipped)
-    -- sustain_mode = 23 (skipped)
-    -- sustain = 24 (skipped)
+  poly_wavetable = {
+    wavetable = 8,
+    wave_offset = 9,
+    wave_spread = 10,
+    fine_tune = 12,
+    -- Envelope 1
+    env1_attack = 13,
+    env1_decay = 14,
+    env1_sustain = 15,
+    env1_release = 16,
+    env1_attack_shape = 17,
+    env1_decay_shape = 18,
+    -- Envelope 2
+    env2_attack = 19,
+    env2_decay = 20,
+    env2_sustain = 21,
+    env2_release = 22,
+    env2_attack_shape = 23,
+    env2_decay_shape = 24,
+    -- Filter
+    filter_type = 25,
+    filter_freq = 26,
+    filter_q = 27,
+    -- Modulation matrix
+    veloc_volume = 28,
+    veloc_wave = 29,
+    veloc_filter = 30,
+    pitch_wave = 31,
+    pitch_filter = 32,
+    env1_wave = 33,
+    env1_filter = 34,
+    env2_wave = 35,
+    env2_filter = 36,
+    env2_pitch = 37,
+    lfo_wave = 38,
+    lfo_filter = 39,
+    lfo_pitch = 40,
+    -- LFO
+    lfo_speed = 41,
+    lfo_retrigger = 50,
+    lfo_spread = 51,
+    -- Output
+    gain = 42,
+    sustain = 43,
+    unison = 45,
+    unison_detune = 46,
+    output_spread = 47,
+    spread_mode = 48,
+    sustain_mode = 49,
+    max_voices = 57,
+    i2c_channel = 60,
+    left_output = 61,
+    right_output = 62,
+  },
+
+  seaside_jawari = {
+    -- Routing (input buses)
+    strum_input = 2,
+    bridge_shape_input = 3,
+    reset_input = 4,
+    voct_main_input = 5,
+    voct_1st_input = 6,
+    output = 7,
+    output_mode = 8,
+    -- Jawari params
+    bridge_shape = 9,
+    tuning_1st = 10,
+    fine_tune = 12,
+    strum = 13,
+    reset = 14,
+    velocity = 15,
+    -- Tweaks
+    damping = 16,
+    length = 17,
+    bounce_count = 18,
+    strum_level = 19,
+    bounce_level = 20,
+    start_harmonic = 21,
+    end_harmonic = 22,
+    strum_type = 23,
+  },
+
+  vco_pulsar = {
+    -- Routing
+    pitch_input = 2,
+    formant_input = 3,
+    wave_input = 4,
+    output = 5,
+    output_mode = 6,
+    inverse_output = 7,
+    inverse_output_mode = 8,
+    -- VCO
+    wavetable = 9,
+    wave_offset = 10,
+    window = 11,
+    pitch_mode = 12,
+    masking_mode = 13,
+    masking = 14,
+    burst_length = 15,
+    octave = 16,
+    fine_tune = 18,
+    amplitude = 19,
+    gain = 20,
+  },
+
+  vco_waveshaping = {
+    -- Routing
+    pitch_input = 2,
+    shape_input = 3,
+    sync_input = 4,
+    tri_saw_output = 5,
+    tri_saw_mode = 6,
+    square_output = 7,
+    square_mode = 8,
+    sub_output = 9,
+    sub_mode = 10,
+    -- VCO
+    waveshape = 11,
+    octave = 12,
+    fine_tune = 14,
+    -- Amplitudes
+    tri_saw_amplitude = 15,
+    square_amplitude = 16,
+    sub_amplitude = 17,
+    -- Gains
+    tri_saw_gain = 18,
+    square_gain = 19,
+    sub_gain = 20,
+    -- Oversampling
+    oversampling = 21,
+    -- Sine
+    sine_output = 22,
+    sine_mode = 23,
+    sine_amplitude = 24,
+    sine_gain = 25,
+    -- FM
+    fm_input = 26,
+    fm_scale = 27,
+  },
+
+  vco_wavetable = {
+    -- Routing
+    pitch_input = 2,
+    wave_input = 3,
+    output = 4,
+    output_mode = 5,
+    -- VCO
+    wavetable = 6,
+    wave_offset = 7,
+    octave = 8,
+    fine_tune = 10,
+    amplitude = 11,
+    gain = 12,
   },
 }
 
 ------------------------------------------------------------
 -- i2c Communication Helpers
--- Raw i2c for disting NT (no crow convenience methods available)
 ------------------------------------------------------------
 
-local I2C_ADDRESS = 0x41  -- Default disting NT i2c address
+local I2C_ADDRESS = 0x41
 
 local CMD = {
-  SET_PARAM      = 0x46,  -- set parameter to actual value
-  NOTE_PITCH     = 0x54,  -- set pitch for note id
-  NOTE_ON        = 0x55,  -- note on for note id
-  NOTE_OFF       = 0x56,  -- note off for note id
-  ALL_NOTES_OFF  = 0x57,  -- all notes off
-  NOTE_PITCH_CH  = 0x68,  -- set pitch for note id, with channel
-  NOTE_ON_CH     = 0x69,  -- note on for note id, with channel
-  NOTE_OFF_CH    = 0x6A,  -- note off for note id, with channel
+  SET_PARAM      = 0x46,
+  NOTE_PITCH     = 0x54,
+  NOTE_ON        = 0x55,
+  NOTE_OFF       = 0x56,
+  ALL_NOTES_OFF  = 0x57,
+  NOTE_PITCH_CH  = 0x68,
+  NOTE_ON_CH     = 0x69,
+  NOTE_OFF_CH    = 0x6A,
 }
 
 local function split_bytes(value)
@@ -229,12 +367,13 @@ local function to_unsigned(value)
 end
 
 local function i2c_send(bytes)
-  crow.ii.raw(I2C_ADDRESS, bytes)
+  local bytestring = string.char(table.unpack(bytes))
+  crow.ii.raw(I2C_ADDRESS, bytestring)
 end
 
 -- Select which algorithm slot receives subsequent parameter changes
-local function select_algorithm(channel)
-  local msb, lsb = split_bytes(channel)
+local function select_algorithm(slot)
+  local msb, lsb = split_bytes(slot)
   i2c_send({CMD.SET_PARAM, 255, msb, lsb})
 end
 
@@ -251,584 +390,963 @@ local function midi_to_pitch(midi_note)
   return math.floor(volts * 1638.4)
 end
 
--- Convert 0-1 normalized velocity to 0-16384
-local function normalize_velocity(vel_0_to_1)
-  return math.floor(vel_0_to_1 * 16384)
-end
 
 ------------------------------------------------------------
--- Per-channel configuration storage (in-memory session cache)
+-- i2c Param Sending (uses lane's algorithm slot)
 ------------------------------------------------------------
 
--- Indexed by channel number: channel_configs[1] = {algorithm = 1, pm_folder = 5, ...}
-local channel_configs = {}
-
--- Currently editing channel (for view pattern)
-local current_edit_channel = 1
-
-------------------------------------------------------------
--- Channel Config Management
-------------------------------------------------------------
-
-local function default_channel_config()
-  return {
-    algorithm = 1,  -- DX7 is now index 1
-
-    -- DX7 defaults (from NT docs)
-    dx7_bank = 0,
-    dx7_voice = 1,
-    dx7_brightness = 0,
-    dx7_envelope_scale = 0,
-    dx7_left_output = 13,
-    dx7_right_output = 0,
-    dx7_i2c_channel = 1,
-
-    -- Plaits defaults (from NT docs)
-    plaits_model = 0,
-    plaits_harmonics = 64,
-    plaits_timbre = 64,
-    plaits_morph = 64,
-    plaits_fm = 0,
-    plaits_timbre_mod = 0,
-    plaits_morph_mod = 0,
-    plaits_lpg = 127,
-    plaits_decay = 64,
-    plaits_fm_input = 0,
-    plaits_harmonics_input = 0,
-    plaits_timbre_input = 0,
-    plaits_morph_input = 0,
-    plaits_main_output = 13,
-    plaits_aux_output = 0,
-    plaits_output_mode = 0,
-    plaits_i2c_mode = 3,  -- "Pitch & Trigger" so notes work
-    plaits_i2c_channel = 1,
-
-    -- Poly Multisample defaults (from NT docs)
-    pm_folder = 0,
-    pm_gain = 0,
-    pm_pan = 0,
-    pm_envelope = 0,
-    pm_attack = 0,
-    pm_decay = 60,
-    pm_sustain = 100,
-    pm_release = 77,
-    pm_loop = 0,
-    pm_left_output = 13,
-    pm_right_output = 0,
-    pm_i2c_channel = 1,
-
-    -- Rings defaults (from NT docs)
-    rings_mode = 0,
-    rings_synth_effect = 0,
-    rings_resolution = 16,
-    rings_structure = 64,
-    rings_brightness = 64,
-    rings_damping = 64,
-    rings_position = 64,
-    rings_chord = 0,
-    rings_noise_gate = 1,
-    rings_input_gain = 0,
-    rings_audio_input = 0,
-    rings_odd_output = 13,
-    rings_even_output = 13,
-    rings_i2c_channel = 1,
-
-  }
-end
-
-local function get_channel_config(channel)
-  if not channel_configs[channel] then
-    channel_configs[channel] = default_channel_config()
-  end
-  return channel_configs[channel]
-end
-
-local function save_to_channel(key, value)
-  local config = get_channel_config(current_edit_channel)
-  config[key] = value
-end
-
-------------------------------------------------------------
--- i2c Param Sending
-------------------------------------------------------------
-
-local function send_param(channel, param_num, value)
-  if param_num == nil then
-    -- Param number not yet discovered, skip silently
-    return
-  end
-  select_algorithm(channel)
+local function send_param_for_lane(lane_idx, param_num, value)
+  if param_num == nil then return end
+  local slot = params:get("lane_" .. lane_idx .. "_dnt_slot")
+  select_algorithm(slot)
   set_param(param_num, value)
 end
 
 ------------------------------------------------------------
--- View Pattern: Load/Save Channel Configs to Params
+-- Per-Lane Parameter Creation
 ------------------------------------------------------------
 
-local function load_channel_into_params(channel)
-  local config = get_channel_config(channel)
-  current_edit_channel = channel
+local function create_poly_fm_params(i)
+  local prefix = "lane_" .. i .. "_dnt_pfm_"
 
-  -- Algorithm selection
-  params:set("dnt_algorithm", config.algorithm, true)
+  params:add_option(prefix .. "sustain_mode", "Sustain Mode", SUSTAIN_MODES, 1)
+  params:set_action(prefix .. "sustain_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.sustain_mode, value - 1)
+  end)
 
-  -- DX7
-  params:set("dnt_dx7_bank", config.dx7_bank, true)
-  params:set("dnt_dx7_voice", config.dx7_voice, true)
-  params:set("dnt_dx7_brightness", config.dx7_brightness, true)
-  params:set("dnt_dx7_envelope_scale", config.dx7_envelope_scale, true)
-  params:set("dnt_dx7_left_output", config.dx7_left_output, true)
-  params:set("dnt_dx7_right_output", config.dx7_right_output, true)
-  params:set("dnt_dx7_i2c_channel", config.dx7_i2c_channel, true)
+  params:add_option(prefix .. "sustain", "Sustain", {"Off", "On"}, 1)
+  params:set_action(prefix .. "sustain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.sustain, value - 1)
+  end)
 
-  -- Plaits
-  params:set("dnt_plaits_model", config.plaits_model + 1, true)
-  params:set("dnt_plaits_harmonics", config.plaits_harmonics, true)
-  params:set("dnt_plaits_timbre", config.plaits_timbre, true)
-  params:set("dnt_plaits_morph", config.plaits_morph, true)
-  params:set("dnt_plaits_fm", config.plaits_fm, true)
-  params:set("dnt_plaits_timbre_mod", config.plaits_timbre_mod, true)
-  params:set("dnt_plaits_morph_mod", config.plaits_morph_mod, true)
-  params:set("dnt_plaits_lpg", config.plaits_lpg, true)
-  params:set("dnt_plaits_decay", config.plaits_decay, true)
-  params:set("dnt_plaits_fm_input", config.plaits_fm_input, true)
-  params:set("dnt_plaits_harmonics_input", config.plaits_harmonics_input, true)
-  params:set("dnt_plaits_timbre_input", config.plaits_timbre_input, true)
-  params:set("dnt_plaits_morph_input", config.plaits_morph_input, true)
-  params:set("dnt_plaits_main_output", config.plaits_main_output, true)
-  params:set("dnt_plaits_aux_output", config.plaits_aux_output, true)
-  params:set("dnt_plaits_output_mode", config.plaits_output_mode + 1, true)
-  params:set("dnt_plaits_i2c_mode", config.plaits_i2c_mode + 1, true)
-  params:set("dnt_plaits_i2c_channel", config.plaits_i2c_channel, true)
+  params:add_number(prefix .. "bank", "Bank", 1, 21, 1)
+  params:set_action(prefix .. "bank", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.bank, value)
+  end)
 
-  -- Poly Multisample
-  params:set("dnt_pm_folder", config.pm_folder, true)
-  params:set("dnt_pm_gain", config.pm_gain, true)
-  params:set("dnt_pm_pan", config.pm_pan, true)
-  params:set("dnt_pm_envelope", config.pm_envelope + 1, true)
-  params:set("dnt_pm_attack", config.pm_attack, true)
-  params:set("dnt_pm_decay", config.pm_decay, true)
-  params:set("dnt_pm_sustain", config.pm_sustain, true)
-  params:set("dnt_pm_release", config.pm_release, true)
-  params:set("dnt_pm_loop", config.pm_loop + 1, true)
-  params:set("dnt_pm_left_output", config.pm_left_output, true)
-  params:set("dnt_pm_right_output", config.pm_right_output, true)
-  params:set("dnt_pm_i2c_channel", config.pm_i2c_channel, true)
+  params:add_number(prefix .. "voice", "Voice", 1, 32, 1)
+  params:set_action(prefix .. "voice", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.voice, value)
+  end)
 
-  -- Rings
-  params:set("dnt_rings_mode", config.rings_mode + 1, true)
-  params:set("dnt_rings_synth_effect", config.rings_synth_effect + 1, true)
-  params:set("dnt_rings_resolution", config.rings_resolution, true)
-  params:set("dnt_rings_structure", config.rings_structure, true)
-  params:set("dnt_rings_brightness", config.rings_brightness, true)
-  params:set("dnt_rings_damping", config.rings_damping, true)
-  params:set("dnt_rings_position", config.rings_position, true)
-  params:set("dnt_rings_chord", config.rings_chord, true)
-  params:set("dnt_rings_noise_gate", config.rings_noise_gate + 1, true)
-  params:set("dnt_rings_input_gain", config.rings_input_gain, true)
-  params:set("dnt_rings_audio_input", config.rings_audio_input, true)
-  params:set("dnt_rings_odd_output", config.rings_odd_output, true)
-  params:set("dnt_rings_even_output", config.rings_even_output, true)
-  params:set("dnt_rings_i2c_channel", config.rings_i2c_channel, true)
+  params:add_control(prefix .. "brightness", "Brightness",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "brightness", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.brightness, math.floor(value))
+  end)
 
+  params:add_control(prefix .. "envelope_scale", "Envelope Scale",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "envelope_scale", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.envelope_scale, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.fine_tune, value)
+  end)
+
+  params:add_number(prefix .. "gain", "Gain", -40, 6, 0)
+  params:set_action(prefix .. "gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.gain, value)
+  end)
+
+  params:add_option(prefix .. "left_output", "Left Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "left_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.left_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "right_output", "Right Output", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "right_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_fm.right_output, value - 1)
+  end)
+end
+
+local function create_plaits_params(i)
+  local prefix = "lane_" .. i .. "_dnt_plaits_"
+
+  params:add_option(prefix .. "sustain_mode", "Sustain Mode", SUSTAIN_MODES, 1)
+  params:set_action(prefix .. "sustain_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.sustain_mode, value - 1)
+  end)
+
+  params:add_option(prefix .. "model", "Model", PLAITS_MODELS, 1)
+  params:set_action(prefix .. "model", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.model, value - 1)
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.fine_tune, value)
+  end)
+
+  params:add_number(prefix .. "harmonics", "Harmonics", 0, 127, 64)
+  params:set_action(prefix .. "harmonics", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.harmonics, value)
+  end)
+
+  params:add_number(prefix .. "timbre", "Timbre", 0, 127, 64)
+  params:set_action(prefix .. "timbre", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.timbre, value)
+  end)
+
+  params:add_number(prefix .. "morph", "Morph", 0, 127, 64)
+  params:set_action(prefix .. "morph", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.morph, value)
+  end)
+
+  params:add_control(prefix .. "fm", "FM",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "fm", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.fm, math.floor(value))
+  end)
+
+  params:add_control(prefix .. "timbre_mod", "Timbre Mod",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "timbre_mod", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.timbre_mod, math.floor(value))
+  end)
+
+  params:add_control(prefix .. "morph_mod", "Morph Mod",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "morph_mod", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.morph_mod, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "lpg", "Low-pass Gate", 0, 127, 127)
+  params:set_action(prefix .. "lpg", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.lpg, value)
+  end)
+
+  params:add_number(prefix .. "decay", "Time/Decay", 0, 127, 64)
+  params:set_action(prefix .. "decay", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.decay, value)
+  end)
+
+  -- CV Inputs
+  params:add_option(prefix .. "level_input", "Level Input", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "level_input", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.level_input, value - 1)
+  end)
+
+  params:add_option(prefix .. "fm_input", "FM Input", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "fm_input", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.fm_input, value - 1)
+  end)
+
+  params:add_option(prefix .. "harmonics_input", "Harmonics Input", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "harmonics_input", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.harmonics_input, value - 1)
+  end)
+
+  params:add_option(prefix .. "timbre_input", "Timbre Input", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "timbre_input", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.timbre_input, value - 1)
+  end)
+
+  params:add_option(prefix .. "morph_input", "Morph Input", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "morph_input", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.morph_input, value - 1)
+  end)
+
+  -- Outputs
+  params:add_option(prefix .. "main_output", "Main Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "main_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.main_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "aux_output", "Aux Output", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "aux_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.aux_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "output_mode", "Output Mode", OUTPUT_MODES, 1)
+  params:set_action(prefix .. "output_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.plaits.output_mode, value - 1)
+  end)
+end
+
+local function create_multisample_params(i)
+  local prefix = "lane_" .. i .. "_dnt_pm_"
+
+  params:add_number(prefix .. "folder", "Folder", 0, 99, 0)
+  params:set_action(prefix .. "folder", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.folder, value)
+  end)
+
+  params:add_number(prefix .. "gain", "Gain", -40, 24, 0)
+  params:set_action(prefix .. "gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.gain, value)
+  end)
+
+  params:add_number(prefix .. "pan", "Pan", -100, 100, 0)
+  params:set_action(prefix .. "pan", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.pan, value)
+  end)
+
+  params:add_option(prefix .. "envelope", "Envelope", {"Off", "On"}, 1)
+  params:set_action(prefix .. "envelope", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.envelope, value - 1)
+  end)
+
+  params:add_number(prefix .. "attack", "Attack", 0, 127, 0)
+  params:set_action(prefix .. "attack", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.attack, value)
+  end)
+
+  params:add_number(prefix .. "decay", "Decay", 0, 127, 60)
+  params:set_action(prefix .. "decay", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.decay, value)
+  end)
+
+  params:add_control(prefix .. "sustain", "Sustain",
+    controlspec.new(0, 100, 'lin', 1, 100, "%"))
+  params:set_action(prefix .. "sustain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.sustain, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "release", "Release", 0, 127, 77)
+  params:set_action(prefix .. "release", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.release, value)
+  end)
+
+  params:add_option(prefix .. "loop", "Loop", {"From WAV", "Off", "On"}, 1)
+  params:set_action(prefix .. "loop", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.loop, value - 1)
+  end)
+
+  params:add_option(prefix .. "left_output", "Left Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "left_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.left_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "right_output", "Right Output", OUTPUT_OPTIONS, 15)
+  params:set_action(prefix .. "right_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_multisample.right_output, value - 1)
+  end)
+end
+
+local function create_poly_resonator_params(i)
+  local prefix = "lane_" .. i .. "_dnt_pres_"
+
+  params:add_option(prefix .. "sustain_mode", "Sustain Mode", SUSTAIN_MODES, 1)
+  params:set_action(prefix .. "sustain_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.sustain_mode, value - 1)
+  end)
+
+  params:add_option(prefix .. "mode", "Mode", RESONATOR_MODES, 1)
+  params:set_action(prefix .. "mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.mode, value - 1)
+  end)
+
+  params:add_option(prefix .. "synth_effect", "Synth Effect", {"Off", "On"}, 1)
+  params:set_action(prefix .. "synth_effect", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.synth_effect, value - 1)
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.fine_tune, value)
+  end)
+
+  params:add_number(prefix .. "resolution", "Resolution", 8, 64, 16)
+  params:set_action(prefix .. "resolution", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.resolution, value)
+  end)
+
+  params:add_number(prefix .. "structure", "Structure", 0, 127, 64)
+  params:set_action(prefix .. "structure", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.structure, value)
+  end)
+
+  params:add_number(prefix .. "brightness", "Brightness", 0, 127, 64)
+  params:set_action(prefix .. "brightness", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.brightness, value)
+  end)
+
+  params:add_number(prefix .. "damping", "Damping", 0, 127, 64)
+  params:set_action(prefix .. "damping", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.damping, value)
+  end)
+
+  params:add_number(prefix .. "position", "Position", 0, 127, 64)
+  params:set_action(prefix .. "position", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.position, value)
+  end)
+
+  params:add_option(prefix .. "noise_gate", "Noise Gate", {"Off", "On"}, 2)
+  params:set_action(prefix .. "noise_gate", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.noise_gate, value - 1)
+  end)
+
+  params:add_number(prefix .. "input_gain", "Input Gain", -40, 12, 0)
+  params:set_action(prefix .. "input_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.input_gain, value)
+  end)
+
+  params:add_option(prefix .. "audio_input", "Audio Input", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "audio_input", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.audio_input, value - 1)
+  end)
+
+  params:add_option(prefix .. "odd_output", "Odd Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "odd_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.odd_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "even_output", "Even Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "even_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.even_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "odd_output_mode", "Odd Output Mode", OUTPUT_MODES, 1)
+  params:set_action(prefix .. "odd_output_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.odd_output_mode, value - 1)
+  end)
+
+  params:add_option(prefix .. "even_output_mode", "Even Output Mode", OUTPUT_MODES, 1)
+  params:set_action(prefix .. "even_output_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.even_output_mode, value - 1)
+  end)
+
+  params:add_number(prefix .. "output_gain", "Output Gain", -40, 12, 0)
+  params:set_action(prefix .. "output_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.output_gain, value)
+  end)
+
+  params:add_number(prefix .. "dry_gain", "Dry Gain", -40, 12, -40)
+  params:set_action(prefix .. "dry_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_resonator.dry_gain, value)
+  end)
+end
+
+local function create_poly_wavetable_params(i)
+  local prefix = "lane_" .. i .. "_dnt_pwt_"
+
+  params:add_option(prefix .. "sustain_mode", "Sustain Mode", SUSTAIN_MODES, 1)
+  params:set_action(prefix .. "sustain_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.sustain_mode, value - 1)
+  end)
+
+  params:add_number(prefix .. "wavetable", "Wavetable", 0, 271, 0)
+  params:set_action(prefix .. "wavetable", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.wavetable, value)
+  end)
+
+  params:add_control(prefix .. "wave_offset", "Wave Offset",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "wave_offset", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.wave_offset, math.floor(value))
+  end)
+
+  params:add_control(prefix .. "wave_spread", "Wave Spread",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "wave_spread", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.wave_spread, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.fine_tune, value)
+  end)
+
+  -- Envelope 1
+  params:add_number(prefix .. "env1_attack", "Env 1 Attack", 0, 127, 20)
+  params:set_action(prefix .. "env1_attack", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_attack, value)
+  end)
+
+  params:add_number(prefix .. "env1_decay", "Env 1 Decay", 0, 127, 60)
+  params:set_action(prefix .. "env1_decay", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_decay, value)
+  end)
+
+  params:add_number(prefix .. "env1_sustain", "Env 1 Sustain", 0, 127, 80)
+  params:set_action(prefix .. "env1_sustain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_sustain, value)
+  end)
+
+  params:add_number(prefix .. "env1_release", "Env 1 Release", 0, 127, 60)
+  params:set_action(prefix .. "env1_release", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_release, value)
+  end)
+
+  params:add_number(prefix .. "env1_attack_shape", "Env 1 Atk Shape", 0, 127, 64)
+  params:set_action(prefix .. "env1_attack_shape", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_attack_shape, value)
+  end)
+
+  params:add_number(prefix .. "env1_decay_shape", "Env 1 Dcy Shape", 0, 127, 64)
+  params:set_action(prefix .. "env1_decay_shape", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_decay_shape, value)
+  end)
+
+  -- Envelope 2
+  params:add_number(prefix .. "env2_attack", "Env 2 Attack", 0, 127, 60)
+  params:set_action(prefix .. "env2_attack", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_attack, value)
+  end)
+
+  params:add_number(prefix .. "env2_decay", "Env 2 Decay", 0, 127, 70)
+  params:set_action(prefix .. "env2_decay", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_decay, value)
+  end)
+
+  params:add_number(prefix .. "env2_sustain", "Env 2 Sustain", -127, 127, 64)
+  params:set_action(prefix .. "env2_sustain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_sustain, value)
+  end)
+
+  params:add_number(prefix .. "env2_release", "Env 2 Release", 0, 127, 50)
+  params:set_action(prefix .. "env2_release", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_release, value)
+  end)
+
+  params:add_number(prefix .. "env2_attack_shape", "Env 2 Atk Shape", 0, 127, 64)
+  params:set_action(prefix .. "env2_attack_shape", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_attack_shape, value)
+  end)
+
+  params:add_number(prefix .. "env2_decay_shape", "Env 2 Dcy Shape", 0, 127, 64)
+  params:set_action(prefix .. "env2_decay_shape", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_decay_shape, value)
+  end)
+
+  -- Filter
+  params:add_option(prefix .. "filter_type", "Filter Type", FILTER_TYPES, 1)
+  params:set_action(prefix .. "filter_type", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.filter_type, value - 1)
+  end)
+
+  params:add_number(prefix .. "filter_freq", "Filter Freq", 0, 127, 64, function(param)
+    return midi_to_note_name(param:get())
+  end)
+  params:set_action(prefix .. "filter_freq", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.filter_freq, value)
+  end)
+
+  params:add_number(prefix .. "filter_q", "Filter Q", 0, 100, 50)
+  params:set_action(prefix .. "filter_q", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.filter_q, value)
+  end)
+
+  -- Modulation: Velocity
+  params:add_control(prefix .. "veloc_volume", "Veloc > Volume",
+    controlspec.new(0, 100, 'lin', 1, 100, "%"))
+  params:set_action(prefix .. "veloc_volume", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.veloc_volume, math.floor(value))
+  end)
+
+  params:add_control(prefix .. "veloc_wave", "Veloc > Wave",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "veloc_wave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.veloc_wave, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "veloc_filter", "Veloc > Filter", -127, 127, 0)
+  params:set_action(prefix .. "veloc_filter", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.veloc_filter, value)
+  end)
+
+  -- Modulation: Pitch
+  params:add_control(prefix .. "pitch_wave", "Pitch > Wave",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "pitch_wave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.pitch_wave, math.floor(value))
+  end)
+
+  params:add_control(prefix .. "pitch_filter", "Pitch > Filter",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "pitch_filter", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.pitch_filter, math.floor(value))
+  end)
+
+  -- Modulation: Env 1
+  params:add_control(prefix .. "env1_wave", "Env1 > Wave",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "env1_wave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_wave, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "env1_filter", "Env1 > Filter", -127, 127, 0)
+  params:set_action(prefix .. "env1_filter", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env1_filter, value)
+  end)
+
+  -- Modulation: Env 2
+  params:add_control(prefix .. "env2_wave", "Env2 > Wave",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "env2_wave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_wave, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "env2_filter", "Env2 > Filter", -127, 127, 0)
+  params:set_action(prefix .. "env2_filter", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_filter, value)
+  end)
+
+  params:add_control(prefix .. "env2_pitch", "Env2 > Pitch",
+    controlspec.new(-12, 12, 'lin', 0.1, 0, "ST"))
+  params:set_action(prefix .. "env2_pitch", function(value)
+    -- Convert semitones to internal representation (value * 10 for 0.1 resolution)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.env2_pitch, math.floor(value * 10))
+  end)
+
+  -- Modulation: LFO
+  params:add_control(prefix .. "lfo_wave", "LFO > Wave",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "lfo_wave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.lfo_wave, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "lfo_filter", "LFO > Filter", -127, 127, 0)
+  params:set_action(prefix .. "lfo_filter", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.lfo_filter, value)
+  end)
+
+  params:add_control(prefix .. "lfo_pitch", "LFO > Pitch",
+    controlspec.new(-12, 12, 'lin', 0.1, 0, "ST"))
+  params:set_action(prefix .. "lfo_pitch", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.lfo_pitch, math.floor(value * 10))
+  end)
+
+  -- LFO
+  params:add_number(prefix .. "lfo_speed", "LFO Speed", -100, 100, 90)
+  params:set_action(prefix .. "lfo_speed", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.lfo_speed, value)
+  end)
+
+  params:add_option(prefix .. "lfo_retrigger", "LFO Retrigger", LFO_RETRIGGER_MODES, 1)
+  params:set_action(prefix .. "lfo_retrigger", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.lfo_retrigger, value - 1)
+  end)
+
+  params:add_number(prefix .. "lfo_spread", "LFO Spread", 0, 90, 0)
+  params:set_action(prefix .. "lfo_spread", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.lfo_spread, value)
+  end)
+
+  -- Unison / Girth
+  params:add_number(prefix .. "unison", "Unison", 1, 8, 1)
+  params:set_action(prefix .. "unison", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.unison, value)
+  end)
+
+  params:add_number(prefix .. "unison_detune", "Unison Detune", 0, 100, 10)
+  params:set_action(prefix .. "unison_detune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.unison_detune, value)
+  end)
+
+  params:add_control(prefix .. "output_spread", "Output Spread",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "output_spread", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.output_spread, math.floor(value))
+  end)
+
+  params:add_option(prefix .. "spread_mode", "Spread Mode", SPREAD_MODES, 1)
+  params:set_action(prefix .. "spread_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.spread_mode, value - 1)
+  end)
+
+  -- Output
+  params:add_number(prefix .. "gain", "Gain", -40, 24, 0)
+  params:set_action(prefix .. "gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.gain, value)
+  end)
+
+  params:add_option(prefix .. "sustain", "Sustain", {"Off", "On"}, 1)
+  params:set_action(prefix .. "sustain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.sustain, value - 1)
+  end)
+
+  params:add_number(prefix .. "max_voices", "Max Voices", 1, 24, 24)
+  params:set_action(prefix .. "max_voices", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.max_voices, value)
+  end)
+
+  params:add_option(prefix .. "left_output", "Left Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "left_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.left_output, value - 1)
+  end)
+
+  params:add_option(prefix .. "right_output", "Right Output", OUTPUT_OPTIONS, 15)
+  params:set_action(prefix .. "right_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.poly_wavetable.right_output, value - 1)
+  end)
+end
+
+local function create_seaside_jawari_params(i)
+  local prefix = "lane_" .. i .. "_dnt_jaw_"
+
+  -- Jawari
+  params:add_control(prefix .. "bridge_shape", "Bridge Shape",
+    controlspec.new(0, 1, 'lin', 0.01, 0.5, ""))
+  params:set_action(prefix .. "bridge_shape", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.bridge_shape, math.floor(value * 1000))
+  end)
+
+  params:add_number(prefix .. "tuning_1st", "1st String", 0, 11, 7)
+  params:set_action(prefix .. "tuning_1st", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.tuning_1st, value)
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.fine_tune, value)
+  end)
+
+  params:add_number(prefix .. "velocity", "Velocity", 1, 127, 127)
+  params:set_action(prefix .. "velocity", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.velocity, value)
+  end)
+
+  -- Tweaks
+  params:add_control(prefix .. "damping", "Damping",
+    controlspec.new(0, 1, 'lin', 0.001, 0.995, ""))
+  params:set_action(prefix .. "damping", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.damping, math.floor(value * 1000))
+  end)
+
+  params:add_control(prefix .. "length", "Length",
+    controlspec.new(0, 2, 'lin', 0.01, 1, "s"))
+  params:set_action(prefix .. "length", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.length, math.floor(value * 1000))
+  end)
+
+  params:add_number(prefix .. "bounce_count", "Bounce Count", 1, 10000, 1200)
+  params:set_action(prefix .. "bounce_count", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.bounce_count, value)
+  end)
+
+  params:add_control(prefix .. "strum_level", "Strum Level",
+    controlspec.new(0, 100, 'lin', 1, 25, "%"))
+  params:set_action(prefix .. "strum_level", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.strum_level, math.floor(value * 10))
+  end)
+
+  params:add_control(prefix .. "bounce_level", "Bounce Level",
+    controlspec.new(0, 1000, 'lin', 1, 150, "%"))
+  params:set_action(prefix .. "bounce_level", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.bounce_level, math.floor(value * 10))
+  end)
+
+  params:add_number(prefix .. "start_harmonic", "Start Harmonic", 1, 20, 3)
+  params:set_action(prefix .. "start_harmonic", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.start_harmonic, value)
+  end)
+
+  params:add_number(prefix .. "end_harmonic", "End Harmonic", 1, 20, 10)
+  params:set_action(prefix .. "end_harmonic", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.end_harmonic, value)
+  end)
+
+  params:add_option(prefix .. "strum_type", "Strum Type", STRUM_TYPES, 1)
+  params:set_action(prefix .. "strum_type", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.strum_type, value - 1)
+  end)
+
+  -- Output
+  params:add_option(prefix .. "output", "Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.output, value - 1)
+  end)
+
+  params:add_option(prefix .. "output_mode", "Output Mode", OUTPUT_MODES, 1)
+  params:set_action(prefix .. "output_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.seaside_jawari.output_mode, value - 1)
+  end)
+end
+
+local function create_vco_pulsar_params(i)
+  local prefix = "lane_" .. i .. "_dnt_vcop_"
+
+  -- VCO
+  params:add_number(prefix .. "wavetable", "Wavetable", 0, 271, 0)
+  params:set_action(prefix .. "wavetable", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.wavetable, value)
+  end)
+
+  params:add_control(prefix .. "wave_offset", "Wave Offset",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "wave_offset", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.wave_offset, math.floor(value))
+  end)
+
+  params:add_option(prefix .. "window", "Window", WINDOW_TYPES, 1)
+  params:set_action(prefix .. "window", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.window, value - 1)
+  end)
+
+  params:add_option(prefix .. "pitch_mode", "Pitch Mode", PITCH_MODES, 1)
+  params:set_action(prefix .. "pitch_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.pitch_mode, value - 1)
+  end)
+
+  params:add_option(prefix .. "masking_mode", "Masking Mode", MASKING_MODES, 1)
+  params:set_action(prefix .. "masking_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.masking_mode, value - 1)
+  end)
+
+  params:add_control(prefix .. "masking", "Masking",
+    controlspec.new(0, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "masking", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.masking, math.floor(value))
+  end)
+
+  params:add_number(prefix .. "burst_length", "Burst Length", 2, 100, 2)
+  params:set_action(prefix .. "burst_length", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.burst_length, value)
+  end)
+
+  -- Tuning
+  params:add_number(prefix .. "octave", "Octave", -16, 8, 0)
+  params:set_action(prefix .. "octave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.octave, value)
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.fine_tune, value)
+  end)
+
+  -- Output
+  params:add_control(prefix .. "amplitude", "Amplitude",
+    controlspec.new(0, 10, 'lin', 0.1, 10, "V"))
+  params:set_action(prefix .. "amplitude", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.amplitude, math.floor(value * 100))
+  end)
+
+  params:add_number(prefix .. "gain", "Gain", -40, 6, 0)
+  params:set_action(prefix .. "gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.gain, value)
+  end)
+
+  params:add_option(prefix .. "output", "Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.output, value - 1)
+  end)
+
+  params:add_option(prefix .. "output_mode", "Output Mode", OUTPUT_MODES, 1)
+  params:set_action(prefix .. "output_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_pulsar.output_mode, value - 1)
+  end)
+end
+
+local function create_vco_waveshaping_params(i)
+  local prefix = "lane_" .. i .. "_dnt_vcow_"
+
+  -- VCO
+  params:add_control(prefix .. "waveshape", "Waveshape",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "waveshape", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.waveshape, math.floor(value))
+  end)
+
+  -- Tuning
+  params:add_number(prefix .. "octave", "Octave", -16, 8, 0)
+  params:set_action(prefix .. "octave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.octave, value)
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.fine_tune, value)
+  end)
+
+  params:add_option(prefix .. "oversampling", "Oversampling", OVERSAMPLING_OPTIONS, 1)
+  params:set_action(prefix .. "oversampling", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.oversampling, value - 1)
+  end)
+
+  params:add_number(prefix .. "fm_scale", "FM Scale", 1, 1000, 100)
+  params:set_action(prefix .. "fm_scale", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.fm_scale, value)
+  end)
+
+  -- Triangle/Saw
+  params:add_control(prefix .. "tri_saw_amplitude", "Tri/Saw Amp",
+    controlspec.new(0, 10, 'lin', 0.1, 10, "V"))
+  params:set_action(prefix .. "tri_saw_amplitude", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.tri_saw_amplitude, math.floor(value * 100))
+  end)
+
+  params:add_number(prefix .. "tri_saw_gain", "Tri/Saw Gain", -40, 6, 0)
+  params:set_action(prefix .. "tri_saw_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.tri_saw_gain, value)
+  end)
+
+  params:add_option(prefix .. "tri_saw_output", "Tri/Saw Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "tri_saw_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.tri_saw_output, value - 1)
+  end)
+
+  -- Square/Pulse
+  params:add_control(prefix .. "square_amplitude", "Square Amp",
+    controlspec.new(0, 10, 'lin', 0.1, 10, "V"))
+  params:set_action(prefix .. "square_amplitude", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.square_amplitude, math.floor(value * 100))
+  end)
+
+  params:add_number(prefix .. "square_gain", "Square Gain", -40, 6, 0)
+  params:set_action(prefix .. "square_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.square_gain, value)
+  end)
+
+  params:add_option(prefix .. "square_output", "Square Output", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "square_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.square_output, value - 1)
+  end)
+
+  -- Sub
+  params:add_control(prefix .. "sub_amplitude", "Sub Amp",
+    controlspec.new(0, 10, 'lin', 0.1, 10, "V"))
+  params:set_action(prefix .. "sub_amplitude", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.sub_amplitude, math.floor(value * 100))
+  end)
+
+  params:add_number(prefix .. "sub_gain", "Sub Gain", -40, 6, 0)
+  params:set_action(prefix .. "sub_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.sub_gain, value)
+  end)
+
+  params:add_option(prefix .. "sub_output", "Sub Output", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "sub_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.sub_output, value - 1)
+  end)
+
+  -- Sine
+  params:add_control(prefix .. "sine_amplitude", "Sine Amp",
+    controlspec.new(0, 10, 'lin', 0.1, 10, "V"))
+  params:set_action(prefix .. "sine_amplitude", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.sine_amplitude, math.floor(value * 100))
+  end)
+
+  params:add_number(prefix .. "sine_gain", "Sine Gain", -40, 6, 0)
+  params:set_action(prefix .. "sine_gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.sine_gain, value)
+  end)
+
+  params:add_option(prefix .. "sine_output", "Sine Output", OUTPUT_OPTIONS, 1)
+  params:set_action(prefix .. "sine_output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_waveshaping.sine_output, value - 1)
+  end)
+end
+
+local function create_vco_wavetable_params(i)
+  local prefix = "lane_" .. i .. "_dnt_vcot_"
+
+  -- VCO
+  params:add_number(prefix .. "wavetable", "Wavetable", 0, 271, 0)
+  params:set_action(prefix .. "wavetable", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.wavetable, value)
+  end)
+
+  params:add_control(prefix .. "wave_offset", "Wave Offset",
+    controlspec.new(-100, 100, 'lin', 1, 0, "%"))
+  params:set_action(prefix .. "wave_offset", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.wave_offset, math.floor(value))
+  end)
+
+  -- Tuning
+  params:add_number(prefix .. "octave", "Octave", -16, 8, 0)
+  params:set_action(prefix .. "octave", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.octave, value)
+  end)
+
+  params:add_number(prefix .. "fine_tune", "Fine Tune", -100, 100, 0)
+  params:set_action(prefix .. "fine_tune", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.fine_tune, value)
+  end)
+
+  -- Output
+  params:add_control(prefix .. "amplitude", "Amplitude",
+    controlspec.new(0, 10, 'lin', 0.1, 10, "V"))
+  params:set_action(prefix .. "amplitude", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.amplitude, math.floor(value * 100))
+  end)
+
+  params:add_number(prefix .. "gain", "Gain", -40, 6, 0)
+  params:set_action(prefix .. "gain", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.gain, value)
+  end)
+
+  params:add_option(prefix .. "output", "Output", OUTPUT_OPTIONS, 14)
+  params:set_action(prefix .. "output", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.output, value - 1)
+  end)
+
+  params:add_option(prefix .. "output_mode", "Output Mode", OUTPUT_MODES, 1)
+  params:set_action(prefix .. "output_mode", function(value)
+    send_param_for_lane(i, PARAM_NUMS.vco_wavetable.output_mode, value - 1)
+  end)
 end
 
 ------------------------------------------------------------
--- Per-Lane Params (minimal: active, channel, volume)
+-- Main Entry Point
 ------------------------------------------------------------
 
-local function create_lane_params(i)
+-- Set the NT algorithm's i2c_channel parameter to match the slot number.
+-- Algorithm and slot can be provided directly or read from params.
+local function sync_i2c_channel(lane_idx, algorithm, slot)
+  algorithm = algorithm or params:get("lane_" .. lane_idx .. "_dnt_algorithm")
+  slot = slot or params:get("lane_" .. lane_idx .. "_dnt_slot")
+
+  local key = ALGORITHM_KEYS[algorithm]
+  local i2c_param = key and PARAM_NUMS[key].i2c_channel
+
+  if i2c_param then
+    select_algorithm(slot)
+    set_param(i2c_param, slot)
+  end
+end
+
+function disting_nt.create_params(i)
+  -- Lane activation
   params:add_binary("lane_" .. i .. "_disting_nt_active", "Disting NT Active", "toggle", 0)
   params:set_action("lane_" .. i .. "_disting_nt_active", function(value)
     _seeker.lanes[i].disting_nt_active = (value == 1)
+    if value == 1 then
+      sync_i2c_channel(i)  -- Set i2c channel when activated
+    end
     _seeker.lane_config.screen:rebuild_params()
     _seeker.screen_ui.set_needs_redraw()
   end)
 
-  params:add_number("lane_" .. i .. "_disting_nt_channel", "Channel", 1, 255, i)
-  params:set_action("lane_" .. i .. "_disting_nt_channel", function(value)
-    _seeker.lanes[i].disting_nt_channel = value
-  end)
-
+  -- Lane volume
   params:add_control("lane_" .. i .. "_disting_nt_volume", "Volume",
     controlspec.new(0, 1, 'lin', 0.01, 1, ""))
   params:set_action("lane_" .. i .. "_disting_nt_volume", function(value)
     _seeker.lanes[i].disting_nt_volume = value
   end)
+
+  -- Which algorithm type (must match what's actually at this slot on NT)
+  params:add_option("lane_" .. i .. "_dnt_algorithm", "Algorithm", ALGORITHMS, 1)
+  params:set_action("lane_" .. i .. "_dnt_algorithm", function(value)
+    sync_i2c_channel(i, value, nil)  -- pass new algorithm directly
+    _seeker.lane_config.screen:rebuild_params()
+    _seeker.screen_ui.set_needs_redraw()
+  end)
+
+  -- NT slot: which algorithm instance to control (also used as note channel)
+  params:add_number("lane_" .. i .. "_dnt_slot", "Slot", 1, 32, i)
+  params:set_action("lane_" .. i .. "_dnt_slot", function(value)
+    sync_i2c_channel(i, nil, value)  -- pass new slot directly
+  end)
+
+  -- Create all algorithm-specific params for this lane
+  create_poly_fm_params(i)
+  create_plaits_params(i)
+  create_multisample_params(i)
+  create_poly_resonator_params(i)
+  create_poly_wavetable_params(i)
+  create_seaside_jawari_params(i)
+  create_vco_pulsar_params(i)
+  create_vco_waveshaping_params(i)
+  create_vco_wavetable_params(i)
 end
 
 ------------------------------------------------------------
--- Global View Params (edit any channel's config)
-------------------------------------------------------------
-
-local function create_view_params()
-  params:add_group("disting_nt", "DISTING NT", 53)
-
-  -- Which channel to edit
-  params:add_number("dnt_edit_channel", "Edit Channel", 1, 255, 1)
-  params:set_action("dnt_edit_channel", function(value)
-    load_channel_into_params(value)
-    if _seeker and _seeker.lane_config then
-      _seeker.lane_config.screen:rebuild_params()
-      _seeker.screen_ui.set_needs_redraw()
-    end
-  end)
-
-  -- Algorithm type for this channel
-  params:add_option("dnt_algorithm", "Algorithm", ALGORITHMS, 1)
-  params:set_action("dnt_algorithm", function(value)
-    save_to_channel("algorithm", value)
-
-    -- Auto-configure i2c channel to default for this algorithm type
-    local alg_name = ALGORITHMS[value]
-    local default_ch = DEFAULT_CHANNELS[alg_name] or current_edit_channel
-    send_param(current_edit_channel, PARAM_NUMS.i2c_channel, default_ch)
-
-    if _seeker and _seeker.lane_config then
-      _seeker.lane_config.screen:rebuild_params()
-      _seeker.screen_ui.set_needs_redraw()
-    end
-  end)
-
-  ----------------------------------------
-  -- DX7 params
-  ----------------------------------------
-
-  params:add_number("dnt_dx7_bank", "Bank", 0, 127, 0)
-  params:set_action("dnt_dx7_bank", function(value)
-    save_to_channel("dx7_bank", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.bank, value)
-  end)
-
-  params:add_number("dnt_dx7_voice", "Voice", 1, 32, 1)
-  params:set_action("dnt_dx7_voice", function(value)
-    save_to_channel("dx7_voice", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.voice, value)
-  end)
-
-  params:add_number("dnt_dx7_brightness", "Brightness", -100, 100, 0)
-  params:set_action("dnt_dx7_brightness", function(value)
-    save_to_channel("dx7_brightness", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.brightness, value)
-  end)
-
-  params:add_number("dnt_dx7_envelope_scale", "Envelope Scale", -100, 100, 0)
-  params:set_action("dnt_dx7_envelope_scale", function(value)
-    save_to_channel("dx7_envelope_scale", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.envelope_scale, value)
-  end)
-
-  params:add_number("dnt_dx7_left_output", "Left Output", 1, 28, 13)
-  params:set_action("dnt_dx7_left_output", function(value)
-    save_to_channel("dx7_left_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.left_output, value)
-  end)
-
-  params:add_number("dnt_dx7_right_output", "Right Output", 0, 28, 0)
-  params:set_action("dnt_dx7_right_output", function(value)
-    save_to_channel("dx7_right_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.right_output, value)
-  end)
-
-  params:add_number("dnt_dx7_i2c_channel", "I2C Channel", 0, 255, 1)
-  params:set_action("dnt_dx7_i2c_channel", function(value)
-    save_to_channel("dx7_i2c_channel", value)
-    send_param(current_edit_channel, PARAM_NUMS.dx7.i2c_channel, value)
-  end)
-
-  ----------------------------------------
-  -- Plaits params
-  ----------------------------------------
-
-  params:add_option("dnt_plaits_model", "Model", PLAITS_MODELS, 1)
-  params:set_action("dnt_plaits_model", function(value)
-    local actual = value - 1
-    save_to_channel("plaits_model", actual)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.model, actual)
-  end)
-
-  params:add_number("dnt_plaits_harmonics", "Harmonics", 0, 127, 64)
-  params:set_action("dnt_plaits_harmonics", function(value)
-    save_to_channel("plaits_harmonics", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.harmonics, value)
-  end)
-
-  params:add_number("dnt_plaits_timbre", "Timbre", 0, 127, 64)
-  params:set_action("dnt_plaits_timbre", function(value)
-    save_to_channel("plaits_timbre", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.timbre, value)
-  end)
-
-  params:add_number("dnt_plaits_morph", "Morph", 0, 127, 64)
-  params:set_action("dnt_plaits_morph", function(value)
-    save_to_channel("plaits_morph", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.morph, value)
-  end)
-
-  params:add_number("dnt_plaits_fm", "FM", 0, 127, 0)
-  params:set_action("dnt_plaits_fm", function(value)
-    save_to_channel("plaits_fm", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.fm, value)
-  end)
-
-  params:add_number("dnt_plaits_timbre_mod", "Timbre Mod", 0, 127, 0)
-  params:set_action("dnt_plaits_timbre_mod", function(value)
-    save_to_channel("plaits_timbre_mod", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.timbre_mod, value)
-  end)
-
-  params:add_number("dnt_plaits_morph_mod", "Morph Mod", 0, 127, 0)
-  params:set_action("dnt_plaits_morph_mod", function(value)
-    save_to_channel("plaits_morph_mod", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.morph_mod, value)
-  end)
-
-  params:add_number("dnt_plaits_lpg", "LPG", 0, 127, 127)
-  params:set_action("dnt_plaits_lpg", function(value)
-    save_to_channel("plaits_lpg", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.lpg, value)
-  end)
-
-  params:add_number("dnt_plaits_decay", "Decay", 0, 127, 64)
-  params:set_action("dnt_plaits_decay", function(value)
-    save_to_channel("plaits_decay", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.decay, value)
-  end)
-
-  params:add_number("dnt_plaits_fm_input", "FM Input", 0, 28, 0)
-  params:set_action("dnt_plaits_fm_input", function(value)
-    save_to_channel("plaits_fm_input", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.fm_input, value)
-  end)
-
-  params:add_number("dnt_plaits_harmonics_input", "Harmonics Input", 0, 28, 0)
-  params:set_action("dnt_plaits_harmonics_input", function(value)
-    save_to_channel("plaits_harmonics_input", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.harmonics_input, value)
-  end)
-
-  params:add_number("dnt_plaits_timbre_input", "Timbre Input", 0, 28, 0)
-  params:set_action("dnt_plaits_timbre_input", function(value)
-    save_to_channel("plaits_timbre_input", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.timbre_input, value)
-  end)
-
-  params:add_number("dnt_plaits_morph_input", "Morph Input", 0, 28, 0)
-  params:set_action("dnt_plaits_morph_input", function(value)
-    save_to_channel("plaits_morph_input", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.morph_input, value)
-  end)
-
-  params:add_number("dnt_plaits_main_output", "Main Output", 1, 28, 13)
-  params:set_action("dnt_plaits_main_output", function(value)
-    save_to_channel("plaits_main_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.main_output, value)
-  end)
-
-  params:add_number("dnt_plaits_aux_output", "Aux Output", 0, 28, 0)
-  params:set_action("dnt_plaits_aux_output", function(value)
-    save_to_channel("plaits_aux_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.aux_output, value)
-  end)
-
-  local OUTPUT_MODES = {"Both", "Main only", "Aux only"}
-  params:add_option("dnt_plaits_output_mode", "Output Mode", OUTPUT_MODES, 1)
-  params:set_action("dnt_plaits_output_mode", function(value)
-    local actual = value - 1
-    save_to_channel("plaits_output_mode", actual)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.output_mode, actual)
-  end)
-
-  params:add_option("dnt_plaits_i2c_mode", "I2C Mode", I2C_MODES, 4)
-  params:set_action("dnt_plaits_i2c_mode", function(value)
-    local actual = value - 1
-    save_to_channel("plaits_i2c_mode", actual)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.i2c_mode, actual)
-  end)
-
-  params:add_number("dnt_plaits_i2c_channel", "I2C Channel", 1, 255, 1)
-  params:set_action("dnt_plaits_i2c_channel", function(value)
-    save_to_channel("plaits_i2c_channel", value)
-    send_param(current_edit_channel, PARAM_NUMS.plaits.i2c_channel, value)
-  end)
-
-  ----------------------------------------
-  -- Poly Multisample params
-  ----------------------------------------
-
-  params:add_number("dnt_pm_folder", "Folder", 0, 99, 0)
-  params:set_action("dnt_pm_folder", function(value)
-    save_to_channel("pm_folder", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.folder, value)
-  end)
-
-  params:add_number("dnt_pm_gain", "Gain", -40, 24, 0)
-  params:set_action("dnt_pm_gain", function(value)
-    save_to_channel("pm_gain", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.gain, value)
-  end)
-
-  params:add_number("dnt_pm_pan", "Pan", -100, 100, 0)
-  params:set_action("dnt_pm_pan", function(value)
-    save_to_channel("pm_pan", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.pan, value)
-  end)
-
-  params:add_option("dnt_pm_envelope", "Envelope", {"Off", "On"}, 1)
-  params:set_action("dnt_pm_envelope", function(value)
-    local actual = value - 1
-    save_to_channel("pm_envelope", actual)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.envelope, actual)
-  end)
-
-  params:add_number("dnt_pm_attack", "Attack", 0, 127, 0)
-  params:set_action("dnt_pm_attack", function(value)
-    save_to_channel("pm_attack", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.attack, value)
-  end)
-
-  params:add_number("dnt_pm_decay", "Decay", 0, 127, 60)
-  params:set_action("dnt_pm_decay", function(value)
-    save_to_channel("pm_decay", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.decay, value)
-  end)
-
-  params:add_number("dnt_pm_sustain", "Sustain", 0, 100, 100)
-  params:set_action("dnt_pm_sustain", function(value)
-    save_to_channel("pm_sustain", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.sustain, value)
-  end)
-
-  params:add_number("dnt_pm_release", "Release", 0, 127, 77)
-  params:set_action("dnt_pm_release", function(value)
-    save_to_channel("pm_release", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.release, value)
-  end)
-
-  params:add_option("dnt_pm_loop", "Loop", {"From WAV", "Off", "On"}, 1)
-  params:set_action("dnt_pm_loop", function(value)
-    local actual = value - 1
-    save_to_channel("pm_loop", actual)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.loop, actual)
-  end)
-
-  params:add_number("dnt_pm_left_output", "Left Output", 1, 28, 13)
-  params:set_action("dnt_pm_left_output", function(value)
-    save_to_channel("pm_left_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.left_output, value)
-  end)
-
-  params:add_number("dnt_pm_right_output", "Right Output", 0, 28, 0)
-  params:set_action("dnt_pm_right_output", function(value)
-    save_to_channel("pm_right_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.right_output, value)
-  end)
-
-  params:add_number("dnt_pm_i2c_channel", "I2C Channel", 0, 255, 1)
-  params:set_action("dnt_pm_i2c_channel", function(value)
-    save_to_channel("pm_i2c_channel", value)
-    send_param(current_edit_channel, PARAM_NUMS.poly_multisample.i2c_channel, value)
-  end)
-
-  ----------------------------------------
-  -- Rings params
-  ----------------------------------------
-
-  params:add_option("dnt_rings_mode", "Mode", {
-    "Modal", "Sympathetic", "String", "FM", "Quantized"
-  }, 1)
-  params:set_action("dnt_rings_mode", function(value)
-    local actual = value - 1
-    save_to_channel("rings_mode", actual)
-    send_param(current_edit_channel, PARAM_NUMS.rings.mode, actual)
-  end)
-
-  params:add_option("dnt_rings_synth_effect", "Synth Effect", {"Off", "On"}, 1)
-  params:set_action("dnt_rings_synth_effect", function(value)
-    local actual = value - 1
-    save_to_channel("rings_synth_effect", actual)
-    send_param(current_edit_channel, PARAM_NUMS.rings.synth_effect, actual)
-  end)
-
-  params:add_number("dnt_rings_resolution", "Resolution", 8, 64, 16)
-  params:set_action("dnt_rings_resolution", function(value)
-    save_to_channel("rings_resolution", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.resolution, value)
-  end)
-
-  params:add_number("dnt_rings_structure", "Structure", 0, 127, 64)
-  params:set_action("dnt_rings_structure", function(value)
-    save_to_channel("rings_structure", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.structure, value)
-  end)
-
-  params:add_number("dnt_rings_brightness", "Brightness", 0, 127, 64)
-  params:set_action("dnt_rings_brightness", function(value)
-    save_to_channel("rings_brightness", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.brightness, value)
-  end)
-
-  params:add_number("dnt_rings_damping", "Damping", 0, 127, 64)
-  params:set_action("dnt_rings_damping", function(value)
-    save_to_channel("rings_damping", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.damping, value)
-  end)
-
-  params:add_number("dnt_rings_position", "Position", 0, 127, 64)
-  params:set_action("dnt_rings_position", function(value)
-    save_to_channel("rings_position", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.position, value)
-  end)
-
-  params:add_number("dnt_rings_chord", "Chord", 0, 10, 0)
-  params:set_action("dnt_rings_chord", function(value)
-    save_to_channel("rings_chord", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.chord, value)
-  end)
-
-  params:add_option("dnt_rings_noise_gate", "Noise Gate", {"Off", "On"}, 2)
-  params:set_action("dnt_rings_noise_gate", function(value)
-    local actual = value - 1
-    save_to_channel("rings_noise_gate", actual)
-    send_param(current_edit_channel, PARAM_NUMS.rings.noise_gate, actual)
-  end)
-
-  params:add_number("dnt_rings_input_gain", "Input Gain", -40, 12, 0)
-  params:set_action("dnt_rings_input_gain", function(value)
-    save_to_channel("rings_input_gain", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.input_gain, value)
-  end)
-
-  params:add_number("dnt_rings_audio_input", "Audio Input", 0, 28, 0)
-  params:set_action("dnt_rings_audio_input", function(value)
-    save_to_channel("rings_audio_input", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.audio_input, value)
-  end)
-
-  params:add_number("dnt_rings_odd_output", "Odd Output", 0, 28, 13)
-  params:set_action("dnt_rings_odd_output", function(value)
-    save_to_channel("rings_odd_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.odd_output, value)
-  end)
-
-  params:add_number("dnt_rings_even_output", "Even Output", 0, 28, 13)
-  params:set_action("dnt_rings_even_output", function(value)
-    save_to_channel("rings_even_output", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.even_output, value)
-  end)
-
-  params:add_number("dnt_rings_i2c_channel", "I2C Channel", 0, 255, 1)
-  params:set_action("dnt_rings_i2c_channel", function(value)
-    save_to_channel("rings_i2c_channel", value)
-    send_param(current_edit_channel, PARAM_NUMS.rings.i2c_channel, value)
-  end)
-
-  -- Initialize view to channel 1
-  load_channel_into_params(1)
-end
-
-------------------------------------------------------------
--- Public API: Note Control (called by lane.lua during playback)
+-- Public API: Note Control
 ------------------------------------------------------------
 
 function disting_nt.note_pitch(channel, note_id, pitch)
@@ -849,20 +1367,16 @@ function disting_nt.all_notes_off()
   i2c_send({CMD.ALL_NOTES_OFF})
 end
 
--- Convert MIDI note to NT pitch format
 function disting_nt.midi_to_pitch(midi_note)
   return midi_to_pitch(midi_note)
 end
 
--- Convert 0-127 velocity to NT format (0-16384)
 function disting_nt.scale_velocity(velocity_0_127, volume_multiplier)
   return math.floor(velocity_0_127 * volume_multiplier * 16384 / 127)
 end
 
 ------------------------------------------------------------
--- Voice Interface: Unified note handling for lane.lua
--- These methods encapsulate the voice-specific logic so lane.lua
--- can call a single method instead of inline i2c commands.
+-- Voice Interface (called by lane.lua)
 ------------------------------------------------------------
 
 function disting_nt.is_active(lane_idx)
@@ -872,172 +1386,334 @@ end
 function disting_nt.handle_note_on(lane_idx, note, event_velocity)
   local voice_volume = params:get("lane_" .. lane_idx .. "_disting_nt_volume")
   local lane_volume = params:get("lane_" .. lane_idx .. "_volume")
-  local channel = disting_nt.get_channel_for_lane(lane_idx)
+  local slot = params:get("lane_" .. lane_idx .. "_dnt_slot")  -- slot = channel
   local nt_pitch = disting_nt.midi_to_pitch(note)
   local nt_velocity = disting_nt.scale_velocity(event_velocity, voice_volume * lane_volume)
 
-  disting_nt.note_pitch(channel, note, nt_pitch)
-  disting_nt.note_on(channel, note, nt_velocity)
+  disting_nt.note_pitch(slot, note, nt_pitch)
+  disting_nt.note_on(slot, note, nt_velocity)
 end
 
 function disting_nt.handle_note_off(lane_idx, note)
-  local channel = disting_nt.get_channel_for_lane(lane_idx)
-  disting_nt.note_off(channel, note)
+  local slot = params:get("lane_" .. lane_idx .. "_dnt_slot")  -- slot = channel
+  disting_nt.note_off(slot, note)
 end
 
 ------------------------------------------------------------
--- Public API: Param Setup
+-- UI Helper: Returns param entries for lane_config
 ------------------------------------------------------------
 
--- Main entry point, called per lane during param setup
-function disting_nt.create_params(i)
-  create_lane_params(i)
+function disting_nt.get_params_for_ui(lane_idx)
+  local algorithm = params:get("lane_" .. lane_idx .. "_dnt_algorithm")
+  local prefix = "lane_" .. lane_idx .. "_dnt_"
 
-  -- Create global view params only once (on lane 1)
-  if i == 1 then
-    create_view_params()
+  -- Slot assignment (algorithm selector is added by lane_config)
+  local entries = {
+    { id = "lane_" .. lane_idx .. "_dnt_slot" },
+  }
+
+  -- Helper to append algorithm-specific params
+  local function add_entries(new_entries)
+    for _, entry in ipairs(new_entries) do
+      table.insert(entries, entry)
+    end
   end
-end
 
--- Get channel for a lane (used by lane.lua for note routing)
-function disting_nt.get_channel_for_lane(lane_idx)
-  return params:get("lane_" .. lane_idx .. "_disting_nt_channel")
-end
+  -- Poly FM
+  if algorithm == 1 then
+    add_entries({
+      { separator = true, title = "Voice" },
+      { id = prefix .. "pfm_sustain_mode" },
+      { id = prefix .. "pfm_bank" },
+      { id = prefix .. "pfm_voice" },
 
--- Get current edit channel
-function disting_nt.get_current_edit_channel()
-  return current_edit_channel
-end
+      { separator = true, title = "Sound" },
+      { id = prefix .. "pfm_sustain" },
+      { id = prefix .. "pfm_brightness", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pfm_envelope_scale", arc_multi_float = {10, 5, 1} },
 
--- Get algorithm name for a channel
-function disting_nt.get_algorithm(channel)
-  local config = get_channel_config(channel)
-  return ALGORITHMS[config.algorithm]
-end
+      { separator = true, title = "Tuning" },
+      { id = prefix .. "pfm_fine_tune", arc_multi_float = {10, 5, 1} },
 
--- Get algorithm index for a channel
-function disting_nt.get_algorithm_index(channel)
-  local config = get_channel_config(channel)
-  return config.algorithm
+      { separator = true, title = "Output" },
+      { id = prefix .. "pfm_gain" },
+      { id = prefix .. "pfm_left_output" },
+      { id = prefix .. "pfm_right_output" },
+    })
+
+  -- Plaits
+  elseif algorithm == 2 then
+    add_entries({
+      { separator = true, title = "Voice" },
+      { id = prefix .. "plaits_sustain_mode" },
+      { id = prefix .. "plaits_model" },
+      { id = prefix .. "plaits_fine_tune", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Oscillator" },
+      { id = prefix .. "plaits_harmonics", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "plaits_timbre", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "plaits_morph", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Modulation" },
+      { id = prefix .. "plaits_fm", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "plaits_timbre_mod", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "plaits_morph_mod", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Envelope" },
+      { id = prefix .. "plaits_lpg", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "plaits_decay", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "plaits_main_output" },
+      { id = prefix .. "plaits_aux_output" },
+      { id = prefix .. "plaits_output_mode" },
+
+      { separator = true, title = "CV Inputs" },
+      { id = prefix .. "plaits_level_input" },
+      { id = prefix .. "plaits_fm_input" },
+      { id = prefix .. "plaits_harmonics_input" },
+      { id = prefix .. "plaits_timbre_input" },
+      { id = prefix .. "plaits_morph_input" },
+    })
+
+  -- Poly Multisample
+  elseif algorithm == 3 then
+    local envelope_on = {{ id = prefix .. "pm_envelope", operator = "=", value = "On" }}
+    add_entries({
+      { separator = true, title = "Sample" },
+      { id = prefix .. "pm_folder" },
+      { id = prefix .. "pm_gain" },
+      { id = prefix .. "pm_pan", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Envelope" },
+      { id = prefix .. "pm_envelope" },
+      { id = "lane_" .. lane_idx .. "_dnt_pm_visual_edit", is_action = true, custom_name = "Visual Edit", custom_value = "...", view_conditions = envelope_on },
+      { id = prefix .. "pm_attack", arc_multi_float = {10, 5, 1}, view_conditions = envelope_on },
+      { id = prefix .. "pm_decay", arc_multi_float = {10, 5, 1}, view_conditions = envelope_on },
+      { id = prefix .. "pm_sustain", arc_multi_float = {10, 5, 1}, view_conditions = envelope_on },
+      { id = prefix .. "pm_release", arc_multi_float = {10, 5, 1}, view_conditions = envelope_on },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "pm_left_output" },
+      { id = prefix .. "pm_right_output" },
+    })
+
+  -- Poly Resonator
+  elseif algorithm == 4 then
+    add_entries({
+      { separator = true, title = "Voice" },
+      { id = prefix .. "pres_sustain_mode" },
+      { id = prefix .. "pres_mode" },
+      { id = prefix .. "pres_synth_effect" },
+
+      { separator = true, title = "Tuning" },
+      { id = prefix .. "pres_fine_tune", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Resonator" },
+      { id = prefix .. "pres_resolution", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pres_structure", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pres_brightness", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pres_damping", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pres_position", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Input" },
+      { id = prefix .. "pres_noise_gate" },
+      { id = prefix .. "pres_input_gain" },
+      { id = prefix .. "pres_audio_input" },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "pres_output_gain" },
+      { id = prefix .. "pres_dry_gain" },
+      { id = prefix .. "pres_odd_output" },
+      { id = prefix .. "pres_even_output" },
+      { id = prefix .. "pres_odd_output_mode" },
+      { id = prefix .. "pres_even_output_mode" },
+    })
+
+  -- Poly Wavetable
+  elseif algorithm == 5 then
+    add_entries({
+      { separator = true, title = "Voice" },
+      { id = prefix .. "pwt_sustain_mode" },
+      { id = prefix .. "pwt_wavetable" },
+      { id = prefix .. "pwt_max_voices" },
+
+      { separator = true, title = "Wave" },
+      { id = prefix .. "pwt_wave_offset", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_wave_spread", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Tuning" },
+      { id = prefix .. "pwt_fine_tune", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Envelope 1" },
+      { id = "lane_" .. lane_idx .. "_dnt_pwt_env1_visual_edit", is_action = true, custom_name = "Visual Edit", custom_value = "..." },
+      { id = prefix .. "pwt_env1_attack", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_decay", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_sustain", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_release", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_attack_shape", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_decay_shape", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_wave", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env1_filter", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Envelope 2" },
+      { id = "lane_" .. lane_idx .. "_dnt_pwt_env2_visual_edit", is_action = true, custom_name = "Visual Edit", custom_value = "..." },
+      { id = prefix .. "pwt_env2_attack", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_decay", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_sustain", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_release", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_attack_shape", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_decay_shape", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_wave", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_filter", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_env2_pitch", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Filter" },
+      { id = prefix .. "pwt_filter_type" },
+      { id = prefix .. "pwt_filter_freq", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_filter_q", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Mod: Velocity" },
+      { id = prefix .. "pwt_veloc_volume", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_veloc_wave", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_veloc_filter", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Mod: Pitch" },
+      { id = prefix .. "pwt_pitch_wave", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_pitch_filter", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "LFO" },
+      { id = prefix .. "pwt_lfo_speed", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_lfo_retrigger" },
+      { id = prefix .. "pwt_lfo_spread", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_lfo_wave", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_lfo_filter", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_lfo_pitch", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Unison" },
+      { id = prefix .. "pwt_unison" },
+      { id = prefix .. "pwt_unison_detune", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_output_spread", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "pwt_spread_mode" },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "pwt_gain" },
+      { id = prefix .. "pwt_sustain" },
+      { id = prefix .. "pwt_left_output" },
+      { id = prefix .. "pwt_right_output" },
+    })
+
+  -- Seaside Jawari
+  elseif algorithm == 6 then
+    add_entries({
+      { separator = true, title = "Jawari" },
+      { id = prefix .. "jaw_bridge_shape", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "jaw_tuning_1st" },
+      { id = prefix .. "jaw_fine_tune", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "jaw_velocity" },
+
+      { separator = true, title = "Tweaks" },
+      { id = prefix .. "jaw_damping", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "jaw_length", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "jaw_bounce_count" },
+      { id = prefix .. "jaw_strum_level", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "jaw_bounce_level", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "jaw_start_harmonic" },
+      { id = prefix .. "jaw_end_harmonic" },
+      { id = prefix .. "jaw_strum_type" },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "jaw_output" },
+      { id = prefix .. "jaw_output_mode" },
+    })
+
+  -- VCO Pulsar
+  elseif algorithm == 7 then
+    add_entries({
+      { separator = true, title = "Wave" },
+      { id = prefix .. "vcop_wavetable" },
+      { id = prefix .. "vcop_wave_offset", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcop_window" },
+
+      { separator = true, title = "Pulsar" },
+      { id = prefix .. "vcop_pitch_mode" },
+      { id = prefix .. "vcop_masking_mode" },
+      { id = prefix .. "vcop_masking", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcop_burst_length" },
+
+      { separator = true, title = "Tuning" },
+      { id = prefix .. "vcop_octave" },
+      { id = prefix .. "vcop_fine_tune", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "vcop_amplitude", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcop_gain" },
+      { id = prefix .. "vcop_output" },
+      { id = prefix .. "vcop_output_mode" },
+    })
+
+  -- VCO Waveshaping
+  elseif algorithm == 8 then
+    add_entries({
+      { separator = true, title = "VCO" },
+      { id = prefix .. "vcow_waveshape", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcow_oversampling" },
+      { id = prefix .. "vcow_fm_scale" },
+
+      { separator = true, title = "Tuning" },
+      { id = prefix .. "vcow_octave" },
+      { id = prefix .. "vcow_fine_tune", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Triangle/Saw" },
+      { id = prefix .. "vcow_tri_saw_amplitude", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcow_tri_saw_gain" },
+      { id = prefix .. "vcow_tri_saw_output" },
+
+      { separator = true, title = "Square/Pulse" },
+      { id = prefix .. "vcow_square_amplitude", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcow_square_gain" },
+      { id = prefix .. "vcow_square_output" },
+
+      { separator = true, title = "Sub" },
+      { id = prefix .. "vcow_sub_amplitude", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcow_sub_gain" },
+      { id = prefix .. "vcow_sub_output" },
+
+      { separator = true, title = "Sine" },
+      { id = prefix .. "vcow_sine_amplitude", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcow_sine_gain" },
+      { id = prefix .. "vcow_sine_output" },
+    })
+
+  -- VCO Wavetable
+  elseif algorithm == 9 then
+    add_entries({
+      { separator = true, title = "Wave" },
+      { id = prefix .. "vcot_wavetable" },
+      { id = prefix .. "vcot_wave_offset", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Tuning" },
+      { id = prefix .. "vcot_octave" },
+      { id = prefix .. "vcot_fine_tune", arc_multi_float = {10, 5, 1} },
+
+      { separator = true, title = "Output" },
+      { id = prefix .. "vcot_amplitude", arc_multi_float = {10, 5, 1} },
+      { id = prefix .. "vcot_gain" },
+      { id = prefix .. "vcot_output" },
+      { id = prefix .. "vcot_output_mode" },
+    })
+  end
+
+  return entries
 end
 
 -- Algorithm list (for external use)
 disting_nt.ALGORITHMS = ALGORITHMS
 
-------------------------------------------------------------
--- UI Helper: Returns formatted param entries for lane_config
-------------------------------------------------------------
-
-function disting_nt.get_params_for_ui(algorithm_index)
-  -- DX7
-  if algorithm_index == 1 then
-    return {
-      { separator = true, title = "Voice" },
-      { id = "dnt_dx7_bank" },
-      { id = "dnt_dx7_voice" },
-
-      { separator = true, title = "Sound" },
-      { id = "dnt_dx7_brightness", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_dx7_envelope_scale", arc_multi_float = {10, 5, 1} },
-
-      { separator = true, title = "Outputs" },
-      { id = "dnt_dx7_left_output" },
-      { id = "dnt_dx7_right_output" },
-
-      { separator = true, title = "I2C" },
-      { id = "dnt_dx7_i2c_channel" },
-    }
-
-  -- Plaits
-  elseif algorithm_index == 2 then
-    return {
-      { separator = true, title = "Oscillator" },
-      { id = "dnt_plaits_model" },
-      { id = "dnt_plaits_harmonics", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_plaits_timbre", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_plaits_morph", arc_multi_float = {10, 5, 1} },
-
-      { separator = true, title = "Modulation" },
-      { id = "dnt_plaits_fm", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_plaits_timbre_mod", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_plaits_morph_mod", arc_multi_float = {10, 5, 1} },
-
-      { separator = true, title = "Envelope" },
-      { id = "dnt_plaits_lpg", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_plaits_decay", arc_multi_float = {10, 5, 1} },
-
-      { separator = true, title = "CV Inputs" },
-      { id = "dnt_plaits_fm_input" },
-      { id = "dnt_plaits_harmonics_input" },
-      { id = "dnt_plaits_timbre_input" },
-      { id = "dnt_plaits_morph_input" },
-
-      { separator = true, title = "Outputs" },
-      { id = "dnt_plaits_main_output" },
-      { id = "dnt_plaits_aux_output" },
-      { id = "dnt_plaits_output_mode" },
-
-      { separator = true, title = "I2C" },
-      { id = "dnt_plaits_i2c_mode" },
-      { id = "dnt_plaits_i2c_channel" },
-    }
-
-  -- Poly Multisample
-  elseif algorithm_index == 3 then
-    return {
-      { separator = true, title = "Sample" },
-      { id = "dnt_pm_folder" },
-      { id = "dnt_pm_gain", arc_multi_float = {5, 2, 1} },
-      { id = "dnt_pm_pan", arc_multi_float = {10, 5, 1} },
-
-      { separator = true, title = "Envelope" },
-      { id = "dnt_pm_envelope" },
-      { id = "dnt_pm_attack", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_pm_decay", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_pm_sustain", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_pm_release", arc_multi_float = {10, 5, 1} },
-
-      { separator = true, title = "Playback" },
-      { id = "dnt_pm_loop" },
-
-      { separator = true, title = "Outputs" },
-      { id = "dnt_pm_left_output" },
-      { id = "dnt_pm_right_output" },
-
-      { separator = true, title = "I2C" },
-      { id = "dnt_pm_i2c_channel" },
-    }
-
-  -- Rings
-  elseif algorithm_index == 4 then
-    return {
-      { separator = true, title = "Mode" },
-      { id = "dnt_rings_mode" },
-      { id = "dnt_rings_synth_effect" },
-
-      { separator = true, title = "Resonator" },
-      { id = "dnt_rings_resolution", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_rings_structure", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_rings_brightness", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_rings_damping", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_rings_position", arc_multi_float = {10, 5, 1} },
-      { id = "dnt_rings_chord" },
-
-      { separator = true, title = "Input" },
-      { id = "dnt_rings_noise_gate" },
-      { id = "dnt_rings_input_gain", arc_multi_float = {5, 2, 1} },
-      { id = "dnt_rings_audio_input" },
-
-      { separator = true, title = "Outputs" },
-      { id = "dnt_rings_odd_output" },
-      { id = "dnt_rings_even_output" },
-
-      { separator = true, title = "I2C" },
-      { id = "dnt_rings_i2c_channel" },
-    }
-  end
-
-  return {}
+-- Diagnostic tool: send arbitrary param to NT for testing/discovery
+function disting_nt.probe_param(lane_idx, param_num, value)
+  print("disting_nt: probing param " .. param_num .. " = " .. value)
+  send_param_for_lane(lane_idx, param_num, value)
 end
 
 return disting_nt

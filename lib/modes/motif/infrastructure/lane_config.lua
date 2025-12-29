@@ -44,7 +44,7 @@ local function create_params()
 
     -- Create parameters for all lanes
     for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 107)
+        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 132)
 
         -- Voice selector
         params:add_option("lane_" .. i .. "_visible_voice", "Voice",
@@ -165,6 +165,91 @@ local function create_params()
                     "lane_" .. lane_idx .. "_disting_multisample_decay",
                     "lane_" .. lane_idx .. "_disting_multisample_sustain",
                     "lane_" .. lane_idx .. "_disting_multisample_release"
+                }
+            })
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+
+        -- Disting NT Poly Multisample ADSR visual editor trigger
+        params:add_trigger("lane_" .. i .. "_dnt_pm_visual_edit", "Visual Edit")
+        params:set_action("lane_" .. i .. "_dnt_pm_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            -- Values normalized to 0-1 for modal visualization
+            -- A/D/R are 0-127, S is 0-100
+            local function get_adsr_data()
+                return {
+                    a = params:get("lane_" .. lane_idx .. "_dnt_pm_attack") / 127,
+                    d = params:get("lane_" .. lane_idx .. "_dnt_pm_decay") / 127,
+                    s = params:get("lane_" .. lane_idx .. "_dnt_pm_sustain") / 100,
+                    r = params:get("lane_" .. lane_idx .. "_dnt_pm_release") / 127
+                }
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                param_ids = {
+                    "lane_" .. lane_idx .. "_dnt_pm_attack",
+                    "lane_" .. lane_idx .. "_dnt_pm_decay",
+                    "lane_" .. lane_idx .. "_dnt_pm_sustain",
+                    "lane_" .. lane_idx .. "_dnt_pm_release"
+                }
+            })
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+
+        -- Disting NT Poly Wavetable Envelope 1 visual editor trigger
+        params:add_trigger("lane_" .. i .. "_dnt_pwt_env1_visual_edit", "Visual Edit")
+        params:set_action("lane_" .. i .. "_dnt_pwt_env1_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            -- Values normalized to 0-1 for modal visualization (0-127 range)
+            local function get_adsr_data()
+                return {
+                    a = params:get("lane_" .. lane_idx .. "_dnt_pwt_env1_attack") / 127,
+                    d = params:get("lane_" .. lane_idx .. "_dnt_pwt_env1_decay") / 127,
+                    s = params:get("lane_" .. lane_idx .. "_dnt_pwt_env1_sustain") / 127,
+                    r = params:get("lane_" .. lane_idx .. "_dnt_pwt_env1_release") / 127
+                }
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                param_ids = {
+                    "lane_" .. lane_idx .. "_dnt_pwt_env1_attack",
+                    "lane_" .. lane_idx .. "_dnt_pwt_env1_decay",
+                    "lane_" .. lane_idx .. "_dnt_pwt_env1_sustain",
+                    "lane_" .. lane_idx .. "_dnt_pwt_env1_release"
+                }
+            })
+            _seeker.screen_ui.set_needs_redraw()
+        end)
+
+        -- Disting NT Poly Wavetable Envelope 2 visual editor trigger
+        params:add_trigger("lane_" .. i .. "_dnt_pwt_env2_visual_edit", "Visual Edit")
+        params:set_action("lane_" .. i .. "_dnt_pwt_env2_visual_edit", function()
+            local Modal = get_modal()
+            if not Modal then return end
+
+            -- Values normalized to 0-1 for modal visualization (0-127 range, env2 sustain is -127 to 127)
+            local function get_adsr_data()
+                return {
+                    a = params:get("lane_" .. lane_idx .. "_dnt_pwt_env2_attack") / 127,
+                    d = params:get("lane_" .. lane_idx .. "_dnt_pwt_env2_decay") / 127,
+                    s = (params:get("lane_" .. lane_idx .. "_dnt_pwt_env2_sustain") + 127) / 254,
+                    r = params:get("lane_" .. lane_idx .. "_dnt_pwt_env2_release") / 127
+                }
+            end
+
+            Modal.show_adsr({
+                get_data = get_adsr_data,
+                param_ids = {
+                    "lane_" .. lane_idx .. "_dnt_pwt_env2_attack",
+                    "lane_" .. lane_idx .. "_dnt_pwt_env2_decay",
+                    "lane_" .. lane_idx .. "_dnt_pwt_env2_sustain",
+                    "lane_" .. lane_idx .. "_dnt_pwt_env2_release"
                 }
             })
             _seeker.screen_ui.set_needs_redraw()
@@ -508,18 +593,12 @@ local function create_screen_ui()
 
             -- Only show additional Disting NT params if active
             if params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1 then
-                table.insert(param_table, { separator = true, title = "Lane Routing" })
+                table.insert(param_table, { separator = true, title = "Voice Settings" })
                 table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
-                table.insert(param_table, { id = "lane_" .. lane_idx .. "_disting_nt_channel" })
+                table.insert(param_table, { id = "lane_" .. lane_idx .. "_dnt_algorithm" })
 
-                -- Global view params for editing channel config
-                table.insert(param_table, { separator = true, title = "Channel Config" })
-                table.insert(param_table, { id = "dnt_edit_channel" })
-                table.insert(param_table, { id = "dnt_algorithm" })
-
-                -- Get algorithm-specific params from helper
-                local algorithm_index = params:get("dnt_algorithm")
-                local algorithm_params = voice_disting_nt.get_params_for_ui(algorithm_index)
+                -- Get algorithm-specific params from helper (per-lane)
+                local algorithm_params = voice_disting_nt.get_params_for_ui(lane_idx)
                 for _, entry in ipairs(algorithm_params) do
                     table.insert(param_table, entry)
                 end
@@ -647,7 +726,7 @@ function LaneConfig.init()
         grid = create_grid_ui()
     }
     create_params()
-    
+
     return component
 end
 

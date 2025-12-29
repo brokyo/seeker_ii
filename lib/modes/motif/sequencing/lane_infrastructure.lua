@@ -77,7 +77,7 @@ local function create_motif_playback_params(i)
 
     -- Quantize control
     params:add_option("lane_" .. i .. "_quantize", "Quantize",
-        {"off", "1/8", "1/4", "1/2", "1"}, 5)
+        {"off", "1/8", "1/4", "1/2", "1"}, 2)
 
     -- Swing control (0-100%, applied to even subdivisions when quantize is active)
     params:add_control("lane_" .. i .. "_swing", "Swing",

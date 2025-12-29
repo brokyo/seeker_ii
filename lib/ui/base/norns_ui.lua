@@ -265,8 +265,8 @@ function NornsUI:draw_params(start_y)
   local separator_count = 0
   local y_offset = 0
 
-  -- Draw visible, active parameters
-  for i = 1, math.min(max_visible_items, #self.active_params) do
+  -- Draw visible, active parameters (use effective count to avoid clipping footer)
+  for i = 1, math.min(effective_visible_items, #self.active_params) do
     local param_idx = i + self.state.scroll_offset
     local param = self.active_params[param_idx]
     -- Stop drawing if we've scrolled past available parameters
