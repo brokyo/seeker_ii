@@ -423,7 +423,15 @@ function NornsUI:handle_enc_default(n, d)
     if new_index > self.state.scroll_offset + max_visible then
       self.state.scroll_offset = new_index - max_visible
     end
-    
+
+    -- Allow scrolling to reveal separators above first selectable
+    if delta < 0 and self.state.scroll_offset > 0 then
+      local first_selectable = self:find_first_selectable()
+      if new_index == first_selectable then
+        self.state.scroll_offset = math.max(0, self.state.scroll_offset - 1)
+      end
+    end
+
   elseif n == 3 and self.state.selected_index > 0 then
     -- Modify selected parameter using helper method
     local param = self:get_selected_param()
