@@ -174,7 +174,7 @@ function disting_nt.create_params(lane_idx)
 
       local first_channel = params:get(prefix .. "dnt_algo_1_channel")
       if _seeker.modal then
-        _seeker.modal.show_toast({ body = "NT Ch " .. first_channel .. " +" .. algo_count })
+        _seeker.modal.show_toast({ body = "+ NT I2C: " .. first_channel })
       end
 
       params:set(prefix .. "disting_nt_active", 1)
@@ -186,12 +186,13 @@ function disting_nt.create_params(lane_idx)
   params:add_binary(prefix .. "dnt_remove", "Remove", "trigger", 0)
   params:set_action(prefix .. "dnt_remove", function(value)
     if value == 1 and params:get(prefix .. "disting_nt_active") == 1 then
+      local first_channel = params:get(prefix .. "dnt_algo_1_channel")
       -- Clear allocated channels
       for i = 1, MAX_CHAIN_ALGOS do
         params:set(prefix .. "dnt_algo_" .. i .. "_channel", 0)
       end
       if _seeker.modal then
-        _seeker.modal.show_toast({ body = "NT: Removed" })
+        _seeker.modal.show_toast({ body = "- NT I2C: " .. first_channel })
       end
       params:set(prefix .. "disting_nt_active", 0)
     end
@@ -324,14 +325,21 @@ end
 -- Returns full voice UI structure for lane_config registry
 function disting_nt.get_ui_params(lane_idx)
   local ui_params = {}
+  local prefix = "lane_" .. lane_idx .. "_"
+  local is_active = params:get(prefix .. "disting_nt_active") == 1
 
   -- Chain/algorithm selector first
-  table.insert(ui_params, { id = "lane_" .. lane_idx .. "_dnt_chain" })
-  table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_nt_active" })
+  table.insert(ui_params, { id = prefix .. "dnt_chain" })
 
-  if params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1 then
+  if not is_active then
+    -- Show Add trigger when not active
+    table.insert(ui_params, { id = prefix .. "dnt_add", is_action = true })
+  else
+    -- Show Remove trigger and params when active
+    table.insert(ui_params, { id = prefix .. "dnt_remove", is_action = true })
+
     table.insert(ui_params, { separator = true, title = "Voice Settings" })
-    table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
+    table.insert(ui_params, { id = prefix .. "disting_nt_volume", arc_multi_float = {0.1, 0.05, 0.01} })
 
     -- Append algorithm-specific params
     local algorithm_params = ui.get_params_for_ui(lane_idx)
