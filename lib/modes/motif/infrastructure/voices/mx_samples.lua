@@ -108,8 +108,7 @@ function mx_samples.get_ui_params(lane_idx)
         table.insert(ui_params, {
             id = "lane_" .. lane_idx .. "_adsr_visual_edit",
             is_action = true,
-            custom_name = "Visual Edit",
-            custom_value = "..."
+            custom_name = "Visual Edit"
         })
         table.insert(ui_params, { id = "lane_" .. lane_idx .. "_attack", arc_multi_float = {0.1, 0.05, 0.01} })
         table.insert(ui_params, { id = "lane_" .. lane_idx .. "_decay", arc_multi_float = {0.1, 0.05, 0.01} })

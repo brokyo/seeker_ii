@@ -13,6 +13,72 @@ ADSR.state_keys = {
   "adsr_selected"
 }
 
+-- Arc display: rings 1-4 show A/D/S/R values, selected stage is brighter
+local function draw_arc_display()
+  local arc = _seeker.arc
+  local Modal = _seeker.modal
+  if not arc or not Modal then return end
+
+  local selected = Modal.get_adsr_selected()
+  local param_ids = Modal.get_adsr_param_ids()
+
+  -- Fallback to lane params if modal didn't provide param IDs
+  if not param_ids then
+    local lane_idx = _seeker.ui_state.get_focused_lane()
+    param_ids = {
+      "lane_" .. lane_idx .. "_attack",
+      "lane_" .. lane_idx .. "_decay",
+      "lane_" .. lane_idx .. "_sustain",
+      "lane_" .. lane_idx .. "_release"
+    }
+  end
+
+  -- Each ring displays its corresponding ADSR stage value
+  for ring = 1, 4 do
+    local param_id = param_ids[ring]
+    local value = params:get(param_id)
+
+    -- Get param range
+    local p = params:lookup_param(param_id)
+    local min_val, max_val
+    if p.controlspec then
+      min_val = p.controlspec.minval
+      max_val = p.controlspec.maxval
+    elseif p.min and p.max then
+      min_val = p.min
+      max_val = p.max
+    else
+      min_val = 0
+      max_val = 1
+    end
+
+    -- Normalize value to 0-1 range
+    local normalized = (value - min_val) / (max_val - min_val)
+    normalized = util.clamp(normalized, 0, 1)
+
+    -- Calculate LED position
+    local led_pos = math.floor(normalized * 63) + 1
+
+    -- Selected stage (for Norns E3) has brighter highlight
+    local is_selected = (ring == selected)
+    local base_level = 2
+    local highlight_level = is_selected and 15 or 10
+    local edge_level = is_selected and 10 or 6
+
+    -- Uniform base illumination across all rings
+    for i = 1, 64 do
+      arc:led(ring, i, base_level)
+    end
+
+    -- Highlight value position
+    arc:led(ring, led_pos, highlight_level)
+    if led_pos > 1 then arc:led(ring, led_pos - 1, edge_level) end
+    if led_pos < 64 then arc:led(ring, led_pos + 1, edge_level) end
+  end
+
+  arc:refresh()
+end
+
 -- Get the fine step size for a param by looking up its controlspec
 local function get_fine_step(param_id)
   local p = params:lookup_param(param_id)
@@ -51,9 +117,7 @@ local function adjust_stage(state, stage, delta)
   params:set(param_id, new_val)
 
   -- Update Arc display
-  if _seeker.arc and _seeker.arc.update_adsr_display then
-    _seeker.arc.update_adsr_display()
-  end
+  draw_arc_display()
 end
 
 function ADSR.show(state, config)
@@ -62,13 +126,13 @@ function ADSR.show(state, config)
   state.adsr_selected = config.selected or 1
   state.hint = config.hint or "e2 select e3 adjust k3 close"
 
-  -- Stop Arc pulse animation and update display
+  -- Stop Arc pulse animation and register ADSR display
   if _seeker.arc then
     if _seeker.arc.stop_action_pulse then
       _seeker.arc.stop_action_pulse()
     end
-    if _seeker.arc.update_adsr_display then
-      _seeker.arc.update_adsr_display()
+    if _seeker.arc.set_display then
+      _seeker.arc.set_display(draw_arc_display)
     end
   end
 end
@@ -192,9 +256,7 @@ function ADSR.handle_enc(state, n, d, source)
       local current = state.adsr_selected or 1
       local new_sel = util.clamp(current + util.round(d), 1, 4)
       state.adsr_selected = new_sel
-      if _seeker.arc and _seeker.arc.update_adsr_display then
-        _seeker.arc.update_adsr_display()
-      end
+      draw_arc_display()
       _seeker.screen_ui.set_needs_redraw()
       return true
     -- Norns E3: adjust selected stage with fine step

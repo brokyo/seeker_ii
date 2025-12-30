@@ -71,11 +71,10 @@ function DualTapeKeyboard.set_active(active)
 
   -- Set arc to display velocity controls when active, restore default when inactive
   if _seeker.arc then
-    if active then
-      _seeker.arc.display_override = draw_arc_display
-      draw_arc_display()
-    else
-      _seeker.arc.display_override = nil
+    if active and _seeker.arc.set_display then
+      _seeker.arc.set_display(draw_arc_display)
+    elseif _seeker.arc.clear_display then
+      _seeker.arc.clear_display()
     end
   end
 end

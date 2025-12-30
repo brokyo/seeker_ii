@@ -348,7 +348,7 @@ local function get_recording_data(output_num)
     end
 end
 
--- Arc display for recording modal - shows voltage position on rings 2-4
+-- Arc display for recording modal - shows voltage position on all 4 rings
 local function create_recording_arc_display(output_num)
     return function()
         local arc = _seeker.arc
@@ -360,6 +360,12 @@ local function create_recording_arc_display(output_num)
         normalized = util.clamp(normalized, 0, 1)
         local led_pos = math.floor(normalized * 63) + 1
 
+        -- Ring 1: dim base (recording takes over, no param navigation)
+        for i = 1, 64 do
+            arc:led(1, i, 1)
+        end
+
+        -- Rings 2-4: show voltage position
         for ring = 2, 4 do
             for i = 1, 64 do
                 arc:led(ring, i, 2)
@@ -394,7 +400,7 @@ local function create_recording_key_handler(output_num)
             if Modal then Modal.dismiss() end
             reset_recording_state(output_num)
             _seeker.ui_state.state.knob_recording_active = false
-            if _seeker.arc then _seeker.arc.display_override = nil end
+            if _seeker.arc and _seeker.arc.clear_display then _seeker.arc.clear_display() end
             crow.output[output_num].volts = 0
             _seeker.screen_ui.set_needs_redraw()
             return true
@@ -427,8 +433,8 @@ local function create_recording_enc_handler(output_num)
             state.voltage = state.voltage + (d * step_size)
             state.voltage = util.clamp(state.voltage, -10, 10)
             crow.output[output_num].volts = state.voltage
-            if _seeker.arc and _seeker.arc.display_override then
-                _seeker.arc.display_override()
+            if _seeker.arc and _seeker.arc.sync_display then
+                _seeker.arc.sync_display()
             end
             _seeker.screen_ui.set_needs_redraw()
             return true
@@ -459,8 +465,12 @@ function CrowOutput.toggle_knob_recording(output_num)
 
         -- Set Arc to show voltage display
         if _seeker.arc then
-            _seeker.arc.display_override = create_recording_arc_display(output_num)
-            _seeker.arc.display_override()
+            if _seeker.arc.stop_action_pulse then
+                _seeker.arc.stop_action_pulse()
+            end
+            if _seeker.arc.set_display then
+                _seeker.arc.set_display(create_recording_arc_display(output_num))
+            end
         end
 
         if Modal then
@@ -582,7 +592,7 @@ function CrowOutput.stop_recording_knob(output_num)
         if Modal then Modal.dismiss() end
         reset_recording_state(output_num)
         _seeker.ui_state.state.knob_recording_active = false
-        if _seeker.arc then _seeker.arc.display_override = nil end
+        if _seeker.arc and _seeker.arc.clear_display then _seeker.arc.clear_display() end
         _seeker.screen_ui.set_needs_redraw()
     end)
 end
@@ -1097,8 +1107,7 @@ local function create_screen_ui()
                 table.insert(param_table, {
                     id = "crow_" .. output_num .. "_envelope_visual_edit",
                     is_action = true,
-                    custom_name = "Visual Edit",
-                    custom_value = "..."
+                    custom_name = "Visual Edit"
                 })
             end
 
@@ -1488,7 +1497,7 @@ local function create_params()
 
         -- ADSR visual editor trigger
         local output_idx = i
-        params:add_trigger("crow_" .. i .. "_envelope_visual_edit", "Visual Edit")
+        params:add_binary("crow_" .. i .. "_envelope_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("crow_" .. i .. "_envelope_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end

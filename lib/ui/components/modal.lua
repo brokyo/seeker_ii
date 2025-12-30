@@ -137,6 +137,11 @@ function Modal.dismiss()
   state.modal_type = nil
   state.on_key = nil
   state.on_enc = nil
+
+  -- Restore arc to default param display
+  if _seeker and _seeker.arc then
+    _seeker.arc.clear_display()
+  end
 end
 
 function Modal.is_active()

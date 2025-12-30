@@ -3,6 +3,9 @@
 
 local Arc = {}
 
+-- Device captured before init() runs (for cold boot timing)
+local pending_device = nil
+
 -- Sets up all Arc handlers on a connected device
 local function setup_device(device)
   print("☯ Arc Connected")
@@ -20,6 +23,29 @@ local function setup_device(device)
 
   -- Custom display function - components provide their own arc rendering when active
   device.display_override = nil
+
+  -- Set a custom display function (component takes over arc rendering)
+  device.set_display = function(fn)
+    device.display_override = fn
+    device.sync_display()
+  end
+
+  -- Clear custom display and restore default param display
+  device.clear_display = function()
+    device.display_override = nil
+    device.sync_display()
+  end
+
+  -- Sync arc display to current state
+  -- Calls custom display if set, otherwise updates param display
+  device.sync_display = function()
+    if device.display_override then
+      device.display_override()
+    else
+      device.update_param_key_display()
+      device.update_param_value_display()
+    end
+  end
 
   -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
     device.new_section = function(params)
@@ -105,7 +131,7 @@ local function setup_device(device)
 
     -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
     device.delta = function(n, delta)
-      -- Block Arc input during fileselect and show hint overlay
+      -- Block Arc input during fileselect - show hint overlay
       if _seeker.sampler and _seeker.sampler.file_select_active then
         if _seeker.modal then
           _seeker.modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
@@ -141,8 +167,7 @@ local function setup_device(device)
           device.movement_count[1] = 0  -- Reset for next trigger cycle
 
           _seeker.ui_state.enc(2, direction)
-          device.update_param_key_display()
-          device.update_param_value_display()
+          device.sync_display()
         end
         return
       end
@@ -195,7 +220,7 @@ local function setup_device(device)
           end
 
           -- Update display and UI once for any multi-encoder change
-          device.update_param_value_display()
+          device.sync_display()
           _seeker.screen_ui.set_needs_redraw()
 
         -- Standard single encoder behavior for non-multi-float params
@@ -209,7 +234,7 @@ local function setup_device(device)
               else
                 params:set(selected_param.id, 0)
               end
-              device.update_param_value_display()
+              device.sync_display()
               _seeker.screen_ui.set_needs_redraw()
               return
             end
@@ -217,7 +242,7 @@ local function setup_device(device)
 
           -- Non-binary params go through normal enc path
           _seeker.ui_state.enc(3, direction)
-          device.update_param_value_display()
+          device.sync_display()
         end
       end
     end
@@ -253,15 +278,15 @@ local function setup_device(device)
         end
         device:refresh()
         clock.sleep(0.2)
-        
-        -- Restore normal param value display after animation
-        device.update_param_value_display()
+
+        -- Restore display after animation
+        device.sync_display()
       end)
     end
 
     device.key = function(n, d)
       if d == 1 then
-        -- Block Arc input during fileselect and show hint overlay
+        -- Block Arc input during fileselect - show hint overlay
         if _seeker.sampler and _seeker.sampler.file_select_active then
           if _seeker.modal then
             _seeker.modal.draw_status_immediate({ body = "FILE SELECT", hint = "use norns e2/e3/k3" })
@@ -284,8 +309,13 @@ local function setup_device(device)
         if selected_param and selected_param.id then
           local param_base = params:lookup_param(selected_param.id)
 
-          -- Trigger: visual feedback first, then fire action (action may change UI)
-          if param_base and param_base.behavior == "trigger" then
+          -- Action: visual feedback first, then fire (action may change UI)
+          if selected_param.is_action then
+            _seeker.ui_state.trigger_activated(selected_param.id)
+            params:set(selected_param.id, 1)
+
+          -- Trigger param: same behavior as action
+          elseif param_base and param_base.behavior == "trigger" then
             _seeker.ui_state.trigger_activated(selected_param.id)
             params:set(selected_param.id, 1)
 
@@ -293,7 +323,7 @@ local function setup_device(device)
           elseif param_base and param_base.behavior == "toggle" then
             local current = params:get(selected_param.id)
             params:set(selected_param.id, current == 0 and 1 or 0)
-            device.update_param_value_display()
+            device.sync_display()
             _seeker.screen_ui.set_needs_redraw()
           end
         end
@@ -475,12 +505,9 @@ local function setup_device(device)
       end
     end
     
-    -- Display numeric value across 2-3 rings showing place values
-    local function update_multi_float_rings(param_id)
-        local current_value = params:get(param_id)
-        local current_section_id = _seeker.ui_state.get_current_section()
-        local current_section = _seeker.screen_ui.sections[current_section_id]
-        local param = current_section.active_params[current_section.state.selected_index]
+    -- Display numeric value across rings 2-4 showing place values
+    local function update_multi_float_rings(param)
+        local current_value = params:get(param.id)
         local num_encoders = #param.arc_multi_float
 
         -- Light active rings (ring 1 + number of encoders, capped at ring 4)
@@ -555,29 +582,15 @@ local function setup_device(device)
         return
       end
 
-      -- When modal is active, handle display specially
+      -- When modal is active but no display override, clear value rings
       if _seeker.modal and _seeker.modal.is_active() then
-        local modal_type = _seeker.modal.get_type()
-
         -- Stop any pulse animation when modal is active
         if device.pulse_action_param then
           device.stop_action_pulse()
         end
 
-        -- ADSR modal: show A/D/S/R values on rings 1-4
-        if modal_type == _seeker.modal.TYPE.ADSR then
-          device.update_adsr_display()
-          return
-        end
-
-        -- Waveform modal: show start/stop selection on ring 1, value position on rings 2-4
-        if modal_type == _seeker.modal.TYPE.WAVEFORM then
-          device.update_waveform_display()
-          return
-        end
-
-        -- Other modals: clear rings 3 and 4
-        for ring = 3, 4 do
+        -- Clear rings 2-4 for modals without custom arc display
+        for ring = 2, 4 do
           for i = 1, 64 do
             device:led(ring, i, 0)
           end
@@ -603,6 +616,14 @@ local function setup_device(device)
 
       -- For action parameters, start or update the pulse animation
       if param and param.is_action then
+        -- Clear rings 3 and 4 (pulse only uses ring 2)
+        for ring = 3, 4 do
+          for i = 1, 64 do
+            device:led(ring, i, 0)
+          end
+        end
+        device:refresh()
+
         if not device.pulse_action_param or device.pulse_action_param ~= param.id then
           device.start_action_pulse(param.id)
         end
@@ -616,7 +637,7 @@ local function setup_device(device)
 
       -- Check if this parameter uses multi-encoder float editing
       if param and param.arc_multi_float and param.id then
-        update_multi_float_rings(param.id)
+        update_multi_float_rings(param)
         device:refresh()
         return
       end
@@ -728,129 +749,18 @@ local function setup_device(device)
       device:refresh()
     end
 
-    -- Display ADSR modal: rings 1-4 show A/D/S/R values, selected stage is brighter
-    device.update_adsr_display = function()
-      local Modal = _seeker.modal
-      if not Modal then return end
-
-      local selected = Modal.get_adsr_selected()
-      local param_ids = Modal.get_adsr_param_ids()
-
-      -- Fallback to lane params if modal didn't provide param IDs
-      if not param_ids then
-        local lane_idx = _seeker.ui_state.get_focused_lane()
-        param_ids = {
-          "lane_" .. lane_idx .. "_attack",
-          "lane_" .. lane_idx .. "_decay",
-          "lane_" .. lane_idx .. "_sustain",
-          "lane_" .. lane_idx .. "_release"
-        }
-      end
-
-      -- Each ring displays its corresponding ADSR stage value
-      for ring = 1, 4 do
-        local param_id = param_ids[ring]
-        local value = params:get(param_id)
-
-        -- Get param range
-        local p = params:lookup_param(param_id)
-        local min_val, max_val
-        if p.controlspec then
-          min_val = p.controlspec.minval
-          max_val = p.controlspec.maxval
-        elseif p.min and p.max then
-          min_val = p.min
-          max_val = p.max
-        else
-          min_val = 0
-          max_val = 1
-        end
-
-        -- Normalize value to 0-1 range
-        local normalized = (value - min_val) / (max_val - min_val)
-        normalized = util.clamp(normalized, 0, 1)
-
-        -- Calculate LED position
-        local led_pos = math.floor(normalized * 63) + 1
-
-        -- Selected stage (for Norns E3) is brighter
-        local is_selected = (ring == selected)
-        local base_level = is_selected and 3 or 1
-        local highlight_level = is_selected and 15 or 10
-        local edge_level = is_selected and 10 or 6
-
-        -- Dim base illumination
-        for i = 1, 64 do
-          device:led(ring, i, base_level)
-        end
-
-        -- Highlight value position
-        device:led(ring, led_pos, highlight_level)
-        if led_pos > 1 then device:led(ring, led_pos - 1, edge_level) end
-        if led_pos < 64 then device:led(ring, led_pos + 1, edge_level) end
-      end
-
-      device:refresh()
-    end
-
-    -- Display waveform modal: ring 1 shows start/stop selection, rings 2-4 show value position
-    device.update_waveform_display = function()
-      local Modal = _seeker.modal
-      if not Modal then return end
-
-      local selected = Modal.get_waveform_selected()  -- 1 = start, 2 = stop
-      local positions = Modal.get_waveform_positions()
-      local start_pos = positions.start_pos or 0
-      local stop_pos = positions.stop_pos or 1
-      local duration = positions.duration or 1
-
-      -- Ring 1: Selection indicator (Start/Stop at opposite positions)
-      for i = 1, 64 do
-        device:led(1, i, 0)
-      end
-      -- Show both positions dimly, selected brightly
-      local stage_positions = {1, 33}  -- Left for start, right for stop
-      for stage = 1, 2 do
-        local brightness = (stage == selected) and 15 or 4
-        local pos = stage_positions[stage]
-        device:led(1, pos, brightness)
-        device:led(1, pos + 1, math.floor(brightness * 0.5))
-        if pos > 1 then device:led(1, pos - 1, math.floor(brightness * 0.5)) end
-      end
-
-      -- Normalize selected value position relative to total duration
-      local value = (selected == 1) and start_pos or stop_pos
-      local normalized = (duration > 0) and (value / duration) or 0
-      normalized = util.clamp(normalized, 0, 1)
-
-      -- Calculate LED position for rings 2-4
-      local led_pos = math.floor(normalized * 63) + 1
-
-      for ring = 2, 4 do
-        -- Dim base illumination
-        for i = 1, 64 do
-          device:led(ring, i, 2)
-        end
-        -- Highlight value position
-        device:led(ring, led_pos, 15)
-        if led_pos > 1 then device:led(ring, led_pos - 1, 10) end
-        if led_pos < 64 then device:led(ring, led_pos + 1, 10) end
-      end
-
-      device:refresh()
-    end
-
   return device
 end
 
 function Arc.init()
-  -- Register hot-plug callback for when Arc connects after boot
-  arc.add = function(dev)
-    local device = setup_device(dev)
-    _seeker.arc = device
+  -- Use device captured during module load if available
+  if pending_device then
+    local device = setup_device(pending_device)
+    pending_device = nil
+    return device
   end
 
-  -- Try connecting to already-attached Arc
+  -- Try connecting to already-attached Arc (fallback)
   local device = arc.connect()
   if device then
     return setup_device(device)
@@ -858,6 +768,18 @@ function Arc.init()
 
   print("No Arc device found (will auto-connect when plugged in)")
   return nil
+end
+
+-- Register arc.add at module load time to catch cold boot connections
+-- This fires before init() for devices connected at boot
+arc.add = function(dev)
+  if _seeker and _seeker.arc == nil then
+    -- Init already ran, set up immediately
+    _seeker.arc = setup_device(dev)
+  else
+    -- Init hasn't run yet, store for later
+    pending_device = dev
+  end
 end
 
 return Arc

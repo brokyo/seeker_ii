@@ -168,6 +168,10 @@ function enc(n, d)
 end
 
 function redraw()
+  -- Skip redraw during fileselect (norns owns the screen)
+  if _seeker.sampler and _seeker.sampler.file_select_active then
+    return
+  end
   if _seeker.screen_ui then
     _seeker.screen_ui.redraw()
   end

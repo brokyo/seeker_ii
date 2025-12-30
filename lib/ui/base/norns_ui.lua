@@ -385,11 +385,22 @@ function NornsUI:handle_enc_default(n, d)
           end
         end
       else
-        -- Moving up, find previous selectable
+        -- Moving up, find previous selectable (or first selectable if at top)
+        local found = false
         for i = new_index - 1, 1, -1 do
           if not self.active_params[i].separator then
             new_index = i
+            found = true
             break
+          end
+        end
+        -- If nothing found above, find first selectable below
+        if not found then
+          for i = new_index + 1, #self.active_params do
+            if not self.active_params[i].separator then
+              new_index = i
+              break
+            end
           end
         end
       end
@@ -485,11 +496,10 @@ function NornsUI:enter()
   self:filter_active_params()
   self.state.selected_index = self:find_first_selectable()
 
-  -- Initialize Arc with current parameter list and refresh all rings
+  -- Initialize Arc with current parameter list and refresh display
   if _seeker.arc then
     _seeker.arc.new_section(self.params)
-    _seeker.arc.update_param_key_display()
-    _seeker.arc.update_param_value_display()
+    _seeker.arc.sync_display()
   end
 
   self:update()

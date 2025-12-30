@@ -33,6 +33,54 @@ local RING_STEP_SECONDS = {
 -- Debounce delay before reloading peaks after position change
 local RELOAD_DEBOUNCE = 0.5
 
+-- Arc display: ring 1 shows start/stop selection, rings 2-4 show value position
+local function draw_arc_display()
+  local arc = _seeker.arc
+  local Modal = _seeker.modal
+  if not arc or not Modal then return end
+
+  local selected = Modal.get_waveform_selected()  -- 1 = start, 2 = stop
+  local positions = Modal.get_waveform_positions()
+  local start_pos = positions.start_pos or 0
+  local stop_pos = positions.stop_pos or 1
+  local duration = positions.duration or 1
+
+  -- Ring 1: Selection indicator (Start/Stop at opposite positions)
+  for i = 1, 64 do
+    arc:led(1, i, 0)
+  end
+  -- Show both positions dimly, selected brightly
+  local stage_positions = {1, 33}  -- Left for start, right for stop
+  for stage = 1, 2 do
+    local brightness = (stage == selected) and 15 or 4
+    local pos = stage_positions[stage]
+    arc:led(1, pos, brightness)
+    arc:led(1, pos + 1, math.floor(brightness * 0.5))
+    if pos > 1 then arc:led(1, pos - 1, math.floor(brightness * 0.5)) end
+  end
+
+  -- Normalize selected value position relative to total duration
+  local value = (selected == 1) and start_pos or stop_pos
+  local normalized = (duration > 0) and (value / duration) or 0
+  normalized = util.clamp(normalized, 0, 1)
+
+  -- Calculate LED position for rings 2-4
+  local led_pos = math.floor(normalized * 63) + 1
+
+  for ring = 2, 4 do
+    -- Dim base illumination
+    for i = 1, 64 do
+      arc:led(ring, i, 2)
+    end
+    -- Highlight value position
+    arc:led(ring, led_pos, 15)
+    if led_pos > 1 then arc:led(ring, led_pos - 1, 10) end
+    if led_pos < 64 then arc:led(ring, led_pos + 1, 10) end
+  end
+
+  arc:refresh()
+end
+
 function Waveform.show(state, config)
   state.waveform_peaks = config.peaks or {}
   state.waveform_duration = config.duration or 1
@@ -47,6 +95,16 @@ function Waveform.show(state, config)
   state.waveform_on_reload = config.on_reload
   state.waveform_selected = 1
   state.hint = config.hint or "e2 select  e3 adjust"
+
+  -- Stop Arc pulse animation and register waveform display
+  if _seeker.arc then
+    if _seeker.arc.stop_action_pulse then
+      _seeker.arc.stop_action_pulse()
+    end
+    if _seeker.arc.set_display then
+      _seeker.arc.set_display(draw_arc_display)
+    end
+  end
 end
 
 function Waveform.draw(state)
@@ -248,8 +306,8 @@ function Waveform.adjust_marker(state, marker, step, delta)
   end
 end
 
--- Arc step sizes: E1/E3 medium (0.1s), E2/E4 fine (0.01s)
-local ARC_STEP = { [1] = 0.1, [2] = 0.01, [3] = 0.1, [4] = 0.01 }
+-- Arc step sizes: E1/E4 medium (0.05s), E2/E3 fine (0.01s)
+local ARC_STEP = { [1] = 0.05, [2] = 0.01, [3] = 0.01, [4] = 0.05 }
 
 function Waveform.handle_enc(state, n, d, source)
   if source == "arc" then
@@ -257,7 +315,7 @@ function Waveform.handle_enc(state, n, d, source)
     local marker = (n <= 2) and 1 or 2
     local step = ARC_STEP[n]
     Waveform.adjust_marker(state, marker, step, d)
-    if _seeker.arc then _seeker.arc.update_waveform_display() end
+    draw_arc_display()
     _seeker.screen_ui.set_needs_redraw()
     return true
   else

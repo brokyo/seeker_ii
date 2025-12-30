@@ -476,8 +476,7 @@ local function create_screen_ui()
                 table.insert(param_table, {
                     id = "txo_cv_" .. output_num .. "_envelope_visual_edit",
                     is_action = true,
-                    custom_name = "Visual Edit",
-                    custom_value = "..."
+                    custom_name = "Visual Edit"
                 })
             end
 
@@ -721,7 +720,7 @@ local function create_params()
 
         -- ADSR visual editor trigger
         local output_idx = i
-        params:add_trigger("txo_cv_" .. i .. "_envelope_visual_edit", "Visual Edit")
+        params:add_binary("txo_cv_" .. i .. "_envelope_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("txo_cv_" .. i .. "_envelope_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end

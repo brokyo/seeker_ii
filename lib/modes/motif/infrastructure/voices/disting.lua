@@ -311,8 +311,7 @@ function disting.get_ui_params(lane_idx)
             table.insert(ui_params, {
                 id = "lane_" .. lane_idx .. "_disting_multisample_visual_edit",
                 is_action = true,
-                custom_name = "Visual Edit",
-                custom_value = "..."
+                custom_name = "Visual Edit"
             })
             table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_attack", arc_multi_float = {10, 5, 1} })
             table.insert(ui_params, { id = "lane_" .. lane_idx .. "_disting_multisample_decay", arc_multi_float = {10, 5, 1} })

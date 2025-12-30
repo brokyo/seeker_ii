@@ -59,7 +59,7 @@ local function create_screen_ui()
       {id = "spc_mode"},
       {id = "spc_max_volume", arc_multi_float = {0.1, 0.05, 0.01}},
       {separator = true, title = "Slice Points"},
-      {id = "spc_visual_edit", is_action = true, custom_name = "Visual Edit", custom_value = "..."},
+      {id = "spc_visual_edit", is_action = true, custom_name = "Visual Edit"},
       {id = "spc_start_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {id = "spc_stop_pos", arc_multi_float = {1.0, 0.1, 0.01}},
       {separator = true, title = "Playback"},

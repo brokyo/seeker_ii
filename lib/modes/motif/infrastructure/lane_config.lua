@@ -113,7 +113,7 @@ local function create_params()
         end)
 
         -- ADSR visual editor trigger (for MX Samples voice)
-        params:add_trigger("lane_" .. i .. "_adsr_visual_edit", "Visual Edit")
+        params:add_binary("lane_" .. i .. "_adsr_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("lane_" .. i .. "_adsr_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end
@@ -143,7 +143,7 @@ local function create_params()
         end)
 
         -- Disting Multisample ADSR visual editor trigger
-        params:add_trigger("lane_" .. i .. "_disting_multisample_visual_edit", "Visual Edit")
+        params:add_binary("lane_" .. i .. "_disting_multisample_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("lane_" .. i .. "_disting_multisample_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end
