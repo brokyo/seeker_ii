@@ -1213,10 +1213,18 @@ function Lane:set_motif(recorded_data)
   return self.motif
 end
 
--- Clear lane state and motif data
+-- Clear lane state and motif data, reset playback params to defaults
 function Lane:clear()
-  self:stop()  -- Stop playback
-  self.motif:clear()  -- Clear motif data
+  self:stop()
+  self.motif:clear()
+
+  -- Reset playback params to defaults
+  params:set("lane_" .. self.id .. "_octave_offset", 0)
+  params:set("lane_" .. self.id .. "_speed", 13)  -- "1x"
+  params:set("lane_" .. self.id .. "_quantize", 2)  -- "1/8"
+  params:set("lane_" .. self.id .. "_swing", 0)
+  params:set("lane_" .. self.id .. "_offset", 0)
+  params:set("lane_" .. self.id .. "_tape_duration", 0)  -- "Free"
 end
 
 ---------------------------------------------------------
