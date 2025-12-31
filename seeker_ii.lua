@@ -131,7 +131,7 @@ function init()
   end)
 
   -- Set default tempo
-  params:set("clock_tempo", 60)
+  params:set("clock_tempo", 80)
 
   -- Start the clock
   clock.run(function()

@@ -38,6 +38,65 @@ local function quantize_to_interval(time, interval_beats)
   return math.floor(time / interval_beats + 0.5) * interval_beats
 end
 
+-- Pre-quantize motif events in place (before transforms run)
+-- Applies quantization and swing to note times, preserving note durations
+local function pre_quantize_events(events, lane_id)
+  local quantize_option = params:get("lane_" .. lane_id .. "_quantize")
+  local quantize_values = {0, 1/8, 1/4, 1/2, 1}
+  local quantize_interval = quantize_values[quantize_option]
+
+  -- No quantization needed
+  if quantize_interval <= 0 then
+    return
+  end
+
+  local swing_amount = params:get("lane_" .. lane_id .. "_swing") / 100
+
+  -- Track timing offsets per note instance to preserve durations
+  local note_trigger_counts = {}
+  local note_timing_offsets = {}
+
+  -- First pass: calculate offsets for note_on events
+  for _, event in ipairs(events) do
+    if event.type == "note_on" then
+      note_trigger_counts[event.note] = (note_trigger_counts[event.note] or 0) + 1
+      local note_instance_id = event.note .. "_" .. note_trigger_counts[event.note]
+
+      local original_time = event.time
+      local quantized_time = quantize_to_interval(original_time, quantize_interval)
+      local total_offset = quantized_time - original_time
+
+      -- Apply swing to even subdivisions
+      if swing_amount > 0 then
+        local subdivision_position = quantized_time / quantize_interval
+        local subdivision_index = math.floor(subdivision_position + 0.5)
+
+        if subdivision_index % 2 == 0 then
+          local swing_offset = quantize_interval * swing_amount * 0.5
+          quantized_time = quantized_time + swing_offset
+          total_offset = total_offset + swing_offset
+        end
+      end
+
+      event.time = quantized_time
+      note_timing_offsets[note_instance_id] = total_offset
+    end
+  end
+
+  -- Reset counter for note_off pass
+  note_trigger_counts = {}
+
+  -- Second pass: apply same offsets to note_off events
+  for _, event in ipairs(events) do
+    if event.type == "note_off" then
+      note_trigger_counts[event.note] = (note_trigger_counts[event.note] or 0) + 1
+      local note_instance_id = event.note .. "_" .. note_trigger_counts[event.note]
+      local offset = note_timing_offsets[note_instance_id] or 0
+      event.time = event.time + offset
+    end
+  end
+end
+
   -- Helper for trail keys
   local function trail_key(x, y)
     return string.format("%d,%d", x, y)
@@ -244,23 +303,36 @@ end
 ---------------------------------------------------------
 -- prepare_stage(stage)
 --   Prepares the working_motif for the stage by applying mode-specific transforms
+--   Order: reset -> quantize -> transform (so transforms act on quantized times)
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
-  -- Delegate to mode-specific stage preparation
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
   if motif_type == TAPE_MODE then
-    tape_transform.prepare_stage(self.id, stage.id, self.motif)
-  elseif motif_type == COMPOSER_MODE then
-    composer_generator.prepare_stage(self.id, stage.id, self.motif)
-  elseif motif_type == SAMPLER_MODE then
-    -- Reset motif events to genesis if configured
+    -- Reset motif to genesis if configured
     local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
     if reset_motif then
       self.motif:reset_to_genesis()
     end
-    -- Get and apply sampler transform (matching tape pattern)
+    -- Quantize BEFORE transform so transforms act on quantized times
+    pre_quantize_events(self.motif.events, self.id)
+    -- Apply transform
+    tape_transform.apply_transform(self.id, stage.id, self.motif)
+
+  elseif motif_type == COMPOSER_MODE then
+    -- Composer generates fresh events at step positions (inherently quantized)
+    composer_generator.prepare_stage(self.id, stage.id, self.motif)
+
+  elseif motif_type == SAMPLER_MODE then
+    -- Reset motif to genesis if configured
+    local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
+    if reset_motif then
+      self.motif:reset_to_genesis()
+    end
+    -- Quantize BEFORE transform so transforms act on quantized times
+    pre_quantize_events(self.motif.events, self.id)
+    -- Apply sampler transform
     local transform_ui_name = params:string("lane_" .. self.id .. "_sampler_transform_stage_" .. stage.id)
     local transform_id = sampler_transforms.get_transform_id_by_ui_name(transform_ui_name)
     if transform_id and transform_id ~= "none" then
@@ -320,55 +392,14 @@ function Lane:schedule_stage(stage_index, start_time)
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
-  local first_event_time = nil
 
-  -- Get quantization and swing settings
-  local quantize_option = params:get("lane_" .. self.id .. "_quantize")
-  local quantize_values = {0, 1/8, 1/4, 1/2, 1}
-  local quantize_interval = quantize_values[quantize_option]
-  local swing_amount = params:get("lane_" .. self.id .. "_swing") / 100
-
-  -- Track timing offsets per note to preserve durations
-  -- Use note+instance as key to handle polyphony
-  local note_trigger_counts = {}
-  local note_timing_offsets = {}
-
-  -- Process all events in the motif
+  -- Process all events in the motif (already quantized in prepare_stage)
   for i, event in ipairs(self.motif.events) do
     local event_time = event.time
 
     if event.type == "note_on" then
       -- Only start notes that fall within the duration window
       if event_time <= base_duration then
-        -- Track instance for polyphony support
-        note_trigger_counts[event.note] = (note_trigger_counts[event.note] or 0) + 1
-        local note_instance_id = event.note .. "_" .. note_trigger_counts[event.note]
-        local total_offset = 0
-
-        -- Apply quantization in musical time before speed scaling
-        if quantize_interval > 0 then
-          local quantized_time = quantize_to_interval(event_time, quantize_interval)
-          local quantize_offset = quantized_time - event_time
-          event_time = quantized_time
-          total_offset = total_offset + quantize_offset
-
-          -- Delay even subdivisions to create swing feel
-          if swing_amount > 0 then
-            local subdivision_position = event_time / quantize_interval
-            local subdivision_index = math.floor(subdivision_position + 0.5)
-
-            -- Even subdivisions get pushed later
-            if subdivision_index % 2 == 0 then
-              local swing_offset = quantize_interval * swing_amount * 0.5
-              event_time = event_time + swing_offset
-              total_offset = total_offset + swing_offset
-            end
-          end
-        end
-
-        -- Store offset for corresponding note_off
-        note_timing_offsets[note_instance_id] = total_offset
-
         -- Scale timing by playback speed
         local speed_adjusted_time = event_time / self.speed
         local absolute_time = start_time + speed_adjusted_time
@@ -419,14 +450,7 @@ function Lane:schedule_stage(stage_index, start_time)
     elseif event.type == "note_off" then
       -- Only process note-offs for notes we actually started
       if active_notes[event.note] then
-        -- Find the most recent note_on for this note and apply same timing offset
-        local note_instance_id = event.note .. "_" .. (note_trigger_counts[event.note] or 1)
-        local offset = note_timing_offsets[note_instance_id] or 0
-
-        -- Apply same timing offset as note_on to preserve duration
-        event_time = event_time + offset
-
-        -- If note would end after duration window, end it at window boundary
+        -- Clamp to duration window
         if event_time > base_duration then
           event_time = base_duration
         end
@@ -434,21 +458,21 @@ function Lane:schedule_stage(stage_index, start_time)
         -- Apply speed adjustment
         local speed_adjusted_time = event_time / self.speed
         local absolute_time = start_time + speed_adjusted_time
-        
+
         if not stage.mute then
           _seeker.conductor.insert_event({
             time = absolute_time,
             lane_id = self.id,
             type = event.type,
-            note = event.note,  -- Store the note in the event data
-            callback = function() 
+            note = event.note,
+            callback = function()
               self:on_note_off({
                 note = event.note,
                 velocity = 0,
                 x = event.x,
                 y = event.y,
                 is_playback = true
-              }) 
+              })
             end
           })
         end

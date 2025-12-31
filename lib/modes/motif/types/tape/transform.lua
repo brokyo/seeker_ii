@@ -196,15 +196,8 @@ function TapeTransform.should_draw_region(region_name)
   return true
 end
 
--- Prepare stage: Reset to genesis and apply transform
-function TapeTransform.prepare_stage(lane_id, stage_id, motif)
-  -- Reset motif to genesis if configured
-  local reset_motif = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_reset_motif") == 2
-  if reset_motif then
-    motif:reset_to_genesis()
-  end
-
-  -- Get and apply transform
+-- Apply transform to motif events (reset and quantize handled by Lane:prepare_stage)
+function TapeTransform.apply_transform(lane_id, stage_id, motif)
   local transform_ui_name = params:string("lane_" .. lane_id .. "_transform_stage_" .. stage_id)
   local transform_id = tape_transforms.get_transform_id_by_ui_name(transform_ui_name)
 
