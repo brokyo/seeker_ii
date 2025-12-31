@@ -56,6 +56,14 @@ local function get_algorithm_ui_entries(lane_idx, algo_def)
           end
 
           table.insert(section_entries, entry)
+
+          -- Inject Visual Edit right after envelope toggle when envelope is on
+          if param_id == "envelope" and algo_def.param_prefix == "pm" then
+            local envelope_on = params:get(prefix .. "envelope") == 2
+            if envelope_on then
+              table.insert(section_entries, { id = "lane_" .. lane_idx .. "_dnt_pm_visual_edit", is_action = true })
+            end
+          end
         end
       end
     end
@@ -65,6 +73,13 @@ local function get_algorithm_ui_entries(lane_idx, algo_def)
       table.insert(entries, { separator = true, title = section.title })
       for _, entry in ipairs(section_entries) do
         table.insert(entries, entry)
+      end
+
+      -- Inject Visual Edit after envelope sections for Poly Wavetable (always visible)
+      if section.title == "Envelope 1" and algo_def.param_prefix == "pwt" then
+        table.insert(entries, { id = "lane_" .. lane_idx .. "_dnt_pwt_env1_visual_edit", is_action = true })
+      elseif section.title == "Envelope 2" and algo_def.param_prefix == "pwt" then
+        table.insert(entries, { id = "lane_" .. lane_idx .. "_dnt_pwt_env2_visual_edit", is_action = true })
       end
     end
   end

@@ -109,7 +109,7 @@ function SamplerChopConfig.init()
   params:add_group("sampler_pad_config", "SAMPLER PAD CONFIG", 15)
 
   -- Visual edit trigger for waveform modal
-  params:add_trigger("spc_visual_edit", "Visual Edit")
+  params:add_binary("spc_visual_edit", "Visual Edit", "trigger", 0)
   params:set_action("spc_visual_edit", function()
     SamplerChopConfig.show_waveform()
   end)

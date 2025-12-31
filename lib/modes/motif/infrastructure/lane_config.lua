@@ -171,7 +171,7 @@ local function create_params()
         end)
 
         -- Disting NT Poly Multisample ADSR visual editor trigger
-        params:add_trigger("lane_" .. i .. "_dnt_pm_visual_edit", "Visual Edit")
+        params:add_binary("lane_" .. i .. "_dnt_pm_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("lane_" .. i .. "_dnt_pm_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end
@@ -200,7 +200,7 @@ local function create_params()
         end)
 
         -- Disting NT Poly Wavetable Envelope 1 visual editor trigger
-        params:add_trigger("lane_" .. i .. "_dnt_pwt_env1_visual_edit", "Visual Edit")
+        params:add_binary("lane_" .. i .. "_dnt_pwt_env1_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("lane_" .. i .. "_dnt_pwt_env1_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end
@@ -228,7 +228,7 @@ local function create_params()
         end)
 
         -- Disting NT Poly Wavetable Envelope 2 visual editor trigger
-        params:add_trigger("lane_" .. i .. "_dnt_pwt_env2_visual_edit", "Visual Edit")
+        params:add_binary("lane_" .. i .. "_dnt_pwt_env2_visual_edit", "Visual Edit", "trigger", 0)
         params:set_action("lane_" .. i .. "_dnt_pwt_env2_visual_edit", function()
             local Modal = get_modal()
             if not Modal then return end
