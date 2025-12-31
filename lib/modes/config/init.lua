@@ -97,7 +97,7 @@ local function create_params()
     params:add_group("config", "CONFIG", 9)
 
     -- Clock - create wrapper parameter that controls system clock_tempo
-    params:add_number("seeker_clock_tempo", "BPM", 40, 300, 120, function(param) return param.value .. " BPM" end)
+    params:add_number("seeker_clock_tempo", "BPM", 40, 300, 80, function(param) return param.value .. " BPM" end)
     params:set_action("seeker_clock_tempo", function(value)
         -- Update the system clock_tempo parameter
         params:set("clock_tempo", value)
@@ -132,7 +132,7 @@ local function create_params()
 
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
-    params:add_binary("screensaver_enabled", "Screensaver", "toggle", 1)
+    params:add_option("screensaver_timeout", "Screensaver Timing", {"Off", "15s", "30s", "45s", "1m", "1m 15s", "1m 30s", "1m 45s", "2m"}, 5)
 
     -- Hardware
     params:add_binary("shield_encoder_fix", "Shield Encoder Fix", "toggle", 0)
@@ -155,7 +155,7 @@ local function create_screen_ui()
             { id = "sync_all_clocks", is_action = true },
             { separator = true, title = "Visuals" },
             { id = "background_brightness" },
-            { id = "screensaver_enabled" },
+            { id = "screensaver_timeout" },
             { separator = true, title = "Hardware" },
             { id = "shield_encoder_fix" },
             { separator = true, title = "MIDI" },

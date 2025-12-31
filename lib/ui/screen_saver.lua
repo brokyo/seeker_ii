@@ -45,9 +45,17 @@ function ScreenSaver.init()
   return ScreenSaver
 end
 
+-- Convert screensaver_timeout option index to seconds (0 = disabled)
+local function get_timeout_seconds()
+  local timeout_values = {0, 15, 30, 45, 60, 75, 90, 105, 120}
+  local option = params:get("screensaver_timeout")
+  return timeout_values[option] or 0
+end
+
 function ScreenSaver.check_timeout()
   -- Check if screensaver is enabled
-  if params:get("screensaver_enabled") == 0 then
+  local timeout_seconds = get_timeout_seconds()
+  if timeout_seconds == 0 then
     ScreenSaver.state.is_active = false
     return false
   end
@@ -59,7 +67,7 @@ function ScreenSaver.check_timeout()
   end
 
   local time_since_last_action = util.time() - _seeker.ui_state.state.last_action_time
-  local should_be_active = time_since_last_action > ScreenSaver.state.timeout_seconds
+  local should_be_active = time_since_last_action > timeout_seconds
 
   -- Update active state if it changed
   if should_be_active ~= ScreenSaver.state.is_active then
