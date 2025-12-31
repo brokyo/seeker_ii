@@ -63,7 +63,7 @@ end
 -- Create motif playback parameters that lane.lua uses
 -- TODO: These should be moved to @play_motif.lua when that component is refactored
 local function create_motif_playback_params(i)
-    params:add_group("lane_" .. i .. "_motif_playback", "LANE " .. i .. " PLAYBACK", 4)
+    params:add_group("lane_" .. i .. "_motif_playback", "LANE " .. i .. " PLAYBACK", 5)
     -- Octave offset for playback transposition
     params:add_number("lane_" .. i .. "_octave_offset", "Octave Offset", -8, 8, 0)
 

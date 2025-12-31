@@ -15,7 +15,7 @@ local ui = include("lib/modes/motif/infrastructure/voices/disting_nt/ui")
 
 local disting_nt = {}
 
-disting_nt.name = "Disting NT"
+disting_nt.name = "Disting NT [WIP]"
 
 ------------------------------------------------------------
 -- i2c Channel Allocation
