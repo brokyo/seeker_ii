@@ -7,21 +7,37 @@ local chains = include("lib/modes/motif/infrastructure/voices/disting_nt/chains"
 
 local params_module = {}
 
+-- Sysex module reference (set by init.lua to ensure same instance)
+local sysex = nil
+
+function params_module.set_sysex(sysex_module)
+  sysex = sysex_module
+end
+
 ------------------------------------------------------------
 -- Get i2c channel for an algorithm in a lane's chain
 ------------------------------------------------------------
 
-local function get_channel_for_algo(lane_idx, algo_id)
+-- Get algorithm position and channel for an algo in a lane's chain
+local function get_algo_position_and_channel(lane_idx, algo_id)
   local chain_index = params:get("lane_" .. lane_idx .. "_dnt_chain")
   local chain_def = chains.get_by_index(chain_index)
-  if not chain_def or not chain_def.algorithms then return nil end
+  if not chain_def or not chain_def.algorithms then return nil, nil end
 
-  -- Find which position this algo is in the chain
   for position, id in ipairs(chain_def.algorithms) do
     if id == algo_id then
       local channel = params:get("lane_" .. lane_idx .. "_dnt_algo_" .. position .. "_channel")
-      return (channel and channel > 0) and channel or nil
+      return position, (channel and channel > 0) and channel or nil
     end
+  end
+  return nil, nil
+end
+
+-- Get stored algorithm index for a position in a lane
+local function get_algo_index_for_position(lane_idx, position)
+  local algo_data = sysex.get_lane_algorithms(lane_idx)
+  if algo_data and algo_data.indices and algo_data.indices[position] then
+    return algo_data.indices[position]
   end
   return nil
 end
@@ -30,10 +46,14 @@ end
 -- Send param value to NT via i2c
 ------------------------------------------------------------
 
-local function send_param_to_channel(channel, param_num, value)
+local function send_param_to_channel(channel, param_num, value, algo_index)
   if channel == nil or param_num == nil then return end
   i2c.select_algorithm(channel)
   i2c.set_param(param_num, value)
+  -- Show this param on NT hardware display
+  if algo_index then
+    sysex.set_focus(algo_index, param_num)
+  end
 end
 
 ------------------------------------------------------------
@@ -59,8 +79,9 @@ local function create_param(lane_idx, algo_def, param_def)
   if param_def.type == "option" then
     params:add_option(param_id, param_def.name, options, param_def.default)
     params:set_action(param_id, function(value)
-      local channel = get_channel_for_algo(lane_idx, algo_id)
-      send_param_to_channel(channel, param_def.param_num, value - 1)
+      local position, channel = get_algo_position_and_channel(lane_idx, algo_id)
+      local algo_index = get_algo_index_for_position(lane_idx, position)
+      send_param_to_channel(channel, param_def.param_num, value - 1, algo_index)
       maybe_rebuild()
     end)
 
@@ -71,8 +92,9 @@ local function create_param(lane_idx, algo_def, param_def)
     end
     params:add_number(param_id, param_def.name, param_def.min, param_def.max, param_def.default, formatter)
     params:set_action(param_id, function(value)
-      local channel = get_channel_for_algo(lane_idx, algo_id)
-      send_param_to_channel(channel, param_def.param_num, value)
+      local position, channel = get_algo_position_and_channel(lane_idx, algo_id)
+      local algo_index = get_algo_index_for_position(lane_idx, position)
+      send_param_to_channel(channel, param_def.param_num, value, algo_index)
     end)
 
   elseif param_def.type == "control" then
@@ -87,8 +109,9 @@ local function create_param(lane_idx, algo_def, param_def)
       else
         scaled = math.floor(value)
       end
-      local channel = get_channel_for_algo(lane_idx, algo_id)
-      send_param_to_channel(channel, param_def.param_num, scaled)
+      local position, channel = get_algo_position_and_channel(lane_idx, algo_id)
+      local algo_index = get_algo_index_for_position(lane_idx, position)
+      send_param_to_channel(channel, param_def.param_num, scaled, algo_index)
     end)
   end
 

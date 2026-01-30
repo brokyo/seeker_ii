@@ -29,6 +29,11 @@ i2c.CMD = {
   NOTE_ON_CH     = 0x69,  -- Note on with channel
   NOTE_OFF_CH    = 0x6A,  -- Note off with channel
   SET_CHANNEL    = 0x6B,  -- Set channel for subsequent commands
+
+  -- MIDI-over-i2c commands (for SysEx, notes, CCs)
+  SEND_MIDI_1    = 0x81,  -- Send 1 MIDI byte
+  SEND_MIDI_2    = 0x82,  -- Send 2 MIDI bytes
+  SEND_MIDI_3    = 0x83,  -- Send 3 MIDI bytes
 }
 
 ------------------------------------------------------------

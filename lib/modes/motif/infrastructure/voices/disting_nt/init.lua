@@ -8,14 +8,18 @@
 --   - Chain preset management
 
 local i2c = include("lib/modes/motif/infrastructure/voices/disting_nt/i2c")
+local sysex = include("lib/modes/motif/infrastructure/voices/disting_nt/sysex")
 local algorithms = include("lib/modes/motif/infrastructure/voices/disting_nt/algorithms")
 local params_module = include("lib/modes/motif/infrastructure/voices/disting_nt/params")
 local chains = include("lib/modes/motif/infrastructure/voices/disting_nt/chains")
 local ui = include("lib/modes/motif/infrastructure/voices/disting_nt/ui")
 
+-- Share sysex module with params to ensure same instance
+params_module.set_sysex(sysex)
+
 local disting_nt = {}
 
-disting_nt.name = "Disting NT [WIP]"
+disting_nt.name = "Disting NT"
 
 ------------------------------------------------------------
 -- i2c Channel Allocation
@@ -35,9 +39,53 @@ local MAX_CHAIN_ALGOS = 4
 disting_nt.algorithms = algorithms
 disting_nt.chains = chains
 disting_nt.i2c = i2c
+disting_nt.sysex = sysex
 
 -- Legacy compatibility: algorithm names list
 disting_nt.ALGORITHMS = algorithms.VOICE_ALGORITHM_NAMES
+
+------------------------------------------------------------
+-- Initialization
+------------------------------------------------------------
+
+-- Initialize Disting NT subsystem (call on Seeker init)
+-- Sends NEW_PRESET to clear any existing algorithms
+function disting_nt.init()
+  sysex.clear_preset()
+  disting_nt.next_channel = 1
+end
+
+------------------------------------------------------------
+-- Algorithm Specs Builder
+------------------------------------------------------------
+
+-- Build specification values for an algorithm type
+-- Each algorithm has different spec meanings - check NT manual!
+function disting_nt.build_algorithm_specs(algo_def)
+  local specs = {}
+
+  if algo_def.id == "poly_fm" then
+    -- Poly FM: spec1=timbres (1-4), spec2=voices (1-24)
+    specs.spec1 = 1   -- timbres
+    specs.spec2 = 8   -- voices
+  elseif algo_def.id == "poly_multisample" then
+    -- Poly Multisample: spec1=voices (1-16), spec2=record_time (0-60)
+    specs.spec1 = 8   -- voices
+    specs.spec2 = 10  -- record_time (seconds)
+  elseif algo_def.id == "plaits" then
+    -- Poly Macro Oscillator 2: spec1=voices (1-8)
+    specs.spec1 = 8   -- voices
+  elseif algo_def.id == "poly_resonator" then
+    -- Poly Resonator: spec1=voices (1-8)
+    specs.spec1 = 8   -- voices
+  elseif algo_def.id == "poly_wavetable" then
+    -- Poly Wavetable: spec1=voices (1-24)
+    specs.spec1 = 8   -- voices
+  end
+  -- VCO and filter algorithms typically have no specs (0, 0, 0)
+
+  return specs
+end
 
 ------------------------------------------------------------
 -- Chain Routing
@@ -143,7 +191,7 @@ function disting_nt.create_params(lane_idx)
     end)
   end
 
-  -- Add action: allocates i2c channels and activates
+  -- Add action: sends SysEx to create algorithms on NT, allocates i2c channels
   params:add_binary(prefix .. "dnt_add", "Add", "trigger", 0)
   params:set_action(prefix .. "dnt_add", function(value)
     if value == 1 and params:get(prefix .. "disting_nt_active") == 0 then
@@ -151,30 +199,46 @@ function disting_nt.create_params(lane_idx)
       local chain_def = chains.get_by_index(chain_index)
       local algo_count = chain_def and #chain_def.algorithms or 1
 
-      -- Allocate i2c channels for each algorithm in chain
-      for i = 1, algo_count do
-        local channel = disting_nt.next_channel
-        params:set(prefix .. "dnt_algo_" .. i .. "_channel", channel)
+      local added_indices = {}
+      local added_guids = {}
 
-        -- Tell NT algorithm to listen on this channel
+      -- Add each algorithm via SysEx
+      for i = 1, algo_count do
         local algo_id = chain_def.algorithms[i]
         local algo_def = algorithms.get_by_id(algo_id)
         if algo_def then
-          -- Find i2c_channel param_num for this algorithm
+          local channel = disting_nt.next_channel
+
+          -- Build specs for this algorithm type (voices, record_time, etc.)
+          local specs = disting_nt.build_algorithm_specs(algo_def)
+
+          -- Send SysEx ADD_ALGORITHM
+          local algo_index = sysex.add_algorithm(algo_def.guid, specs)
+
+          table.insert(added_indices, algo_index)
+          table.insert(added_guids, algo_def.guid)
+
+          -- Store channel assignment
+          params:set(prefix .. "dnt_algo_" .. i .. "_channel", channel)
+
+          -- Configure i2c_channel param via SysEx (using algorithm index, not channel)
           for _, param_def in ipairs(algo_def.params) do
             if param_def.id == "i2c_channel" then
-              i2c.set_param_at_channel(channel, param_def.param_num, channel)
+              sysex.set_param(algo_index, param_def.param_num, channel)
               break
             end
           end
-        end
 
-        disting_nt.next_channel = disting_nt.next_channel + 1
+          disting_nt.next_channel = disting_nt.next_channel + 1
+        end
       end
+
+      -- Store algorithm indices for later removal
+      sysex.store_lane_algorithms(lane_idx, added_indices, added_guids)
 
       local first_channel = params:get(prefix .. "dnt_algo_1_channel")
       if _seeker.modal then
-        _seeker.modal.show_toast({ body = "+ NT I2C: " .. first_channel })
+        _seeker.modal.show_toast({ body = "+ NT: " .. (chain_def.name or "Algorithm") })
       end
 
       params:set(prefix .. "disting_nt_active", 1)
@@ -182,18 +246,31 @@ function disting_nt.create_params(lane_idx)
     end
   end)
 
-  -- Remove action: clears channels and deactivates
+  -- Remove action: sends SysEx to remove algorithms from NT, clears channels
   params:add_binary(prefix .. "dnt_remove", "Remove", "trigger", 0)
   params:set_action(prefix .. "dnt_remove", function(value)
     if value == 1 and params:get(prefix .. "disting_nt_active") == 1 then
-      local first_channel = params:get(prefix .. "dnt_algo_1_channel")
-      -- Clear allocated channels
+      local algo_data = sysex.get_lane_algorithms(lane_idx)
+
+      if algo_data and algo_data.indices then
+        -- Remove algorithms in reverse order (highest index first)
+        for i = #algo_data.indices, 1, -1 do
+          sysex.remove_algorithm(algo_data.indices[i])
+        end
+      end
+
+      -- Clear stored algorithm data
+      sysex.clear_lane_algorithms(lane_idx)
+
+      -- Clear channel assignments
       for i = 1, MAX_CHAIN_ALGOS do
         params:set(prefix .. "dnt_algo_" .. i .. "_channel", 0)
       end
+
       if _seeker.modal then
-        _seeker.modal.show_toast({ body = "- NT I2C: " .. first_channel })
+        _seeker.modal.show_toast({ body = "- NT: Removed" })
       end
+
       params:set(prefix .. "disting_nt_active", 0)
     end
   end)
@@ -224,7 +301,7 @@ function disting_nt.is_active(lane_idx)
   return params:get("lane_" .. lane_idx .. "_disting_nt_active") == 1
 end
 
--- Get the first algorithm definition for a lane's current chain
+-- Get the primary (first) algorithm in a lane's chain for note routing
 local function get_lane_algorithm(lane_idx)
   local chain_index = params:get("lane_" .. lane_idx .. "_dnt_chain")
   local chain_def = chains.get_by_index(chain_index)
@@ -253,7 +330,7 @@ function disting_nt.handle_note_on(lane_idx, note, event_velocity)
     return
   end
 
-  -- Standard polyphonic note handling
+  -- Standard polyphonic note handling (use MIDI note as note_id)
   local voice_volume = params:get("lane_" .. lane_idx .. "_disting_nt_volume")
   local lane_volume = params:get("lane_" .. lane_idx .. "_volume")
 
@@ -281,7 +358,7 @@ function disting_nt.handle_note_off(lane_idx, note)
     return
   end
 
-  -- Standard polyphonic note handling
+  -- Standard polyphonic note handling (use MIDI note as note_id)
   i2c.note_off(channel, note)
 end
 

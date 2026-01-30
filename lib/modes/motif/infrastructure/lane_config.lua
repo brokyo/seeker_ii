@@ -482,6 +482,9 @@ function LaneConfig.init()
     }
     create_params()
 
+    -- Initialize Disting NT (clears preset, resets channel allocation)
+    VOICES[3].init()
+
     return component
 end
 
