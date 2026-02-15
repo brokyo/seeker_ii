@@ -39,6 +39,9 @@ local WTape = include("lib/modes/wtape/init")
 local Eurorack = include("lib/modes/eurorack/init")
 local Osc = include("lib/modes/osc/init")
 
+-- Remote Control
+local RemoteControl = include("lib/remote_control")
+
 -- Global state
 _seeker = {
   skeys = nil,
@@ -56,6 +59,9 @@ _seeker = {
   modal = Modal,  -- Single shared Modal instance
 
   current_mode = nil,
+
+  -- Remote Control
+  rc = nil,
 
   -- Components
   config = nil,
@@ -149,6 +155,10 @@ function init()
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
+
+  -- Remote control interface
+  _seeker.rc = RemoteControl
+  _seeker.rc.init()
 
   _seeker.current_mode = "motif"
   _seeker.ui_state.set_current_section("LANE_CONFIG")
