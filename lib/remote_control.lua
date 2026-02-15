@@ -289,17 +289,10 @@ local function scale_degree_to_midi(degree, octave)
   return scale[index]
 end
 
--- Build a scale-aware motif from degrees or chords and store it on a lane.
--- Degree mode: maps scale degrees to single notes.
--- Chord mode: generates full chord voicings per degree.
--- Timing from rhythm/rest/gate arrays, ADSR resolved per-note > motif-level > lane params.
-function RC.motif(lane_id, opts)
+-- Build events from scale degrees or chord voicings without storing to lane motif.
+-- Returns {events, duration} table or nil on error.
+local function build_motif_events(lane_id, opts)
   opts = opts or {}
-  local lane = _seeker.lanes[lane_id]
-  if not lane then
-    p("ERROR: No lane " .. tostring(lane_id))
-    return
-  end
 
   local octave = opts.octave or 4
   local gate = opts.gate or 0.8
@@ -337,7 +330,7 @@ function RC.motif(lane_id, opts)
 
   if #note_groups == 0 then
     p("ERROR: No notes resolved")
-    return
+    return nil
   end
 
   -- Rhythm: beat durations per note (cycles if shorter than note_groups)
@@ -362,7 +355,7 @@ function RC.motif(lane_id, opts)
     for i = 1, #note_groups do velocities[i] = 100 end
   end
 
-  -- ADSR defaults: motif-level opts > lane params
+  -- ADSR defaults: opts > lane params
   local lp = "lane_" .. lane_id .. "_"
   local def_attack = default(opts.attack, params:get(lp .. "attack"))
   local def_decay = default(opts.decay, params:get(lp .. "decay"))
@@ -382,7 +375,7 @@ function RC.motif(lane_id, opts)
     local vel = velocities[((i - 1) % #velocities) + 1]
     local note_dur = r * gate
 
-    -- Per-note envelope: envelopes[i] > motif-level > lane params
+    -- Per-note envelope: envelopes[i] > opts > lane params
     local env = envelopes[i]
     local att = default(env and env.attack, def_attack)
     local dec = default(env and env.decay, def_decay)
@@ -426,24 +419,18 @@ function RC.motif(lane_id, opts)
 
   table.sort(events, function(a, b) return a.time < b.time end)
 
-  lane.motif:store_events({events = events, duration = total})
-  p(string.format("MOTIF: Lane %d, %d events, %.1f beats", lane_id, #events, total))
+  return {events = events, duration = total}
 end
 
--- Build a chord progression as a single motif.
--- Each entry in chords = {degree, type, dur} placed sequentially.
-function RC.phrase(lane_id, opts)
+-- Build events from a chord progression sequence without storing to lane motif.
+-- Each chord placed sequentially. Returns {events, duration} table or nil on error.
+local function build_phrase_events(lane_id, opts)
   opts = opts or {}
-  local lane = _seeker.lanes[lane_id]
-  if not lane then
-    p("ERROR: No lane " .. tostring(lane_id))
-    return
-  end
 
   local chords = opts.chords
   if not chords or #chords == 0 then
     p("ERROR: No chords specified")
-    return
+    return nil
   end
 
   local octave = opts.octave or 4
@@ -454,7 +441,7 @@ function RC.phrase(lane_id, opts)
   local strum = opts.strum or 0
   local velocity = opts.velocity or 100
 
-  -- ADSR defaults: phrase-level > lane params
+  -- ADSR defaults: opts > lane params
   local lp = "lane_" .. lane_id .. "_"
   local def_attack = default(opts.attack, params:get(lp .. "attack"))
   local def_decay = default(opts.decay, params:get(lp .. "decay"))
@@ -518,8 +505,41 @@ function RC.phrase(lane_id, opts)
 
   table.sort(events, function(a, b) return a.time < b.time end)
 
-  lane.motif:store_events({events = events, duration = time})
-  p(string.format("PHRASE: Lane %d, %d chords, %d events, %.1f beats", lane_id, #chords, #events, time))
+  return {events = events, duration = time}
+end
+
+-- Build a scale-aware motif from degrees or chords and store it on a lane.
+-- Degree mode: maps scale degrees to single notes.
+-- Chord mode: generates full chord voicings per degree.
+-- Timing from rhythm/rest/gate arrays, ADSR resolved per-note > motif-level > lane params.
+function RC.motif(lane_id, opts)
+  local lane = _seeker.lanes[lane_id]
+  if not lane then
+    p("ERROR: No lane " .. tostring(lane_id))
+    return
+  end
+
+  local data = build_motif_events(lane_id, opts)
+  if not data then return end
+
+  lane.motif:store_events(data)
+  p(string.format("MOTIF: Lane %d, %d events, %.1f beats", lane_id, #data.events, data.duration))
+end
+
+-- Build a chord progression as a single motif.
+-- Each entry in chords = {degree, type, dur} placed sequentially.
+function RC.phrase(lane_id, opts)
+  local lane = _seeker.lanes[lane_id]
+  if not lane then
+    p("ERROR: No lane " .. tostring(lane_id))
+    return
+  end
+
+  local data = build_phrase_events(lane_id, opts)
+  if not data then return end
+
+  lane.motif:store_events(data)
+  p(string.format("PHRASE: Lane %d, %d chords, %d events, %.1f beats", lane_id, #opts.chords, #data.events, data.duration))
 end
 
 -- Flag current stage for regeneration at next loop boundary
@@ -535,6 +555,76 @@ function RC.regen(lane_id)
   local stage = lane.stages[stage_idx]
   stage.reset_motif = true
   p(string.format("REGEN: Lane %d stage %d flagged for regeneration", lane_id, stage_idx))
+end
+
+-- Store events for a specific stage slot on a lane.
+-- Accepts same options as motif() and phrase(); uses phrase mode if opts.chords is present.
+function RC.stage(lane_id, stage_id, opts)
+  local lane = _seeker.lanes[lane_id]
+  if not lane then
+    p("ERROR: No lane " .. tostring(lane_id))
+    return
+  end
+
+  local data
+  if opts.chords then
+    data = build_phrase_events(lane_id, opts)
+  else
+    data = build_motif_events(lane_id, opts)
+  end
+  if not data then return end
+
+  lane.rc_stage_motifs[stage_id] = data
+  p(string.format("STAGE: Lane %d stage %d, %d events, %.1f beats", lane_id, stage_id, #data.events, data.duration))
+end
+
+-- Configure a multi-stage sequence on a lane with activation and loop counts.
+-- Each entry contains motif/phrase options plus optional loops. Activates stages 1-N, deactivates the rest.
+function RC.form(lane_id, stages)
+  local lane = _seeker.lanes[lane_id]
+  if not lane then
+    p("ERROR: No lane " .. tostring(lane_id))
+    return
+  end
+
+  local total_loops = 0
+  local total_beats = 0
+
+  for i, entry in ipairs(stages) do
+    -- Extract loops before passing opts to stage builder
+    local loops = entry.loops or 2
+    total_loops = total_loops + loops
+
+    -- Build and store events for this stage
+    RC.stage(lane_id, i, entry)
+
+    -- Activate this stage and set loop count
+    params:set("lane_" .. lane_id .. "_stage_" .. i .. "_active", 2)
+    params:set("lane_" .. lane_id .. "_stage_" .. i .. "_loops", loops)
+
+    -- Accumulate total beats
+    local data = lane.rc_stage_motifs[i]
+    if data then
+      total_beats = total_beats + (data.duration * loops)
+    end
+  end
+
+  -- Deactivate unused stages
+  for i = #stages + 1, 4 do
+    params:set("lane_" .. lane_id .. "_stage_" .. i .. "_active", 1)
+    lane.rc_stage_motifs[i] = nil
+  end
+
+  -- Sync stage params into lane state
+  lane:sync_all_stages_from_params()
+
+  -- Load stage 1 events into the motif so it's ready for immediate playback
+  local first = lane.rc_stage_motifs[1]
+  if first then
+    lane.motif:store_events(first)
+  end
+
+  p(string.format("FORM: Lane %d, %d stages, %d loops, %.1f beats total", lane_id, #stages, total_loops, total_beats))
 end
 
 -- Serialize a Lua value (string/number/boolean/table) to a Lua-source string.
@@ -591,6 +681,7 @@ function RC.save(slot)
       duration = lane.motif.duration,
       genesis_duration = lane.motif.genesis.duration,
       playing = lane.playing,
+      rc_stage_motifs = lane.rc_stage_motifs,
     }
     save_data[i] = lane_data
     if #lane.motif.events > 0 then
@@ -634,14 +725,19 @@ function RC.restore(slot)
   for i = 1, _seeker.num_lanes do
     local lane = _seeker.lanes[i]
     local lane_data = save_data[i]
-    if lane_data and #lane_data.events > 0 then
-      -- Restore genesis state
-      lane.motif.genesis.events = lane_data.genesis_events or {}
-      lane.motif.genesis.duration = lane_data.genesis_duration or 0
-      -- Restore working state
-      lane.motif.events = lane_data.events
-      lane.motif.duration = lane_data.duration or 0
-      restored = restored + 1
+    if lane_data then
+      -- Restore RC stage motifs
+      lane.rc_stage_motifs = lane_data.rc_stage_motifs or {}
+
+      if #lane_data.events > 0 then
+        -- Restore genesis state
+        lane.motif.genesis.events = lane_data.genesis_events or {}
+        lane.motif.genesis.duration = lane_data.genesis_duration or 0
+        -- Restore working state
+        lane.motif.events = lane_data.events
+        lane.motif.duration = lane_data.duration or 0
+        restored = restored + 1
+      end
     end
   end
 

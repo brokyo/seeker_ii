@@ -239,6 +239,9 @@ function Lane.new(config)
   -- Sync stage configuration with params
   lane:sync_all_stages_from_params()
   
+  -- Per-stage event data set by RC, indexed by stage id
+  lane.rc_stage_motifs = {}
+
   -- Add trails state
   lane.trails = {}  -- Store fading note trails
   
@@ -307,6 +310,17 @@ end
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
+  -- RC stage: load pre-built events directly, skip motif type handlers
+  if self.rc_stage_motifs[stage.id] then
+    local data = self.rc_stage_motifs[stage.id]
+    self.motif.events = {}
+    for _, evt in ipairs(data.events) do
+      table.insert(self.motif.events, self.motif:_copy_event(evt))
+    end
+    self.motif.duration = data.duration
+    return true
+  end
+
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
   if motif_type == TAPE_MODE then
