@@ -3,6 +3,8 @@
 -- All output prefixed with "RC:" for filtering in logs.
 
 local musicutil = require('musicutil')
+local theory = include('lib/modes/motif/core/theory')
+local chord_generator = include('lib/modes/motif/core/chord_generator')
 local RC = {}
 
 local function p(msg)
@@ -258,6 +260,268 @@ function RC.set(param_id, value)
   p(string.format("SET: %s = %s", param_id, display))
 end
 
+-- Use explicit nil check so values like 0 and false are preserved
+local function default(val, fallback)
+  if val ~= nil then return val end
+  return fallback
+end
+
+-- Convert 1-based scale degree + octave to MIDI note
+-- Scale spans 10 octaves so degree 8+ wraps into higher octaves. Returns nil if out of range.
+local function scale_degree_to_midi(degree, octave)
+  local root = params:get("root_note")
+  local scale = theory.get_scale()
+
+  -- Find root note at target octave in the scale array
+  local target_root = (octave + 1) * 12 + (root - 1)
+  local root_index = nil
+  for i, note in ipairs(scale) do
+    if note >= target_root then
+      root_index = i
+      break
+    end
+  end
+
+  if not root_index then return nil end
+
+  local index = root_index + (degree - 1)
+  if index < 1 or index > #scale then return nil end
+  return scale[index]
+end
+
+-- Build a scale-aware motif from degrees or chords and store it on a lane.
+-- Degree mode: maps scale degrees to single notes.
+-- Chord mode: generates full chord voicings per degree.
+-- Timing from rhythm/rest/gate arrays, ADSR resolved per-note > motif-level > lane params.
+function RC.motif(lane_id, opts)
+  opts = opts or {}
+  local lane = _seeker.lanes[lane_id]
+  if not lane then
+    p("ERROR: No lane " .. tostring(lane_id))
+    return
+  end
+
+  local octave = opts.octave or 4
+  local gate = opts.gate or 0.8
+  local strum = opts.strum or 0
+  local total = opts.total
+
+  -- Resolve notes: each entry is an array of MIDI notes (single note or chord)
+  local note_groups = {}
+
+  if opts.chord then
+    -- Chord mode: generate full voicing for each degree
+    local degrees = opts.degrees or {1}
+    local chord_len = opts.chord_len or 4
+    local voicing = opts.voicing or "Close"
+    local rotation = opts.rotation or 0
+
+    for _, deg in ipairs(degrees) do
+      local chord_notes = chord_generator.generate_chord(deg, opts.chord, chord_len, rotation, voicing)
+      local midi_notes = {}
+      for _, cn in ipairs(chord_notes) do
+        table.insert(midi_notes, cn + ((octave + 1) * 12))
+      end
+      table.insert(note_groups, midi_notes)
+    end
+  else
+    -- Degree mode: single notes from current scale
+    local degrees = opts.degrees or {1}
+    for _, deg in ipairs(degrees) do
+      local midi = scale_degree_to_midi(deg, octave)
+      if midi then
+        table.insert(note_groups, {midi})
+      end
+    end
+  end
+
+  if #note_groups == 0 then
+    p("ERROR: No notes resolved")
+    return
+  end
+
+  -- Rhythm: beat durations per note (cycles if shorter than note_groups)
+  local rhythm = opts.rhythm or {}
+  if #rhythm == 0 then
+    local default_dur = (total or (#note_groups * 2)) / #note_groups
+    for i = 1, #note_groups do
+      rhythm[i] = default_dur
+    end
+  end
+
+  local rest = opts.rest or {}
+
+  -- Velocities: single value expands to all notes
+  local velocities = opts.velocities
+  if type(velocities) == "number" then
+    local v = velocities
+    velocities = {}
+    for i = 1, #note_groups do velocities[i] = v end
+  elseif not velocities then
+    velocities = {}
+    for i = 1, #note_groups do velocities[i] = 100 end
+  end
+
+  -- ADSR defaults: motif-level opts > lane params
+  local lp = "lane_" .. lane_id .. "_"
+  local def_attack = default(opts.attack, params:get(lp .. "attack"))
+  local def_decay = default(opts.decay, params:get(lp .. "decay"))
+  local def_sustain = default(opts.sustain, params:get(lp .. "sustain"))
+  local def_release = default(opts.release, params:get(lp .. "release"))
+  local def_pan = default(opts.pan, params:get(lp .. "pan"))
+
+  local envelopes = opts.envelopes or {}
+
+  -- Build note_on/note_off event pairs
+  local events = {}
+  local time = 0
+
+  for i, notes in ipairs(note_groups) do
+    local r = rhythm[((i - 1) % #rhythm) + 1]
+    local rest_val = (#rest > 0) and rest[((i - 1) % #rest) + 1] or 0
+    local vel = velocities[((i - 1) % #velocities) + 1]
+    local note_dur = r * gate
+
+    -- Per-note envelope: envelopes[i] > motif-level > lane params
+    local env = envelopes[i]
+    local att = default(env and env.attack, def_attack)
+    local dec = default(env and env.decay, def_decay)
+    local sus = default(env and env.sustain, def_sustain)
+    local rel = default(env and env.release, def_release)
+    local pan = default(env and env.pan, def_pan)
+
+    local note_start = time + rest_val
+
+    for j, note in ipairs(notes) do
+      local strum_offset = (j - 1) * strum
+
+      table.insert(events, {
+        time = note_start + strum_offset,
+        type = "note_on",
+        note = note,
+        velocity = vel,
+        x = 0, y = 0,
+        is_playback = true,
+        attack = att,
+        decay = dec,
+        sustain = sus,
+        release = rel,
+        pan = pan,
+        generation = 1,
+      })
+
+      table.insert(events, {
+        time = note_start + strum_offset + note_dur,
+        type = "note_off",
+        note = note,
+        x = 0, y = 0,
+        generation = 1,
+      })
+    end
+
+    time = time + rest_val + r
+  end
+
+  if not total then total = time end
+
+  table.sort(events, function(a, b) return a.time < b.time end)
+
+  lane.motif:store_events({events = events, duration = total})
+  p(string.format("MOTIF: Lane %d, %d events, %.1f beats", lane_id, #events, total))
+end
+
+-- Build a chord progression as a single motif.
+-- Each entry in chords = {degree, type, dur} placed sequentially.
+function RC.phrase(lane_id, opts)
+  opts = opts or {}
+  local lane = _seeker.lanes[lane_id]
+  if not lane then
+    p("ERROR: No lane " .. tostring(lane_id))
+    return
+  end
+
+  local chords = opts.chords
+  if not chords or #chords == 0 then
+    p("ERROR: No chords specified")
+    return
+  end
+
+  local octave = opts.octave or 4
+  local chord_len = opts.chord_len or 3
+  local voicing = opts.voicing or "Close"
+  local rotation = opts.rotation or 0
+  local gate = opts.gate or 0.8
+  local strum = opts.strum or 0
+  local velocity = opts.velocity or 100
+
+  -- ADSR defaults: phrase-level > lane params
+  local lp = "lane_" .. lane_id .. "_"
+  local def_attack = default(opts.attack, params:get(lp .. "attack"))
+  local def_decay = default(opts.decay, params:get(lp .. "decay"))
+  local def_sustain = default(opts.sustain, params:get(lp .. "sustain"))
+  local def_release = default(opts.release, params:get(lp .. "release"))
+  local def_pan = default(opts.pan, params:get(lp .. "pan"))
+
+  local events = {}
+  local time = 0
+
+  for _, chord_def in ipairs(chords) do
+    local degree = chord_def.degree or 1
+    local chord_type = chord_def.type or "Major"
+    local dur = chord_def.dur or 4
+    local chord_vel = chord_def.velocity or velocity
+    local chord_gate = chord_def.gate or gate
+
+    -- Per-chord envelope overrides
+    local att = default(chord_def.attack, def_attack)
+    local dec = default(chord_def.decay, def_decay)
+    local sus = default(chord_def.sustain, def_sustain)
+    local rel = default(chord_def.release, def_release)
+    local pan = default(chord_def.pan, def_pan)
+
+    local c_len = chord_def.chord_len or chord_len
+    local c_voicing = chord_def.voicing or voicing
+    local c_rotation = chord_def.rotation or rotation
+
+    local chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing)
+
+    for j, cn in ipairs(chord_notes) do
+      local note = cn + ((octave + 1) * 12)
+      local strum_offset = (j - 1) * strum
+
+      table.insert(events, {
+        time = time + strum_offset,
+        type = "note_on",
+        note = note,
+        velocity = chord_vel,
+        x = 0, y = 0,
+        is_playback = true,
+        attack = att,
+        decay = dec,
+        sustain = sus,
+        release = rel,
+        pan = pan,
+        generation = 1,
+      })
+
+      table.insert(events, {
+        time = time + strum_offset + (dur * chord_gate),
+        type = "note_off",
+        note = note,
+        x = 0, y = 0,
+        generation = 1,
+      })
+    end
+
+    time = time + dur
+  end
+
+  table.sort(events, function(a, b) return a.time < b.time end)
+
+  lane.motif:store_events({events = events, duration = time})
+  p(string.format("PHRASE: Lane %d, %d chords, %d events, %.1f beats", lane_id, #chords, #events, time))
+end
+
 -- Flag current stage for regeneration at next loop boundary
 function RC.regen(lane_id)
   lane_id = lane_id or _seeker.ui_state.get_focused_lane()
@@ -271,6 +535,117 @@ function RC.regen(lane_id)
   local stage = lane.stages[stage_idx]
   stage.reset_motif = true
   p(string.format("REGEN: Lane %d stage %d flagged for regeneration", lane_id, stage_idx))
+end
+
+-- Serialize a Lua value (string/number/boolean/table) to a Lua-source string.
+-- Handles the flat-with-nested-tables shape of motif events.
+local function serialize(val, indent)
+  indent = indent or ""
+  local t = type(val)
+  if t == "number" then
+    return tostring(val)
+  elseif t == "string" then
+    return string.format("%q", val)
+  elseif t == "boolean" then
+    return tostring(val)
+  elseif t == "table" then
+    local parts = {}
+    local next_indent = indent .. "  "
+    -- Array part
+    for i, v in ipairs(val) do
+      table.insert(parts, next_indent .. serialize(v, next_indent))
+    end
+    -- Hash part (skip integer keys already covered)
+    local array_len = #val
+    for k, v in pairs(val) do
+      if type(k) ~= "number" or k < 1 or k > array_len or math.floor(k) ~= k then
+        local key_str
+        if type(k) == "string" and k:match("^[%a_][%w_]*$") then
+          key_str = k
+        else
+          key_str = "[" .. serialize(k) .. "]"
+        end
+        table.insert(parts, next_indent .. key_str .. " = " .. serialize(v, next_indent))
+      end
+    end
+    return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent .. "}"
+  end
+  return "nil"
+end
+
+-- Save all lane motifs and playback state to disk.
+-- Params are saved via norns PSET. Motif events serialized as Lua tables.
+function RC.save(slot)
+  slot = slot or 1
+  local data_dir = norns.state.data
+  util.make_dir(data_dir)
+
+  -- Collect motif data from all lanes
+  local save_data = {}
+  local lanes_with_events = 0
+  for i = 1, _seeker.num_lanes do
+    local lane = _seeker.lanes[i]
+    local lane_data = {
+      events = lane.motif.events,
+      genesis_events = lane.motif.genesis.events,
+      duration = lane.motif.duration,
+      genesis_duration = lane.motif.genesis.duration,
+      playing = lane.playing,
+    }
+    save_data[i] = lane_data
+    if #lane.motif.events > 0 then
+      lanes_with_events = lanes_with_events + 1
+    end
+  end
+
+  -- Write motif data as Lua source
+  local path = data_dir .. "rc_save_" .. slot .. ".lua"
+  local file = io.open(path, "w")
+  file:write("-- RC save slot " .. slot .. "\n")
+  file:write("return " .. serialize(save_data) .. "\n")
+  file:close()
+
+  -- Save params via norns PSET
+  params:write(50 + slot, "rc_save_" .. slot)
+
+  p(string.format("SAVE: Slot %d, %d lanes with events -> %s", slot, lanes_with_events, path))
+end
+
+-- Restore lane motifs and params from a previous save.
+function RC.restore(slot)
+  slot = slot or 1
+  local data_dir = norns.state.data
+  local path = data_dir .. "rc_save_" .. slot .. ".lua"
+
+  -- Load motif data
+  local loader = loadfile(path)
+  if not loader then
+    p("ERROR: No save found at slot " .. slot)
+    return
+  end
+
+  local save_data = loader()
+
+  -- Restore params first
+  params:read(50 + slot)
+
+  -- Restore motifs to each lane
+  local restored = 0
+  for i = 1, _seeker.num_lanes do
+    local lane = _seeker.lanes[i]
+    local lane_data = save_data[i]
+    if lane_data and #lane_data.events > 0 then
+      -- Restore genesis state
+      lane.motif.genesis.events = lane_data.genesis_events or {}
+      lane.motif.genesis.duration = lane_data.genesis_duration or 0
+      -- Restore working state
+      lane.motif.events = lane_data.events
+      lane.motif.duration = lane_data.duration or 0
+      restored = restored + 1
+    end
+  end
+
+  p(string.format("RESTORE: Slot %d, %d lanes restored", slot, restored))
 end
 
 function RC.init()
