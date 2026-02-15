@@ -30,6 +30,11 @@ local musicutil = require('musicutil')
 local Lane = {}
 Lane.__index = Lane
 
+-- Format a crow ASL envelope segment: target voltage, transition time, curve shape
+local function asl_to(volts, time, shape)
+  return string.format("to(%f,%f,'%s')", volts, time, shape or "logarithmic")
+end
+
 -- Quantization helper function
 local function quantize_to_interval(time, interval_beats)
   if interval_beats <= 0 then
@@ -857,6 +862,35 @@ function Lane:on_note_on(event)
         crow.ii.txo.tr(gate_out - 5, 1)
       end
     end
+
+    -- Send envelope CV that follows ADSR shape, scaled by note velocity
+    local env_out = params:get("lane_" .. self.id .. "_env_out")
+    if env_out > 1 then
+      local env_peak = params:get("lane_" .. self.id .. "_env_peak")
+      local peak_volts = env_peak * (event.velocity / 127)
+
+      -- Use event ADSR if available (tape mode stores per-note), otherwise lane defaults
+      local param_prefix = "lane_" .. self.id .. "_"
+      local attack = event.attack or params:get(param_prefix .. "attack")
+      local decay = event.decay or params:get(param_prefix .. "decay")
+      local sustain = event.sustain or params:get(param_prefix .. "sustain")
+      local sustain_volts = sustain * peak_volts
+
+      if env_out <= 5 then
+        -- Crow: ramp to peak then decay to sustain level, holds until note_off
+        local action = "{ " .. asl_to(peak_volts, attack, "logarithmic") .. ", " .. asl_to(sustain_volts, decay, "logarithmic") .. " }"
+        crow.output[env_out - 1].action = action
+        crow.output[env_out - 1]()
+      else
+        -- TXO: AD envelope fires and decays automatically (no sustain phase)
+        local txo_num = env_out - 5
+        crow.ii.txo.env_act(txo_num, 1)
+        crow.ii.txo.env_att(txo_num, attack * 1000)
+        crow.ii.txo.env_dec(txo_num, (event.release or params:get(param_prefix .. "release")) * 1000)
+        crow.ii.txo.cv(txo_num, peak_volts)
+        crow.ii.txo.env_trig(txo_num, 1)
+      end
+    end
   end
 
   --------------------------------
@@ -1191,6 +1225,18 @@ function Lane:on_note_off(event)
       -- TXo gate
       crow.ii.txo.tr(gate_out - 5, 0)
     end
+  end
+
+  -- Release envelope CV when last note ends (holds while notes overlap)
+  if remaining_notes == 0 then
+    local env_out = params:get("lane_" .. self.id .. "_env_out")
+    if env_out > 1 and env_out <= 5 then
+      -- Crow: release from current level to 0V
+      local rel = event.release or params:get("lane_" .. self.id .. "_release")
+      crow.output[env_out - 1].action = "{ " .. asl_to(0, rel, "logarithmic") .. " }"
+      crow.output[env_out - 1]()
+    end
+    -- TXO: AD envelope self-completes, no action needed
   end
 
   -- Handle trails based on keyboard mode
