@@ -40,7 +40,8 @@ local Eurorack = include("lib/modes/eurorack/init")
 local Osc = include("lib/modes/osc/init")
 
 -- Remote Control
-local RemoteControl = include("lib/remote_control")
+local RemoteControl = include("lib/remote_control/init")
+local rc_overlay = include("lib/remote_control/rc_overlay")
 
 -- Global state
 _seeker = {
@@ -159,6 +160,7 @@ function init()
   -- Remote control interface
   _seeker.rc = RemoteControl
   _seeker.rc.init()
+  _seeker.rc_overlay = rc_overlay
 
   _seeker.current_mode = "motif"
   _seeker.ui_state.set_current_section("LANE_CONFIG")

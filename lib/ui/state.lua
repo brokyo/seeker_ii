@@ -179,7 +179,7 @@ function UIState.set_current_section(section_id)
     if required_mode and required_mode ~= _seeker.current_mode then
       print("⚠ Auto-switching mode: " .. _seeker.current_mode .. " → " .. required_mode .. " (section: " .. section_id .. ")")
       _seeker.current_mode = required_mode
-    elseif not required_mode then
+    elseif not required_mode and not section_id:match("^RC_") then
       print("⚠ Warning: Section '" .. section_id .. "' not registered in any mode")
     end
   end
