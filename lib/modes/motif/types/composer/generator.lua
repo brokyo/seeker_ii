@@ -7,6 +7,86 @@
 local chord_generator = include('lib/modes/motif/core/chord_generator')
 local ComposerGenerator = {}
 
+-- Degree offsets for harmonic motion between stages
+-- Maps option index to scale degree movement
+local HARMONIC_MOTION = {
+  0,   -- Hold
+  1,   -- Step Up
+  -1,  -- Step Down
+  2,   -- Third Up
+  -2,  -- Third Down
+  3,   -- Fourth Up
+  -3,  -- Fourth Down
+  4,   -- Fifth Up
+  -4,  -- Fifth Down
+}
+
+-- Resolve effective parameters for a stage, applying transform offsets when needed
+-- Independent mode or Stage 1: reads params directly from that stage
+-- Transform mode stages 2-4: reads Stage 1 as seed, applies cumulative drift
+local function resolve_stage_params(lane_id, stage_id)
+  local prefix = "lane_" .. lane_id .. "_stage_"
+  local is_transform = params:string("lane_" .. lane_id .. "_composer_stage_mode") == "Transform"
+
+  if not is_transform or stage_id == 1 then
+    -- Read directly from this stage
+    local s = prefix .. stage_id .. "_composer_"
+    return {
+      chord_root = params:get(s .. "chord_root"),
+      chord_type = params:string(s .. "chord_type"),
+      chord_length = params:get(s .. "chord_length"),
+      voice_rotation = params:get(s .. "voice_rotation"),
+      voicing_style = params:string(s .. "voicing_style"),
+      octave = params:get(s .. "octave"),
+      pattern = params:string(s .. "pattern"),
+      note_duration = params:get(s .. "note_duration"),
+      velocity_curve = params:string(s .. "velocity_curve"),
+      velocity_min = params:get(s .. "velocity_min"),
+      velocity_max = params:get(s .. "velocity_max"),
+      strum_amount = params:get(s .. "strum_amount"),
+      strum_curve = params:string(s .. "strum_curve"),
+      strum_shape = params:string(s .. "strum_shape"),
+      chord_phasing = params:get(s .. "chord_phasing") == 1,
+    }
+  end
+
+  -- Transform mode: derive from Stage 1 seed with cumulative offsets
+  local seed = prefix .. "1_composer_"
+  local steps = stage_id - 1
+  local degree_offset = HARMONIC_MOTION[params:get("lane_" .. lane_id .. "_composer_harmonic_motion")]
+  local voice_drift = params:get("lane_" .. lane_id .. "_composer_voice_drift")
+  local octave_drift = params:get("lane_" .. lane_id .. "_composer_octave_drift")
+  local duration_drift = params:get("lane_" .. lane_id .. "_composer_duration_drift")
+  local velocity_drift = params:get("lane_" .. lane_id .. "_composer_velocity_drift")
+  local strum_drift = params:get("lane_" .. lane_id .. "_composer_strum_drift")
+
+  local seed_root = params:get(seed .. "chord_root")
+  local seed_rotation = params:get(seed .. "voice_rotation")
+  local seed_octave = params:get(seed .. "octave")
+  local seed_duration = params:get(seed .. "note_duration")
+  local seed_vel_min = params:get(seed .. "velocity_min")
+  local seed_vel_max = params:get(seed .. "velocity_max")
+  local seed_strum = params:get(seed .. "strum_amount")
+
+  return {
+    chord_root = ((seed_root - 1 + degree_offset * steps) % 7) + 1,
+    chord_type = params:string(seed .. "chord_type"),
+    chord_length = params:get(seed .. "chord_length"),
+    voice_rotation = util.clamp(seed_rotation + voice_drift * steps, -5, 5),
+    voicing_style = params:string(seed .. "voicing_style"),
+    octave = util.clamp(seed_octave + octave_drift * steps, 1, 7),
+    pattern = params:string(seed .. "pattern"),
+    note_duration = util.clamp(seed_duration + duration_drift * steps, 1, 300),
+    velocity_curve = params:string(seed .. "velocity_curve"),
+    velocity_min = util.clamp(seed_vel_min + velocity_drift * steps, 1, 127),
+    velocity_max = util.clamp(seed_vel_max + velocity_drift * steps, 1, 127),
+    strum_amount = util.clamp(seed_strum + strum_drift * steps, 0, 100),
+    strum_curve = params:string(seed .. "strum_curve"),
+    strum_shape = params:string(seed .. "strum_shape"),
+    chord_phasing = params:get(seed .. "chord_phasing") == 1,
+  }
+end
+
 -- Helper: Convert interval string to beats
 local function interval_to_beats(interval_str)
   if tonumber(interval_str) then
@@ -214,35 +294,16 @@ end
 
 -- Build complete note sequence for one stage using chord, velocity, and strum parameters
 local function generate_motif(lane_id, stage_id)
-  -- Get sequence structure (stays on lane)
+  -- Get sequence structure (lane-level)
   local step_length_str = params:string("lane_" .. lane_id .. "_composer_step_length")
   local step_length = interval_to_beats(step_length_str)
   local num_steps = params:get("lane_" .. lane_id .. "_composer_num_steps")
 
-  -- Get musical parameters from specified stage
-  local octave = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_octave")
-  local chord_root = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_root")
-  local chord_type = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_type")
-  local chord_length = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_length")
-  local voice_rotation = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_voice_rotation")
-  local voicing_style = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_voicing_style")
-  local note_duration_percent = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_note_duration")
-
-  -- Get velocity curve parameters
-  local velocity_curve = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_velocity_curve")
-  local velocity_min = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_velocity_min")
-  local velocity_max = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_velocity_max")
-
-  -- Get strum parameters
-  local strum_curve = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_curve")
-  local strum_amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_amount")
-  local strum_shape = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_strum_shape")
-
-  -- Get phasing parameter
-  local phasing_enabled = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_chord_phasing") == 1
+  -- Resolve all musical parameters (handles transform mode offsets)
+  local p = resolve_stage_params(lane_id, stage_id)
 
   -- Generate chord
-  local effective_chord = chord_generator.generate_chord(chord_root, chord_type, chord_length, voice_rotation, voicing_style)
+  local effective_chord = chord_generator.generate_chord(p.chord_root, p.chord_type, p.chord_length, p.voice_rotation, p.voicing_style)
 
   if not effective_chord or #effective_chord == 0 then
     print("ERROR: Failed to generate chord for composer")
@@ -264,17 +325,17 @@ local function generate_motif(lane_id, stage_id)
 
   -- Phase offset rotates chord voices on each loop when chord_phasing is enabled
   local lane = _seeker.lanes[lane_id]
-  local phase_offset = (phasing_enabled and lane) and lane.chord_phase_offset or 0
+  local phase_offset = (p.chord_phasing and lane) and lane.chord_phase_offset or 0
 
   -- Generate note events
   local events = {}
   for active_index, step in ipairs(active_steps) do
-    local step_time = calculate_strum_position(active_index, #active_steps, strum_curve, strum_amount, strum_shape, sequence_duration)
-    local chord_voice = map_step_to_chord_voice(active_index, #active_steps, #effective_chord, phase_offset, strum_shape)
+    local step_time = calculate_strum_position(active_index, #active_steps, p.strum_curve, p.strum_amount, p.strum_shape, sequence_duration)
+    local chord_voice = map_step_to_chord_voice(active_index, #active_steps, #effective_chord, phase_offset, p.strum_shape)
     local chord_note = effective_chord[chord_voice]
     -- Octave param is 1-indexed, MIDI calculation needs 0-indexed
-    local final_note = chord_note + ((octave + 1) * 12)
-    local step_velocity = calculate_velocity(active_index, #active_steps, velocity_curve, velocity_min, velocity_max)
+    local final_note = chord_note + ((p.octave + 1) * 12)
+    local step_velocity = calculate_velocity(active_index, #active_steps, p.velocity_curve, p.velocity_min, p.velocity_max)
 
     local step_pos = composer_keyboard.step_to_grid(step)
     local step_x = step_pos and step_pos.x or 0
@@ -296,7 +357,7 @@ local function generate_motif(lane_id, stage_id)
       pan = params:get("lane_" .. lane_id .. "_pan")
     })
 
-    local note_duration = step_length * (note_duration_percent / 100)
+    local note_duration = step_length * (p.note_duration / 100)
     local note_off_time = step_time + note_duration
     table.insert(events, {
       time = note_off_time,
@@ -312,7 +373,7 @@ local function generate_motif(lane_id, stage_id)
   table.sort(events, function(a, b) return a.time < b.time end)
 
   -- Update phase offset for next loop
-  if phasing_enabled and lane then
+  if p.chord_phasing and lane then
     lane.chord_phase_offset = (lane.chord_phase_offset + #active_steps) % #effective_chord
   end
 
@@ -368,8 +429,9 @@ function ComposerGenerator.prepare_stage(lane_id, stage_id, motif)
     -- Generate core motif
     local regenerated = generate_motif(lane_id, stage_id)
 
-    -- Apply pattern preset filter
-    local pattern_preset = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_pattern")
+    -- Apply pattern preset filter using resolved params (respects transform mode)
+    local p = resolve_stage_params(lane_id, stage_id)
+    local pattern_preset = p.pattern
     if pattern_preset and pattern_preset ~= "All" then
       local num_steps = params:get("lane_" .. lane_id .. "_composer_num_steps")
       regenerated.events = filter_events_by_pattern(regenerated.events, pattern_preset, num_steps)

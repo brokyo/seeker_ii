@@ -44,15 +44,9 @@ local function create_screen_ui()
 
     local original_enter = norns_ui.enter
 
-    norns_ui.enter = function(self)
-        local lane_idx = _seeker.ui_state.get_focused_lane()
-        local stage_idx = editing_state.selected_stage_index
-
-        -- Update name to show current stage in footer
-        self.name = "Stage " .. stage_idx .. " Harmonic"
-
-        -- Build param list showing chord, voicing, and stage settings
-        self.params = {
+    -- Build the full per-stage harmonic param list (used for Independent mode or Stage 1)
+    local function build_full_harmonic_params(lane_idx, stage_idx)
+        return {
             { separator = true, title = "Chord" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_root" },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_type" },
@@ -67,7 +61,27 @@ local function create_screen_ui()
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
             { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
         }
+    end
 
+    -- Build transform param list (used for Transform mode stages 2-4)
+    local function build_transform_harmonic_params(lane_idx, stage_idx)
+        return {
+            { separator = true, title = "Harmonic Transform" },
+            { id = "lane_" .. lane_idx .. "_composer_harmonic_motion" },
+            { id = "lane_" .. lane_idx .. "_composer_voice_drift" },
+            { id = "lane_" .. lane_idx .. "_composer_octave_drift" },
+            { separator = true, title = "Stage" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
+            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
+        }
+    end
+
+    norns_ui.enter = function(self)
+        local lane_idx = _seeker.ui_state.get_focused_lane()
+        local stage_idx = editing_state.selected_stage_index
+        self.name = "Stage " .. stage_idx .. " Harmonic"
+        self.params = build_full_harmonic_params(lane_idx, stage_idx)
         original_enter(self)
         self:rebuild_params()
     end
@@ -75,26 +89,15 @@ local function create_screen_ui()
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
         local stage_idx = editing_state.selected_stage_index
-
-        -- Update name to show current stage in footer
         self.name = "Stage " .. stage_idx .. " Harmonic"
 
-        -- Update param list to reflect newly selected stage
-        self.params = {
-            { separator = true, title = "Chord" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_root" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_type" },
-            { separator = true, title = "Voicing" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_length" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_voice_rotation" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_voicing_style" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_octave" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_composer_chord_phasing" },
-            { separator = true, title = "Stage" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
-            { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
-        }
+        local is_transform = params:string("lane_" .. lane_idx .. "_composer_stage_mode") == "Transform"
+
+        if is_transform and stage_idx > 1 then
+            self.params = build_transform_harmonic_params(lane_idx, stage_idx)
+        else
+            self.params = build_full_harmonic_params(lane_idx, stage_idx)
+        end
     end
 
     return norns_ui

@@ -22,13 +22,24 @@ local editing_state = {
 
 -- Create all composer parameters for a single lane
 local function create_composer_params(lane_id)
-    -- 62 params total: 2 lane-level (sequence structure) + (15 per stage x 4 stages)
-    params:add_group("lane_" .. lane_id .. "_composer", "LANE " .. lane_id .. " COMPOSER", 62)
+    -- 69 params total: 9 lane-level (structure + transform) + (15 per stage x 4 stages)
+    params:add_group("lane_" .. lane_id .. "_composer", "LANE " .. lane_id .. " COMPOSER", 69)
 
     -- Lane-level params (sequence structure)
     params:add_number("lane_" .. lane_id .. "_composer_num_steps", "Number of Steps", 4, 24, 4)
     params:add_option("lane_" .. lane_id .. "_composer_step_length", "Step Length",
         {"1/32", "1/24", "1/16", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "16", "24", "32"}, 14)
+
+    -- Lane-level params (transform mode)
+    -- Stage 1 is the seed; stages 2-4 derive from cumulative offsets
+    params:add_option("lane_" .. lane_id .. "_composer_stage_mode", "Stage Mode", {"Independent", "Transform"}, 1)
+    params:add_option("lane_" .. lane_id .. "_composer_harmonic_motion", "Harmonic Motion",
+        {"Hold", "Step Up", "Step Down", "Third Up", "Third Down", "Fourth Up", "Fourth Down", "Fifth Up", "Fifth Down"}, 1)
+    params:add_number("lane_" .. lane_id .. "_composer_voice_drift", "Voice Drift", -3, 3, 0)
+    params:add_number("lane_" .. lane_id .. "_composer_octave_drift", "Octave Drift", -2, 2, 0)
+    params:add_number("lane_" .. lane_id .. "_composer_duration_drift", "Duration Drift", -50, 50, 0, function(param) return param.value .. "%" end)
+    params:add_number("lane_" .. lane_id .. "_composer_velocity_drift", "Velocity Drift", -30, 30, 0)
+    params:add_number("lane_" .. lane_id .. "_composer_strum_drift", "Strum Drift", -20, 20, 0, function(param) return param.value .. "%" end)
 
     -- Stage-level params (musical parameters per stage)
     for stage_idx = 1, 4 do
@@ -101,9 +112,6 @@ local function create_screen_ui()
         -- Display current stage number to user
         self.name = "Stage " .. stage_idx .. " Expression"
 
-        -- Populate params using composer generator module
-        composer_generator.populate_params(self, lane_idx, stage_idx)
-
         -- Sync the stage param with local state
         params:set("lane_" .. lane_idx .. "_expression_stage", editing_state.selected_stage_index)
 
@@ -114,12 +122,26 @@ local function create_screen_ui()
     norns_ui.rebuild_params = function(self)
         local lane_idx = _seeker.ui_state.get_focused_lane()
         local stage_idx = editing_state.selected_stage_index
-
-        -- Display current stage number to user
         self.name = "Stage " .. stage_idx .. " Expression"
 
-        -- Rebuild params using composer generator module
-        composer_generator.rebuild_params(self, lane_idx, stage_idx)
+        local is_transform = params:string("lane_" .. lane_idx .. "_composer_stage_mode") == "Transform"
+
+        if is_transform and stage_idx > 1 then
+            -- Transform mode stages 2-4: show drift params + stage infrastructure
+            self.params = {
+                { separator = true, title = "Expression Drift" },
+                { id = "lane_" .. lane_idx .. "_composer_duration_drift" },
+                { id = "lane_" .. lane_idx .. "_composer_velocity_drift" },
+                { id = "lane_" .. lane_idx .. "_composer_strum_drift" },
+                { separator = true, title = "Stage" },
+                { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_active" },
+                { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
+                { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" },
+            }
+        else
+            -- Independent mode or Stage 1: full per-stage expression params
+            composer_generator.rebuild_params(self, lane_idx, stage_idx)
+        end
     end
 
     return norns_ui

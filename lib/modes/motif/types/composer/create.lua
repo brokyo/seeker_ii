@@ -16,6 +16,7 @@ ComposerCreate.__index = ComposerCreate
 local function apply_expression_preset(lane_id, preset_name)
     local presets = {
         Clockwork = {
+            stage_mode = 1, -- Independent
             num_steps = 8,
             step_length = 12, -- 1/4
             pattern = 1, -- All
@@ -34,6 +35,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 2
         },
         Breath = {
+            stage_mode = 1, -- Independent
             num_steps = 8,
             step_length = 15, -- 1 beat
             pattern = 1, -- All
@@ -52,6 +54,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 3
         },
         Whisper = {
+            stage_mode = 1, -- Independent
             num_steps = 8,
             step_length = 15, -- 1 beat
             pattern = 1, -- All
@@ -70,6 +73,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 3
         },
         Shimmer = {
+            stage_mode = 1, -- Independent
             num_steps = 16,
             step_length = 14, -- 1/2 beat
             pattern = 1, -- All
@@ -88,6 +92,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 3
         },
         Cascade = {
+            stage_mode = 1, -- Independent
             num_steps = 8,
             step_length = 12, -- 1/4
             pattern = 1, -- All
@@ -106,6 +111,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 3
         },
         Glass = {
+            stage_mode = 1, -- Independent
             num_steps = 12,
             step_length = 12, -- 1/4
             pattern = 6, -- Sparse
@@ -124,6 +130,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 4
         },
         Swarm = {
+            stage_mode = 1, -- Independent
             num_steps = 16,
             step_length = 8, -- 1/8
             pattern = 1, -- All
@@ -142,6 +149,7 @@ local function apply_expression_preset(lane_id, preset_name)
             octave = 2
         },
         Pluck = {
+            stage_mode = 1, -- Independent
             num_steps = 6,
             step_length = 14, -- 1/2 beat
             pattern = 1, -- All
@@ -163,19 +171,24 @@ local function apply_expression_preset(lane_id, preset_name)
 
     local preset = presets[preset_name]
     if preset then
-        -- Apply structure params (lane-level)
-        if preset.num_steps then
-            params:set("lane_" .. lane_id .. "_composer_num_steps", preset.num_steps)
-        end
-        if preset.step_length then
-            params:set("lane_" .. lane_id .. "_composer_step_length", preset.step_length)
+        -- Lane-level params applied directly (not per-stage)
+        local lane_level_params = {
+            num_steps = true,
+            step_length = true,
+            stage_mode = true,
+        }
+
+        -- Apply lane-level params
+        for param_name, _ in pairs(lane_level_params) do
+            if preset[param_name] then
+                params:set("lane_" .. lane_id .. "_composer_" .. param_name, preset[param_name])
+            end
         end
 
         -- Apply performance params to all 4 stages
         for stage_idx = 1, 4 do
             for param_name, value in pairs(preset) do
-                -- Skip structure params (already set above)
-                if param_name ~= "num_steps" and param_name ~= "step_length" then
+                if not lane_level_params[param_name] then
                     params:set("lane_" .. lane_id .. "_stage_" .. stage_idx .. "_composer_" .. param_name, value)
                 end
             end
@@ -223,7 +236,9 @@ local function create_screen_ui()
             { id = "composer_create_expression_preset" },
             { separator = true, title = "Sequence Structure" },
             { id = "lane_" .. focused_lane .. "_composer_num_steps" },
-            { id = "lane_" .. focused_lane .. "_composer_step_length" }
+            { id = "lane_" .. focused_lane .. "_composer_step_length" },
+            { separator = true, title = "Stage Mode" },
+            { id = "lane_" .. focused_lane .. "_composer_stage_mode" },
         }
     end
 
