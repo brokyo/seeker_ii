@@ -247,6 +247,9 @@ function Lane.new(config)
   -- Per-stage event data set by RC, indexed by stage id
   lane.rc_stage_motifs = {}
 
+  -- Per-lane cycling param snapshot
+  lane.cycling_param_snapshot = nil
+
   -- Add trails state
   lane.trails = {}  -- Store fading note trails
   

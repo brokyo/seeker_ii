@@ -728,6 +728,7 @@ function RC.save(slot)
       genesis_duration = lane.motif.genesis.duration,
       playing = lane.playing,
       rc_stage_motifs = lane.rc_stage_motifs,
+      cycling_param_snapshot = lane.cycling_param_snapshot,
     }
     save_data[i] = lane_data
     if #lane.motif.events > 0 then
@@ -772,8 +773,9 @@ function RC.restore(slot)
     local lane = _seeker.lanes[i]
     local lane_data = save_data[i]
     if lane_data then
-      -- Restore RC stage motifs
+      -- Restore RC stage motifs and cycling state
       lane.rc_stage_motifs = lane_data.rc_stage_motifs or {}
+      lane.cycling_param_snapshot = lane_data.cycling_param_snapshot
 
       if #lane_data.events > 0 then
         -- Restore genesis state
@@ -787,7 +789,24 @@ function RC.restore(slot)
     end
   end
 
-  p(string.format("RESTORE: Slot %d, %d lanes restored", slot, restored))
+  -- Reload cycling params for the focused lane
+  if _seeker.composer and _seeker.composer.cycling_load_params then
+    _seeker.composer.cycling_load_params(_seeker.ui_state.get_focused_lane())
+  end
+
+  -- Restart lanes that were playing when saved
+  local restarted = 0
+  for i = 1, _seeker.num_lanes do
+    local lane = _seeker.lanes[i]
+    local lane_data = save_data[i]
+    if lane_data and lane_data.playing and #lane.motif.events > 0 then
+      lane:sync_all_stages_from_params()
+      lane:play()
+      restarted = restarted + 1
+    end
+  end
+
+  p(string.format("RESTORE: Slot %d, %d lanes restored, %d restarted", slot, restored, restarted))
 end
 
 function RC.init()

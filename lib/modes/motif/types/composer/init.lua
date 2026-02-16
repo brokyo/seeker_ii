@@ -46,6 +46,10 @@ function Composer.init()
     end
   end
 
+  -- Expose cycling param snapshot save/load functions
+  instance.cycling_save_params = modules.cycling.save_cycling_params
+  instance.cycling_load_params = modules.cycling.load_cycling_params
+
   return instance
 end
 

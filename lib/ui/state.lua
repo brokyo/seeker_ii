@@ -113,6 +113,11 @@ end
 function UIState.set_focused_lane(lane_idx)
   if lane_idx == UIState.state.focused_lane then return end
 
+  -- Save cycling param snapshot for the outgoing lane
+  if _seeker.composer and _seeker.composer.cycling_save_params then
+    _seeker.composer.cycling_save_params(UIState.state.focused_lane)
+  end
+
   -- Dismiss description/adsr modals when switching focused lane
   if _seeker.modal and _seeker.modal.is_active() then
     local modal_type = _seeker.modal.get_type()
@@ -122,6 +127,11 @@ function UIState.set_focused_lane(lane_idx)
   end
 
   UIState.state.focused_lane = lane_idx
+
+  -- Load cycling param snapshot for the incoming lane
+  if _seeker.composer and _seeker.composer.cycling_load_params then
+    _seeker.composer.cycling_load_params(lane_idx)
+  end
   
   -- Update UI
   if _seeker.screen_ui.sections.LANE_CONFIG and _seeker.screen_ui.sections.LANE_CONFIG.rebuild_params then
@@ -229,6 +239,17 @@ function UIState.key(n, z)
      and _seeker.screen_saver.state.is_active then
     if z == 1 then
       _seeker.screen_saver.next_mode()
+      _seeker.screen_ui.set_needs_redraw()
+    end
+    return
+  end
+
+  -- K3 during cycling screensaver cycles focused lane
+  if n == 3 and _seeker.screen_saver
+     and _seeker.screen_saver.state.is_active
+     and _seeker.screen_saver.state.mode == "cycling" then
+    if z == 1 then
+      _seeker.screen_saver.next_cycling_lane()
       _seeker.screen_ui.set_needs_redraw()
     end
     return

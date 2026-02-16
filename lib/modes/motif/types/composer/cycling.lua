@@ -16,6 +16,25 @@ local COMPOSER_MODE = 2
 
 -- Guard against set_action firing during param creation
 local initialized = false
+-- Suppress rebuild while loading a lane's cycling param snapshot
+local loading = false
+
+-- Cycling param definitions for per-lane save/load
+local CYCLING_PARAMS = {
+  {id = "rc_cycling_flavor", default = 3},
+  {id = "rc_cycling_start", default = 1},
+  {id = "rc_cycling_movement", default = 3},
+  {id = "rc_cycling_quality", default = 1},
+  {id = "rc_cycling_chord_len", default = 4},
+  {id = "rc_cycling_voicing", default = 1},
+  {id = "rc_cycling_strum_order", default = 1},
+  {id = "rc_cycling_rotation", default = 0},
+  {id = "rc_cycling_octave", default = 3},
+  {id = "rc_cycling_spread", default = 10},
+  {id = "rc_cycling_stages", default = 4},
+  {id = "rc_cycling_loops", default = 2},
+  {id = "rc_cycling_beats", default = 4},
+}
 
 -- Flavor presets: each sets movement to a musically useful interval
 local FLAVOR_NAMES = {"Thirds Up", "Thirds Down", "Fourths", "Fifths", "Seconds"}
@@ -28,6 +47,7 @@ local STRUM_ORDER_NAMES = {"Up", "Down", "Out>In", "In>Out", "Random"}
 -- Build chord progression from cycling params and apply via RC.form()
 local function rebuild()
   if not initialized then return end
+  if loading then return end
   if not _seeker or not _seeker.rc then return end
 
   local start = params:get("rc_cycling_start")
@@ -92,6 +112,9 @@ local function rebuild()
     _seeker.rc.form(lane_id, stages)
     lane:play()
   end
+
+  -- Save current cycling param values to the focused lane's snapshot
+  Cycling.save_cycling_params(lane_id)
 
   if _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
@@ -226,6 +249,35 @@ local function create_grid_ui()
 
   return grid_ui
 end
+
+-- Save current cycling param values to a lane's snapshot
+function Cycling.save_cycling_params(lane_id)
+  local lane = _seeker.lanes[lane_id]
+  local snapshot = {}
+  for _, p in ipairs(CYCLING_PARAMS) do
+    snapshot[p.id] = params:get(p.id)
+  end
+  lane.cycling_param_snapshot = snapshot
+end
+
+-- Load a lane's cycling param snapshot into the global params
+function Cycling.load_cycling_params(lane_id)
+  local lane = _seeker.lanes[lane_id]
+  loading = true
+  if lane.cycling_param_snapshot then
+    for _, p in ipairs(CYCLING_PARAMS) do
+      params:set(p.id, lane.cycling_param_snapshot[p.id] or p.default)
+    end
+  else
+    for _, p in ipairs(CYCLING_PARAMS) do
+      params:set(p.id, p.default)
+    end
+  end
+  loading = false
+end
+
+-- Expose param registry for RC save/restore
+Cycling.CYCLING_PARAMS = CYCLING_PARAMS
 
 function Cycling.init()
   local component = {
