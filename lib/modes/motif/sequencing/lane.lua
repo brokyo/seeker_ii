@@ -230,6 +230,38 @@ function Lane.new(config)
           config = {}
         }
       }
+    },
+    {
+      id = 5,
+      active = false,
+      mute = false,
+      reset_motif = false,
+      loops = 2,
+      transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
+    },
+    {
+      id = 6,
+      active = false,
+      mute = false,
+      reset_motif = false,
+      loops = 2,
+      transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
+    },
+    {
+      id = 7,
+      active = false,
+      mute = false,
+      reset_motif = false,
+      loops = 2,
+      transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
+    },
+    {
+      id = 8,
+      active = false,
+      mute = false,
+      reset_motif = false,
+      loops = 2,
+      transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
     }
   }
   

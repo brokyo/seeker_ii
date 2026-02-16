@@ -3,10 +3,13 @@ local ScreenSaver = {}
 
 ScreenSaver.state = {
   is_active = false,
+  manual = false,  -- true when in cycling live view (COMPOSER_CYCLING section)
   mode = "cycling",  -- "background", "cv_monitor", "cycling"
   timeout_seconds = 90,
   lines = {},
   cv_selected = { source = "crow", num = 1 },
+  cycling_edit_stage = nil,  -- nil = follow playback, 1-8 = explicit stage selection
+  cycling_control_mode = "chord",  -- "chord" = per-stage, "progression" = global
   -- Scan line configuration
   config = {
     num_lines = 4,
@@ -52,12 +55,6 @@ function ScreenSaver.next_mode()
   ScreenSaver._sync_arc_override()
 end
 
--- Cycle focused lane during cycling screensaver (K3)
-function ScreenSaver.next_cycling_lane()
-  local current = _seeker.ui_state.get_focused_lane()
-  local next_lane = (current % _seeker.num_lanes) + 1
-  _seeker.ui_state.set_focused_lane(next_lane)
-end
 
 function ScreenSaver.init()
   ScreenSaver.state.lines = {}
@@ -119,6 +116,11 @@ function ScreenSaver._auto_select_cv_output()
 end
 
 function ScreenSaver.check_timeout()
+  -- Manual live view (cycling section) — bypass all timeout logic
+  if ScreenSaver.state.manual then
+    return ScreenSaver.state.is_active
+  end
+
   -- Check if screensaver is enabled
   local timeout_seconds = get_timeout_seconds()
   if timeout_seconds == 0 then
@@ -245,8 +247,8 @@ function ScreenSaver._draw_background()
       screen.rect(MARGIN_LEFT, y_pos, timeline_width, lane_height)
       screen.stroke()
 
-      -- Draw stage indicator dots
-      local num_stages = 4
+      -- Draw stage indicator dots (count active stages)
+      local num_stages = #lane.stages
       local dot_x = MARGIN_LEFT + 3
       local dot_spacing = (lane_height - 4) / (num_stages - 1)
       local current_stage = lane.current_stage_index or 1
@@ -442,17 +444,18 @@ function ScreenSaver._draw_cycling()
     return
   end
 
-  local start_degree = params:get("rc_cycling_start")
-  local movement = params:get("rc_cycling_movement")
+  local start_degree = params:get("rc_cycling_start")       -- option index = degree value
+  local movement = params:get("rc_cycling_movement") - 7    -- option index to interval value
   local num_stages = params:get("rc_cycling_stages")
   local lane_id = _seeker.ui_state.get_focused_lane()
   local lane = _seeker.lanes[lane_id]
   local current_stage = math.min(lane.current_stage_index or 1, num_stages)
 
   local DEGREE_LABELS = {"I", "ii", "iii", "IV", "V", "vi", "vii"}
+  local degree_overrides = lane.cycling_degree_overrides or {}
   local degrees = {}
   for i = 1, num_stages do
-    degrees[i] = ((start_degree - 1 + movement * (i - 1)) % 7) + 1
+    degrees[i] = degree_overrides[i] or ((start_degree - 1 + movement * (i - 1)) % 7) + 1
   end
 
   -- Extract unique MIDI notes per stage from rc_stage_motifs
@@ -543,11 +546,21 @@ function ScreenSaver._draw_cycling()
     end
   end
 
-  -- Degree labels above each column
+  -- Degree labels above each column, with edit indicator
+  local edit_stage = ScreenSaver.state.cycling_edit_stage
   for i = 1, num_stages do
-    screen.level(i == current_stage and 12 or 4)
+    local is_playing = (i == current_stage)
+    local is_editing = (edit_stage and i == edit_stage)
+    screen.level(is_playing and 12 or (is_editing and 10 or 4))
     screen.move(col_x[i], 7)
     screen.text_center(DEGREE_LABELS[degrees[i]])
+    -- Underline the edit stage
+    if is_editing then
+      screen.level(8)
+      screen.move(col_x[i] - 4, 9)
+      screen.line(col_x[i] + 4, 9)
+      screen.stroke()
+    end
   end
 
   -- Lane indicator (top-left)
@@ -555,58 +568,33 @@ function ScreenSaver._draw_cycling()
   screen.move(2, 7)
   screen.text("L" .. lane_id)
 
-  -- Bottom center: show arc param overlay if recent, otherwise current chord
+  -- Bottom: show arc param overlay if recent, otherwise flavor + ring labels
   local overlay = ScreenSaver.state.arc_overlay
-  if overlay and (util.time() - overlay.time) < 1.2 then
-    local fade = math.max(0, 1 - (util.time() - overlay.time) / 1.2)
+  local overlay_dur = overlay and overlay.duration or 1.2
+  if overlay and (util.time() - overlay.time) < overlay_dur then
+    local fade = math.max(0, 1 - (util.time() - overlay.time) / overlay_dur)
     screen.level(math.floor(15 * fade))
     screen.move(64, 62)
     screen.text_center(overlay.name .. ": " .. overlay.value)
   else
-    screen.level(12)
-    screen.move(64, 62)
-    screen.text_center(DEGREE_LABELS[degrees[current_stage]])
+    screen.level(6)
+    screen.move(2, 62)
+    screen.text(params:string("rc_cycling_flavor"))
+    screen.level(4)
+    screen.move(126, 62)
+    local control_mode = ScreenSaver.state.cycling_control_mode or "chord"
+    if control_mode == "chord" then
+      screen.text_right("Deg  Voice  Len")
+    else
+      screen.text_right("Beat  Sprd  Strum")
+    end
   end
 end
 
--- Norns encoder mapping for cycling screensaver mode
--- E1 = beats (stage duration), E2 = start degree, E3 = movement
-local CYCLING_ENC_MAP = {
-  [1] = "rc_cycling_beats",
-  [2] = "rc_cycling_start",
-  [3] = "rc_cycling_movement",
-}
-
--- Handle norns encoder during cycling screensaver. Returns true if consumed.
-function ScreenSaver.handle_enc(n, d)
-  if not params.lookup["rc_cycling_start"] then return false end
-
-  local param_id = CYCLING_ENC_MAP[n]
-  if not param_id then return false end
-
-  local param_obj = params:lookup_param(param_id)
-  local current = params:get(param_id)
-  local new_val = current + d
-  if param_obj.min and param_obj.max then
-    new_val = util.clamp(new_val, param_obj.min, param_obj.max)
-  end
-  params:set(param_id, new_val)
-
-  -- Show overlay
-  ScreenSaver.state.arc_overlay = {
-    name = param_obj.name or param_id,
-    value = params:string(param_id),
-    time = util.time()
-  }
-
-  return true
-end
-
--- Maps cv_selected output to param IDs for encoder control.
--- Returns table { e1, e2, e3 } where each is a param ID string or nil.
-local function resolve_cv_params(selected)
-  local states
-  local prefix
+-- Resolve the selected CV output's state, prefix, and type.
+-- Returns state, prefix or nil if output inactive.
+local function resolve_cv_output(selected)
+  local states, prefix
   if selected.source == "crow" then
     prefix = "crow_" .. selected.num .. "_"
     states = _seeker.eurorack and _seeker.eurorack.crow_output and
@@ -616,70 +604,95 @@ local function resolve_cv_params(selected)
     states = _seeker.eurorack and _seeker.eurorack.txo_cv_output and
              _seeker.eurorack.txo_cv_output.get_cv_states() or {}
   end
-
   local state = states[selected.num]
-  if not state or not state.active then return nil end
-
-  local e1, e2, e3
-
-  -- E1: clock interval (Clocked Random uses trigger input instead)
-  if state.type ~= "CR" then
-    e1 = prefix .. "clock_interval"
-  end
-
-  -- E2/E3: range params depend on mode and source
-  if selected.source == "crow" then
-    if state.type == "CLK" then      e3 = prefix .. "clock_voltage"
-    elseif state.type == "PAT" then  e3 = prefix .. "pattern_voltage"
-    elseif state.type == "EUC" then  e3 = prefix .. "euclidean_voltage"
-    elseif state.type == "BST" then  e3 = prefix .. "burst_voltage"
-    elseif state.type == "LFO" then  e2 = prefix .. "lfo_min"; e3 = prefix .. "lfo_max"
-    elseif state.type == "ENV" then  e3 = prefix .. "envelope_voltage"
-    elseif state.type == "RW" then   e2 = prefix .. "random_walk_min"; e3 = prefix .. "random_walk_max"
-    elseif state.type == "CR" then   e2 = prefix .. "clocked_random_min"; e3 = prefix .. "clocked_random_max"
-    elseif state.type == "LR" then   e2 = prefix .. "looped_random_min"; e3 = prefix .. "looped_random_max"
-    end
-  else
-    if state.type == "LFO" then      e2 = prefix .. "depth"; e3 = prefix .. "offset"
-    elseif state.type == "RW" then   e2 = prefix .. "random_walk_min"; e3 = prefix .. "random_walk_max"
-    elseif state.type == "ENV" then  e3 = prefix .. "envelope_voltage"
-    end
-  end
-
-  return { e1 = e1, e2 = e2, e3 = e3 }
+  if not state or not state.active then return nil, nil end
+  return state, prefix
 end
 
--- Handle norns encoder during cv_monitor screensaver.
--- E1 = clock interval, E2 = range low, E3 = range high. Returns true if consumed.
-function ScreenSaver.handle_cv_enc(n, d)
-  local mapping = resolve_cv_params(ScreenSaver.state.cv_selected)
-  if not mapping then return false end
+-- Arc ring param mapping for cv_monitor: interval, range low, range high.
+-- Returns { r1, r2, r3 } where each is a param ID string or nil.
+local function resolve_cv_arc_params(selected)
+  local state, prefix = resolve_cv_output(selected)
+  if not state then return nil end
 
-  local param_id
-  if n == 1 then param_id = mapping.e1
-  elseif n == 2 then param_id = mapping.e2
-  elseif n == 3 then param_id = mapping.e3
+  local r1, r2, r3
+
+  -- Ring 1: clock interval (Clocked Random uses trigger input instead)
+  if state.type ~= "CR" then
+    r1 = prefix .. "clock_interval"
   end
 
-  if not param_id or not params.lookup[param_id] then return false end
+  -- Ring 2/3: range low/high depend on mode and source
+  if selected.source == "crow" then
+    if state.type == "CLK" then      r3 = prefix .. "clock_voltage"
+    elseif state.type == "PAT" then  r3 = prefix .. "pattern_voltage"
+    elseif state.type == "EUC" then  r3 = prefix .. "euclidean_voltage"
+    elseif state.type == "BST" then  r3 = prefix .. "burst_voltage"
+    elseif state.type == "LFO" then  r2 = prefix .. "lfo_min"; r3 = prefix .. "lfo_max"
+    elseif state.type == "ENV" then  r3 = prefix .. "envelope_voltage"
+    elseif state.type == "RW" then   r2 = prefix .. "random_walk_min"; r3 = prefix .. "random_walk_max"
+    elseif state.type == "CR" then   r2 = prefix .. "clocked_random_min"; r3 = prefix .. "clocked_random_max"
+    elseif state.type == "LR" then   r2 = prefix .. "looped_random_min"; r3 = prefix .. "looped_random_max"
+    end
+  else
+    if state.type == "LFO" then      r2 = prefix .. "depth"; r3 = prefix .. "offset"
+    elseif state.type == "RW" then   r2 = prefix .. "random_walk_min"; r3 = prefix .. "random_walk_max"
+    elseif state.type == "ENV" then  r3 = prefix .. "envelope_voltage"
+    end
+  end
+
+  return { r1 = r1, r2 = r2, r3 = r3 }
+end
+
+-- Per-type encoder param suffixes for cv_monitor screensaver.
+-- Each entry is an array of up to 3 suffixes for E1, E2, E3.
+local CROW_ENC_SUFFIXES = {
+  CLK = {"_clock_length"},
+  PAT = {"_pattern_length", "_pattern_hits", "_gate_length"},
+  EUC = {"_euclidean_length", "_euclidean_hits", "_euclidean_rotation"},
+  BST = {"_burst_count"},
+  LFO = {"_lfo_shape"},
+  ENV = {"_envelope_mode", "_envelope_shape"},
+  RW  = {"_random_walk_mode", "_random_walk_shape"},
+  CR  = {"_clocked_random_quantize", "_clocked_random_shape"},
+  LR  = {"_looped_random_quantize", "_looped_random_shape", "_looped_random_steps"},
+}
+
+local TXO_ENC_SUFFIXES = {
+  LFO = {"_shape", "_rect"},
+  RW  = {"_random_walk_mode"},
+  ENV = {"_envelope_mode"},
+}
+
+-- Handle norns encoder during cv_monitor screensaver.
+-- Encoders control mode-specific params (shape, quantize, length, etc.).
+function ScreenSaver.handle_cv_enc(n, d)
+  local selected = ScreenSaver.state.cv_selected
+  local state, prefix = resolve_cv_output(selected)
+  if not state then return false end
+
+  local suffixes = (selected.source == "crow")
+    and CROW_ENC_SUFFIXES[state.type]
+    or TXO_ENC_SUFFIXES[state.type]
+  if not suffixes or not suffixes[n] then return false end
+
+  local param_id = prefix .. suffixes[n]
+  if not params.lookup[param_id] then return false end
 
   local param_obj = params:lookup_param(param_id)
   local current = params:get(param_id)
   local direction = d > 0 and 1 or -1
 
-  if param_obj.t == params.tOPTION then
-    -- Option param: step through list one at a time
-    local new_val = util.clamp(current + direction, 1, #param_obj.options)
-    params:set(param_id, new_val)
+  if param_obj.behavior == "toggle" then
+    params:set(param_id, current == 0 and 1 or 0)
+  elseif param_obj.t == params.tOPTION then
+    params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
   elseif param_obj.controlspec then
-    -- Control param: 0.1v per encoder click
-    local new_val = util.clamp(current + direction * 0.1,
-      param_obj.controlspec.minval, param_obj.controlspec.maxval)
-    params:set(param_id, new_val)
+    local step = math.max(param_obj.controlspec.step, 0.1)
+    params:set(param_id, util.clamp(current + direction * step,
+      param_obj.controlspec.minval, param_obj.controlspec.maxval))
   elseif param_obj.min and param_obj.max then
-    -- Number param: step by 1
-    local new_val = util.clamp(current + direction, param_obj.min, param_obj.max)
-    params:set(param_id, new_val)
+    params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
   end
 
   ScreenSaver.state.arc_overlay = {
@@ -691,213 +704,404 @@ function ScreenSaver.handle_cv_enc(n, d)
   return true
 end
 
--- Cycle through active CV outputs (K3 during cv_monitor)
-function ScreenSaver.next_cv_output()
-  local crow_states = {}
-  local txo_states = {}
-  if _seeker.eurorack and _seeker.eurorack.crow_output then
-    crow_states = _seeker.eurorack.crow_output.get_cv_states()
-  end
-  if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
-    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
-  end
-
-  -- Build ordered list: crow 1-4 then txo_cv 1-4
-  local active = {}
-  for i = 1, 4 do
-    if crow_states[i] and crow_states[i].active then
-      table.insert(active, { source = "crow", num = i })
-    end
-  end
-  for i = 1, 4 do
-    if txo_states[i] and txo_states[i].active then
-      table.insert(active, { source = "txo_cv", num = i })
-    end
-  end
-
-  if #active == 0 then return end
-
-  local sel = ScreenSaver.state.cv_selected
-  local current_idx = 1
-  for i, entry in ipairs(active) do
-    if entry.source == sel.source and entry.num == sel.num then
-      current_idx = i
-      break
-    end
-  end
-
-  ScreenSaver.state.cv_selected = active[(current_idx % #active) + 1]
-end
-
 -- Set cv_selected directly (grid press)
 function ScreenSaver.select_cv_output(source, num)
   ScreenSaver.state.cv_selected = { source = source, num = num }
 end
 
--- Arc ring-to-param mapping for cycling screensaver mode
--- Ring 1: rotation, Ring 2: spread, Ring 3: chord length, Ring 4: voicing
-local CYCLING_ARC_MAP = {
-  {id = "rc_cycling_rotation", threshold = 12},
-  {id = "rc_cycling_spread", threshold = 6, delta = 2},
-  {id = "rc_cycling_chord_len", threshold = 12},
-  {id = "rc_cycling_voicing", threshold = 16},
+-- Cycling arc ring 2-4 mappings: two modes toggled by grid (1,1).
+-- Chord mode: per-stage overrides via cycle functions with direction/clamp.
+local CYCLING_ARC_CHORD = {
+  {param = "Degree", cycle_fn = "cycling_cycle_stage_degree",    threshold = 56},
+  {param = "Voice",  cycle_fn = "cycling_cycle_stage_voicing",   threshold = 56},
+  {param = "Len",    cycle_fn = "cycling_cycle_stage_chord_len", threshold = 56},
+}
+
+-- Progression mode: global params set directly.
+local CYCLING_ARC_PROGRESSION = {
+  {param = "Beat",   param_id = "rc_cycling_beats",       threshold = 56},
+  {param = "Spread", param_id = "rc_cycling_spread",      threshold = 40, delta = 2},
+  {param = "Strum",  param_id = "rc_cycling_strum_order", threshold = 56},
 }
 
 -- Handle arc button during screensaver. Returns true if consumed.
--- Always returns true when screensaver is active to prevent waking.
+-- Cycling: steps through stages for editing. CV monitor: cycles output type.
 function ScreenSaver.handle_arc_key(n, z)
   if not ScreenSaver.state.is_active then return false end
   if z ~= 1 then return true end
 
-  -- Cycling mode: arc button cycles strum order
-  if ScreenSaver.state.mode == "cycling" and params.lookup["rc_cycling_strum_order"] then
-    local current = params:get("rc_cycling_strum_order")
-    local num_options = 5  -- Up, Down, Out>In, In>Out, Random
-    params:set("rc_cycling_strum_order", (current % num_options) + 1)
-
-    local param_obj = params:lookup_param("rc_cycling_strum_order")
+  if ScreenSaver.state.mode == "cycling" then
+    -- Arc button steps through stages for editing
+    local num_stages = params:get("rc_cycling_stages")
+    local current_edit = ScreenSaver.state.cycling_edit_stage
+      or (_seeker.lanes[_seeker.ui_state.get_focused_lane()].current_stage_index or 1)
+    local next_edit = (current_edit % num_stages) + 1
+    ScreenSaver.state.cycling_edit_stage = next_edit
     ScreenSaver.state.arc_overlay = {
-      name = param_obj.name or "Strum Order",
-      value = params:string("rc_cycling_strum_order"),
+      name = "Edit",
+      value = "Stage " .. next_edit,
       time = util.time()
     }
+    ScreenSaver._update_cycling_arc()
+    _seeker.screen_ui.set_needs_redraw()
+
+  elseif ScreenSaver.state.mode == "cv_monitor" then
+    -- CV monitor: arc button cycles output type within current category
+    local selected = ScreenSaver.state.cv_selected
+    local type_param, max_val
+
+    if selected.source == "crow" then
+      type_param = "crow_" .. selected.num .. "_mode"
+      local category = params:string("crow_" .. selected.num .. "_category")
+      max_val = (category == "Gate") and 4 or 6
+    else
+      type_param = "txo_cv_" .. selected.num .. "_type"
+      max_val = 3
+    end
+
+    if params.lookup[type_param] then
+      local current = params:get(type_param)
+      params:set(type_param, (current % max_val) + 1)
+
+      local param_obj = params:lookup_param(type_param)
+      ScreenSaver.state.arc_overlay = {
+        name = param_obj.name or "Type",
+        value = params:string(type_param),
+        time = util.time()
+      }
+    end
   end
 
   return true
 end
+
+-- CV monitor arc thresholds: ring 1=interval, ring 2=range low, ring 3=range high
+local CV_ARC_MAP = {
+  {threshold = 12},             -- ring 1: discrete (clock interval)
+  {threshold = 6, delta = 0.1}, -- ring 2: continuous (range low)
+  {threshold = 6, delta = 0.1}, -- ring 3: continuous (range high)
+}
 
 -- Handle arc delta during screensaver. Returns true if consumed.
 -- Always returns true when screensaver is active to prevent waking.
 function ScreenSaver.handle_arc_delta(n, delta)
   if not ScreenSaver.state.is_active then return false end
 
-  -- Cycling mode: arc rings control cycling params
-  if ScreenSaver.state.mode ~= "cycling" then return true end
-  if not params.lookup["rc_cycling_start"] then return true end
-
-  local mapping = CYCLING_ARC_MAP[n]
-  if not mapping then return true end
-
   local state = ScreenSaver.state
   state.arc_accum = state.arc_accum or {0, 0, 0, 0}
-  state.arc_accum[n] = state.arc_accum[n] + 1
 
-  if state.arc_accum[n] >= mapping.threshold then
-    state.arc_accum[n] = 0
-    local direction = delta > 0 and 1 or -1
-    local current = params:get(mapping.id)
-    local param_obj = params:lookup_param(mapping.id)
+  if state.mode == "cycling" then
+    if not params.lookup["rc_cycling_flavor"] then return true end
 
-    if mapping.delta then
-      -- Continuous param
-      local new_val = current + direction * mapping.delta
-      if param_obj.controlspec then
-        new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
+    -- Ring 1: flavor (framework recipe)
+    if n == 1 then
+      state.arc_accum[1] = state.arc_accum[1] + 1
+      if state.arc_accum[1] >= 64 then
+        state.arc_accum[1] = 0
+        local direction = delta > 0 and 1 or -1
+        local current = params:get("rc_cycling_flavor")
+        local param_obj = params:lookup_param("rc_cycling_flavor")
+        local new_val = util.clamp(current + direction, 1, #param_obj.options)
+        params:set("rc_cycling_flavor", new_val)
+        state.arc_overlay = {
+          name = "Flavor",
+          value = params:string("rc_cycling_flavor"),
+          time = util.time()
+        }
+        ScreenSaver._update_cycling_arc()
       end
-      params:set(mapping.id, new_val)
-    else
-      -- Discrete param (number or option)
-      local new_val = current + direction
-      if param_obj.min and param_obj.max then
-        new_val = util.clamp(new_val, param_obj.min, param_obj.max)
-      elseif param_obj.options then
-        new_val = util.clamp(new_val, 1, #param_obj.options)
-      end
-      params:set(mapping.id, new_val)
+      return true
     end
 
-    -- Show param name and value on screen briefly
-    local param_obj_after = params:lookup_param(mapping.id)
-    local display_val = params:string(mapping.id)
-    state.arc_overlay = {
-      name = param_obj_after.name or mapping.id,
-      value = display_val,
-      time = util.time()
-    }
+    -- Rings 2-4: mode-dependent control
+    local control_mode = state.cycling_control_mode or "chord"
 
-    ScreenSaver._update_cycling_arc()
+    if control_mode == "chord" then
+      local mapping = CYCLING_ARC_CHORD[n - 1]
+      if not mapping then return true end
+
+      state.arc_accum[n] = state.arc_accum[n] + 1
+      if state.arc_accum[n] >= mapping.threshold then
+        state.arc_accum[n] = 0
+        if _seeker.composer and _seeker.composer[mapping.cycle_fn] then
+          local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+          local stage_idx = ScreenSaver.state.cycling_edit_stage
+            or lane.current_stage_index or 1
+          local direction = delta > 0 and 1 or -1
+          local new_val = _seeker.composer[mapping.cycle_fn](stage_idx, direction)
+          state.arc_overlay = {
+            name = "S" .. stage_idx .. " " .. mapping.param,
+            value = new_val,
+            time = util.time()
+          }
+          ScreenSaver._update_cycling_arc()
+        end
+      end
+    else
+      -- Progression mode: set global params directly
+      local mapping = CYCLING_ARC_PROGRESSION[n - 1]
+      if not mapping then return true end
+
+      state.arc_accum[n] = state.arc_accum[n] + 1
+      if state.arc_accum[n] >= mapping.threshold then
+        state.arc_accum[n] = 0
+        local param_id = mapping.param_id
+        if not params.lookup[param_id] then return true end
+
+        local direction = delta > 0 and 1 or -1
+        local param_obj = params:lookup_param(param_id)
+        local current = params:get(param_id)
+
+        if mapping.delta then
+          -- Continuous param (spread)
+          local new_val = current + direction * mapping.delta
+          if param_obj.controlspec then
+            new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
+          end
+          params:set(param_id, new_val)
+        elseif param_obj.t == params.tOPTION then
+          params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
+        elseif param_obj.min and param_obj.max then
+          params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
+        end
+
+        state.arc_overlay = {
+          name = mapping.param,
+          value = params:string(param_id),
+          time = util.time()
+        }
+        ScreenSaver._update_cycling_arc()
+      end
+    end
+
+  elseif state.mode == "cv_monitor" then
+    if n == 4 then return true end  -- ring 4 is voltage meter (display only)
+    local arc_map = CV_ARC_MAP[n]
+    if not arc_map then return true end
+
+    local mapping = resolve_cv_arc_params(state.cv_selected)
+    if not mapping then return true end
+
+    local param_id
+    if n == 1 then param_id = mapping.r1
+    elseif n == 2 then param_id = mapping.r2
+    elseif n == 3 then param_id = mapping.r3
+    end
+    if not param_id or not params.lookup[param_id] then return true end
+
+    state.arc_accum[n] = state.arc_accum[n] + 1
+    if state.arc_accum[n] >= arc_map.threshold then
+      state.arc_accum[n] = 0
+      local direction = delta > 0 and 1 or -1
+      local param_obj = params:lookup_param(param_id)
+      local current = params:get(param_id)
+
+      if arc_map.delta then
+        -- Continuous: voltage range params
+        local new_val = current + direction * arc_map.delta
+        if param_obj.controlspec then
+          new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
+        end
+        params:set(param_id, new_val)
+      else
+        -- Discrete: clock interval option list
+        if param_obj.t == params.tOPTION then
+          params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
+        elseif param_obj.min and param_obj.max then
+          params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
+        end
+      end
+
+      state.arc_overlay = {
+        name = param_obj.name or param_id,
+        value = params:string(param_id),
+        time = util.time()
+      }
+      ScreenSaver._update_cv_arc()
+    end
   end
 
   return true
 end
 
--- Update arc LEDs to show cycling param values across 4 rings
+-- Update arc LEDs for cycling mode.
+-- Ring 1: flavor recipe (both modes). Rings 2-4: chord or progression params.
 function ScreenSaver._update_cycling_arc()
   local dev = _seeker.arc
   if not dev then return end
-  if not params.lookup["rc_cycling_start"] then return end
+  if not params.lookup["rc_cycling_flavor"] then return end
 
-  -- Ring 1: rotation (-5 to 5)
-  local rotation = params:get("rc_cycling_rotation")
-  local rot_pos = math.floor(((rotation + 5) / 10) * 63) + 1
+  -- Ring 1: flavor segment indicator (same in both modes)
   for i = 1, 64 do dev:led(1, i, 2) end
-  for i = math.max(1, rot_pos - 2), math.min(64, rot_pos + 2) do
-    dev:led(1, i, 12)
+  local flavor = params:get("rc_cycling_flavor")
+  local flavor_obj = params:lookup_param("rc_cycling_flavor")
+  local total = #flavor_obj.options
+  local segment = math.floor(64 / total)
+  local seg_start = (flavor - 1) * segment + 1
+  for i = seg_start, math.min(64, seg_start + segment - 1) do
+    dev:led(1, i, 10)
   end
 
-  -- Ring 2: spread (0-100)
-  local spread = params:get("rc_cycling_spread")
-  local spread_fill = math.max(1, math.floor((spread / 100) * 64))
-  for i = 1, 64 do dev:led(2, i, 2) end
-  for i = 1, spread_fill do dev:led(2, i, 10) end
+  local control_mode = ScreenSaver.state.cycling_control_mode or "chord"
 
-  -- Ring 3: chord_len (2-6)
-  local chord_len = params:get("rc_cycling_chord_len")
-  local len_pos = math.floor(((chord_len - 2) / 4) * 63) + 1
-  for i = 1, 64 do dev:led(3, i, 2) end
-  for i = math.max(1, len_pos - 3), math.min(64, len_pos + 3) do
-    dev:led(3, i, 12)
-  end
+  if control_mode == "chord" then
+    -- Rings 2-4: per-chord overrides for edit stage (degree, voicing, chord_len)
+    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+    local stage_idx = ScreenSaver.state.cycling_edit_stage
+      or lane.current_stage_index or 1
+    local degree_overrides = lane.cycling_degree_overrides or {}
+    local voicing_overrides = lane.cycling_voicing_overrides or {}
+    local chord_len_overrides = lane.cycling_chord_len_overrides or {}
 
-  -- Ring 4: voicing (1-5)
-  local voicing = params:get("rc_cycling_voicing")
-  local num_options = 5
-  local segment = math.floor(64 / num_options)
-  for i = 1, 64 do dev:led(4, i, 2) end
-  local start = (voicing - 1) * segment + 1
-  for i = start, math.min(64, start + segment - 1) do
-    dev:led(4, i, 12)
+    local DEGREE_NAMES = {"I", "ii", "iii", "IV", "V", "vi", "vii"}
+    local VOICING_NAMES = {"Close", "Open", "Drop 2", "Drop 3", "Spread"}
+    local CHORD_LEN_NAMES = {"Dyad", "Triad", "Tetrad", "Pentad", "Hexad",
+      "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"}
+
+    -- Ring 2: degree (number index, not name string)
+    for i = 1, 64 do dev:led(2, i, 2) end
+    local start = params:get("rc_cycling_start")
+    local movement = params:get("rc_cycling_movement") - 7
+    local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
+    local current_degree = degree_overrides[stage_idx] or default_degree
+    local deg_segment = math.floor(64 / #DEGREE_NAMES)
+    local deg_start = (current_degree - 1) * deg_segment + 1
+    local deg_brightness = degree_overrides[stage_idx] and 14 or 8
+    for i = deg_start, math.min(64, deg_start + deg_segment - 1) do
+      dev:led(2, i, deg_brightness)
+    end
+
+    -- Ring 3: voicing (name string override)
+    for i = 1, 64 do dev:led(3, i, 2) end
+    local voicing_idx = params:get("rc_cycling_voicing")
+    if voicing_overrides[stage_idx] then
+      for ci, name in ipairs(VOICING_NAMES) do
+        if name == voicing_overrides[stage_idx] then voicing_idx = ci; break end
+      end
+    end
+    local voi_segment = math.floor(64 / #VOICING_NAMES)
+    local voi_start = (voicing_idx - 1) * voi_segment + 1
+    local voi_brightness = voicing_overrides[stage_idx] and 14 or 8
+    for i = voi_start, math.min(64, voi_start + voi_segment - 1) do
+      dev:led(3, i, voi_brightness)
+    end
+
+    -- Ring 4: chord length (name string override)
+    for i = 1, 64 do dev:led(4, i, 2) end
+    local len_idx = params:get("rc_cycling_chord_len")
+    if chord_len_overrides[stage_idx] then
+      for ci, name in ipairs(CHORD_LEN_NAMES) do
+        if name == chord_len_overrides[stage_idx] then len_idx = ci; break end
+      end
+    end
+    local len_segment = math.floor(64 / #CHORD_LEN_NAMES)
+    local len_start = (len_idx - 1) * len_segment + 1
+    local len_brightness = chord_len_overrides[stage_idx] and 14 or 8
+    for i = len_start, math.min(64, len_start + len_segment - 1) do
+      dev:led(4, i, len_brightness)
+    end
+
+  else
+    -- Progression mode: global param positions (beats, spread, strum)
+
+    -- Ring 2: beats (number 1-16) — position dot with halo
+    for i = 1, 64 do dev:led(2, i, 2) end
+    local beats = params:get("rc_cycling_beats")
+    local beats_obj = params:lookup_param("rc_cycling_beats")
+    local beat_norm = (beats - beats_obj.min) / (beats_obj.max - beats_obj.min)
+    local beat_pos = math.floor(beat_norm * 63) + 1
+    dev:led(2, beat_pos, 12)
+    if beat_pos > 1 then dev:led(2, beat_pos - 1, 6) end
+    if beat_pos < 64 then dev:led(2, beat_pos + 1, 6) end
+
+    -- Ring 3: spread (0-100%) — fill bar
+    for i = 1, 64 do dev:led(3, i, 2) end
+    local spread = params:get("rc_cycling_spread")
+    local spec = params:lookup_param("rc_cycling_spread").controlspec
+    local spread_norm = (spread - spec.minval) / (spec.maxval - spec.minval)
+    local fill_end = math.floor(spread_norm * 64)
+    for i = 1, fill_end do
+      dev:led(3, i, 10)
+    end
+
+    -- Ring 4: strum order — segment indicator
+    for i = 1, 64 do dev:led(4, i, 2) end
+    local strum_idx = params:get("rc_cycling_strum_order")
+    local strum_obj = params:lookup_param("rc_cycling_strum_order")
+    local strum_segment = math.floor(64 / #strum_obj.options)
+    local strum_start = (strum_idx - 1) * strum_segment + 1
+    for i = strum_start, math.min(64, strum_start + strum_segment - 1) do
+      dev:led(4, i, 10)
+    end
   end
 
   dev:refresh()
 end
 
--- Arc voltage meter for cv_monitor mode: 4 rings show the selected
--- source's outputs. Selected output ring is brighter, inactive rings dim.
+-- Arc display for cv_monitor mode.
+-- Rings 1-3: interval, range low, range high param positions.
+-- Ring 4: voltage meter for selected output.
 function ScreenSaver._update_cv_arc()
   local dev = _seeker.arc
   if not dev then return end
 
   local selected = ScreenSaver.state.cv_selected
-  local states
-  if selected.source == "crow" then
-    states = _seeker.eurorack and _seeker.eurorack.crow_output and
-             _seeker.eurorack.crow_output.get_cv_states() or {}
-  else
-    states = _seeker.eurorack and _seeker.eurorack.txo_cv_output and
-             _seeker.eurorack.txo_cv_output.get_cv_states() or {}
+  local mapping = resolve_cv_arc_params(selected)
+
+  -- Helper: draw a param's position on a ring
+  local function draw_param_ring(ring, param_id)
+    if not param_id or not params.lookup[param_id] then
+      for i = 1, 64 do dev:led(ring, i, 1) end
+      return
+    end
+    for i = 1, 64 do dev:led(ring, i, 2) end
+    local param_obj = params:lookup_param(param_id)
+    local current = params:get(param_id)
+
+    if param_obj.t == params.tOPTION then
+      -- Segment indicator for option params
+      local total = #param_obj.options
+      local segment = math.floor(64 / total)
+      local start = (current - 1) * segment + 1
+      for i = start, math.min(64, start + segment - 1) do
+        dev:led(ring, i, 12)
+      end
+    elseif param_obj.controlspec then
+      -- Position dot for continuous params
+      local spec = param_obj.controlspec
+      local normalized = util.clamp((current - spec.minval) / (spec.maxval - spec.minval), 0, 1)
+      local pos = math.floor(normalized * 63) + 1
+      dev:led(ring, pos, 12)
+      if pos > 1 then dev:led(ring, pos - 1, 6) end
+      if pos < 64 then dev:led(ring, pos + 1, 6) end
+    end
   end
 
-  for ring = 1, 4 do
-    local state = states[ring]
-    if state and state.active then
-      local is_sel = (ring == selected.num)
-      for i = 1, 64 do dev:led(ring, i, 2) end
-
-      if state.current then
-        local range = state.max - state.min
-        if range > 0 then
-          local normalized = util.clamp((state.current - state.min) / range, 0, 1)
-          local pos = math.floor(normalized * 63) + 1
-          local bright = is_sel and 15 or 8
-          dev:led(ring, pos, bright)
-          if pos > 1 then dev:led(ring, pos - 1, math.floor(bright * 0.5)) end
-          if pos < 64 then dev:led(ring, pos + 1, math.floor(bright * 0.5)) end
-        end
-      end
-    else
+  -- Rings 1-3: arc-controlled params
+  if mapping then
+    draw_param_ring(1, mapping.r1)
+    draw_param_ring(2, mapping.r2)
+    draw_param_ring(3, mapping.r3)
+  else
+    for ring = 1, 3 do
       for i = 1, 64 do dev:led(ring, i, 1) end
     end
+  end
+
+  -- Ring 4: voltage meter for selected output
+  local state = resolve_cv_output(selected)
+  if state and state.current then
+    for i = 1, 64 do dev:led(4, i, 2) end
+    local range = state.max - state.min
+    if range > 0 then
+      local normalized = util.clamp((state.current - state.min) / range, 0, 1)
+      local pos = math.floor(normalized * 63) + 1
+      dev:led(4, pos, 15)
+      if pos > 1 then dev:led(4, pos - 1, 7) end
+      if pos < 64 then dev:led(4, pos + 1, 7) end
+    end
+  else
+    for i = 1, 64 do dev:led(4, i, 1) end
   end
 
   dev:refresh()

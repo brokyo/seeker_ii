@@ -40,7 +40,7 @@ end
 
 local function format_active_stages(lane)
   local parts = {}
-  for i = 1, 4 do
+  for i = 1, #lane.stages do
     local s = lane.stages[i]
     if s.active then
       local marker = (i == lane.current_stage_index) and "*" or ""
@@ -131,7 +131,7 @@ function RC.lane(lane_id)
 
   -- Stages
   print_separator()
-  for i = 1, 4 do
+  for i = 1, #lane.stages do
     local s = lane.stages[i]
     local active = s.active and "ON" or "off"
     local mute = s.mute and " MUTE" or ""
@@ -185,7 +185,7 @@ function RC.composer(lane_id)
   -- Resolved params for each stage
   -- Resolve parameters per stage, applying Transform mode derivation rules
   local is_transform = stage_mode == "Transform"
-  for stage_id = 1, 4 do
+  for stage_id = 1, #lane.stages do
     local s = lane.stages[stage_id]
     local active = s.active and "ON" or "off"
     local current = (stage_id == lane.current_stage_index and lane.playing) and " <-" or ""
@@ -656,7 +656,7 @@ function RC.form(lane_id, stages)
   end
 
   -- Deactivate unused stages
-  for i = #stages + 1, 4 do
+  for i = #stages + 1, 8 do
     params:set("lane_" .. lane_id .. "_stage_" .. i .. "_active", 1)
     lane.rc_stage_motifs[i] = nil
   end

@@ -19,9 +19,8 @@ local lane_infrastructure = {}
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
 
-    params:add_group("lane_" .. i .. "_stage_setup", "LANE " .. i .. " STAGE SETUP", 24)
-    -- Create four stages per lane with their defaults
-    for stage_idx = 1, 4 do
+    params:add_group("lane_" .. i .. "_stage_setup", "LANE " .. i .. " STAGE SETUP", 48)
+    for stage_idx = 1, 8 do
         -- Stage volume (used by all motif types)
         params:add_control("lane_" .. i .. "_stage_" .. stage_idx .. "_volume", "Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
 
@@ -130,10 +129,10 @@ local function create_basic_lane_params(i)
         end
 
         -- Set stage defaults based on motif type
-        -- Composer: enable all 4 stages (typical workflow uses all stages)
+        -- Composer: enable all 8 stages (cycling manages active count)
         -- Tape/Sampler: enable only stage 1 (additional stages inactive by default)
         local all_stages_active = (value == 2)  -- Composer
-        for stage_idx = 1, 4 do
+        for stage_idx = 1, 8 do
             if all_stages_active then
                 params:set("lane_" .. i .. "_stage_" .. stage_idx .. "_active", 2, true)
             else
