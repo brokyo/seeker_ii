@@ -109,6 +109,10 @@ for i = 1, 4 do
     }
 end
 
+-- Track current voltage for CV monitor screensaver
+local cv_voltages = {0, 0, 0, 0}
+local cv_cycle_starts = {0, 0, 0, 0}
+
 -- Helper function to reset recording state for a specific output
 local function reset_recording_state(output_num)
     recording_states[output_num] = {
@@ -574,6 +578,7 @@ function CrowOutput.stop_recording_knob(output_num)
                     (next_voltage - current_voltage) * (substep / interpolation_steps)
 
                 crow.output[output_num].volts = interpolated_voltage
+                cv_voltages[output_num] = interpolated_voltage
 
                 substep = substep + 1
                 if substep >= interpolation_steps then
@@ -652,6 +657,7 @@ function CrowOutput.update_crow(output_num)
             asl_to(max, half_cycle, shape)
         })
         crow.output[output_num]()
+        cv_cycle_starts[output_num] = util.time()
         return
     end
 
@@ -723,6 +729,7 @@ function CrowOutput.update_crow(output_num)
                 random_value = min_value + math.random() * (max_value - min_value)
             end
 
+            cv_voltages[output_num] = random_value
             crow.output[output_num].action = asl_once({ asl_to(random_value, 0.1, shape) })
             crow.output[output_num]()
         end
@@ -768,8 +775,10 @@ function CrowOutput.update_crow(output_num)
 
                 for i = 1, burst_count do
                     crow.output[output_num].volts = burst_voltage
+                    cv_voltages[output_num] = burst_voltage
                     clock.sleep(intervals[i] / 2)
                     crow.output[output_num].volts = 0
+                    cv_voltages[output_num] = 0
                     clock.sleep(intervals[i] / 2)
                 end
 
@@ -799,8 +808,10 @@ function CrowOutput.update_crow(output_num)
                 local gate_time = timing.total_sec * gate_length
 
                 crow.output[output_num].volts = gate_voltage
+                cv_voltages[output_num] = gate_voltage
                 clock.sleep(gate_time)
                 crow.output[output_num].volts = 0
+                cv_voltages[output_num] = 0
 
                 clock.sync(timing.beats, timing.offset)
             end
@@ -841,8 +852,10 @@ function CrowOutput.update_crow(output_num)
 
                 if pattern[current_step] then
                     crow.output[output_num].volts = gate_voltage
+                    cv_voltages[output_num] = gate_voltage
                     clock.sleep(gate_time)
                     crow.output[output_num].volts = 0
+                    cv_voltages[output_num] = 0
                 end
 
                 current_step = current_step + 1
@@ -932,6 +945,7 @@ function CrowOutput.update_crow(output_num)
         local asl_string = generate_envelope_asl()
         crow.output[output_num].action = asl_string
         crow.output[output_num]()
+        cv_cycle_starts[output_num] = util.time()
 
         envelope_states[output_num].active = true
 
@@ -1566,19 +1580,97 @@ local function create_params()
     end
 end
 
+-- Estimate current LFO voltage from elapsed time since cycle start.
+-- ASL loop is: to(min, half_cycle) then to(max, half_cycle), repeating.
+local function estimate_lfo_voltage(output_num)
+    local min_v = params:get("crow_" .. output_num .. "_lfo_min")
+    local max_v = params:get("crow_" .. output_num .. "_lfo_max")
+    local timing = get_clock_timing(
+        params:string("crow_" .. output_num .. "_clock_interval"),
+        params:string("crow_" .. output_num .. "_clock_modifier"),
+        params:string("crow_" .. output_num .. "_clock_offset")
+    )
+    if not timing or timing.total_sec <= 0 then return min_v end
+
+    local elapsed = util.time() - cv_cycle_starts[output_num]
+    local phase = (elapsed % timing.total_sec) / timing.total_sec
+    -- First half: sweeping toward min, second half: sweeping toward max
+    if phase < 0.5 then
+        return max_v - (max_v - min_v) * (phase * 2)
+    else
+        return min_v + (max_v - min_v) * ((phase - 0.5) * 2)
+    end
+end
+
+-- Estimate current envelope voltage from elapsed time since cycle start
+local function estimate_envelope_voltage(output_num)
+    local timing = get_clock_timing(
+        params:string("crow_" .. output_num .. "_clock_interval"),
+        params:string("crow_" .. output_num .. "_clock_modifier"),
+        params:string("crow_" .. output_num .. "_clock_offset")
+    )
+    if not timing or timing.total_sec <= 0 then return 0 end
+
+    local max_v = params:get("crow_" .. output_num .. "_envelope_voltage")
+    local duration_pct = params:get("crow_" .. output_num .. "_envelope_duration") / 100
+    local attack_pct = params:get("crow_" .. output_num .. "_envelope_attack") / 100
+    local decay_pct = params:get("crow_" .. output_num .. "_envelope_decay") / 100
+    local sustain_level = params:get("crow_" .. output_num .. "_envelope_sustain") / 100
+    local release_pct = params:get("crow_" .. output_num .. "_envelope_release") / 100
+    local env_mode = params:string("crow_" .. output_num .. "_envelope_mode")
+
+    local cycle_time = timing.total_sec
+    local env_time = cycle_time * duration_pct
+    local elapsed = (util.time() - cv_cycle_starts[output_num]) % cycle_time
+
+    if env_mode == "ADSR" then
+        local total_pct = attack_pct + decay_pct + release_pct
+        local sustain_pct = math.max(0, 1 - total_pct)
+        local a_time = env_time * attack_pct
+        local d_time = env_time * decay_pct
+        local s_time = env_time * sustain_pct
+        local r_time = env_time * release_pct
+
+        if elapsed < a_time then
+            return max_v * (elapsed / a_time)
+        elseif elapsed < a_time + d_time then
+            local t = (elapsed - a_time) / d_time
+            return max_v - (max_v - max_v * sustain_level) * t
+        elseif elapsed < a_time + d_time + s_time then
+            return max_v * sustain_level
+        elseif elapsed < a_time + d_time + s_time + r_time then
+            local t = (elapsed - a_time - d_time - s_time) / r_time
+            return max_v * sustain_level * (1 - t)
+        else
+            return 0
+        end
+    else
+        -- AR mode
+        local scale = 1 / (attack_pct + release_pct)
+        local a_time = env_time * attack_pct * scale
+        local r_time = env_time * release_pct * scale
+
+        if elapsed < a_time then
+            return max_v * (elapsed / a_time)
+        elseif elapsed < a_time + r_time then
+            return max_v * (1 - (elapsed - a_time) / r_time)
+        else
+            return 0
+        end
+    end
+end
+
 -- Returns state table for each Crow output (1-4) for the CV monitor
 function CrowOutput.get_cv_states()
     local states = {}
     for i = 1, 4 do
         local mode = get_output_mode(i)
-        local category = params:string("crow_" .. i .. "_category")
 
-        -- Knob Recorder with playback data is active
+        -- Knob Recorder with active playback
         if mode == "Knob Recorder" then
-            local has_data = recording_states[i] and #recording_states[i].data > 0
             local is_playing = active_clocks["knob_playback_" .. i] ~= nil
             if is_playing then
-                states[i] = { active = true, type = "KR", min = -10, max = 10 }
+                states[i] = { active = true, type = "KR", current = cv_voltages[i], min = -10, max = 10 }
             else
                 states[i] = { active = false }
             end
@@ -1589,7 +1681,7 @@ function CrowOutput.get_cv_states()
             if trigger > 0 then
                 local min_v = params:get("crow_" .. i .. "_clocked_random_min")
                 local max_v = params:get("crow_" .. i .. "_clocked_random_max")
-                states[i] = { active = true, type = "CR", min = min_v, max = max_v }
+                states[i] = { active = true, type = "CR", current = cv_voltages[i], min = min_v, max = max_v }
             else
                 states[i] = { active = false }
             end
@@ -1602,25 +1694,25 @@ function CrowOutput.get_cv_states()
             -- Gate modes
             elseif mode == "Clock" then
                 local v = params:get("crow_" .. i .. "_clock_voltage")
-                states[i] = { active = true, type = "CLK", min = 0, max = v }
+                states[i] = { active = true, type = "CLK", current = cv_voltages[i], min = 0, max = v }
             elseif mode == "Pattern" then
                 local v = params:get("crow_" .. i .. "_pattern_voltage")
-                states[i] = { active = true, type = "PAT", min = 0, max = v }
+                states[i] = { active = true, type = "PAT", current = cv_voltages[i], min = 0, max = v }
             elseif mode == "Euclidean" then
                 local v = params:get("crow_" .. i .. "_euclidean_voltage")
-                states[i] = { active = true, type = "EUC", min = 0, max = v }
+                states[i] = { active = true, type = "EUC", current = cv_voltages[i], min = 0, max = v }
             elseif mode == "Burst" then
                 local v = params:get("crow_" .. i .. "_burst_voltage")
-                states[i] = { active = true, type = "BST", min = 0, max = v }
+                states[i] = { active = true, type = "BST", current = cv_voltages[i], min = 0, max = v }
 
             -- CV modes
             elseif mode == "LFO" then
                 local min_v = params:get("crow_" .. i .. "_lfo_min")
                 local max_v = params:get("crow_" .. i .. "_lfo_max")
-                states[i] = { active = true, type = "LFO", min = min_v, max = max_v }
+                states[i] = { active = true, type = "LFO", current = estimate_lfo_voltage(i), min = min_v, max = max_v }
             elseif mode == "Envelope" then
                 local max_v = params:get("crow_" .. i .. "_envelope_voltage")
-                states[i] = { active = true, type = "ENV", min = 0, max = max_v }
+                states[i] = { active = true, type = "ENV", current = estimate_envelope_voltage(i), min = 0, max = max_v }
             elseif mode == "Looped Random" then
                 local min_v = params:get("crow_" .. i .. "_looped_random_min")
                 local max_v = params:get("crow_" .. i .. "_looped_random_max")

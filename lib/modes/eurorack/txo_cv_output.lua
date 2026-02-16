@@ -36,6 +36,9 @@ for i = 1, 4 do
     }
 end
 
+-- Track cycle start times for voltage estimation in CV monitor
+local cv_cycle_starts = {0, 0, 0, 0}
+
 -- Clamp envelope param if total exceeds 100%
 local function clamp_envelope_if_needed(output_num, changed_param)
     local attack = params:get("txo_cv_" .. output_num .. "_envelope_attack")
@@ -228,6 +231,8 @@ function TxoCvOutput.update_txo_cv(output_num)
 
             clock_fn = function()
                 while true do
+                    cv_cycle_starts[output_num] = util.time()
+
                     -- Attack phase: 0 -> max
                     crow.ii.txo.cv_slew(output_num, attack_ms)
                     crow.ii.txo.cv(output_num, max_voltage)
@@ -260,6 +265,8 @@ function TxoCvOutput.update_txo_cv(output_num)
 
             clock_fn = function()
                 while true do
+                    cv_cycle_starts[output_num] = util.time()
+
                     -- Attack phase: 0 -> max
                     crow.ii.txo.cv_slew(output_num, attack_ms)
                     crow.ii.txo.cv(output_num, max_voltage)
@@ -363,6 +370,7 @@ function TxoCvOutput.update_txo_cv(output_num)
 
         -- Start at phase 0
         crow.ii.txo.osc_phase(output_num, 0)
+        cv_cycle_starts[output_num] = util.time()
 
         while true do
             -- Wait for a complete cycle with offset
@@ -749,6 +757,83 @@ local function create_params()
     end
 end
 
+-- Estimate current TXO LFO voltage from elapsed time since cycle start
+local function estimate_lfo_voltage(output_num)
+    local depth = params:get("txo_cv_" .. output_num .. "_depth")
+    local offset = params:get("txo_cv_" .. output_num .. "_offset")
+    local clock_interval = params:string("txo_cv_" .. output_num .. "_clock_interval")
+    local clock_modifier = params:string("txo_cv_" .. output_num .. "_clock_modifier")
+
+    local interval_beats = EurorackUtils.interval_to_beats(clock_interval)
+    local modifier_value = EurorackUtils.modifier_to_value(clock_modifier)
+    local beats = interval_beats * modifier_value
+    local period = beats * clock.get_beat_sec()
+    if period <= 0 then return offset end
+
+    local elapsed = util.time() - cv_cycle_starts[output_num]
+    local phase = (elapsed % period) / period
+    -- Sine approximation of TXO oscillator cycle
+    return offset + depth * math.sin(2 * math.pi * phase)
+end
+
+-- Estimate current TXO envelope voltage from elapsed time and ADSR params
+local function estimate_envelope_voltage(output_num)
+    local timing = get_clock_timing(
+        params:string("txo_cv_" .. output_num .. "_clock_interval"),
+        params:string("txo_cv_" .. output_num .. "_clock_modifier"),
+        params:string("txo_cv_" .. output_num .. "_clock_offset")
+    )
+    if not timing or timing.total_sec <= 0 then return 0 end
+
+    local max_v = params:get("txo_cv_" .. output_num .. "_envelope_voltage")
+    local duration_pct = params:get("txo_cv_" .. output_num .. "_envelope_duration") / 100
+    local attack_pct = params:get("txo_cv_" .. output_num .. "_envelope_attack") / 100
+    local decay_pct = params:get("txo_cv_" .. output_num .. "_envelope_decay") / 100
+    local sustain_level = params:get("txo_cv_" .. output_num .. "_envelope_sustain") / 100
+    local release_pct = params:get("txo_cv_" .. output_num .. "_envelope_release") / 100
+    local env_mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
+
+    local env_time = timing.total_sec * duration_pct
+    local elapsed = (util.time() - cv_cycle_starts[output_num])
+    -- Clamp to cycle time to avoid negative estimates during clock.sync wait
+    elapsed = elapsed % timing.total_sec
+
+    if env_mode == "ADSR" then
+        local total_pct = attack_pct + decay_pct + release_pct
+        local sustain_pct = math.max(0, 1 - total_pct)
+        local a_time = env_time * attack_pct
+        local d_time = env_time * decay_pct
+        local s_time = env_time * sustain_pct
+        local r_time = env_time * release_pct
+
+        if elapsed < a_time then
+            return max_v * (elapsed / a_time)
+        elseif elapsed < a_time + d_time then
+            local t = (elapsed - a_time) / d_time
+            return max_v - (max_v - max_v * sustain_level) * t
+        elseif elapsed < a_time + d_time + s_time then
+            return max_v * sustain_level
+        elseif elapsed < a_time + d_time + s_time + r_time then
+            local t = (elapsed - a_time - d_time - s_time) / r_time
+            return max_v * sustain_level * (1 - t)
+        else
+            return 0
+        end
+    else
+        local scale = 1 / (attack_pct + release_pct)
+        local a_time = env_time * attack_pct * scale
+        local r_time = env_time * release_pct * scale
+
+        if elapsed < a_time then
+            return max_v * (elapsed / a_time)
+        elseif elapsed < a_time + r_time then
+            return max_v * (1 - (elapsed - a_time) / r_time)
+        else
+            return 0
+        end
+    end
+end
+
 -- Returns state table for each TXO CV output (1-4) for the CV monitor
 function TxoCvOutput.get_cv_states()
     local states = {}
@@ -775,6 +860,7 @@ function TxoCvOutput.get_cv_states()
                 states[i] = {
                     active = true,
                     type = "LFO",
+                    current = estimate_lfo_voltage(i),
                     min = offset - depth,
                     max = offset + depth
                 }
@@ -783,6 +869,7 @@ function TxoCvOutput.get_cv_states()
                 states[i] = {
                     active = true,
                     type = "ENV",
+                    current = estimate_envelope_voltage(i),
                     min = 0,
                     max = max_voltage
                 }

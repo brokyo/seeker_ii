@@ -51,6 +51,13 @@ function ScreenSaver.next_mode()
   ScreenSaver._sync_arc_override()
 end
 
+-- Cycle focused lane during cycling screensaver (K3)
+function ScreenSaver.next_cycling_lane()
+  local current = _seeker.ui_state.get_focused_lane()
+  local next_lane = (current % _seeker.num_lanes) + 1
+  _seeker.ui_state.set_focused_lane(next_lane)
+end
+
 function ScreenSaver.init()
   ScreenSaver.state.lines = {}
   
@@ -288,7 +295,9 @@ function ScreenSaver._draw_background()
   end
 end
 
--- Draw CV monitor overlay: 8 rows showing TXO CV 1-4 then Crow 1-4
+-- Draw CV monitor: full-width adaptive display showing only active outputs.
+-- Each output's bar maps its own min/max to the full 128px width, with a
+-- bright marker at the current voltage position.
 function ScreenSaver._draw_cv_monitor()
   local txo_states = {}
   local crow_states = {}
@@ -300,79 +309,70 @@ function ScreenSaver._draw_cv_monitor()
     crow_states = _seeker.eurorack.crow_output.get_cv_states()
   end
 
-  local ROW_H = 7
-  local LABEL_X = 2
-  local BAR_X = 24
-  local BAR_W = 78
-  local VALUE_X = 106
+  -- Collect only active outputs: TXO 1-4 then Crow 1-4
+  local active_outputs = {}
+  for i = 1, 4 do
+    local state = txo_states[i]
+    if state and state.active then
+      table.insert(active_outputs, { label = "T" .. i, state = state })
+    end
+  end
+  for i = 1, 4 do
+    local state = crow_states[i]
+    if state and state.active then
+      table.insert(active_outputs, { label = "C" .. i, state = state })
+    end
+  end
 
-  for row = 1, 8 do
-    local label, state
-    if row <= 4 then
-      label = "T" .. row
-      state = txo_states[row] or { active = false }
-    else
-      label = "C" .. (row - 4)
-      state = crow_states[row - 4] or { active = false }
+  -- Fall through to background if nothing is active
+  if #active_outputs == 0 then
+    ScreenSaver._draw_background()
+    return
+  end
+
+  local row_height = math.floor(64 / #active_outputs)
+  local show_value = row_height >= 14
+
+  for idx, entry in ipairs(active_outputs) do
+    local state = entry.state
+    local y_top = (idx - 1) * row_height
+    local bar_h = row_height - 1  -- 1px gap between rows
+
+    -- Background rect
+    screen.level(2)
+    screen.rect(0, y_top, 128, bar_h)
+    screen.fill()
+
+    -- Map output's configured range to full bar width
+    local range = state.max - state.min
+    if range <= 0 then range = 1 end
+
+    -- Range indicator showing the output's voltage span
+    screen.level(4)
+    screen.rect(0, y_top, 128, bar_h)
+    screen.fill()
+
+    -- Current position marker
+    if state.current then
+      local normalized = (state.current - state.min) / range
+      normalized = util.clamp(normalized, 0, 1)
+      local marker_x = math.floor(normalized * 126)
+      screen.level(15)
+      screen.rect(marker_x, y_top, 2, bar_h)
+      screen.fill()
     end
 
-    local y = (row - 1) * ROW_H + 7
+    -- Label: "C1 CLK" at left edge
+    local label_text = entry.label .. " " .. state.type
+    screen.level(7)
+    screen.move(2, y_top + bar_h - 1)
+    screen.text(label_text)
 
-    if not state.active then
-      -- Inactive: dim label and dashes
-      screen.level(2)
-      screen.move(LABEL_X, y)
-      screen.text(label)
-      screen.move(BAR_X, y)
-      screen.text("---")
-    else
-      -- Label (dim)
-      screen.level(4)
-      screen.move(LABEL_X, y)
-      screen.text(label)
-
-      -- Mode abbreviation (medium)
-      screen.level(8)
-      screen.move(14, y)
-      screen.text(state.type)
-
-      -- Voltage bar background
-      screen.level(2)
-      screen.rect(BAR_X, y - 5, BAR_W, 5)
-      screen.fill()
-
-      -- Map voltage range to bar pixels
-      -- Use -10..10 as the full possible range for positioning
-      local range_min = math.max(state.min, -10)
-      local range_max = math.min(state.max, 10)
-      local full_range = 20  -- -10v to +10v
-
-      local bar_start = math.floor(((range_min + 10) / full_range) * BAR_W)
-      local bar_end = math.floor(((range_max + 10) / full_range) * BAR_W)
-      local bar_width = math.max(1, bar_end - bar_start)
-
-      -- Filled range bar
-      screen.level(6)
-      screen.rect(BAR_X + bar_start, y - 5, bar_width, 5)
-      screen.fill()
-
-      -- Current position marker for Random Walk
-      if state.current then
-        local pos = math.floor(((state.current + 10) / full_range) * BAR_W)
-        pos = util.clamp(pos, 0, BAR_W - 1)
-        screen.level(15)
-        screen.rect(BAR_X + pos, y - 5, 2, 5)
-        screen.fill()
-      end
-
-      -- Value text
-      screen.level(6)
-      screen.move(VALUE_X, y)
-      if state.current then
-        screen.text(string.format("%.1fv", state.current))
-      else
-        screen.text(string.format("%.0f/%.0f", state.min, state.max))
-      end
+    -- Value text right-aligned (only when rows are tall enough)
+    if show_value and state.current then
+      screen.level(5)
+      screen.move(126, y_top + bar_h - 1)
+      screen.text_right(string.format("%.1fv", state.current))
     end
   end
 end
@@ -493,6 +493,11 @@ function ScreenSaver._draw_cycling()
     screen.move(col_x[i], 7)
     screen.text_center(DEGREE_LABELS[degrees[i]])
   end
+
+  -- Lane indicator (top-left)
+  screen.level(6)
+  screen.move(2, 7)
+  screen.text("L" .. lane_id)
 
   -- Bottom center: show arc param overlay if recent, otherwise current chord
   local overlay = ScreenSaver.state.arc_overlay
