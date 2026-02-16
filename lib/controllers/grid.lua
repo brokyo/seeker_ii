@@ -76,6 +76,23 @@ function GridUI.key(x, y, z)
     return
   end
 
+  -- CV monitor screensaver: grid cols 13-16, rows 5 (crow) and 7 (TXO CV)
+  -- select output. Intercept both press and release to prevent waking screen.
+  if _seeker.screen_saver and _seeker.screen_saver.state.is_active
+     and _seeker.screen_saver.state.mode == "cv_monitor" then
+    if x >= 13 and x <= 16 and (y == 5 or y == 7) then
+      if z == 1 then
+        local output_num = x - 12
+        local source = (y == 5) and "crow" or "txo_cv"
+        _seeker.screen_saver.select_cv_output(source, output_num)
+        _seeker.screen_saver._sync_arc_override()
+        _seeker.screen_ui.set_needs_redraw()
+      end
+      return  -- swallow press and release
+    end
+    -- Other grid presses fall through and will wake the screen
+  end
+
   -- Handle active modals
   if _seeker.modal and _seeker.modal.is_active() then
     local modal_type = _seeker.modal.get_type()

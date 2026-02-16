@@ -6,6 +6,7 @@ ScreenSaver.state = {
   mode = "cycling",  -- "background", "cv_monitor", "cycling"
   timeout_seconds = 90,
   lines = {},
+  cv_selected = { source = "crow", num = 1 },
   -- Scan line configuration
   config = {
     num_lines = 4,
@@ -76,6 +77,47 @@ local function get_timeout_seconds()
   return timeout_values[option] or 0
 end
 
+-- Pick initial cv_selected based on eurorack selection params, falling
+-- back to the first active output if the current selection is inactive.
+function ScreenSaver._auto_select_cv_output()
+  local crow_states = {}
+  local txo_states = {}
+  if _seeker.eurorack and _seeker.eurorack.crow_output then
+    crow_states = _seeker.eurorack.crow_output.get_cv_states()
+  end
+  if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
+  end
+
+  -- Try current eurorack selection (Crow=1, TXO TR=2, TXO CV=3)
+  if params.lookup["eurorack_selected_type"] then
+    local type_idx = params:get("eurorack_selected_type") or 1
+    local num = params:get("eurorack_selected_number") or 1
+    local source = (type_idx == 1) and "crow" or (type_idx == 3) and "txo_cv" or nil
+    if source then
+      local states = (source == "crow") and crow_states or txo_states
+      if states[num] and states[num].active then
+        ScreenSaver.state.cv_selected = { source = source, num = num }
+        return
+      end
+    end
+  end
+
+  -- Fall back to first active output (crow then txo)
+  for i = 1, 4 do
+    if crow_states[i] and crow_states[i].active then
+      ScreenSaver.state.cv_selected = { source = "crow", num = i }
+      return
+    end
+  end
+  for i = 1, 4 do
+    if txo_states[i] and txo_states[i].active then
+      ScreenSaver.state.cv_selected = { source = "txo_cv", num = i }
+      return
+    end
+  end
+end
+
 function ScreenSaver.check_timeout()
   -- Check if screensaver is enabled
   local timeout_seconds = get_timeout_seconds()
@@ -97,14 +139,21 @@ function ScreenSaver.check_timeout()
   if should_be_active ~= ScreenSaver.state.is_active then
     ScreenSaver.state.is_active = should_be_active
 
-    -- Reset to default mode when screensaver deactivates
+    -- Reset arc override when screensaver deactivates
     if not should_be_active then
-      ScreenSaver.state.mode = "cycling"
       ScreenSaver._clear_arc_override()
     end
 
-    -- Set arc display override when screensaver activates
+    -- Set mode and arc override when screensaver activates
     if should_be_active then
+      if _seeker.current_mode == "EURORACK_OUTPUT" then
+        ScreenSaver.state.mode = "cv_monitor"
+        ScreenSaver._auto_select_cv_output()
+      elseif _seeker.current_mode == "motif" then
+        ScreenSaver.state.mode = "cycling"
+      else
+        ScreenSaver.state.mode = "background"
+      end
       ScreenSaver._sync_arc_override()
     end
 
@@ -297,30 +346,30 @@ end
 
 -- Draw CV monitor: full-width adaptive display showing only active outputs.
 -- Each output's bar maps its own min/max to the full 128px width, with a
--- bright marker at the current voltage position.
+-- bright marker at the current voltage position. Selected output is highlighted.
 function ScreenSaver._draw_cv_monitor()
-  local txo_states = {}
   local crow_states = {}
+  local txo_states = {}
 
-  if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
-    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
-  end
   if _seeker.eurorack and _seeker.eurorack.crow_output then
     crow_states = _seeker.eurorack.crow_output.get_cv_states()
   end
-
-  -- Collect only active outputs: TXO 1-4 then Crow 1-4
-  local active_outputs = {}
-  for i = 1, 4 do
-    local state = txo_states[i]
-    if state and state.active then
-      table.insert(active_outputs, { label = "T" .. i, state = state })
-    end
+  if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
   end
+
+  -- Collect active outputs: Crow 1-4 then TXO CV 1-4 (matches grid order)
+  local active_outputs = {}
   for i = 1, 4 do
     local state = crow_states[i]
     if state and state.active then
-      table.insert(active_outputs, { label = "C" .. i, state = state })
+      table.insert(active_outputs, { label = "C" .. i, state = state, source = "crow", num = i })
+    end
+  end
+  for i = 1, 4 do
+    local state = txo_states[i]
+    if state and state.active then
+      table.insert(active_outputs, { label = "T" .. i, state = state, source = "txo_cv", num = i })
     end
   end
 
@@ -330,6 +379,7 @@ function ScreenSaver._draw_cv_monitor()
     return
   end
 
+  local selected = ScreenSaver.state.cv_selected
   local row_height = math.floor(64 / #active_outputs)
   local show_value = row_height >= 14
 
@@ -337,22 +387,16 @@ function ScreenSaver._draw_cv_monitor()
     local state = entry.state
     local y_top = (idx - 1) * row_height
     local bar_h = row_height - 1  -- 1px gap between rows
+    local is_selected = (entry.source == selected.source and entry.num == selected.num)
 
-    -- Background rect
-    screen.level(2)
-    screen.rect(0, y_top, 128, bar_h)
-    screen.fill()
-
-    -- Map output's configured range to full bar width
-    local range = state.max - state.min
-    if range <= 0 then range = 1 end
-
-    -- Range indicator showing the output's voltage span
-    screen.level(4)
+    -- Background rect: brighter for selected output
+    screen.level(is_selected and 6 or 4)
     screen.rect(0, y_top, 128, bar_h)
     screen.fill()
 
     -- Current position marker
+    local range = state.max - state.min
+    if range <= 0 then range = 1 end
     if state.current then
       local normalized = (state.current - state.min) / range
       normalized = util.clamp(normalized, 0, 1)
@@ -364,16 +408,28 @@ function ScreenSaver._draw_cv_monitor()
 
     -- Label: "C1 CLK" at left edge
     local label_text = entry.label .. " " .. state.type
-    screen.level(7)
+    screen.level(is_selected and 12 or 7)
     screen.move(2, y_top + bar_h - 1)
     screen.text(label_text)
 
     -- Value text right-aligned (only when rows are tall enough)
     if show_value and state.current then
-      screen.level(5)
+      screen.level(is_selected and 10 or 5)
       screen.move(126, y_top + bar_h - 1)
       screen.text_right(string.format("%.1fv", state.current))
     end
+  end
+
+  -- Overlay: flash param name + value for 1.2s after encoder change
+  local overlay = ScreenSaver.state.arc_overlay
+  if overlay and (util.time() - overlay.time) < 1.2 then
+    local fade = math.max(0, 1 - (util.time() - overlay.time) / 1.2)
+    screen.level(0)
+    screen.rect(20, 52, 88, 12)
+    screen.fill()
+    screen.level(math.floor(15 * fade))
+    screen.move(64, 62)
+    screen.text_center(overlay.name .. ": " .. overlay.value)
   end
 end
 
@@ -546,6 +602,138 @@ function ScreenSaver.handle_enc(n, d)
   return true
 end
 
+-- Maps cv_selected output to param IDs for encoder control.
+-- Returns table { e1, e2, e3 } where each is a param ID string or nil.
+local function resolve_cv_params(selected)
+  local states
+  local prefix
+  if selected.source == "crow" then
+    prefix = "crow_" .. selected.num .. "_"
+    states = _seeker.eurorack and _seeker.eurorack.crow_output and
+             _seeker.eurorack.crow_output.get_cv_states() or {}
+  else
+    prefix = "txo_cv_" .. selected.num .. "_"
+    states = _seeker.eurorack and _seeker.eurorack.txo_cv_output and
+             _seeker.eurorack.txo_cv_output.get_cv_states() or {}
+  end
+
+  local state = states[selected.num]
+  if not state or not state.active then return nil end
+
+  local e1, e2, e3
+
+  -- E1: clock interval (Clocked Random uses trigger input instead)
+  if state.type ~= "CR" then
+    e1 = prefix .. "clock_interval"
+  end
+
+  -- E2/E3: range params depend on mode and source
+  if selected.source == "crow" then
+    if state.type == "CLK" then      e3 = prefix .. "clock_voltage"
+    elseif state.type == "PAT" then  e3 = prefix .. "pattern_voltage"
+    elseif state.type == "EUC" then  e3 = prefix .. "euclidean_voltage"
+    elseif state.type == "BST" then  e3 = prefix .. "burst_voltage"
+    elseif state.type == "LFO" then  e2 = prefix .. "lfo_min"; e3 = prefix .. "lfo_max"
+    elseif state.type == "ENV" then  e3 = prefix .. "envelope_voltage"
+    elseif state.type == "RW" then   e2 = prefix .. "random_walk_min"; e3 = prefix .. "random_walk_max"
+    elseif state.type == "CR" then   e2 = prefix .. "clocked_random_min"; e3 = prefix .. "clocked_random_max"
+    elseif state.type == "LR" then   e2 = prefix .. "looped_random_min"; e3 = prefix .. "looped_random_max"
+    end
+  else
+    if state.type == "LFO" then      e2 = prefix .. "depth"; e3 = prefix .. "offset"
+    elseif state.type == "RW" then   e2 = prefix .. "random_walk_min"; e3 = prefix .. "random_walk_max"
+    elseif state.type == "ENV" then  e3 = prefix .. "envelope_voltage"
+    end
+  end
+
+  return { e1 = e1, e2 = e2, e3 = e3 }
+end
+
+-- Handle norns encoder during cv_monitor screensaver.
+-- E1 = clock interval, E2 = range low, E3 = range high. Returns true if consumed.
+function ScreenSaver.handle_cv_enc(n, d)
+  local mapping = resolve_cv_params(ScreenSaver.state.cv_selected)
+  if not mapping then return false end
+
+  local param_id
+  if n == 1 then param_id = mapping.e1
+  elseif n == 2 then param_id = mapping.e2
+  elseif n == 3 then param_id = mapping.e3
+  end
+
+  if not param_id or not params.lookup[param_id] then return false end
+
+  local param_obj = params:lookup_param(param_id)
+  local current = params:get(param_id)
+  local direction = d > 0 and 1 or -1
+
+  if param_obj.t == params.tOPTION then
+    -- Option param: step through list one at a time
+    local new_val = util.clamp(current + direction, 1, #param_obj.options)
+    params:set(param_id, new_val)
+  elseif param_obj.controlspec then
+    -- Control param: 0.1v per encoder click
+    local new_val = util.clamp(current + direction * 0.1,
+      param_obj.controlspec.minval, param_obj.controlspec.maxval)
+    params:set(param_id, new_val)
+  elseif param_obj.min and param_obj.max then
+    -- Number param: step by 1
+    local new_val = util.clamp(current + direction, param_obj.min, param_obj.max)
+    params:set(param_id, new_val)
+  end
+
+  ScreenSaver.state.arc_overlay = {
+    name = param_obj.name or param_id,
+    value = params:string(param_id),
+    time = util.time()
+  }
+
+  return true
+end
+
+-- Cycle through active CV outputs (K3 during cv_monitor)
+function ScreenSaver.next_cv_output()
+  local crow_states = {}
+  local txo_states = {}
+  if _seeker.eurorack and _seeker.eurorack.crow_output then
+    crow_states = _seeker.eurorack.crow_output.get_cv_states()
+  end
+  if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
+  end
+
+  -- Build ordered list: crow 1-4 then txo_cv 1-4
+  local active = {}
+  for i = 1, 4 do
+    if crow_states[i] and crow_states[i].active then
+      table.insert(active, { source = "crow", num = i })
+    end
+  end
+  for i = 1, 4 do
+    if txo_states[i] and txo_states[i].active then
+      table.insert(active, { source = "txo_cv", num = i })
+    end
+  end
+
+  if #active == 0 then return end
+
+  local sel = ScreenSaver.state.cv_selected
+  local current_idx = 1
+  for i, entry in ipairs(active) do
+    if entry.source == sel.source and entry.num == sel.num then
+      current_idx = i
+      break
+    end
+  end
+
+  ScreenSaver.state.cv_selected = active[(current_idx % #active) + 1]
+end
+
+-- Set cv_selected directly (grid press)
+function ScreenSaver.select_cv_output(source, num)
+  ScreenSaver.state.cv_selected = { source = source, num = num }
+end
+
 -- Arc ring-to-param mapping for cycling screensaver mode
 -- Ring 1: rotation, Ring 2: spread, Ring 3: chord length, Ring 4: voicing
 local CYCLING_ARC_MAP = {
@@ -555,36 +743,40 @@ local CYCLING_ARC_MAP = {
   {id = "rc_cycling_voicing", threshold = 16},
 }
 
--- Handle arc button during cycling screensaver: cycle strum order.
--- Returns true if consumed.
+-- Handle arc button during screensaver. Returns true if consumed.
+-- Always returns true when screensaver is active to prevent waking.
 function ScreenSaver.handle_arc_key(n, z)
-  if z ~= 1 then return true end  -- swallow release
   if not ScreenSaver.state.is_active then return false end
-  if ScreenSaver.state.mode ~= "cycling" then return false end
-  if not params.lookup["rc_cycling_strum_order"] then return false end
+  if z ~= 1 then return true end
 
-  local current = params:get("rc_cycling_strum_order")
-  local num_options = 5  -- Up, Down, Out>In, In>Out, Random
-  params:set("rc_cycling_strum_order", (current % num_options) + 1)
+  -- Cycling mode: arc button cycles strum order
+  if ScreenSaver.state.mode == "cycling" and params.lookup["rc_cycling_strum_order"] then
+    local current = params:get("rc_cycling_strum_order")
+    local num_options = 5  -- Up, Down, Out>In, In>Out, Random
+    params:set("rc_cycling_strum_order", (current % num_options) + 1)
 
-  local param_obj = params:lookup_param("rc_cycling_strum_order")
-  ScreenSaver.state.arc_overlay = {
-    name = param_obj.name or "Strum Order",
-    value = params:string("rc_cycling_strum_order"),
-    time = util.time()
-  }
+    local param_obj = params:lookup_param("rc_cycling_strum_order")
+    ScreenSaver.state.arc_overlay = {
+      name = param_obj.name or "Strum Order",
+      value = params:string("rc_cycling_strum_order"),
+      time = util.time()
+    }
+  end
 
   return true
 end
 
--- Handle arc delta during cycling screensaver. Returns true if consumed.
+-- Handle arc delta during screensaver. Returns true if consumed.
+-- Always returns true when screensaver is active to prevent waking.
 function ScreenSaver.handle_arc_delta(n, delta)
   if not ScreenSaver.state.is_active then return false end
-  if ScreenSaver.state.mode ~= "cycling" then return false end
-  if not params.lookup["rc_cycling_start"] then return false end
+
+  -- Cycling mode: arc rings control cycling params
+  if ScreenSaver.state.mode ~= "cycling" then return true end
+  if not params.lookup["rc_cycling_start"] then return true end
 
   local mapping = CYCLING_ARC_MAP[n]
-  if not mapping then return false end
+  if not mapping then return true end
 
   local state = ScreenSaver.state
   state.arc_accum = state.arc_accum or {0, 0, 0, 0}
@@ -670,6 +862,47 @@ function ScreenSaver._update_cycling_arc()
   dev:refresh()
 end
 
+-- Arc voltage meter for cv_monitor mode: 4 rings show the selected
+-- source's outputs. Selected output ring is brighter, inactive rings dim.
+function ScreenSaver._update_cv_arc()
+  local dev = _seeker.arc
+  if not dev then return end
+
+  local selected = ScreenSaver.state.cv_selected
+  local states
+  if selected.source == "crow" then
+    states = _seeker.eurorack and _seeker.eurorack.crow_output and
+             _seeker.eurorack.crow_output.get_cv_states() or {}
+  else
+    states = _seeker.eurorack and _seeker.eurorack.txo_cv_output and
+             _seeker.eurorack.txo_cv_output.get_cv_states() or {}
+  end
+
+  for ring = 1, 4 do
+    local state = states[ring]
+    if state and state.active then
+      local is_sel = (ring == selected.num)
+      for i = 1, 64 do dev:led(ring, i, 2) end
+
+      if state.current then
+        local range = state.max - state.min
+        if range > 0 then
+          local normalized = util.clamp((state.current - state.min) / range, 0, 1)
+          local pos = math.floor(normalized * 63) + 1
+          local bright = is_sel and 15 or 8
+          dev:led(ring, pos, bright)
+          if pos > 1 then dev:led(ring, pos - 1, math.floor(bright * 0.5)) end
+          if pos < 64 then dev:led(ring, pos + 1, math.floor(bright * 0.5)) end
+        end
+      end
+    else
+      for i = 1, 64 do dev:led(ring, i, 1) end
+    end
+  end
+
+  dev:refresh()
+end
+
 -- Set or clear arc display override based on current screensaver state
 function ScreenSaver._sync_arc_override()
   local dev = _seeker.arc
@@ -677,6 +910,8 @@ function ScreenSaver._sync_arc_override()
 
   if ScreenSaver.state.is_active and ScreenSaver.state.mode == "cycling" then
     dev.set_display(function() ScreenSaver._update_cycling_arc() end)
+  elseif ScreenSaver.state.is_active and ScreenSaver.state.mode == "cv_monitor" then
+    dev.set_display(function() ScreenSaver._update_cv_arc() end)
   else
     dev.clear_display()
   end

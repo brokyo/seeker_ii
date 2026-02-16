@@ -234,25 +234,28 @@ function UIState.register_activity()
 end
 
 function UIState.key(n, z)
-  -- K2 during screensaver cycles display modes without waking
-  if n == 2 and _seeker.screen_saver
-     and _seeker.screen_saver.state.is_active then
-    if z == 1 then
-      _seeker.screen_saver.next_mode()
-      _seeker.screen_ui.set_needs_redraw()
+  -- During screensaver, K2/K3 perform mode-specific actions without waking.
+  -- Only K1 falls through to register_activity and wakes the screen.
+  if _seeker.screen_saver and _seeker.screen_saver.state.is_active then
+    local mode = _seeker.screen_saver.state.mode
+    if n == 2 then
+      if z == 1 then
+        _seeker.screen_saver.next_mode()
+        _seeker.screen_ui.set_needs_redraw()
+      end
+      return
+    elseif n == 3 then
+      if z == 1 then
+        if mode == "cycling" then
+          _seeker.screen_saver.next_cycling_lane()
+        elseif mode == "cv_monitor" then
+          _seeker.screen_saver.next_cv_output()
+          _seeker.screen_saver._sync_arc_override()
+        end
+        _seeker.screen_ui.set_needs_redraw()
+      end
+      return
     end
-    return
-  end
-
-  -- K3 during cycling screensaver cycles focused lane
-  if n == 3 and _seeker.screen_saver
-     and _seeker.screen_saver.state.is_active
-     and _seeker.screen_saver.state.mode == "cycling" then
-    if z == 1 then
-      _seeker.screen_saver.next_cycling_lane()
-      _seeker.screen_ui.set_needs_redraw()
-    end
-    return
   end
 
   UIState.register_activity()
@@ -273,13 +276,17 @@ function UIState.key(n, z)
 end
 
 function UIState.enc(n, d)
-  -- Screensaver cycling mode: E1 = beats, E2 = start degree, E3 = movement
-  if _seeker.screen_saver and _seeker.screen_saver.state.is_active
-     and _seeker.screen_saver.state.mode == "cycling" then
-    if _seeker.screen_saver.handle_enc(n, d) then
-      _seeker.screen_ui.set_needs_redraw()
-      return
+  -- During screensaver, route encoders to mode-specific handler without waking.
+  -- Handler return value ignored — encoders never wake the screen.
+  if _seeker.screen_saver and _seeker.screen_saver.state.is_active then
+    local mode = _seeker.screen_saver.state.mode
+    if mode == "cycling" then
+      _seeker.screen_saver.handle_enc(n, d)
+    elseif mode == "cv_monitor" then
+      _seeker.screen_saver.handle_cv_enc(n, d)
     end
+    _seeker.screen_ui.set_needs_redraw()
+    return
   end
 
   UIState.register_activity()
