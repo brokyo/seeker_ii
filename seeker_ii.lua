@@ -28,6 +28,7 @@ local lane_infrastructure = include("lib/modes/motif/sequencing/lane_infrastruct
 -- Motif Infrastructure
 local MotifConfig = include("lib/modes/motif/infrastructure/motif_config")
 local LaneConfig = include("lib/modes/motif/infrastructure/lane_config")
+local mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
 
 -- Motif Types
 local Tape = include("lib/modes/motif/types/tape/init")
@@ -155,6 +156,17 @@ function init()
   for i = 1, _seeker.num_lanes do
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
+  end
+
+  -- Lane 1 defaults: composer mode with MX Samples epiano
+  params:set("lane_1_motif_type", 2)
+  params:set("lane_1_mx_samples_active", 1)
+  local instruments = mx_samples.get_instrument_list()
+  for idx, name in ipairs(instruments) do
+    if name:lower():find("epiano") or name:lower():find("e.piano") or name:lower():find("electric_piano") then
+      params:set("lane_1_instrument", idx)
+      break
+    end
   end
 
   -- Remote control interface

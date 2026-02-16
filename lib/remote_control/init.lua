@@ -422,6 +422,50 @@ local function build_motif_events(lane_id, opts)
   return {events = events, duration = total}
 end
 
+-- Compute strum timing for each voice position based on pluck direction.
+-- Returns table mapping note index (1-based) to its strum position (0-based).
+local function strum_timing(n, order)
+  local seq = {}
+
+  if order == "Down" then
+    for i = n, 1, -1 do seq[#seq + 1] = i end
+
+  elseif order == "Out>In" then
+    local lo, hi = 1, n
+    while lo <= hi do
+      seq[#seq + 1] = lo
+      if lo ~= hi then seq[#seq + 1] = hi end
+      lo = lo + 1
+      hi = hi - 1
+    end
+
+  elseif order == "In>Out" then
+    local mid = math.ceil(n / 2)
+    seq[#seq + 1] = mid
+    for offset = 1, n do
+      if mid + offset <= n then seq[#seq + 1] = mid + offset end
+      if mid - offset >= 1 then seq[#seq + 1] = mid - offset end
+    end
+
+  elseif order == "Random" then
+    for i = 1, n do seq[i] = i end
+    for i = n, 2, -1 do
+      local j = math.random(1, i)
+      seq[i], seq[j] = seq[j], seq[i]
+    end
+
+  else -- "Up" (default)
+    for i = 1, n do seq[i] = i end
+  end
+
+  -- Invert: seq[position] = note_index -> timing[note_index] = position
+  local timing = {}
+  for pos, note_idx in ipairs(seq) do
+    timing[note_idx] = pos - 1
+  end
+  return timing
+end
+
 -- Build events from a chord progression sequence without storing to lane motif.
 -- Each chord placed sequentially. Returns {events, duration} table or nil on error.
 local function build_phrase_events(lane_id, opts)
@@ -439,6 +483,7 @@ local function build_phrase_events(lane_id, opts)
   local rotation = opts.rotation or 0
   local gate = opts.gate or 0.8
   local strum = opts.strum or 0
+  local strum_order = opts.strum_order or "Up"
   local velocity = opts.velocity or 100
 
   -- ADSR defaults: opts > lane params
@@ -471,10 +516,11 @@ local function build_phrase_events(lane_id, opts)
     local c_rotation = chord_def.rotation or rotation
 
     local chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing)
+    local timing = strum_timing(#chord_notes, strum_order)
 
     for j, cn in ipairs(chord_notes) do
       local note = cn + ((octave + 1) * 12)
-      local strum_offset = (j - 1) * strum
+      local strum_offset = timing[j] * strum
 
       table.insert(events, {
         time = time + strum_offset,

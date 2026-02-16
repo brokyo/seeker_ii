@@ -145,6 +145,11 @@ local function setup_device(device)
         return
       end
 
+      -- Screensaver cycling mode: route arc to cycling params without waking screen
+      if _seeker.screen_saver and _seeker.screen_saver.handle_arc_delta(n, delta) then
+        return
+      end
+
       -- Register activity to wake screen/restart sleep timer
       _seeker.ui_state.register_activity()
 
@@ -285,6 +290,11 @@ local function setup_device(device)
     end
 
     device.key = function(n, d)
+      -- Screensaver cycling mode: arc button cycles strum order
+      if _seeker.screen_saver and _seeker.screen_saver.handle_arc_key(n, d) then
+        return
+      end
+
       if d == 1 then
         -- Block Arc input during fileselect - show hint overlay
         if _seeker.sampler and _seeker.sampler.file_select_active then

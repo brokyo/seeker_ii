@@ -320,6 +320,9 @@ local function create_grid_ui()
         -- Always clear the current motif (no overdubbing in composer mode)
         current_lane:clear()
 
+        -- Clear any RC stage motifs so normal composer generation takes over
+        current_lane.rc_stage_motifs = {}
+
         -- Update parameter visibility based on motif state
         if _seeker.composer and _seeker.composer.create and _seeker.composer.create.screen then
             _seeker.composer.create.screen:rebuild_params()

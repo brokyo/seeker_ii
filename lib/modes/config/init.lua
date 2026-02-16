@@ -132,7 +132,7 @@ local function create_params()
 
     -- Visuals
     params:add_control("background_brightness", "Background Brightness", controlspec.new(0, 15, 'lin', 1, 4), function(param) return params:get(param.id) end)
-    params:add_option("screensaver_timeout", "Screensaver Timing", {"Off", "15s", "30s", "45s", "1m", "1m 15s", "1m 30s", "1m 45s", "2m"}, 5)
+    params:add_option("screensaver_timeout", "Screensaver Timing", {"Off", "5s", "15s", "30s", "45s", "1m", "1m 15s", "1m 30s", "1m 45s", "2m"}, 2)
 
     -- Hardware
     params:add_binary("shield_encoder_fix", "Shield Encoder Fix", "toggle", 0)

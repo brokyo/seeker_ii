@@ -35,6 +35,7 @@ function ScreenUI.init()
   end
   
   ScreenSaver.init()
+  _seeker.screen_saver = ScreenSaver
 
   clock.run(function()
     local was_screensaver_active = false

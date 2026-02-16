@@ -3,6 +3,7 @@ local ScreenSaver = {}
 
 ScreenSaver.state = {
   is_active = false,
+  mode = "cycling",  -- "background", "cv_monitor", "cycling"
   timeout_seconds = 90,
   lines = {},
   -- Scan line configuration
@@ -34,6 +35,22 @@ local function init_line(force_direction)
   }
 end
 
+-- Screensaver display modes, cycled with K2
+local MODES = {"background", "cv_monitor", "cycling"}
+
+function ScreenSaver.next_mode()
+  local current = ScreenSaver.state.mode
+  for i, m in ipairs(MODES) do
+    if m == current then
+      ScreenSaver.state.mode = MODES[(i % #MODES) + 1]
+      ScreenSaver._sync_arc_override()
+      return
+    end
+  end
+  ScreenSaver.state.mode = MODES[1]
+  ScreenSaver._sync_arc_override()
+end
+
 function ScreenSaver.init()
   ScreenSaver.state.lines = {}
   
@@ -47,7 +64,7 @@ end
 
 -- Convert screensaver_timeout option index to seconds (0 = disabled)
 local function get_timeout_seconds()
-  local timeout_values = {0, 15, 30, 45, 60, 75, 90, 105, 120}
+  local timeout_values = {0, 5, 15, 30, 45, 60, 75, 90, 105, 120}
   local option = params:get("screensaver_timeout")
   return timeout_values[option] or 0
 end
@@ -72,6 +89,17 @@ function ScreenSaver.check_timeout()
   -- Update active state if it changed
   if should_be_active ~= ScreenSaver.state.is_active then
     ScreenSaver.state.is_active = should_be_active
+
+    -- Reset to default mode when screensaver deactivates
+    if not should_be_active then
+      ScreenSaver.state.mode = "cycling"
+      ScreenSaver._clear_arc_override()
+    end
+
+    -- Set arc display override when screensaver activates
+    if should_be_active then
+      ScreenSaver._sync_arc_override()
+    end
 
     -- Dismiss any active modal when screensaver activates
     if should_be_active and _seeker.modal and _seeker.modal.is_active() then
@@ -260,10 +288,413 @@ function ScreenSaver._draw_background()
   end
 end
 
+-- Draw CV monitor overlay: 8 rows showing TXO CV 1-4 then Crow 1-4
+function ScreenSaver._draw_cv_monitor()
+  local txo_states = {}
+  local crow_states = {}
+
+  if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
+    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
+  end
+  if _seeker.eurorack and _seeker.eurorack.crow_output then
+    crow_states = _seeker.eurorack.crow_output.get_cv_states()
+  end
+
+  local ROW_H = 7
+  local LABEL_X = 2
+  local BAR_X = 24
+  local BAR_W = 78
+  local VALUE_X = 106
+
+  for row = 1, 8 do
+    local label, state
+    if row <= 4 then
+      label = "T" .. row
+      state = txo_states[row] or { active = false }
+    else
+      label = "C" .. (row - 4)
+      state = crow_states[row - 4] or { active = false }
+    end
+
+    local y = (row - 1) * ROW_H + 7
+
+    if not state.active then
+      -- Inactive: dim label and dashes
+      screen.level(2)
+      screen.move(LABEL_X, y)
+      screen.text(label)
+      screen.move(BAR_X, y)
+      screen.text("---")
+    else
+      -- Label (dim)
+      screen.level(4)
+      screen.move(LABEL_X, y)
+      screen.text(label)
+
+      -- Mode abbreviation (medium)
+      screen.level(8)
+      screen.move(14, y)
+      screen.text(state.type)
+
+      -- Voltage bar background
+      screen.level(2)
+      screen.rect(BAR_X, y - 5, BAR_W, 5)
+      screen.fill()
+
+      -- Map voltage range to bar pixels
+      -- Use -10..10 as the full possible range for positioning
+      local range_min = math.max(state.min, -10)
+      local range_max = math.min(state.max, 10)
+      local full_range = 20  -- -10v to +10v
+
+      local bar_start = math.floor(((range_min + 10) / full_range) * BAR_W)
+      local bar_end = math.floor(((range_max + 10) / full_range) * BAR_W)
+      local bar_width = math.max(1, bar_end - bar_start)
+
+      -- Filled range bar
+      screen.level(6)
+      screen.rect(BAR_X + bar_start, y - 5, bar_width, 5)
+      screen.fill()
+
+      -- Current position marker for Random Walk
+      if state.current then
+        local pos = math.floor(((state.current + 10) / full_range) * BAR_W)
+        pos = util.clamp(pos, 0, BAR_W - 1)
+        screen.level(15)
+        screen.rect(BAR_X + pos, y - 5, 2, 5)
+        screen.fill()
+      end
+
+      -- Value text
+      screen.level(6)
+      screen.move(VALUE_X, y)
+      if state.current then
+        screen.text(string.format("%.1fv", state.current))
+      else
+        screen.text(string.format("%.0f/%.0f", state.min, state.max))
+      end
+    end
+  end
+end
+
+-- Draw voice leading graph: columns per stage showing chord voicings with
+-- connecting lines that reveal voice movement across the progression.
+function ScreenSaver._draw_cycling()
+  -- Fall back to background if cycling params aren't active
+  if not params.lookup["rc_cycling_start"] then
+    ScreenSaver._draw_background()
+    return
+  end
+
+  local start_degree = params:get("rc_cycling_start")
+  local movement = params:get("rc_cycling_movement")
+  local num_stages = params:get("rc_cycling_stages")
+  local lane_id = _seeker.ui_state.get_focused_lane()
+  local lane = _seeker.lanes[lane_id]
+  local current_stage = math.min(lane.current_stage_index or 1, num_stages)
+
+  local DEGREE_LABELS = {"I", "ii", "iii", "IV", "V", "vi", "vii"}
+  local degrees = {}
+  for i = 1, num_stages do
+    degrees[i] = ((start_degree - 1 + movement * (i - 1)) % 7) + 1
+  end
+
+  -- Extract unique MIDI notes per stage from rc_stage_motifs
+  local stage_notes = {}
+  local has_notes = false
+  local global_min = 127
+  local global_max = 0
+
+  for i = 1, num_stages do
+    local stage_motif = lane.rc_stage_motifs[i]
+    if stage_motif and stage_motif.events then
+      local seen = {}
+      local notes = {}
+      for _, event in ipairs(stage_motif.events) do
+        if event.type == "note_on" and not seen[event.note] then
+          seen[event.note] = true
+          table.insert(notes, event.note)
+        end
+      end
+      table.sort(notes)
+      stage_notes[i] = notes
+      if #notes > 0 then
+        has_notes = true
+        if notes[1] < global_min then global_min = notes[1] end
+        if notes[#notes] > global_max then global_max = notes[#notes] end
+      end
+    else
+      stage_notes[i] = {}
+    end
+  end
+
+  -- Fall back to background if no stage motifs yet
+  if not has_notes then
+    ScreenSaver._draw_background()
+    return
+  end
+
+  -- Vertical pitch area with margins for labels
+  local Y_TOP = 14
+  local Y_BOTTOM = 54
+  -- Minimum 2-octave range so small pitch movements aren't exaggerated
+  local MIN_RANGE = 24
+  local raw_range = global_max - global_min + 4
+  local padding = math.max(2, math.floor((MIN_RANGE - raw_range) / 2))
+  local pitch_min = global_min - padding
+  local pitch_max = global_max + padding
+  local pitch_range = pitch_max - pitch_min
+
+  -- Column x positions evenly spaced with margins
+  local col_x = {}
+  local col_spacing = 128 / (num_stages + 1)
+  for i = 1, num_stages do
+    col_x[i] = math.floor(col_spacing * i)
+  end
+
+  -- Higher pitch = higher on screen = lower y value
+  local function note_to_y(note)
+    return Y_BOTTOM - ((note - pitch_min) / pitch_range) * (Y_BOTTOM - Y_TOP)
+  end
+
+  -- Notes currently sounding on this lane
+  local active_notes = lane.active_notes or {}
+
+  -- Voice leading lines between adjacent stages
+  for i = 1, num_stages - 1 do
+    local from_notes = stage_notes[i]
+    local to_notes = stage_notes[i + 1]
+    local voice_count = math.min(#from_notes, #to_notes)
+    local is_active_edge = (i + 1 == current_stage)
+    screen.level(is_active_edge and 10 or 3)
+    for v = 1, voice_count do
+      screen.move(col_x[i], note_to_y(from_notes[v]))
+      screen.line(col_x[i + 1], note_to_y(to_notes[v]))
+    end
+    screen.stroke()
+  end
+
+  -- Chord tone dots: bright when note is actively sounding
+  for i = 1, num_stages do
+    local is_current = (i == current_stage)
+    for _, note in ipairs(stage_notes[i]) do
+      local is_playing = is_current and active_notes[note] ~= nil
+      local dot_level = is_playing and 15 or (is_current and 8 or 4)
+      local dot_radius = is_playing and 3 or (is_current and 1.5 or 1)
+      screen.level(dot_level)
+      screen.circle(col_x[i], note_to_y(note), dot_radius)
+      screen.fill()
+    end
+  end
+
+  -- Degree labels above each column
+  for i = 1, num_stages do
+    screen.level(i == current_stage and 12 or 4)
+    screen.move(col_x[i], 7)
+    screen.text_center(DEGREE_LABELS[degrees[i]])
+  end
+
+  -- Bottom center: show arc param overlay if recent, otherwise current chord
+  local overlay = ScreenSaver.state.arc_overlay
+  if overlay and (util.time() - overlay.time) < 1.2 then
+    local fade = math.max(0, 1 - (util.time() - overlay.time) / 1.2)
+    screen.level(math.floor(15 * fade))
+    screen.move(64, 62)
+    screen.text_center(overlay.name .. ": " .. overlay.value)
+  else
+    screen.level(12)
+    screen.move(64, 62)
+    screen.text_center(DEGREE_LABELS[degrees[current_stage]])
+  end
+end
+
+-- Norns encoder mapping for cycling screensaver mode
+-- E1 = beats (stage duration), E2 = start degree, E3 = movement
+local CYCLING_ENC_MAP = {
+  [1] = "rc_cycling_beats",
+  [2] = "rc_cycling_start",
+  [3] = "rc_cycling_movement",
+}
+
+-- Handle norns encoder during cycling screensaver. Returns true if consumed.
+function ScreenSaver.handle_enc(n, d)
+  if not params.lookup["rc_cycling_start"] then return false end
+
+  local param_id = CYCLING_ENC_MAP[n]
+  if not param_id then return false end
+
+  local param_obj = params:lookup_param(param_id)
+  local current = params:get(param_id)
+  local new_val = current + d
+  if param_obj.min and param_obj.max then
+    new_val = util.clamp(new_val, param_obj.min, param_obj.max)
+  end
+  params:set(param_id, new_val)
+
+  -- Show overlay
+  ScreenSaver.state.arc_overlay = {
+    name = param_obj.name or param_id,
+    value = params:string(param_id),
+    time = util.time()
+  }
+
+  return true
+end
+
+-- Arc ring-to-param mapping for cycling screensaver mode
+-- Ring 1: rotation, Ring 2: spread, Ring 3: chord length, Ring 4: voicing
+local CYCLING_ARC_MAP = {
+  {id = "rc_cycling_rotation", threshold = 12},
+  {id = "rc_cycling_spread", threshold = 6, delta = 2},
+  {id = "rc_cycling_chord_len", threshold = 12},
+  {id = "rc_cycling_voicing", threshold = 16},
+}
+
+-- Handle arc button during cycling screensaver: cycle strum order.
+-- Returns true if consumed.
+function ScreenSaver.handle_arc_key(n, z)
+  if z ~= 1 then return true end  -- swallow release
+  if not ScreenSaver.state.is_active then return false end
+  if ScreenSaver.state.mode ~= "cycling" then return false end
+  if not params.lookup["rc_cycling_strum_order"] then return false end
+
+  local current = params:get("rc_cycling_strum_order")
+  local num_options = 5  -- Up, Down, Out>In, In>Out, Random
+  params:set("rc_cycling_strum_order", (current % num_options) + 1)
+
+  local param_obj = params:lookup_param("rc_cycling_strum_order")
+  ScreenSaver.state.arc_overlay = {
+    name = param_obj.name or "Strum Order",
+    value = params:string("rc_cycling_strum_order"),
+    time = util.time()
+  }
+
+  return true
+end
+
+-- Handle arc delta during cycling screensaver. Returns true if consumed.
+function ScreenSaver.handle_arc_delta(n, delta)
+  if not ScreenSaver.state.is_active then return false end
+  if ScreenSaver.state.mode ~= "cycling" then return false end
+  if not params.lookup["rc_cycling_start"] then return false end
+
+  local mapping = CYCLING_ARC_MAP[n]
+  if not mapping then return false end
+
+  local state = ScreenSaver.state
+  state.arc_accum = state.arc_accum or {0, 0, 0, 0}
+  state.arc_accum[n] = state.arc_accum[n] + 1
+
+  if state.arc_accum[n] >= mapping.threshold then
+    state.arc_accum[n] = 0
+    local direction = delta > 0 and 1 or -1
+    local current = params:get(mapping.id)
+    local param_obj = params:lookup_param(mapping.id)
+
+    if mapping.delta then
+      -- Continuous param
+      local new_val = current + direction * mapping.delta
+      if param_obj.controlspec then
+        new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
+      end
+      params:set(mapping.id, new_val)
+    else
+      -- Discrete param (number or option)
+      local new_val = current + direction
+      if param_obj.min and param_obj.max then
+        new_val = util.clamp(new_val, param_obj.min, param_obj.max)
+      elseif param_obj.options then
+        new_val = util.clamp(new_val, 1, #param_obj.options)
+      end
+      params:set(mapping.id, new_val)
+    end
+
+    -- Show param name and value on screen briefly
+    local param_obj_after = params:lookup_param(mapping.id)
+    local display_val = params:string(mapping.id)
+    state.arc_overlay = {
+      name = param_obj_after.name or mapping.id,
+      value = display_val,
+      time = util.time()
+    }
+
+    ScreenSaver._update_cycling_arc()
+  end
+
+  return true
+end
+
+-- Update arc LEDs to show cycling param values across 4 rings
+function ScreenSaver._update_cycling_arc()
+  local dev = _seeker.arc
+  if not dev then return end
+  if not params.lookup["rc_cycling_start"] then return end
+
+  -- Ring 1: rotation (-5 to 5)
+  local rotation = params:get("rc_cycling_rotation")
+  local rot_pos = math.floor(((rotation + 5) / 10) * 63) + 1
+  for i = 1, 64 do dev:led(1, i, 2) end
+  for i = math.max(1, rot_pos - 2), math.min(64, rot_pos + 2) do
+    dev:led(1, i, 12)
+  end
+
+  -- Ring 2: spread (0-100)
+  local spread = params:get("rc_cycling_spread")
+  local spread_fill = math.max(1, math.floor((spread / 100) * 64))
+  for i = 1, 64 do dev:led(2, i, 2) end
+  for i = 1, spread_fill do dev:led(2, i, 10) end
+
+  -- Ring 3: chord_len (2-6)
+  local chord_len = params:get("rc_cycling_chord_len")
+  local len_pos = math.floor(((chord_len - 2) / 4) * 63) + 1
+  for i = 1, 64 do dev:led(3, i, 2) end
+  for i = math.max(1, len_pos - 3), math.min(64, len_pos + 3) do
+    dev:led(3, i, 12)
+  end
+
+  -- Ring 4: voicing (1-5)
+  local voicing = params:get("rc_cycling_voicing")
+  local num_options = 5
+  local segment = math.floor(64 / num_options)
+  for i = 1, 64 do dev:led(4, i, 2) end
+  local start = (voicing - 1) * segment + 1
+  for i = start, math.min(64, start + segment - 1) do
+    dev:led(4, i, 12)
+  end
+
+  dev:refresh()
+end
+
+-- Set or clear arc display override based on current screensaver state
+function ScreenSaver._sync_arc_override()
+  local dev = _seeker.arc
+  if not dev then return end
+
+  if ScreenSaver.state.is_active and ScreenSaver.state.mode == "cycling" then
+    dev.set_display(function() ScreenSaver._update_cycling_arc() end)
+  else
+    dev.clear_display()
+  end
+end
+
+-- Remove arc display override
+function ScreenSaver._clear_arc_override()
+  local dev = _seeker.arc
+  if not dev then return end
+  dev.clear_display()
+end
+
 -- Draw the complete screensaver (background + screen.update)
 function ScreenSaver.draw()
   screen.clear()
-  ScreenSaver._draw_background()
+  local mode = ScreenSaver.state.mode
+  if mode == "cv_monitor" then
+    ScreenSaver._draw_cv_monitor()
+  elseif mode == "cycling" then
+    ScreenSaver._draw_cycling()
+  else
+    ScreenSaver._draw_background()
+  end
   screen.update()
 end
 

@@ -749,6 +749,49 @@ local function create_params()
     end
 end
 
+-- Returns state table for each TXO CV output (1-4) for the CV monitor
+function TxoCvOutput.get_cv_states()
+    local states = {}
+    for i = 1, 4 do
+        local clock_interval = params:string("txo_cv_" .. i .. "_clock_interval")
+        if clock_interval == "Off" then
+            states[i] = { active = false }
+        else
+            local cv_type = params:string("txo_cv_" .. i .. "_type")
+            if cv_type == "Random Walk" then
+                local state_key = "txo_cv_" .. i
+                local min_v = params:get("txo_cv_" .. i .. "_random_walk_min")
+                local max_v = params:get("txo_cv_" .. i .. "_random_walk_max")
+                states[i] = {
+                    active = true,
+                    type = "RW",
+                    current = random_walk_states[state_key].current_value,
+                    min = min_v,
+                    max = max_v
+                }
+            elseif cv_type == "LFO" then
+                local depth = params:get("txo_cv_" .. i .. "_depth")
+                local offset = params:get("txo_cv_" .. i .. "_offset")
+                states[i] = {
+                    active = true,
+                    type = "LFO",
+                    min = offset - depth,
+                    max = offset + depth
+                }
+            elseif cv_type == "Envelope" then
+                local max_voltage = params:get("txo_cv_" .. i .. "_envelope_voltage")
+                states[i] = {
+                    active = true,
+                    type = "ENV",
+                    min = 0,
+                    max = max_voltage
+                }
+            end
+        end
+    end
+    return states
+end
+
 -- Sync all TXO CV outputs by restarting their clocks
 function TxoCvOutput.sync()
     for i = 1, 4 do
@@ -762,7 +805,8 @@ function TxoCvOutput.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
-        sync = TxoCvOutput.sync
+        sync = TxoCvOutput.sync,
+        get_cv_states = TxoCvOutput.get_cv_states
     }
 
     return component

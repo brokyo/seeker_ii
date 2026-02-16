@@ -1566,6 +1566,83 @@ local function create_params()
     end
 end
 
+-- Returns state table for each Crow output (1-4) for the CV monitor
+function CrowOutput.get_cv_states()
+    local states = {}
+    for i = 1, 4 do
+        local mode = get_output_mode(i)
+        local category = params:string("crow_" .. i .. "_category")
+
+        -- Knob Recorder with playback data is active
+        if mode == "Knob Recorder" then
+            local has_data = recording_states[i] and #recording_states[i].data > 0
+            local is_playing = active_clocks["knob_playback_" .. i] ~= nil
+            if is_playing then
+                states[i] = { active = true, type = "KR", min = -10, max = 10 }
+            else
+                states[i] = { active = false }
+            end
+
+        -- Clocked Random uses trigger input, not clock interval
+        elseif mode == "Clocked Random" then
+            local trigger = params:get("crow_" .. i .. "_clocked_random_trigger")
+            if trigger > 0 then
+                local min_v = params:get("crow_" .. i .. "_clocked_random_min")
+                local max_v = params:get("crow_" .. i .. "_clocked_random_max")
+                states[i] = { active = true, type = "CR", min = min_v, max = max_v }
+            else
+                states[i] = { active = false }
+            end
+
+        else
+            local clock_interval = params:string("crow_" .. i .. "_clock_interval")
+            if clock_interval == "Off" then
+                states[i] = { active = false }
+
+            -- Gate modes
+            elseif mode == "Clock" then
+                local v = params:get("crow_" .. i .. "_clock_voltage")
+                states[i] = { active = true, type = "CLK", min = 0, max = v }
+            elseif mode == "Pattern" then
+                local v = params:get("crow_" .. i .. "_pattern_voltage")
+                states[i] = { active = true, type = "PAT", min = 0, max = v }
+            elseif mode == "Euclidean" then
+                local v = params:get("crow_" .. i .. "_euclidean_voltage")
+                states[i] = { active = true, type = "EUC", min = 0, max = v }
+            elseif mode == "Burst" then
+                local v = params:get("crow_" .. i .. "_burst_voltage")
+                states[i] = { active = true, type = "BST", min = 0, max = v }
+
+            -- CV modes
+            elseif mode == "LFO" then
+                local min_v = params:get("crow_" .. i .. "_lfo_min")
+                local max_v = params:get("crow_" .. i .. "_lfo_max")
+                states[i] = { active = true, type = "LFO", min = min_v, max = max_v }
+            elseif mode == "Envelope" then
+                local max_v = params:get("crow_" .. i .. "_envelope_voltage")
+                states[i] = { active = true, type = "ENV", min = 0, max = max_v }
+            elseif mode == "Looped Random" then
+                local min_v = params:get("crow_" .. i .. "_looped_random_min")
+                local max_v = params:get("crow_" .. i .. "_looped_random_max")
+                states[i] = { active = true, type = "LR", min = min_v, max = max_v }
+            elseif mode == "Random Walk" then
+                local min_v = params:get("crow_" .. i .. "_random_walk_min")
+                local max_v = params:get("crow_" .. i .. "_random_walk_max")
+                states[i] = {
+                    active = true,
+                    type = "RW",
+                    current = random_walk_states[i].current_value,
+                    min = min_v,
+                    max = max_v
+                }
+            else
+                states[i] = { active = false }
+            end
+        end
+    end
+    return states
+end
+
 -- Sync all crow outputs by restarting their clocks
 function CrowOutput.sync()
     for i = 1, 4 do
@@ -1582,7 +1659,8 @@ function CrowOutput.init()
         sync = CrowOutput.sync,
         record_knob = CrowOutput.record_knob,
         stop_recording_knob = CrowOutput.stop_recording_knob,
-        clear_knob = CrowOutput.clear_knob
+        clear_knob = CrowOutput.clear_knob,
+        get_cv_states = CrowOutput.get_cv_states
     }
 
     return component

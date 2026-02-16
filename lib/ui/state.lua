@@ -224,6 +224,16 @@ function UIState.register_activity()
 end
 
 function UIState.key(n, z)
+  -- K2 during screensaver cycles display modes without waking
+  if n == 2 and _seeker.screen_saver
+     and _seeker.screen_saver.state.is_active then
+    if z == 1 then
+      _seeker.screen_saver.next_mode()
+      _seeker.screen_ui.set_needs_redraw()
+    end
+    return
+  end
+
   UIState.register_activity()
 
   -- Handle global controls first
@@ -242,6 +252,15 @@ function UIState.key(n, z)
 end
 
 function UIState.enc(n, d)
+  -- Screensaver cycling mode: E1 = beats, E2 = start degree, E3 = movement
+  if _seeker.screen_saver and _seeker.screen_saver.state.is_active
+     and _seeker.screen_saver.state.mode == "cycling" then
+    if _seeker.screen_saver.handle_enc(n, d) then
+      _seeker.screen_ui.set_needs_redraw()
+      return
+    end
+  end
+
   UIState.register_activity()
 
   -- Filter encoder bounce on DIY norns

@@ -5,6 +5,9 @@
 local ComposerType = {}
 
 function ComposerType.draw(layers)
+  -- Cycling button (1, 1)
+  _seeker.composer.cycling.grid:draw(layers)
+
   -- Stage navigation rows (harmonic at row 2, expression at row 3)
   _seeker.composer.harmonic_stages.grid:draw(layers)
   _seeker.composer.expression_stages.grid:draw(layers)
@@ -24,6 +27,12 @@ function ComposerType.handle_key(x, y, z)
   -- Keyboard (6-11, 1-8)
   if _seeker.composer.keyboard.grid:contains(x, y) then
     _seeker.composer.keyboard.grid:handle_key(x, y, z)
+    return true
+  end
+
+  -- Cycling button (1, 1)
+  if _seeker.composer.cycling.grid:contains(x, y) then
+    _seeker.composer.cycling.grid:handle_key(x, y, z)
     return true
   end
 
