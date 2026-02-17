@@ -790,8 +790,8 @@ function RC.restore(slot)
   end
 
   -- Reload cycling params for the focused lane
-  if _seeker.composer and _seeker.composer.cycling_load_params then
-    _seeker.composer.cycling_load_params(_seeker.ui_state.get_focused_lane())
+  if _seeker.composer and _seeker.composer.cycling then
+    _seeker.composer.cycling.load_cycling_params(_seeker.ui_state.get_focused_lane())
   end
 
   -- Restart lanes that were playing when saved
@@ -801,7 +801,7 @@ function RC.restore(slot)
     local lane_data = save_data[i]
     if lane_data and lane_data.playing and #lane.motif.events > 0 then
       lane:sync_all_stages_from_params()
-      lane:play()
+      lane:play({quantize = true})
       restarted = restarted + 1
     end
   end

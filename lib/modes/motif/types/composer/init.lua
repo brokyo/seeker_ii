@@ -47,16 +47,6 @@ function Composer.init()
     end
   end
 
-  -- Expose cycling param snapshot save/load functions
-  instance.cycling_save_params = modules.cycling.save_cycling_params
-  instance.cycling_load_params = modules.cycling.load_cycling_params
-  instance.cycling_cycle_stage_strum = modules.cycling.cycle_stage_strum
-  instance.cycling_cycle_stage_voicing = modules.cycling.cycle_stage_voicing
-  instance.cycling_cycle_stage_chord_len = modules.cycling.cycle_stage_chord_len
-  instance.cycling_cycle_stage_degree = modules.cycling.cycle_stage_degree
-  instance.cycling_rebuild = modules.cycling.rebuild
-  instance.cycling_randomize = modules.cycling.randomize
-
   return instance
 end
 

@@ -17,7 +17,6 @@ local function setup_device(device)
   end
 
   -- State tracking
-  device.index = {0, 0, 0, 0}
   device.movement_count = {0, 0, 0, 0}
   device.current_section_param_count = 0
 
@@ -129,7 +128,7 @@ local function setup_device(device)
         params:set(param.id, new_value)
     end
 
-    -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
+    -- Arc delta handler with accumulator-based gating (threshold 40 for value rings, 32 for list ring)
     device.delta = function(n, delta)
       -- Block Arc input during fileselect - show hint overlay
       if _seeker.sampler and _seeker.sampler.file_select_active then
@@ -145,42 +144,48 @@ local function setup_device(device)
         return
       end
 
-      -- Screensaver cycling mode: route arc to cycling params without waking screen
-      if _seeker.screen_saver and _seeker.screen_saver.handle_arc_delta(n, delta) then
-        return
-      end
-
-      -- Register activity to wake screen/restart sleep timer
+      -- Register activity to reset idle timer
       _seeker.ui_state.register_activity()
 
-      -- offset counter on rotation (modulo 64 to stay aligned with the LED ring)
-      device.index[n] = device.index[n] + delta % 64
-
-      -- Determine movement direction based on last delta direction
-      local direction
-      if delta > 0 then
-        direction = 1
-      else
-        direction = -1
-      end
-
-      -- Handle encoder 1 (list scrolling) with consistent movement counter
-      if n == 1 then
-        device.movement_count[1] = device.movement_count[1] + 1
-
-        if device.movement_count[1] >= 12 then
-          device.movement_count[1] = 0  -- Reset for next trigger cycle
-
-          _seeker.ui_state.enc(2, direction)
-          device.sync_display()
+      -- Cycling live view: route arc to cycling component
+      local current_section = _seeker.ui_state.get_current_section()
+      local section = _seeker.screen_ui and _seeker.screen_ui.sections[current_section]
+      if current_section == "COMPOSER_CYCLING" and section and section.state.live_view then
+        if _seeker.composer and _seeker.composer.cycling then
+          _seeker.composer.cycling.handle_arc_delta(n, delta)
         end
         return
       end
 
-      -- Handle encoders 2, 3, 4 with existing modulo approach
-      if device.index[n] % 8 == 0 then
-        -- Get current section and selected parameter
-        local current_section_id = _seeker.ui_state.get_current_section()
+      -- CV monitor live view: route arc to cv component
+      if current_section == "EURORACK_CONFIG" and section and section.state.live_view then
+        if _seeker.eurorack and _seeker.eurorack.cv_monitor then
+          _seeker.eurorack.cv_monitor.handle_arc_delta(n, delta)
+        end
+        return
+      end
+
+      -- Accumulate rotation and act when threshold is reached
+      local direction = delta > 0 and 1 or -1
+      device.movement_count[n] = device.movement_count[n] + 1
+
+      -- Ring 1 (list scrolling) needs a slightly lower threshold
+      local threshold = (n == 1) and 32 or 40
+
+      if device.movement_count[n] < threshold then
+        return
+      end
+      device.movement_count[n] = 0
+
+      -- Ring 1: scroll params list
+      if n == 1 then
+          _seeker.ui_state.enc(2, direction)
+          device.sync_display()
+        return
+      end
+
+      -- Rings 2-4: param editing
+      local current_section_id = _seeker.ui_state.get_current_section()
 
         -- Check if dual keyboard is active and handle velocity encoders
         -- Dual keyboard takes over encoders 3/4 for velocity regardless of section
@@ -249,7 +254,6 @@ local function setup_device(device)
           _seeker.ui_state.enc(3, direction)
           device.sync_display()
         end
-      end
     end
 
     -- Add a trigger animation function
@@ -290,8 +294,23 @@ local function setup_device(device)
     end
 
     device.key = function(n, d)
-      -- Screensaver cycling mode: arc button cycles strum order
-      if _seeker.screen_saver and _seeker.screen_saver.handle_arc_key(n, d) then
+      _seeker.ui_state.register_activity()
+
+      -- Cycling live view: arc button steps through edit stages
+      local current_section = _seeker.ui_state.get_current_section()
+      local section = _seeker.screen_ui and _seeker.screen_ui.sections[current_section]
+      if current_section == "COMPOSER_CYCLING" and section and section.state.live_view then
+        if _seeker.composer and _seeker.composer.cycling then
+          _seeker.composer.cycling.handle_arc_key(n, d)
+        end
+        return
+      end
+
+      -- CV monitor live view: arc button cycles output type
+      if current_section == "EURORACK_CONFIG" and section and section.state.live_view then
+        if _seeker.eurorack and _seeker.eurorack.cv_monitor then
+          _seeker.eurorack.cv_monitor.handle_arc_key(n, d)
+        end
         return
       end
 

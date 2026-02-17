@@ -172,21 +172,12 @@ end
 -- Drawing functions
 --------------------------------
 
--- Draw consistent content (footer, params, modal) without screen.clear() or screen.update()
--- For use by components that need custom rendering or animation
+-- Draw params and footer. Modals are drawn by screen_router on top of all sections.
 function NornsUI:_draw_standard_ui()
-  local Modal = get_modal()
-  -- Draw modal overlay if any modal is active
-  local modal_active = Modal and Modal.is_active()
-  if modal_active then
-    Modal.draw()
-  -- Otherwise draw params then footer (footer draws last to clip overflow)
-  else
-    if #self.params > 0 then
-      self:draw_params(0)
-    end
-    self:draw_footer()
+  if #self.params > 0 then
+    self:draw_params(0)
   end
+  self:draw_footer()
 end
 
 function NornsUI:draw_footer()

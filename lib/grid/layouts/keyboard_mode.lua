@@ -36,12 +36,7 @@ function KeyboardMode.handle_full_page_key(x, y, z)
     return true
   end
 
-  -- During cycling live view, let cycling grid buttons through without waking
-  local ss = _seeker.screen_saver
-  local in_cycling_live = ss and ss.state.is_active and ss.state.mode == "cycling"
-  if not (in_cycling_live and y == 7 and x <= 4) then
-    _seeker.ui_state.register_activity()
-  end
+  _seeker.ui_state.register_activity()
 
   local current_type = type_registry.get_current()
   local is_fullscreen = current_type and current_type.is_fullscreen and current_type.is_fullscreen()

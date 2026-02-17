@@ -76,21 +76,20 @@ function GridUI.key(x, y, z)
     return
   end
 
-  -- CV monitor screensaver: grid cols 13-16, rows 5 (crow) and 7 (TXO CV)
-  -- select output. Intercept both press and release to prevent waking screen.
-  if _seeker.screen_saver and _seeker.screen_saver.state.is_active
-     and _seeker.screen_saver.state.mode == "cv_monitor" then
+  -- CV monitor: grid cols 13-16, rows 5 (crow) and 7 (TXO CV)
+  -- Output selection when EURORACK_CONFIG section is active
+  if _seeker.ui_state.get_current_section() == "EURORACK_CONFIG" then
     if x >= 13 and x <= 16 and (y == 5 or y == 7) then
       if z == 1 then
         local output_num = x - 12
         local source = (y == 5) and "crow" or "txo_cv"
-        _seeker.screen_saver.select_cv_output(source, output_num)
-        _seeker.screen_saver._sync_arc_override()
+        if _seeker.eurorack and _seeker.eurorack.cv_monitor then
+          _seeker.eurorack.cv_monitor.select_output(source, output_num)
+        end
         _seeker.screen_ui.set_needs_redraw()
       end
       return  -- swallow press and release
     end
-    -- Other grid presses fall through and will wake the screen
   end
 
   -- Handle active modals

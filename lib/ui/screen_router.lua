@@ -101,16 +101,19 @@ end
 
 function ScreenUI.redraw()
   if ScreenSaver.check_timeout() then
-    -- Screensaver appears on top of everything, including modals
     ScreenSaver.draw()
+  elseif _seeker.modal and _seeker.modal.is_active() then
+    -- Modal replaces section content (draws its own clear/frame)
+    screen.clear()
+    _seeker.modal.draw()
+    screen.update()
   else
     local section = ScreenUI.get_active_section()
     if section.state.is_active then
       section:draw()
     end
-
-    ScreenUI.state.needs_redraw = false
   end
+  ScreenUI.state.needs_redraw = false
 end
 
 return ScreenUI 

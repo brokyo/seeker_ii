@@ -299,12 +299,13 @@ end
 -- Lane:play()
 --   Start scheduling from the current stage, if playing = true
 ---------------------------------------------------------
-function Lane:play()
-  if #self.motif.events == 0 then 
+function Lane:play(opts)
+  opts = opts or {}
+  if #self.motif.events == 0 then
     print('∅ No events to play')
     return
   end
-  
+
   if not self.playing then
     self.playing = true
     -- Sync stage config from params before starting
@@ -318,9 +319,16 @@ function Lane:play()
 
   print(string.format('֍ Started LANE_%d', self.id))
   -- Schedule first iteration, delayed by offset parameter for lane alignment
+  local start_time
+  if opts.quantize then
+    -- Snap to next beat boundary so multiple lanes stay aligned
+    start_time = math.ceil(clock.get_beats())
+  else
+    start_time = clock.get_beats()
+  end
   local offset = params:get("lane_" .. self.id .. "_offset") or 0
   self.last_scheduled_offset = offset
-  self:schedule_stage(self.current_stage_index, clock.get_beats() + offset)
+  self:schedule_stage(self.current_stage_index, start_time + offset)
 end
 
 ---------------------------------------------------------

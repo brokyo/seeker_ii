@@ -113,10 +113,7 @@ end
 function UIState.set_focused_lane(lane_idx)
   if lane_idx == UIState.state.focused_lane then return end
 
-  -- Save cycling param snapshot for the outgoing lane
-  if _seeker.composer and _seeker.composer.cycling_save_params then
-    _seeker.composer.cycling_save_params(UIState.state.focused_lane)
-  end
+  local old_lane_id = UIState.state.focused_lane
 
   -- Dismiss description/adsr modals when switching focused lane
   if _seeker.modal and _seeker.modal.is_active() then
@@ -128,9 +125,9 @@ function UIState.set_focused_lane(lane_idx)
 
   UIState.state.focused_lane = lane_idx
 
-  -- Load cycling param snapshot for the incoming lane
-  if _seeker.composer and _seeker.composer.cycling_load_params then
-    _seeker.composer.cycling_load_params(lane_idx)
+  -- Notify cycling of lane change (save outgoing snapshot, load incoming)
+  if _seeker.composer and _seeker.composer.cycling and _seeker.composer.cycling.on_lane_change then
+    _seeker.composer.cycling.on_lane_change(old_lane_id, lane_idx)
   end
   
   -- Update UI
@@ -200,33 +197,14 @@ function UIState.set_current_section(section_id)
     old_section:exit()
   end
 
-  -- Deactivate cycling live view when leaving COMPOSER_CYCLING
-  if UIState.state.current_section == "COMPOSER_CYCLING" and _seeker.screen_saver then
-    _seeker.screen_saver.state.is_active = false
-    _seeker.screen_saver.state.manual = false
-    _seeker.screen_saver._clear_arc_override()
-  end
-
   UIState.state.current_section = section_id
 
-  -- Enter new section
+  -- Enter new section (NornsUI lifecycle handles arc setup/teardown)
   local new_section = _seeker.screen_ui.sections[section_id]
   if new_section then
     new_section:enter()
   else
     print("WARNING: section not found: " .. section_id)
-  end
-
-  -- Auto-activate cycling live view when entering COMPOSER_CYCLING
-  if section_id == "COMPOSER_CYCLING" and _seeker.screen_saver then
-    -- Ensure stage motifs exist (first entry after reload, or lane switch)
-    if _seeker.composer and _seeker.composer.cycling_rebuild then
-      _seeker.composer.cycling_rebuild()
-    end
-    _seeker.screen_saver.state.is_active = true
-    _seeker.screen_saver.state.mode = "cycling"
-    _seeker.screen_saver.state.manual = true
-    _seeker.screen_saver._sync_arc_override()
   end
 
   if _seeker and _seeker.screen_ui then
@@ -253,69 +231,14 @@ function UIState.register_activity()
 end
 
 function UIState.key(n, z)
-  -- During screensaver/live view: K2 toggles mode, K3 cycles per-stage params, others wake or consume.
+  -- During screensaver: K2/K3 silently consumed, K1 wakes screen
   if _seeker.screen_saver and _seeker.screen_saver.state.is_active then
-    if n == 2 then
-      if z == 1 then
-        if _seeker.screen_saver.state.manual then
-          -- K2 toggles cycling live view off (back to params)
-          _seeker.screen_saver.state.is_active = false
-          _seeker.screen_saver._clear_arc_override()
-        else
-          _seeker.screen_saver.next_mode()
-        end
-        _seeker.screen_ui.set_needs_redraw()
-      end
-      return
-    elseif n == 3 then
-      -- K3 in cycling live view: mode-dependent per-stage cycling
-      if z == 1 and _seeker.screen_saver.state.mode == "cycling" then
-        local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-        local stage_idx = _seeker.screen_saver.state.cycling_edit_stage
-          or lane.current_stage_index or 1
-        local control_mode = _seeker.screen_saver.state.cycling_control_mode or "chord"
-
-        if control_mode == "chord" then
-          -- Chord mode: cycle degree (wrap)
-          if _seeker.composer and _seeker.composer.cycling_cycle_stage_degree then
-            local new_val = _seeker.composer.cycling_cycle_stage_degree(stage_idx)
-            _seeker.screen_saver.state.arc_overlay = {
-              name = "S" .. stage_idx .. " Deg",
-              value = new_val,
-              time = util.time()
-            }
-          end
-        else
-          -- Progression mode: cycle strum order (wrap)
-          if _seeker.composer and _seeker.composer.cycling_cycle_stage_strum then
-            local new_val = _seeker.composer.cycling_cycle_stage_strum(stage_idx)
-            _seeker.screen_saver.state.arc_overlay = {
-              name = "S" .. stage_idx .. " Strum",
-              value = new_val,
-              time = util.time()
-            }
-          end
-        end
-
-        _seeker.screen_saver._update_cycling_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
+    if n == 2 or n == 3 then
       return
     end
   end
 
   UIState.register_activity()
-
-  -- K2 re-enters cycling live view when in COMPOSER_CYCLING with live view toggled off
-  if n == 2 and z == 1 then
-    local ss = _seeker.screen_saver
-    if UIState.state.current_section == "COMPOSER_CYCLING" and ss and ss.state.manual and not ss.state.is_active then
-      ss.state.is_active = true
-      ss._sync_arc_override()
-      _seeker.screen_ui.set_needs_redraw()
-      return
-    end
-  end
 
   -- Handle global controls first
   if n == 1 and z == 1 then
@@ -333,13 +256,8 @@ function UIState.key(n, z)
 end
 
 function UIState.enc(n, d)
-  -- During screensaver/live view, route encoders to cv_monitor handler without waking.
-  -- All other modes silently consume encoder input.
+  -- During screensaver, silently consume encoder input without waking
   if _seeker.screen_saver and _seeker.screen_saver.state.is_active then
-    if _seeker.screen_saver.state.mode == "cv_monitor" then
-      _seeker.screen_saver.handle_cv_enc(n, d)
-    end
-    _seeker.screen_ui.set_needs_redraw()
     return
   end
 
