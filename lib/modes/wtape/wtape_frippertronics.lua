@@ -116,8 +116,6 @@ local function create_screen_ui()
                 screen.text(hint_text)
             end
         end
-
-        screen.update()
     end
 
     return screen_ui

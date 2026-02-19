@@ -24,6 +24,14 @@ local active_clocks = {}
 -- Store pattern states globally for rhythmic patterns
 local pattern_states = {}
 
+-- Track gate states for CV monitor display (0 = low, 1 = high)
+local gate_states = {0, 0, 0, 0}
+
+-- Map full type names to short codes for display
+local TYPE_SHORT_CODES = {
+  Clock = "CLK", Pattern = "PAT", Euclidean = "EUC", Burst = "BST"
+}
+
 
 -- Get clock timing parameters
 local function get_clock_timing(interval, modifier, offset)
@@ -43,18 +51,6 @@ local function get_clock_timing(interval, modifier, offset)
         total_sec = beats * beat_sec,
         offset = offset_value
     }
-end
-
--- Setup clock helper
-local function setup_clock(output_id, clock_fn)
-    if active_clocks[output_id] then
-        clock.cancel(active_clocks[output_id])
-        active_clocks[output_id] = nil
-    end
-
-    if clock_fn then
-        active_clocks[output_id] = clock.run(clock_fn)
-    end
 end
 
 -- Calculate burst timing intervals based on shape
@@ -241,6 +237,7 @@ function TxoTrOutput.update_txo_tr(output_num)
 
     if beats == 0 then
         crow.ii.txo.tr(output_num, 0)
+        gate_states[output_num] = 0
         return
     end
 
@@ -255,8 +252,10 @@ function TxoTrOutput.update_txo_tr(output_num)
 
                 for i = 1, burst_count do
                     crow.ii.txo.tr(output_num, 1)
+                    gate_states[output_num] = 1
                     clock.sleep(intervals[i] / 2)
                     crow.ii.txo.tr(output_num, 0)
+                    gate_states[output_num] = 0
                     clock.sleep(intervals[i] / 2)
                 end
             elseif type == "Pattern" or type == "Euclidean" then
@@ -276,8 +275,10 @@ function TxoTrOutput.update_txo_tr(output_num)
 
                 if pattern[current_step] then
                     crow.ii.txo.tr(output_num, 1)
+                    gate_states[output_num] = 1
                     clock.sleep(gate_time)
                     crow.ii.txo.tr(output_num, 0)
+                    gate_states[output_num] = 0
                 end
 
                 current_step = current_step + 1
@@ -292,8 +293,10 @@ function TxoTrOutput.update_txo_tr(output_num)
                 local gate_time = beat_sec * beats * gate_length
 
                 crow.ii.txo.tr(output_num, 1)
+                gate_states[output_num] = 1
                 clock.sleep(gate_time)
                 crow.ii.txo.tr(output_num, 0)
+                gate_states[output_num] = 0
             end
 
             clock.sync(beats, tonumber(clock_offset) or 0)
@@ -519,6 +522,25 @@ local function create_params()
     end
 end
 
+-- Return gate states for CV monitor display.
+-- Uses the same {active, type, current, min, max} shape as crow_output and txo_cv_output,
+-- but current is a gate value (0 or 1) rather than a voltage.
+function TxoTrOutput.get_cv_states()
+  local states = {}
+  for i = 1, 4 do
+    local interval = params:string("txo_tr_" .. i .. "_clock_interval")
+    local type_name = params:string("txo_tr_" .. i .. "_type")
+    states[i] = {
+      active = interval ~= "Off",
+      type = TYPE_SHORT_CODES[type_name] or type_name,
+      current = gate_states[i],
+      min = 0,
+      max = 1,
+    }
+  end
+  return states
+end
+
 -- Sync all TXO TR outputs by restarting their clocks
 function TxoTrOutput.sync()
     for i = 1, 4 do
@@ -532,7 +554,8 @@ function TxoTrOutput.init()
     local component = {
         screen = create_screen_ui(),
         grid = create_grid_ui(),
-        sync = TxoTrOutput.sync
+        sync = TxoTrOutput.sync,
+        get_cv_states = TxoTrOutput.get_cv_states
     }
 
     return component

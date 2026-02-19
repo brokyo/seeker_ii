@@ -1,8 +1,7 @@
 -- screen_saver.lua
 -- Background animation screensaver with idle timeout.
 -- Shows scan lines and lane timelines when idle.
--- Cycling and CV monitor views live in their respective components
--- (cycling.lua, cv_monitor.lua) as permanent dual-mode UIs.
+-- Cycling chord view and CV monitor are separate screens with their own draw methods.
 
 local ScreenSaver = {}
 
@@ -231,9 +230,7 @@ function ScreenSaver._draw_background()
 end
 
 function ScreenSaver.draw()
-  screen.clear()
   ScreenSaver._draw_background()
-  screen.update()
 end
 
 return ScreenSaver

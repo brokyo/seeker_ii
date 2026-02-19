@@ -99,20 +99,20 @@ function ScreenUI.set_needs_redraw()
   ScreenUI.state.needs_redraw = true
 end
 
+-- Router owns screen lifecycle: clear before drawing, update after
 function ScreenUI.redraw()
+  screen.clear()
   if ScreenSaver.check_timeout() then
     ScreenSaver.draw()
   elseif _seeker.modal and _seeker.modal.is_active() then
-    -- Modal replaces section content (draws its own clear/frame)
-    screen.clear()
     _seeker.modal.draw()
-    screen.update()
   else
     local section = ScreenUI.get_active_section()
-    if section.state.is_active then
+    if section and section.state.is_active then
       section:draw()
     end
   end
+  screen.update()
   ScreenUI.state.needs_redraw = false
 end
 

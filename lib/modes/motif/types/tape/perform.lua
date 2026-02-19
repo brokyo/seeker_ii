@@ -73,8 +73,6 @@ local function create_screen_ui()
       screen.move(64 - width/2, 46)
       screen.text(tooltip)
     end
-
-    screen.update()
   end
 
   local original_enter = norns_ui.enter

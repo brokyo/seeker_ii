@@ -76,19 +76,66 @@ function GridUI.key(x, y, z)
     return
   end
 
-  -- CV monitor: grid cols 13-16, rows 5 (crow) and 7 (TXO CV)
-  -- Output selection when EURORACK_CONFIG section is active
-  if _seeker.ui_state.get_current_section() == "EURORACK_CONFIG" then
-    if x >= 13 and x <= 16 and (y == 5 or y == 7) then
-      if z == 1 then
-        local output_num = x - 12
-        local source = (y == 5) and "crow" or "txo_cv"
-        if _seeker.eurorack and _seeker.eurorack.cv_monitor then
-          _seeker.eurorack.cv_monitor.select_output(source, output_num)
-        end
-        _seeker.screen_ui.set_needs_redraw()
+  -- Eurorack output selection: cols 13-16, rows 5 (crow), 6 (TXO TR), 7 (TXO CV)
+  -- Works from any eurorack section. Tap = navigate, hold = toggle on/off.
+  local eurorack_sections = {
+    EURORACK_CONFIG = true, CROW_OUTPUT = true,
+    TXO_TR_OUTPUT = true, TXO_CV_OUTPUT = true,
+  }
+  local current_section = _seeker.ui_state.get_current_section()
+  if eurorack_sections[current_section] then
+    if x >= 13 and x <= 16 and (y == 5 or y == 6 or y == 7) then
+      local output_num = x - 12
+      local source
+      if y == 5 then source = "crow"
+      elseif y == 6 then source = "txo_tr"
+      elseif y == 7 then source = "txo_cv"
       end
-      return  -- swallow press and release
+
+      if z == 1 then
+        -- Start hold tracking for power-up animation
+        if _seeker.eurorack then
+          _seeker.eurorack.output_hold = {
+            x = x, y = y, source = source, num = output_num,
+            start_time = util.time()
+          }
+        end
+      else
+        -- Release: short press navigates, long press toggles on/off
+        local hold = _seeker.eurorack and _seeker.eurorack.output_hold
+        if hold and hold.x == x and hold.y == y then
+          local duration = util.time() - hold.start_time
+          _seeker.eurorack.output_hold = nil
+
+          if duration >= 0.5 then
+            -- Hold: toggle output active state via clock_interval
+            local prefix = source .. "_" .. output_num
+            local interval_id = prefix .. "_clock_interval"
+            if params.lookup[interval_id] then
+              local turning_on = params:string(interval_id) == "Off"
+              if turning_on then
+                params:set(interval_id, 5)  -- Default to "4" beats
+              else
+                params:set(interval_id, 1)  -- "Off"
+              end
+              -- Auto-select newly activated output in cv_monitor
+              if turning_on and _seeker.eurorack.cv_monitor then
+                _seeker.eurorack.cv_monitor.select_output(source, output_num)
+              end
+            end
+          else
+            -- Tap: select output and navigate to cv_monitor
+            if _seeker.eurorack.cv_monitor then
+              _seeker.eurorack.cv_monitor.select_output(source, output_num)
+            end
+            if current_section ~= "EURORACK_CONFIG" then
+              _seeker.ui_state.set_current_section("EURORACK_CONFIG")
+            end
+          end
+        end
+      end
+      _seeker.screen_ui.set_needs_redraw()
+      return
     end
   end
 

@@ -2,7 +2,7 @@
 -- Dual-mode NornsUI for eurorack CV monitoring.
 -- Live view (default): full-width bars showing active output voltages.
 -- Param view (K2 toggle): encoder-mapped params for selected output.
--- Replaces EURORACK_CONFIG section in screen_router.
+-- Registered as the EURORACK_CONFIG section in screen_router.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local Descriptions = include("lib/ui/component_descriptions")
@@ -16,6 +16,8 @@ CvMonitor.__index = CvMonitor
 local cv_selected = { source = "crow", num = 1 }
 local arc_overlay = nil
 local arc_accum = {0, 0, 0, 0}
+local arc_page = 1  -- index into ARC_PAGES for the selected output type
+local update_arc  -- forward declaration
 
 ---------------------------------------------------------------
 -- Output resolution helpers
@@ -28,6 +30,10 @@ local function resolve_cv_output(selected)
     prefix = "crow_" .. selected.num .. "_"
     states = _seeker.eurorack and _seeker.eurorack.crow_output and
              _seeker.eurorack.crow_output.get_cv_states() or {}
+  elseif selected.source == "txo_tr" then
+    prefix = "txo_tr_" .. selected.num .. "_"
+    states = _seeker.eurorack and _seeker.eurorack.txo_tr_output and
+             _seeker.eurorack.txo_tr_output.get_cv_states() or {}
   else
     prefix = "txo_cv_" .. selected.num .. "_"
     states = _seeker.eurorack and _seeker.eurorack.txo_cv_output and
@@ -38,76 +44,142 @@ local function resolve_cv_output(selected)
   return state, prefix
 end
 
--- Arc ring param mapping: interval, range low, range high
-local function resolve_arc_params(selected)
+-- Arc page definitions per output type.
+-- Each page: { label, r1, r2, r3, r4 } where r1-r4 are optional param suffixes,
+-- prepended with the output prefix to form full param IDs.
+-- Page 1 is always "timing" — the baseline you set when selecting an output.
+-- Subsequent pages are grouped by performability.
+local ARC_PAGES = {
+  crow = {
+    CLK = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "clock_voltage", r2 = "clock_length" },
+    },
+    PAT = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "pattern_length", r2 = "pattern_hits", r3 = "gate_length", r4 = "pattern_voltage" },
+    },
+    EUC = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset", r4 = "euclidean_voltage" },
+      { label = "perform", r1 = "euclidean_length", r2 = "euclidean_hits", r3 = "euclidean_rotation", r4 = "gate_length" },
+    },
+    BST = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "burst_count", r2 = "burst_shape", r3 = "burst_time", r4 = "burst_voltage" },
+    },
+    LFO = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "lfo_min", r2 = "lfo_max", r3 = "lfo_shape" },
+    },
+    ENV = {
+      { label = "timing",   r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "envelope", r1 = "envelope_attack", r2 = "envelope_decay", r3 = "envelope_sustain", r4 = "envelope_release" },
+      { label = "shape",    r1 = "envelope_mode", r2 = "envelope_shape", r3 = "envelope_voltage", r4 = "envelope_duration" },
+    },
+    RW = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset", r4 = "random_walk_mode" },
+      { label = "perform", r1 = "random_walk_min", r2 = "random_walk_max", r3 = "random_walk_slew", r4 = "random_walk_shape" },
+    },
+    CR = {
+      { label = "config",  r1 = "clocked_random_trigger" },
+      { label = "perform", r1 = "clocked_random_min", r2 = "clocked_random_max", r3 = "clocked_random_quantize", r4 = "clocked_random_shape" },
+    },
+    LR = {
+      { label = "timing",    r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform",   r1 = "looped_random_min", r2 = "looped_random_max", r3 = "looped_random_quantize", r4 = "looped_random_shape" },
+      { label = "structure", r1 = "looped_random_steps", r2 = "looped_random_loops" },
+    },
+  },
+  txo_tr = {
+    CLK = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "clock_length" },
+    },
+    PAT = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "pattern_length", r2 = "pattern_hits", r3 = "gate_length" },
+    },
+    EUC = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "euclidean_length", r2 = "euclidean_hits", r3 = "euclidean_rotation", r4 = "gate_length" },
+    },
+    BST = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "burst_count", r2 = "burst_time", r3 = "burst_shape" },
+    },
+  },
+  txo_cv = {
+    LFO = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "depth", r2 = "offset", r3 = "shape", r4 = "rect" },
+      { label = "detail",  r1 = "morph", r2 = "phase" },
+    },
+    RW = {
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "perform", r1 = "random_walk_min", r2 = "random_walk_max", r3 = "random_walk_slew", r4 = "random_walk_mode" },
+    },
+    ENV = {
+      { label = "timing",   r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
+      { label = "envelope", r1 = "envelope_attack", r2 = "envelope_decay", r3 = "envelope_sustain", r4 = "envelope_release" },
+      { label = "shape",    r1 = "envelope_mode", r2 = "envelope_voltage", r3 = "envelope_duration" },
+    },
+  },
+}
+
+local function get_page_count(selected)
+  local state, _ = resolve_cv_output(selected)
+  if not state then return 1 end
+  local source_pages = ARC_PAGES[selected.source]
+  if not source_pages then return 1 end
+  local type_pages = source_pages[state.type]
+  return type_pages and #type_pages or 1
+end
+
+local function resolve_arc_params(selected, page)
   local state, prefix = resolve_cv_output(selected)
   if not state then return nil end
 
-  local r1, r2, r3
-  if state.type ~= "CR" then
-    r1 = prefix .. "clock_interval"
-  end
+  local source_pages = ARC_PAGES[selected.source]
+  if not source_pages then return nil end
+  local type_pages = source_pages[state.type]
+  if not type_pages then return nil end
 
-  if selected.source == "crow" then
-    if state.type == "CLK" then      r3 = prefix .. "clock_voltage"
-    elseif state.type == "PAT" then  r3 = prefix .. "pattern_voltage"
-    elseif state.type == "EUC" then  r3 = prefix .. "euclidean_voltage"
-    elseif state.type == "BST" then  r3 = prefix .. "burst_voltage"
-    elseif state.type == "LFO" then  r2 = prefix .. "lfo_min"; r3 = prefix .. "lfo_max"
-    elseif state.type == "ENV" then  r3 = prefix .. "envelope_voltage"
-    elseif state.type == "RW" then   r2 = prefix .. "random_walk_min"; r3 = prefix .. "random_walk_max"
-    elseif state.type == "CR" then   r2 = prefix .. "clocked_random_min"; r3 = prefix .. "clocked_random_max"
-    elseif state.type == "LR" then   r2 = prefix .. "looped_random_min"; r3 = prefix .. "looped_random_max"
-    end
-  else
-    if state.type == "LFO" then      r2 = prefix .. "depth"; r3 = prefix .. "offset"
-    elseif state.type == "RW" then   r2 = prefix .. "random_walk_min"; r3 = prefix .. "random_walk_max"
-    elseif state.type == "ENV" then  r3 = prefix .. "envelope_voltage"
-    end
-  end
+  local page_def = type_pages[page]
+  if not page_def then return nil end
 
-  return { r1 = r1, r2 = r2, r3 = r3 }
+  return {
+    r1 = page_def.r1 and (prefix .. page_def.r1) or nil,
+    r2 = page_def.r2 and (prefix .. page_def.r2) or nil,
+    r3 = page_def.r3 and (prefix .. page_def.r3) or nil,
+    r4 = page_def.r4 and (prefix .. page_def.r4) or nil,
+    label = page_def.label,
+  }
 end
-
--- Per-type encoder param suffixes
-local CROW_ENC_SUFFIXES = {
-  CLK = {"_clock_length"},
-  PAT = {"_pattern_length", "_pattern_hits", "_gate_length"},
-  EUC = {"_euclidean_length", "_euclidean_hits", "_euclidean_rotation"},
-  BST = {"_burst_count"},
-  LFO = {"_lfo_shape"},
-  ENV = {"_envelope_mode", "_envelope_shape"},
-  RW  = {"_random_walk_mode", "_random_walk_shape"},
-  CR  = {"_clocked_random_quantize", "_clocked_random_shape"},
-  LR  = {"_looped_random_quantize", "_looped_random_shape", "_looped_random_steps"},
-}
-
-local TXO_ENC_SUFFIXES = {
-  LFO = {"_shape", "_rect"},
-  RW  = {"_random_walk_mode"},
-  ENV = {"_envelope_mode"},
-}
 
 ---------------------------------------------------------------
 -- Auto-select: pick first active output
 ---------------------------------------------------------------
 local function auto_select()
   local crow_states = {}
-  local txo_states = {}
+  local txo_tr_states = {}
+  local txo_cv_states = {}
   if _seeker.eurorack and _seeker.eurorack.crow_output then
     crow_states = _seeker.eurorack.crow_output.get_cv_states()
   end
+  if _seeker.eurorack and _seeker.eurorack.txo_tr_output then
+    txo_tr_states = _seeker.eurorack.txo_tr_output.get_cv_states()
+  end
   if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
-    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
+    txo_cv_states = _seeker.eurorack.txo_cv_output.get_cv_states()
   end
 
   -- Try current eurorack selection
   if params.lookup["eurorack_selected_type"] then
     local type_idx = params:get("eurorack_selected_type") or 1
     local num = params:get("eurorack_selected_number") or 1
-    local source = (type_idx == 1) and "crow" or (type_idx == 3) and "txo_cv" or nil
+    local source = (type_idx == 1) and "crow" or (type_idx == 2) and "txo_tr" or (type_idx == 3) and "txo_cv" or nil
     if source then
-      local states = (source == "crow") and crow_states or txo_states
+      local states = (source == "crow") and crow_states or (source == "txo_tr") and txo_tr_states or txo_cv_states
       if states[num] and states[num].active then
         cv_selected = { source = source, num = num }
         return
@@ -122,7 +194,13 @@ local function auto_select()
     end
   end
   for i = 1, 4 do
-    if txo_states[i] and txo_states[i].active then
+    if txo_tr_states[i] and txo_tr_states[i].active then
+      cv_selected = { source = "txo_tr", num = i }
+      return
+    end
+  end
+  for i = 1, 4 do
+    if txo_cv_states[i] and txo_cv_states[i].active then
       cv_selected = { source = "txo_cv", num = i }
       return
     end
@@ -134,19 +212,60 @@ end
 ---------------------------------------------------------------
 function CvMonitor.select_output(source, num)
   cv_selected = { source = source, num = num }
+  -- Sync eurorack params so rebuild_params can delegate correctly
+  local type_map = { crow = 1, txo_tr = 2, txo_cv = 3 }
+  if type_map[source] then
+    params:set("eurorack_selected_type", type_map[source], true)
+    params:set("eurorack_selected_number", num, true)
+  end
+  -- Reset to page 1 and update arc display
+  arc_page = 1
+  if update_arc then update_arc() end
 end
 
 ---------------------------------------------------------------
 -- Live view drawing
 ---------------------------------------------------------------
 local function draw_live()
+  -- Arc mapping drives both the page label in the header and the param footer
+  local mapping = resolve_arc_params(cv_selected, arc_page)
+  local page_count = get_page_count(cv_selected)
+
+  -- Header: selected output + type, arc page label, K2 hint
+  local sel_state, _ = resolve_cv_output(cv_selected)
+  local source_short = cv_selected.source == "crow" and "C"
+    or cv_selected.source == "txo_cv" and "T" or "TR"
+  local header = source_short .. cv_selected.num
+  if sel_state then header = header .. " " .. sel_state.type end
+
+  screen.level(12)
+  screen.move(2, 6)
+  screen.text(header)
+
+  local page_label = mapping and mapping.label or ""
+  screen.level(5)
+  screen.move(64, 6)
+  screen.text_center(page_label .. " " .. arc_page .. "/" .. page_count)
+
+  screen.level(3)
+  screen.move(126, 6)
+  screen.text_right("K2")
+
+  -- Voltage bars (constrained to middle band)
+  local BAR_TOP = 9
+  local BAR_BOTTOM = 45
+
   local crow_states = {}
-  local txo_states = {}
+  local txo_cv_states = {}
+  local txo_tr_states = {}
   if _seeker.eurorack and _seeker.eurorack.crow_output then
     crow_states = _seeker.eurorack.crow_output.get_cv_states()
   end
   if _seeker.eurorack and _seeker.eurorack.txo_cv_output then
-    txo_states = _seeker.eurorack.txo_cv_output.get_cv_states()
+    txo_cv_states = _seeker.eurorack.txo_cv_output.get_cv_states()
+  end
+  if _seeker.eurorack and _seeker.eurorack.txo_tr_output then
+    txo_tr_states = _seeker.eurorack.txo_tr_output.get_cv_states()
   end
 
   local active_outputs = {}
@@ -157,7 +276,13 @@ local function draw_live()
     end
   end
   for i = 1, 4 do
-    local state = txo_states[i]
+    local state = txo_tr_states[i]
+    if state and state.active then
+      table.insert(active_outputs, { label = "TR" .. i, state = state, source = "txo_tr", num = i })
+    end
+  end
+  for i = 1, 4 do
+    local state = txo_cv_states[i]
     if state and state.active then
       table.insert(active_outputs, { label = "T" .. i, state = state, source = "txo_cv", num = i })
     end
@@ -165,65 +290,86 @@ local function draw_live()
 
   if #active_outputs == 0 then
     screen.level(4)
-    screen.move(64, 32)
-    screen.text_center("No active CV outputs")
-    return
-  end
+    screen.move(64, 28)
+    screen.text_center("No active outputs")
+  else
+    local bar_area = BAR_BOTTOM - BAR_TOP
+    local row_height = math.floor(bar_area / #active_outputs)
+    local show_value = row_height >= 14
 
-  local row_height = math.floor(64 / #active_outputs)
-  local show_value = row_height >= 14
+    for idx, entry in ipairs(active_outputs) do
+      local state = entry.state
+      local y_top = BAR_TOP + (idx - 1) * row_height
+      local bar_h = row_height - 1
+      local is_selected = (entry.source == cv_selected.source and entry.num == cv_selected.num)
 
-  for idx, entry in ipairs(active_outputs) do
-    local state = entry.state
-    local y_top = (idx - 1) * row_height
-    local bar_h = row_height - 1
-    local is_selected = (entry.source == cv_selected.source and entry.num == cv_selected.num)
-
-    screen.level(is_selected and 6 or 4)
-    screen.rect(0, y_top, 128, bar_h)
-    screen.fill()
-
-    local range = state.max - state.min
-    if range <= 0 then range = 1 end
-    if state.current then
-      local normalized = util.clamp((state.current - state.min) / range, 0, 1)
-      local marker_x = math.floor(normalized * 126)
-      screen.level(15)
-      screen.rect(marker_x, y_top, 2, bar_h)
+      screen.level(is_selected and 6 or 4)
+      screen.rect(0, y_top, 128, bar_h)
       screen.fill()
-    end
 
-    screen.level(is_selected and 12 or 7)
-    screen.move(2, y_top + bar_h - 1)
-    screen.text(entry.label .. " " .. state.type)
+      local range = state.max - state.min
+      if range <= 0 then range = 1 end
+      if state.current then
+        local normalized = util.clamp((state.current - state.min) / range, 0, 1)
+        local marker_x = math.floor(normalized * 126)
+        screen.level(15)
+        screen.rect(marker_x, y_top, 2, bar_h)
+        screen.fill()
+      end
 
-    if show_value and state.current then
-      screen.level(is_selected and 10 or 5)
-      screen.move(126, y_top + bar_h - 1)
-      screen.text_right(string.format("%.1fv", state.current))
+      screen.level(is_selected and 12 or 7)
+      screen.move(2, y_top + bar_h - 1)
+      screen.text(entry.label .. " " .. state.type)
+
+      if show_value and state.current then
+        screen.level(is_selected and 10 or 5)
+        screen.move(126, y_top + bar_h - 1)
+        screen.text_right(string.format("%.1fv", state.current))
+      end
     end
   end
 
-  -- Overlay: flash param name + value after encoder/arc change
-  if arc_overlay and (util.time() - arc_overlay.time) < 1.2 then
-    local fade = math.max(0, 1 - (util.time() - arc_overlay.time) / 1.2)
+  -- Footer: 4-column arc ring map with param names and current values
+  if mapping then
     screen.level(0)
-    screen.rect(20, 52, 88, 12)
+    screen.rect(0, 46, 128, 18)
     screen.fill()
-    screen.level(math.floor(15 * fade))
-    screen.move(64, 62)
-    screen.text_center(arc_overlay.name .. ": " .. arc_overlay.value)
+
+    local col_w = 32
+    local rings = {mapping.r1, mapping.r2, mapping.r3, mapping.r4}
+    for i = 1, 4 do
+      local param_id = rings[i]
+      local cx = (i - 1) * col_w + col_w / 2
+      if param_id and params.lookup[param_id] then
+        local param_obj = params:lookup_param(param_id)
+        local short_name = param_obj.name or param_id
+        if #short_name > 7 then short_name = short_name:sub(1, 7) end
+        screen.level(5)
+        screen.move(cx, 55)
+        screen.text_center(short_name)
+
+        local val_str = tostring(params:string(param_id))
+        if #val_str > 7 then val_str = val_str:sub(1, 7) end
+        screen.level(12)
+        screen.move(cx, 63)
+        screen.text_center(val_str)
+      else
+        screen.level(2)
+        screen.move(cx, 55)
+        screen.text_center("-")
+      end
+    end
   end
 end
 
 ---------------------------------------------------------------
 -- Arc display
 ---------------------------------------------------------------
-local function update_arc()
+update_arc = function()
   local dev = _seeker.arc
   if not dev then return end
 
-  local mapping = resolve_arc_params(cv_selected)
+  local mapping = resolve_arc_params(cv_selected, arc_page)
 
   local function draw_param_ring(ring, param_id)
     if not param_id or not params.lookup[param_id] then
@@ -255,26 +401,11 @@ local function update_arc()
     draw_param_ring(1, mapping.r1)
     draw_param_ring(2, mapping.r2)
     draw_param_ring(3, mapping.r3)
+    draw_param_ring(4, mapping.r4)
   else
-    for ring = 1, 3 do
+    for ring = 1, 4 do
       for i = 1, 64 do dev:led(ring, i, 1) end
     end
-  end
-
-  -- Ring 4: voltage meter
-  local state = resolve_cv_output(cv_selected)
-  if state and state.current then
-    for i = 1, 64 do dev:led(4, i, 2) end
-    local range = state.max - state.min
-    if range > 0 then
-      local normalized = util.clamp((state.current - state.min) / range, 0, 1)
-      local pos = math.floor(normalized * 63) + 1
-      dev:led(4, pos, 15)
-      if pos > 1 then dev:led(4, pos - 1, 7) end
-      if pos < 64 then dev:led(4, pos + 1, 7) end
-    end
-  else
-    for i = 1, 64 do dev:led(4, i, 1) end
   end
 
   dev:refresh()
@@ -283,46 +414,43 @@ end
 ---------------------------------------------------------------
 -- Arc delta/key handlers
 ---------------------------------------------------------------
-local CV_ARC_MAP = {
-  {threshold = 40},
-  {threshold = 20, delta = 0.1},
-  {threshold = 20, delta = 0.1},
+-- Ticks needed per step for each ring. Options use more ticks (coarse), controls use fewer (fine).
+local ARC_TICKS_PER_STEP = {
+  option = 40,
+  control = 20,
 }
 
 local function handle_arc_delta(n, delta)
-  if n == 4 then return end  -- ring 4 is voltage meter
-  local arc_map = CV_ARC_MAP[n]
-  if not arc_map then return end
-
-  local mapping = resolve_arc_params(cv_selected)
+  local mapping = resolve_arc_params(cv_selected, arc_page)
   if not mapping then return end
 
   local param_id
   if n == 1 then param_id = mapping.r1
   elseif n == 2 then param_id = mapping.r2
   elseif n == 3 then param_id = mapping.r3
+  elseif n == 4 then param_id = mapping.r4
   end
   if not param_id or not params.lookup[param_id] then return end
 
+  local param_obj = params:lookup_param(param_id)
+  local is_option = (param_obj.t == params.tOPTION)
+  local threshold = is_option and ARC_TICKS_PER_STEP.option or ARC_TICKS_PER_STEP.control
+
   arc_accum[n] = arc_accum[n] + 1
-  if arc_accum[n] >= arc_map.threshold then
+  if arc_accum[n] >= threshold then
     arc_accum[n] = 0
     local direction = delta > 0 and 1 or -1
-    local param_obj = params:lookup_param(param_id)
     local current = params:get(param_id)
 
-    if arc_map.delta then
-      local new_val = current + direction * arc_map.delta
-      if param_obj.controlspec then
-        new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
-      end
+    if is_option then
+      params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
+    elseif param_obj.controlspec then
+      local step = math.max(param_obj.controlspec.step, 0.1)
+      local new_val = current + direction * step
+      new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
       params:set(param_id, new_val)
-    else
-      if param_obj.t == params.tOPTION then
-        params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
-      elseif param_obj.min and param_obj.max then
-        params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
-      end
+    elseif param_obj.min and param_obj.max then
+      params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
     end
 
     arc_overlay = {
@@ -336,27 +464,9 @@ end
 
 local function handle_arc_key(n, z)
   if z ~= 1 then return end
-  -- Cycle output type within current category
-  local type_param, max_val
-  if cv_selected.source == "crow" then
-    type_param = "crow_" .. cv_selected.num .. "_mode"
-    local category = params:string("crow_" .. cv_selected.num .. "_category")
-    max_val = (category == "Gate") and 4 or 6
-  else
-    type_param = "txo_cv_" .. cv_selected.num .. "_type"
-    max_val = 3
-  end
-
-  if params.lookup[type_param] then
-    local current = params:get(type_param)
-    params:set(type_param, (current % max_val) + 1)
-    local param_obj = params:lookup_param(type_param)
-    arc_overlay = {
-      name = param_obj.name or "Type",
-      value = params:string(type_param),
-      time = util.time()
-    }
-  end
+  local page_count = get_page_count(cv_selected)
+  arc_page = (arc_page % page_count) + 1
+  update_arc()
 end
 
 -- Expose for arc controller and screensaver routing
@@ -381,43 +491,29 @@ local function create_screen_ui()
   -- Live view is the default
   norns_ui.state.live_view = true
 
-  -- Rebuild param list based on selected output
+  -- Rebuild param list by delegating to the selected output's component screen
   norns_ui.rebuild_params = function(self)
-    local state, prefix = resolve_cv_output(cv_selected)
     self.params = {}
+    if not cv_selected then return end
 
-    if state then
-      local suffixes = (cv_selected.source == "crow")
-        and CROW_ENC_SUFFIXES[state.type]
-        or TXO_ENC_SUFFIXES[state.type]
+    -- Set eurorack_selected_number so output component reads the right output
+    params:set("eurorack_selected_number", cv_selected.num, true)
 
-      -- Add output-specific params
-      table.insert(self.params, { separator = true, title = cv_selected.source:upper() .. " " .. cv_selected.num .. " " .. state.type })
-      if suffixes then
-        for _, suffix in ipairs(suffixes) do
-          local param_id = prefix .. suffix
-          if params.lookup[param_id] then
-            table.insert(self.params, { id = param_id })
-          end
-        end
-      end
-
-      -- Add arc-controlled params
-      local arc_mapping = resolve_arc_params(cv_selected)
-      if arc_mapping then
-        if arc_mapping.r1 and params.lookup[arc_mapping.r1] then
-          table.insert(self.params, { id = arc_mapping.r1 })
-        end
-        if arc_mapping.r2 and params.lookup[arc_mapping.r2] then
-          table.insert(self.params, { id = arc_mapping.r2 })
-        end
-        if arc_mapping.r3 and params.lookup[arc_mapping.r3] then
-          table.insert(self.params, { id = arc_mapping.r3 })
-        end
-      end
+    if cv_selected.source == "crow" then
+      local component_screen = _seeker.eurorack.crow_output.screen
+      component_screen:rebuild_params()
+      self.params = component_screen.params
+    elseif cv_selected.source == "txo_cv" then
+      local component_screen = _seeker.eurorack.txo_cv_output.screen
+      component_screen:rebuild_params()
+      self.params = component_screen.params
+    elseif cv_selected.source == "txo_tr" then
+      local component_screen = _seeker.eurorack.txo_tr_output.screen
+      component_screen:rebuild_params()
+      self.params = component_screen.params
     end
 
-    -- Sync action
+    -- Append sync action
     if params.lookup["sync_all_eurorack_clocks"] then
       table.insert(self.params, { separator = true, title = "Actions" })
       table.insert(self.params, { id = "sync_all_eurorack_clocks", is_action = true })
@@ -455,7 +551,7 @@ local function create_screen_ui()
       return
     end
 
-    -- In live view: encoders handle output params, K3 not used
+    -- K3 and other keys only route to NornsUI in param view
     if not self.state.live_view then
       NornsUI.handle_key(self, n, z)
     end
@@ -463,17 +559,16 @@ local function create_screen_ui()
 
   norns_ui.handle_enc = function(self, n, d)
     if self.state.live_view then
-      -- Route encoders to output-specific params
-      local state, prefix = resolve_cv_output(cv_selected)
-      if not state then return end
+      -- Encoders E1-E3 map to arc rings 1-3 of current page
+      local mapping = resolve_arc_params(cv_selected, arc_page)
+      if not mapping then return end
 
-      local suffixes = (cv_selected.source == "crow")
-        and CROW_ENC_SUFFIXES[state.type]
-        or TXO_ENC_SUFFIXES[state.type]
-      if not suffixes or not suffixes[n] then return end
-
-      local param_id = prefix .. suffixes[n]
-      if not params.lookup[param_id] then return end
+      local param_id
+      if n == 1 then param_id = mapping.r1
+      elseif n == 2 then param_id = mapping.r2
+      elseif n == 3 then param_id = mapping.r3
+      end
+      if not param_id or not params.lookup[param_id] then return end
 
       local param_obj = params:lookup_param(param_id)
       local current = params:get(param_id)
@@ -496,6 +591,7 @@ local function create_screen_ui()
         value = params:string(param_id),
         time = util.time()
       }
+      update_arc()
       return
     end
     self:handle_enc_default(n, d)

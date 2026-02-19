@@ -649,13 +649,11 @@ local function create_screen_ui()
 
   -- Draw: dispatch to live view or param view
   norns_ui.draw = function(self)
-    screen.clear()
     if self.state.live_view then
       draw_live(self)
     else
       self:_draw_standard_ui()
     end
-    screen.update()
   end
 
   -- K2: toggle live/param view. K3: mode-dependent per-stage cycling.

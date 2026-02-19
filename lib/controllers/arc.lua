@@ -157,7 +157,7 @@ local function setup_device(device)
         return
       end
 
-      -- CV monitor live view: route arc to cv component
+      -- CV monitor live view: route arc to cv component (ring-to-param mapping)
       if current_section == "EURORACK_CONFIG" and section and section.state.live_view then
         if _seeker.eurorack and _seeker.eurorack.cv_monitor then
           _seeker.eurorack.cv_monitor.handle_arc_delta(n, delta)

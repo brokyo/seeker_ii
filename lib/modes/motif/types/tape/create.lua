@@ -144,7 +144,6 @@ local function create_screen_ui()
     norns_ui.needs_playback_refresh = true
 
     norns_ui.draw_default = function(self)
-        screen.clear()
         self:_draw_standard_ui()
 
         local tooltip
@@ -406,8 +405,6 @@ local function create_screen_ui()
             screen.move(64 - width_tooltip/2, 46)
             screen.text(tooltip)
         end
-
-        screen.update()
     end
 
     return norns_ui

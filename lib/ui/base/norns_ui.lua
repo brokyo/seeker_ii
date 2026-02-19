@@ -172,7 +172,7 @@ end
 -- Drawing functions
 --------------------------------
 
--- Draw params and footer. Modals are drawn by screen_router on top of all sections.
+-- Draw parameter list and footer bar
 function NornsUI:_draw_standard_ui()
   if #self.params > 0 then
     self:draw_params(0)
@@ -325,10 +325,7 @@ function NornsUI:draw_params(start_y)
 end
 
 function NornsUI:draw_default()
-  local Modal = get_modal()
-  screen.clear()
   self:_draw_standard_ui()
-  screen.update()
 end
 
 function NornsUI:draw()

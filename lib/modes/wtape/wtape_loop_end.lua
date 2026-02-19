@@ -31,8 +31,6 @@ local function create_screen_ui()
             screen.move(64 - width/2, 46)
             screen.text(status_text)
         end
-
-        screen.update()
     end
 
     return screen_ui

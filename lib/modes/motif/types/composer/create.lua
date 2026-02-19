@@ -251,8 +251,6 @@ local function create_screen_ui()
 
     -- Override draw to add help text
     norns_ui.draw_default = function(self)
-        screen.clear()
-
         -- Check if showing description
         if self.state.showing_description then
             NornsUI.draw_default(self)
@@ -275,11 +273,6 @@ local function create_screen_ui()
 
         -- Draw parameters on top of help text
         self:_draw_standard_ui()
-
-        -- Draw footer
-        self:draw_footer()
-
-        screen.update()
     end
 
     return norns_ui
