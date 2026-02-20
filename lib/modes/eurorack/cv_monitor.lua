@@ -20,6 +20,55 @@ local arc_page = 1  -- index into ARC_PAGES for the selected output type
 local update_arc  -- forward declaration
 
 ---------------------------------------------------------------
+-- Short display names for footer labels (max ~5 chars)
+---------------------------------------------------------------
+local PARAM_SHORT_NAMES = {
+  -- Shared
+  Interval       = "Intvl",
+  Modifier       = "Mod",
+  Offset         = "Offst",
+  -- Crow config
+  Category       = "Cat",
+  Mode           = "Mode",
+  -- Gate types
+  Voltage        = "Volts",
+  ["Gate Length"] = "Gate",
+  Length          = "Len",
+  Hits           = "Hits",
+  Rotation       = "Rot",
+  -- Burst
+  ["Burst Count"]  = "Count",
+  ["Burst Shape"]  = "Shape",
+  ["Burst Window"] = "Wndw",
+  ["Burst Time"]   = "Time",
+  -- LFO
+  ["CV Shape"]   = "Shape",
+  ["CV Min"]     = "Min",
+  ["CV Max"]     = "Max",
+  -- Envelope
+  ["Envelope Mode"]  = "Mode",
+  ["Envelope Shape"] = "Shape",
+  ["Max Voltage"]    = "Volts",
+  Duration           = "Dur",
+  Attack             = "Atk",
+  Decay              = "Dec",
+  ["Sustain Level"]  = "Sus",
+  Release            = "Rel",
+  -- Knob Recorder
+  Sensitivity        = "Sens",
+  ["Loop Crossfade"] = "XFade",
+  -- Random
+  ["Crow Input"]     = "Input",
+  Quantize           = "Quant",
+  ["Min Value"]      = "Min",
+  ["Max Value"]      = "Max",
+  ["Step Size"]      = "Step",
+  Steps              = "Steps",
+  Loops              = "Loops",
+  -- TXO CV (already short: Type, Shape, Morph, Depth, Phase, Rect, Slew, Min, Max)
+}
+
+---------------------------------------------------------------
 -- Output resolution helpers
 ---------------------------------------------------------------
 
@@ -40,51 +89,64 @@ local function resolve_cv_output(selected)
              _seeker.eurorack.txo_cv_output.get_cv_states() or {}
   end
   local state = states[selected.num]
-  if not state or not state.active then return nil, nil end
+  if not state or not state.type then return nil, nil end
   return state, prefix
 end
 
 -- Arc page definitions per output type.
 -- Each page: { label, r1, r2, r3, r4 } where r1-r4 are optional param suffixes,
 -- prepended with the output prefix to form full param IDs.
--- Page 1 is always "timing" — the baseline you set when selecting an output.
--- Subsequent pages are grouped by performability.
+-- Page 1 is always "config" — output type and mode selectors.
+-- Subsequent pages are grouped by function: timing, then performable params.
 local ARC_PAGES = {
   crow = {
     CLK = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "clock_voltage", r2 = "clock_length" },
     },
     PAT = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "pattern_length", r2 = "pattern_hits", r3 = "gate_length", r4 = "pattern_voltage" },
     },
     EUC = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset", r4 = "euclidean_voltage" },
       { label = "perform", r1 = "euclidean_length", r2 = "euclidean_hits", r3 = "euclidean_rotation", r4 = "gate_length" },
     },
     BST = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "burst_count", r2 = "burst_shape", r3 = "burst_time", r4 = "burst_voltage" },
     },
     LFO = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "lfo_min", r2 = "lfo_max", r3 = "lfo_shape" },
     },
     ENV = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",   r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "envelope", r1 = "envelope_attack", r2 = "envelope_decay", r3 = "envelope_sustain", r4 = "envelope_release" },
       { label = "shape",    r1 = "envelope_mode", r2 = "envelope_shape", r3 = "envelope_voltage", r4 = "envelope_duration" },
     },
+    KR = {
+      { label = "config",  r1 = "category", r2 = "mode" },
+      { label = "perform", r1 = "knob_sensitivity", r2 = "knob_crossfade" },
+    },
     RW = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset", r4 = "random_walk_mode" },
       { label = "perform", r1 = "random_walk_min", r2 = "random_walk_max", r3 = "random_walk_slew", r4 = "random_walk_shape" },
     },
     CR = {
-      { label = "config",  r1 = "clocked_random_trigger" },
+      { label = "config",  r1 = "category", r2 = "mode", r3 = "clocked_random_trigger" },
+      { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "clocked_random_min", r2 = "clocked_random_max", r3 = "clocked_random_quantize", r4 = "clocked_random_shape" },
     },
     LR = {
+      { label = "config",  r1 = "category", r2 = "mode" },
       { label = "timing",    r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform",   r1 = "looped_random_min", r2 = "looped_random_max", r3 = "looped_random_quantize", r4 = "looped_random_shape" },
       { label = "structure", r1 = "looped_random_steps", r2 = "looped_random_loops" },
@@ -92,33 +154,40 @@ local ARC_PAGES = {
   },
   txo_tr = {
     CLK = {
+      { label = "config",  r1 = "type" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "clock_length" },
     },
     PAT = {
+      { label = "config",  r1 = "type" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "pattern_length", r2 = "pattern_hits", r3 = "gate_length" },
     },
     EUC = {
+      { label = "config",  r1 = "type" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "euclidean_length", r2 = "euclidean_hits", r3 = "euclidean_rotation", r4 = "gate_length" },
     },
     BST = {
+      { label = "config",  r1 = "type" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "burst_count", r2 = "burst_time", r3 = "burst_shape" },
     },
   },
   txo_cv = {
     LFO = {
+      { label = "config",  r1 = "type" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "depth", r2 = "offset", r3 = "shape", r4 = "rect" },
       { label = "detail",  r1 = "morph", r2 = "phase" },
     },
     RW = {
+      { label = "config",  r1 = "type" },
       { label = "timing",  r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "perform", r1 = "random_walk_min", r2 = "random_walk_max", r3 = "random_walk_slew", r4 = "random_walk_mode" },
     },
     ENV = {
+      { label = "config",  r1 = "type" },
       { label = "timing",   r1 = "clock_interval", r2 = "clock_modifier", r3 = "clock_offset" },
       { label = "envelope", r1 = "envelope_attack", r2 = "envelope_decay", r3 = "envelope_sustain", r4 = "envelope_release" },
       { label = "shape",    r1 = "envelope_mode", r2 = "envelope_voltage", r3 = "envelope_duration" },
@@ -234,7 +303,7 @@ local function draw_live()
   -- Header: selected output + type, arc page label, K2 hint
   local sel_state, _ = resolve_cv_output(cv_selected)
   local source_short = cv_selected.source == "crow" and "C"
-    or cv_selected.source == "txo_cv" and "T" or "TR"
+    or cv_selected.source == "txo_cv" and "CV" or "TR"
   local header = source_short .. cv_selected.num
   if sel_state then header = header .. " " .. sel_state.type end
 
@@ -269,24 +338,22 @@ local function draw_live()
   end
 
   local active_outputs = {}
-  for i = 1, 4 do
-    local state = crow_states[i]
-    if state and state.active then
-      table.insert(active_outputs, { label = "C" .. i, state = state, source = "crow", num = i })
+  local selected_included = false
+
+  local function collect(states, source, label_prefix)
+    for i = 1, 4 do
+      local state = states[i]
+      local is_selected = (source == cv_selected.source and i == cv_selected.num)
+      if state and (state.active or is_selected) then
+        table.insert(active_outputs, { label = label_prefix .. i, state = state, source = source, num = i })
+        if is_selected then selected_included = true end
+      end
     end
   end
-  for i = 1, 4 do
-    local state = txo_tr_states[i]
-    if state and state.active then
-      table.insert(active_outputs, { label = "TR" .. i, state = state, source = "txo_tr", num = i })
-    end
-  end
-  for i = 1, 4 do
-    local state = txo_cv_states[i]
-    if state and state.active then
-      table.insert(active_outputs, { label = "T" .. i, state = state, source = "txo_cv", num = i })
-    end
-  end
+
+  collect(crow_states, "crow", "C")
+  collect(txo_tr_states, "txo_tr", "TR")
+  collect(txo_cv_states, "txo_cv", "CV")
 
   if #active_outputs == 0 then
     screen.level(4)
@@ -307,9 +374,9 @@ local function draw_live()
       screen.rect(0, y_top, 128, bar_h)
       screen.fill()
 
-      local range = state.max - state.min
-      if range <= 0 then range = 1 end
-      if state.current then
+      if state.min and state.max and state.current then
+        local range = state.max - state.min
+        if range <= 0 then range = 1 end
         local normalized = util.clamp((state.current - state.min) / range, 0, 1)
         local marker_x = math.floor(normalized * 126)
         screen.level(15)
@@ -319,7 +386,7 @@ local function draw_live()
 
       screen.level(is_selected and 12 or 7)
       screen.move(2, y_top + bar_h - 1)
-      screen.text(entry.label .. " " .. state.type)
+      screen.text(entry.label .. " " .. (state.type or "---"))
 
       if show_value and state.current then
         screen.level(is_selected and 10 or 5)
@@ -342,14 +409,13 @@ local function draw_live()
       local cx = (i - 1) * col_w + col_w / 2
       if param_id and params.lookup[param_id] then
         local param_obj = params:lookup_param(param_id)
-        local short_name = param_obj.name or param_id
-        if #short_name > 7 then short_name = short_name:sub(1, 7) end
+        local short_name = PARAM_SHORT_NAMES[param_obj.name] or param_obj.name or param_id
         screen.level(5)
         screen.move(cx, 55)
         screen.text_center(short_name)
 
         local val_str = tostring(params:string(param_id))
-        if #val_str > 7 then val_str = val_str:sub(1, 7) end
+        if #val_str > 5 then val_str = val_str:sub(1, 5) end
         screen.level(12)
         screen.move(cx, 63)
         screen.text_center(val_str)
@@ -453,9 +519,15 @@ local function handle_arc_delta(n, delta)
       params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
     end
 
+    -- Changing output type/mode may alter page count; clamp to stay in bounds
+    local prefix = cv_selected.source .. "_" .. cv_selected.num .. "_"
+    if param_id == prefix .. "type" or param_id == prefix .. "mode" or param_id == prefix .. "category" then
+      arc_page = math.min(arc_page, get_page_count(cv_selected))
+    end
+
     arc_overlay = {
       name = param_obj.name or param_id,
-      value = params:string(param_id),
+      value = tostring(params:string(param_id)),
       time = util.time()
     }
     update_arc()
@@ -588,7 +660,7 @@ local function create_screen_ui()
 
       arc_overlay = {
         name = param_obj.name or param_id,
-        value = params:string(param_id),
+        value = tostring(params:string(param_id)),
         time = util.time()
       }
       update_arc()

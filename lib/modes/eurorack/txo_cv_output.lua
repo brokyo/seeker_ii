@@ -15,6 +15,9 @@ end
 local TxoCvOutput = {}
 TxoCvOutput.__index = TxoCvOutput
 
+-- Short codes for CV monitor display
+local TYPE_SHORT_CODES = { LFO = "LFO", ["Random Walk"] = "RW", Envelope = "ENV" }
+
 -- Type descriptions for dynamic help
 local TYPE_DESCRIPTIONS = {
   LFO = "Clock-synced LFO.\n\nMORPH blends between adjacent waveforms.\n\nRECT clips or folds the output voltage.",
@@ -757,10 +760,28 @@ local function create_params()
     end
 end
 
+-- Normalized waveform value (-1 to 1) for a given phase (0 to 1)
+local function waveform_value(phase, shape)
+    if shape == "Triangle" then
+        if phase < 0.25 then return phase * 4
+        elseif phase < 0.75 then return 2 - phase * 4
+        else return phase * 4 - 4 end
+    elseif shape == "Saw" then
+        return phase < 0.5 and phase * 2 or phase * 2 - 2
+    elseif shape == "Pulse" then
+        return phase < 0.5 and 1 or -1
+    elseif shape == "Noise" then
+        return 0
+    end
+    -- Sine (default)
+    return math.sin(2 * math.pi * phase)
+end
+
 -- Estimate current TXO LFO voltage from elapsed time since cycle start
 local function estimate_lfo_voltage(output_num)
     local depth = params:get("txo_cv_" .. output_num .. "_depth")
     local offset = params:get("txo_cv_" .. output_num .. "_offset")
+    local shape = params:string("txo_cv_" .. output_num .. "_shape")
     local clock_interval = params:string("txo_cv_" .. output_num .. "_clock_interval")
     local clock_modifier = params:string("txo_cv_" .. output_num .. "_clock_modifier")
 
@@ -772,8 +793,7 @@ local function estimate_lfo_voltage(output_num)
 
     local elapsed = util.time() - cv_cycle_starts[output_num]
     local phase = (elapsed % period) / period
-    -- Sine approximation of TXO oscillator cycle
-    return offset + depth * math.sin(2 * math.pi * phase)
+    return offset + depth * waveform_value(phase, shape)
 end
 
 -- Estimate current TXO envelope voltage from elapsed time and ADSR params
@@ -834,46 +854,47 @@ local function estimate_envelope_voltage(output_num)
     end
 end
 
--- Returns state table for each TXO CV output (1-4) for the CV monitor
+-- Returns state table for each TXO CV output (1-4) for the CV monitor.
+-- Always returns { active, type, current, min, max } so the UI can display
+-- inactive outputs when selected.
 function TxoCvOutput.get_cv_states()
     local states = {}
     for i = 1, 4 do
+        local cv_type = params:string("txo_cv_" .. i .. "_type")
+        local short = TYPE_SHORT_CODES[cv_type] or cv_type
         local clock_interval = params:string("txo_cv_" .. i .. "_clock_interval")
-        if clock_interval == "Off" then
-            states[i] = { active = false }
-        else
-            local cv_type = params:string("txo_cv_" .. i .. "_type")
-            if cv_type == "Random Walk" then
-                local state_key = "txo_cv_" .. i
-                local min_v = params:get("txo_cv_" .. i .. "_random_walk_min")
-                local max_v = params:get("txo_cv_" .. i .. "_random_walk_max")
-                states[i] = {
-                    active = true,
-                    type = "RW",
-                    current = random_walk_states[state_key].current_value,
-                    min = min_v,
-                    max = max_v
-                }
-            elseif cv_type == "LFO" then
-                local depth = params:get("txo_cv_" .. i .. "_depth")
-                local offset = params:get("txo_cv_" .. i .. "_offset")
-                states[i] = {
-                    active = true,
-                    type = "LFO",
-                    current = estimate_lfo_voltage(i),
-                    min = offset - depth,
-                    max = offset + depth
-                }
-            elseif cv_type == "Envelope" then
-                local max_voltage = params:get("txo_cv_" .. i .. "_envelope_voltage")
-                states[i] = {
-                    active = true,
-                    type = "ENV",
-                    current = estimate_envelope_voltage(i),
-                    min = 0,
-                    max = max_voltage
-                }
-            end
+        local is_active = clock_interval ~= "Off"
+
+        if cv_type == "Random Walk" then
+            local state_key = "txo_cv_" .. i
+            local min_v = params:get("txo_cv_" .. i .. "_random_walk_min")
+            local max_v = params:get("txo_cv_" .. i .. "_random_walk_max")
+            states[i] = {
+                active = is_active,
+                type = short,
+                current = is_active and random_walk_states[state_key].current_value or 0,
+                min = min_v,
+                max = max_v
+            }
+        elseif cv_type == "LFO" then
+            local depth = params:get("txo_cv_" .. i .. "_depth")
+            local offset = params:get("txo_cv_" .. i .. "_offset")
+            states[i] = {
+                active = is_active,
+                type = short,
+                current = is_active and estimate_lfo_voltage(i) or 0,
+                min = offset - depth,
+                max = offset + depth
+            }
+        elseif cv_type == "Envelope" then
+            local max_voltage = params:get("txo_cv_" .. i .. "_envelope_voltage")
+            states[i] = {
+                active = is_active,
+                type = short,
+                current = is_active and estimate_envelope_voltage(i) or 0,
+                min = 0,
+                max = max_voltage
+            }
         end
     end
     return states
