@@ -91,7 +91,7 @@ local FLAVOR_RECIPES = {
 local STAGE_BRIGHTNESS = {3, 4, 6, 7, 9, 10, 12, 13}
 
 ---------------------------------------------------------------
--- Cycling view state (module-local, previously on ScreenSaver)
+-- Module-level state for the live view (edit stage, arc mode, overlay display)
 ---------------------------------------------------------------
 local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
 local control_mode = "chord"  -- "chord" = per-stage, "progression" = global
@@ -483,7 +483,7 @@ local function draw_live(norns_ui)
 
   -- Vertical pitch area with margins for labels
   local Y_TOP = 14
-  local Y_BOTTOM = 54
+  local Y_BOTTOM = 45
   local MIN_RANGE = 24
   local raw_range = global_max - global_min + 4
   local padding = math.max(2, math.floor((MIN_RANGE - raw_range) / 2))
@@ -543,69 +543,91 @@ local function draw_live(norns_ui)
     end
   end
 
+  -- Header: lane indicator, K2 hint
+  screen.level(6)
+  screen.move(2, 6)
+  screen.text("L" .. lane_id)
+
+  screen.level(3)
+  screen.move(126, 6)
+  screen.text_right("K2")
+
   -- Degree labels above each column
   for i = 1, num_stages do
     local is_playing = (i == current_stage)
     local is_editing = (edit_stage and i == edit_stage)
     screen.level(is_playing and 12 or (is_editing and 10 or 4))
-    screen.move(col_x[i], 7)
+    screen.move(col_x[i], 12)
     screen.text_center(DEGREE_NAMES[degrees[i]])
     if is_editing then
       screen.level(8)
-      screen.move(col_x[i] - 4, 9)
-      screen.line(col_x[i] + 4, 9)
+      screen.move(col_x[i] - 4, 13)
+      screen.line(col_x[i] + 4, 13)
       screen.stroke()
     end
   end
 
-  -- Lane indicator
-  screen.level(6)
-  screen.move(2, 7)
-  screen.text("L" .. lane_id)
+  -- Footer: 4-column layout with labels and values
+  screen.level(0)
+  screen.rect(0, 46, 128, 18)
+  screen.fill()
 
-  -- Bottom: arc param overlay or current values per ring
   local overlay_dur = arc_overlay and arc_overlay.duration or 1.2
   if arc_overlay and (util.time() - arc_overlay.time) < overlay_dur then
     local fade = math.max(0, 1 - (util.time() - arc_overlay.time) / overlay_dur)
     screen.level(math.floor(15 * fade))
-    screen.move(64, 62)
+    screen.move(64, 59)
     screen.text_center(arc_overlay.name .. ": " .. arc_overlay.value)
   else
-    local es = edit_stage or (lane and lane.current_stage_index) or 1
+    local display_stage = edit_stage or (lane and lane.current_stage_index) or 1
+    local cols = {16, 48, 80, 112}
 
     if control_mode == "chord" then
       local rotation_overrides = lane and lane.cycling_rotation_overrides or {}
       local voicing_overrides = lane and lane.cycling_voicing_overrides or {}
-      local strum_overrides = lane and lane.cycling_strum_overrides or {}
 
       local rot_idx = params:get("rc_cycling_rotation")
-      if rotation_overrides[es] then
-        rot_idx = ROTATION_INDEX[rotation_overrides[es]] or rot_idx
+      if rotation_overrides[display_stage] then
+        rot_idx = ROTATION_INDEX[rotation_overrides[display_stage]] or rot_idx
       end
-      local rot_val = rot_idx - 6
 
-      local deg_val = DEGREE_NAMES[degrees[es] or 1]
-      local voice_val = voicing_overrides[es] or params:string("rc_cycling_voicing")
-      local strum_val = strum_overrides[es] or params:string("rc_cycling_strum_order")
+      local values = {
+        tostring(rot_idx - 6),
+        DEGREE_NAMES[degrees[display_stage] or 1],
+        voicing_overrides[display_stage] or params:string("rc_cycling_voicing"),
+        strum_overrides[display_stage] or params:string("rc_cycling_strum_order"),
+      }
+      local labels = {"Rot", "Deg", "Voice", "Strum"}
 
-      screen.level(6)
-      screen.move(2, 62)
-      screen.text(tostring(rot_val))
-      screen.move(40, 62)
-      screen.text(deg_val)
-      screen.move(74, 62)
-      screen.text(voice_val)
-      screen.move(126, 62)
-      screen.text_right(strum_val)
+      screen.level(5)
+      for i = 1, 4 do
+        screen.move(cols[i], 55)
+        screen.text_center(labels[i])
+      end
+      screen.level(12)
+      for i = 1, 4 do
+        screen.move(cols[i], 63)
+        screen.text_center(values[i])
+      end
     else
-      local len_val = params:get("rc_cycling_chord_len") + 1
-      screen.level(6)
-      screen.move(2, 62)
-      screen.text(params:string("rc_cycling_beats"))
-      screen.move(48, 62)
-      screen.text(params:string("rc_cycling_spread"))
-      screen.move(126, 62)
-      screen.text_right(tostring(len_val))
+      local values = {
+        params:string("rc_cycling_beats"),
+        params:string("rc_cycling_spread"),
+        "-",
+        tostring(params:get("rc_cycling_chord_len") + 1),
+      }
+      local labels = {"Beat", "Sprd", "-", "Len"}
+
+      screen.level(5)
+      for i = 1, 4 do
+        screen.move(cols[i], 55)
+        screen.text_center(labels[i])
+      end
+      screen.level(12)
+      for i = 1, 4 do
+        screen.move(cols[i], 63)
+        screen.text_center(values[i])
+      end
     end
   end
 end
@@ -621,11 +643,8 @@ local function create_screen_ui()
     params = {}
   })
 
-  -- Opt-in to 30fps redraws during playback
   norns_ui.needs_playback_refresh = true
-
-  -- Live view is the default display mode
-  norns_ui.state.live_view = true
+  norns_ui.live_view_enabled = true
 
   norns_ui.rebuild_params = function(self)
     self.params = {
@@ -647,99 +666,33 @@ local function create_screen_ui()
     }
   end
 
-  -- Draw: dispatch to live view or param view
-  norns_ui.draw = function(self)
-    if self.state.live_view then
-      draw_live(self)
-    else
-      self:_draw_standard_ui()
-    end
-  end
+  norns_ui.draw_live = function(self) draw_live(self) end
+  norns_ui.update_arc = function(self) update_arc() end
+  norns_ui.handle_arc_delta = function(self, n, delta) handle_arc_delta(n, delta) end
+  norns_ui.handle_arc_key = function(self, n, z) handle_arc_key(n, z) end
 
-  -- K2: toggle live/param view. K3: mode-dependent per-stage cycling.
-  norns_ui.handle_key = function(self, n, z)
-    if n == 2 then
-      if z == 1 then
-        self.state.live_view = not self.state.live_view
-        -- When switching to param view, hand arc back to NornsUI param control
-        if not self.state.live_view then
-          if _seeker.arc then
-            _seeker.arc.clear_display()
-            _seeker.arc.new_section(self.params)
-            _seeker.arc.sync_display()
-          end
-        else
-          -- Switching back to live view: take arc for cycling display
-          if _seeker.arc then
-            _seeker.arc.set_display(function() update_arc() end)
-          end
-        end
-        _seeker.screen_ui.set_needs_redraw()
-      end
-      return
-    end
-
+  -- K3 in live view: cycles strum order for current edit stage (progression mode only)
+  norns_ui.handle_live_key = function(self, n, z)
     if n == 3 and z == 1 then
-      if self.state.live_view then
-        -- Live view K3: mode-dependent
-        local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-        local stage_idx = edit_stage or lane.current_stage_index or 1
+      local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+      local stage_idx = edit_stage or lane.current_stage_index or 1
 
-        if control_mode ~= "chord" then
-          -- Progression mode: cycle strum order (wrap)
-          local new_val = Cycling.cycle_stage_strum(stage_idx)
-          arc_overlay = {
-            name = "S" .. stage_idx .. " Strum",
-            value = new_val,
-            time = util.time()
-          }
-        end
-
-        update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-        return
+      if control_mode ~= "chord" then
+        local new_val = Cycling.cycle_stage_strum(stage_idx)
+        arc_overlay = {
+          name = "S" .. stage_idx .. " Strum",
+          value = new_val,
+          time = util.time()
+        }
       end
-    end
 
-    -- In param view: default NornsUI key handling
-    if not self.state.live_view then
-      NornsUI.handle_key(self, n, z)
+      update_arc()
+      _seeker.screen_ui.set_needs_redraw()
     end
   end
 
-  -- Encoders: in live view, silently consume. In param view, default behavior.
-  norns_ui.handle_enc = function(self, n, d)
-    if self.state.live_view then
-      return  -- Encoders silently consumed in live view
-    end
-    self:handle_enc_default(n, d)
-  end
-
-  -- Lifecycle: enter sets up arc override and rebuilds
-  local original_enter = norns_ui.enter
-  norns_ui.enter = function(self)
-    self:rebuild_params()
-    original_enter(self)
-
-    -- Ensure stage motifs exist (first entry after reload, or lane switch)
+  norns_ui.on_enter = function(self)
     rebuild()
-
-    -- Default to live view on enter
-    self.state.live_view = true
-
-    -- Take over arc display for cycling
-    if _seeker.arc then
-      _seeker.arc.set_display(function() update_arc() end)
-    end
-  end
-
-  local original_exit = norns_ui.exit
-  norns_ui.exit = function(self)
-    -- Release arc display override
-    if _seeker.arc then
-      _seeker.arc.clear_display()
-    end
-    original_exit(self)
   end
 
   return norns_ui
@@ -1129,11 +1082,6 @@ end
 function Cycling.rebuild()
   rebuild()
 end
-
--- Arc handlers exposed for screensaver/state routing during transition
-Cycling.handle_arc_delta = handle_arc_delta
-Cycling.handle_arc_key = handle_arc_key
-Cycling.update_arc = update_arc
 
 -- Expose param registry for RC save/restore
 Cycling.CYCLING_PARAMS = CYCLING_PARAMS

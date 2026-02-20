@@ -396,33 +396,41 @@ local function draw_live()
     end
   end
 
-  -- Footer: 4-column arc ring map with param names and current values
+  -- Footer: arc overlay or 4-column param map
   if mapping then
     screen.level(0)
     screen.rect(0, 46, 128, 18)
     screen.fill()
 
-    local col_w = 32
-    local rings = {mapping.r1, mapping.r2, mapping.r3, mapping.r4}
-    for i = 1, 4 do
-      local param_id = rings[i]
-      local cx = (i - 1) * col_w + col_w / 2
-      if param_id and params.lookup[param_id] then
-        local param_obj = params:lookup_param(param_id)
-        local short_name = PARAM_SHORT_NAMES[param_obj.name] or param_obj.name or param_id
-        screen.level(5)
-        screen.move(cx, 55)
-        screen.text_center(short_name)
+    local overlay_dur = arc_overlay and arc_overlay.duration or 1.2
+    if arc_overlay and (util.time() - arc_overlay.time) < overlay_dur then
+      local fade = math.max(0, 1 - (util.time() - arc_overlay.time) / overlay_dur)
+      screen.level(math.floor(15 * fade))
+      screen.move(64, 59)
+      screen.text_center(arc_overlay.name .. ": " .. arc_overlay.value)
+    else
+      local col_w = 32
+      local rings = {mapping.r1, mapping.r2, mapping.r3, mapping.r4}
+      for i = 1, 4 do
+        local param_id = rings[i]
+        local cx = (i - 1) * col_w + col_w / 2
+        if param_id and params.lookup[param_id] then
+          local param_obj = params:lookup_param(param_id)
+          local short_name = PARAM_SHORT_NAMES[param_obj.name] or param_obj.name or param_id
+          screen.level(5)
+          screen.move(cx, 55)
+          screen.text_center(short_name)
 
-        local val_str = tostring(params:string(param_id))
-        if #val_str > 5 then val_str = val_str:sub(1, 5) end
-        screen.level(12)
-        screen.move(cx, 63)
-        screen.text_center(val_str)
-      else
-        screen.level(2)
-        screen.move(cx, 55)
-        screen.text_center("-")
+          local val_str = tostring(params:string(param_id))
+          if #val_str > 5 then val_str = val_str:sub(1, 5) end
+          screen.level(12)
+          screen.move(cx, 63)
+          screen.text_center(val_str)
+        else
+          screen.level(2)
+          screen.move(cx, 55)
+          screen.text_center("-")
+        end
       end
     end
   end
@@ -490,12 +498,7 @@ local function handle_arc_delta(n, delta)
   local mapping = resolve_arc_params(cv_selected, arc_page)
   if not mapping then return end
 
-  local param_id
-  if n == 1 then param_id = mapping.r1
-  elseif n == 2 then param_id = mapping.r2
-  elseif n == 3 then param_id = mapping.r3
-  elseif n == 4 then param_id = mapping.r4
-  end
+  local param_id = ({mapping.r1, mapping.r2, mapping.r3, mapping.r4})[n]
   if not param_id or not params.lookup[param_id] then return end
 
   local param_obj = params:lookup_param(param_id)
@@ -506,18 +509,7 @@ local function handle_arc_delta(n, delta)
   if arc_accum[n] >= threshold then
     arc_accum[n] = 0
     local direction = delta > 0 and 1 or -1
-    local current = params:get(param_id)
-
-    if is_option then
-      params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
-    elseif param_obj.controlspec then
-      local step = math.max(param_obj.controlspec.step, 0.1)
-      local new_val = current + direction * step
-      new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
-      params:set(param_id, new_val)
-    elseif param_obj.min and param_obj.max then
-      params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
-    end
+    _seeker.arc.step_param(param_id, direction)
 
     -- Changing output type/mode may alter page count; clamp to stay in bounds
     local prefix = cv_selected.source .. "_" .. cv_selected.num .. "_"
@@ -541,11 +533,6 @@ local function handle_arc_key(n, z)
   update_arc()
 end
 
--- Expose for arc controller and screensaver routing
-CvMonitor.handle_arc_delta = handle_arc_delta
-CvMonitor.handle_arc_key = handle_arc_key
-CvMonitor.update_arc = update_arc
-
 ---------------------------------------------------------------
 -- NornsUI: dual-mode screen
 ---------------------------------------------------------------
@@ -557,11 +544,8 @@ local function create_screen_ui()
     params = {}
   })
 
-  -- Opt-in to 30fps redraws (voltage meters need continuous refresh)
   norns_ui.needs_playback_refresh = true
-
-  -- Live view is the default
-  norns_ui.state.live_view = true
+  norns_ui.live_view_enabled = true
 
   -- Rebuild param list by delegating to the selected output's component screen
   norns_ui.rebuild_params = function(self)
@@ -592,101 +576,11 @@ local function create_screen_ui()
     end
   end
 
-  norns_ui.draw = function(self)
-    screen.clear()
-    if self.state.live_view then
-      draw_live()
-    else
-      self:_draw_standard_ui()
-    end
-    screen.update()
-  end
-
-  norns_ui.handle_key = function(self, n, z)
-    if n == 2 then
-      if z == 1 then
-        self.state.live_view = not self.state.live_view
-        if not self.state.live_view then
-          self:rebuild_params()
-          if _seeker.arc then
-            _seeker.arc.clear_display()
-            _seeker.arc.new_section(self.params)
-            _seeker.arc.sync_display()
-          end
-        else
-          if _seeker.arc then
-            _seeker.arc.set_display(function() update_arc() end)
-          end
-        end
-        _seeker.screen_ui.set_needs_redraw()
-      end
-      return
-    end
-
-    -- K3 and other keys only route to NornsUI in param view
-    if not self.state.live_view then
-      NornsUI.handle_key(self, n, z)
-    end
-  end
-
-  norns_ui.handle_enc = function(self, n, d)
-    if self.state.live_view then
-      -- Encoders E1-E3 map to arc rings 1-3 of current page
-      local mapping = resolve_arc_params(cv_selected, arc_page)
-      if not mapping then return end
-
-      local param_id
-      if n == 1 then param_id = mapping.r1
-      elseif n == 2 then param_id = mapping.r2
-      elseif n == 3 then param_id = mapping.r3
-      end
-      if not param_id or not params.lookup[param_id] then return end
-
-      local param_obj = params:lookup_param(param_id)
-      local current = params:get(param_id)
-      local direction = d > 0 and 1 or -1
-
-      if param_obj.behavior == "toggle" then
-        params:set(param_id, current == 0 and 1 or 0)
-      elseif param_obj.t == params.tOPTION then
-        params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
-      elseif param_obj.controlspec then
-        local step = math.max(param_obj.controlspec.step, 0.1)
-        params:set(param_id, util.clamp(current + direction * step,
-          param_obj.controlspec.minval, param_obj.controlspec.maxval))
-      elseif param_obj.min and param_obj.max then
-        params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
-      end
-
-      arc_overlay = {
-        name = param_obj.name or param_id,
-        value = tostring(params:string(param_id)),
-        time = util.time()
-      }
-      update_arc()
-      return
-    end
-    self:handle_enc_default(n, d)
-  end
-
-  local original_enter = norns_ui.enter
-  norns_ui.enter = function(self)
-    auto_select()
-    self:rebuild_params()
-    original_enter(self)
-    self.state.live_view = true
-    if _seeker.arc then
-      _seeker.arc.set_display(function() update_arc() end)
-    end
-  end
-
-  local original_exit = norns_ui.exit
-  norns_ui.exit = function(self)
-    if _seeker.arc then
-      _seeker.arc.clear_display()
-    end
-    original_exit(self)
-  end
+  norns_ui.draw_live = function(self) draw_live() end
+  norns_ui.update_arc = function(self) update_arc() end
+  norns_ui.handle_arc_delta = function(self, n, delta) handle_arc_delta(n, delta) end
+  norns_ui.handle_arc_key = function(self, n, z) handle_arc_key(n, z) end
+  norns_ui.on_enter = function(self) auto_select() end
 
   return norns_ui
 end

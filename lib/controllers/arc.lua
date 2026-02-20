@@ -46,7 +46,23 @@ local function setup_device(device)
     end
   end
 
-  -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
+  -- Step a norns param by direction, handling option/control/number types
+  device.step_param = function(param_id, direction, delta_override)
+    local param_obj = params:lookup_param(param_id)
+    local current = params:get(param_id)
+    if param_obj.t == params.tOPTION then
+      params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
+    elseif param_obj.controlspec then
+      local step = delta_override or math.max(param_obj.controlspec.step, 0.1)
+      params:set(param_id, util.clamp(current + direction * step,
+        param_obj.controlspec.minval, param_obj.controlspec.maxval))
+    elseif param_obj.min and param_obj.max then
+      params:set(param_id, util.clamp(current + direction * (delta_override or 1),
+        param_obj.min, param_obj.max))
+    end
+  end
+
+  -- Called when a new section is entered; initializes LED display for that section's params
     device.new_section = function(params)
       -- Use custom display if a component has registered one
       if device.display_override then
@@ -128,7 +144,8 @@ local function setup_device(device)
         params:set(param.id, new_value)
     end
 
-    -- Arc delta handler with accumulator-based gating (threshold 40 for value rings, 32 for list ring)
+    -- Arc encoder handler. Live-view sections receive delta directly via handle_arc_delta.
+    -- Standard sections use an accumulator gate (threshold 32 for ring 1, 40 for rings 2-4).
     device.delta = function(n, delta)
       -- Block Arc input during fileselect - show hint overlay
       if _seeker.sampler and _seeker.sampler.file_select_active then
@@ -147,21 +164,11 @@ local function setup_device(device)
       -- Register activity to reset idle timer
       _seeker.ui_state.register_activity()
 
-      -- Cycling live view: route arc to cycling component
+      -- Live view sections handle their own arc delta
       local current_section = _seeker.ui_state.get_current_section()
       local section = _seeker.screen_ui and _seeker.screen_ui.sections[current_section]
-      if current_section == "COMPOSER_CYCLING" and section and section.state.live_view then
-        if _seeker.composer and _seeker.composer.cycling then
-          _seeker.composer.cycling.handle_arc_delta(n, delta)
-        end
-        return
-      end
-
-      -- CV monitor live view: route arc to cv component (ring-to-param mapping)
-      if current_section == "EURORACK_CONFIG" and section and section.state.live_view then
-        if _seeker.eurorack and _seeker.eurorack.cv_monitor then
-          _seeker.eurorack.cv_monitor.handle_arc_delta(n, delta)
-        end
+      if section and section.state.live_view and section.handle_arc_delta then
+        section:handle_arc_delta(n, delta)
         return
       end
 
@@ -296,21 +303,11 @@ local function setup_device(device)
     device.key = function(n, d)
       _seeker.ui_state.register_activity()
 
-      -- Cycling live view: arc button steps through edit stages
+      -- Live view sections handle their own arc button
       local current_section = _seeker.ui_state.get_current_section()
       local section = _seeker.screen_ui and _seeker.screen_ui.sections[current_section]
-      if current_section == "COMPOSER_CYCLING" and section and section.state.live_view then
-        if _seeker.composer and _seeker.composer.cycling then
-          _seeker.composer.cycling.handle_arc_key(n, d)
-        end
-        return
-      end
-
-      -- CV monitor live view: arc button cycles output type
-      if current_section == "EURORACK_CONFIG" and section and section.state.live_view then
-        if _seeker.eurorack and _seeker.eurorack.cv_monitor then
-          _seeker.eurorack.cv_monitor.handle_arc_key(n, d)
-        end
+      if section and section.state.live_view and section.handle_arc_key then
+        section:handle_arc_key(n, d)
         return
       end
 

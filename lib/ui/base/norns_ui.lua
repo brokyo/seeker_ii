@@ -24,7 +24,8 @@ function NornsUI.new(config)
     selected_index = 1,
     scroll_offset = 0,
     is_active = false,
-    showing_description = false
+    showing_description = false,
+    live_view = false,
   }
   
   norns_ui.long_press_threshold = config.long_press_threshold or 0.5  -- Time in seconds to trigger long press
@@ -73,6 +74,28 @@ function NornsUI:get_press_duration(key_id)
     return util.time() - press.start_time
   end
   return 0
+end
+
+--------------------------------
+-- Live view protocol
+--------------------------------
+
+-- Toggle between live view (custom arc/screen) and param view (standard NornsUI).
+-- Sections opt in by setting self.live_view_enabled = true.
+function NornsUI:toggle_live_view()
+  self.state.live_view = not self.state.live_view
+  if not self.state.live_view then
+    if _seeker.arc then
+      _seeker.arc.clear_display()
+      _seeker.arc.new_section(self.params)
+      _seeker.arc.sync_display()
+    end
+  else
+    if _seeker.arc and self.update_arc then
+      _seeker.arc.set_display(function() self:update_arc() end)
+    end
+  end
+  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
 end
 
 --------------------------------
@@ -329,7 +352,11 @@ function NornsUI:draw_default()
 end
 
 function NornsUI:draw()
-  self:draw_default()
+  if self.state.live_view and self.draw_live then
+    self:draw_live()
+  else
+    self:draw_default()
+  end
 end
 
 --------------------------------
@@ -430,6 +457,8 @@ function NornsUI:handle_enc_default(n, d)
 end
 
 function NornsUI:handle_enc(n, d)
+  -- Live view sections consume encoder input via arc/custom handlers instead
+  if self.live_view_enabled and self.state.live_view then return end
   self:handle_enc_default(n, d)
 end
 
@@ -438,6 +467,18 @@ function NornsUI:handle_key(n, z)
 
   -- Modal handles input first when active
   if Modal and Modal.handle_key(n, z) then
+    return
+  end
+
+  -- Live view K2 toggle
+  if self.live_view_enabled and n == 2 then
+    if z == 1 then self:toggle_live_view() end
+    return
+  end
+
+  -- Live view: route remaining keys to handle_live_key, swallow unhandled
+  if self.live_view_enabled and self.state.live_view then
+    if self.handle_live_key then self:handle_live_key(n, z) end
     return
   end
 
@@ -488,24 +529,31 @@ function NornsUI:enter()
   -- Called when section becomes active
   self.state.is_active = true
 
-  -- Filter params and set initial selection
+  if self.rebuild_params then self:rebuild_params() end
   self:filter_active_params()
   self.state.selected_index = self:find_first_selectable()
+  if self.on_enter then self:on_enter() end
 
-  -- Initialize Arc with current parameter list and refresh display
-  if _seeker.arc then
-    _seeker.arc.new_section(self.params)
-    _seeker.arc.sync_display()
+  if self.live_view_enabled then
+    self.state.live_view = true
+    if _seeker.arc and self.update_arc then
+      _seeker.arc.set_display(function() self:update_arc() end)
+    end
+  else
+    if _seeker.arc then
+      _seeker.arc.new_section(self.params)
+      _seeker.arc.sync_display()
+    end
   end
 
   self:update()
 end
 
 function NornsUI:exit()
-  -- Called when leaving this section
   self.state.is_active = false
-
-  -- Reset to first selectable item
+  if self.live_view_enabled and _seeker.arc then
+    _seeker.arc.clear_display()
+  end
   self.state.selected_index = 1
   self.state.scroll_offset = 0
 end
