@@ -357,6 +357,25 @@ local function strum_timing(n, order)
   return timing
 end
 
+-- Tone velocity scale: per-note multiplier (0.6-1.0) based on strum position within chord.
+-- "Accent Root" is pitch-based (lowest note gets full velocity), rest are strum-order-based.
+local function tone_velocity_multiplier(strum_position, total, curve, note, chord_notes)
+  if not curve or curve == "Flat" or total <= 1 then return 1.0 end
+  local t = strum_position / (total - 1)
+  if curve == "Strum" then return 1.0 - 0.4 * t
+  elseif curve == "Swell" then return 0.6 + 0.4 * t
+  elseif curve == "Pluck" then return strum_position == 0 and 1.0 or 0.7
+  elseif curve == "Accent Root" then
+    local min_note = chord_notes[1]
+    for _, cn in ipairs(chord_notes) do
+      if cn < min_note then min_note = cn end
+    end
+    return (note == min_note) and 1.0 or 0.7
+  elseif curve == "Random" then return 0.6 + math.random() * 0.4
+  end
+  return 1.0
+end
+
 -- Build events from a chord progression sequence without storing to lane motif.
 -- Each chord placed sequentially. Returns {events, duration} table or nil on error.
 local function build_phrase_events(lane_id, opts)
@@ -413,11 +432,18 @@ local function build_phrase_events(lane_id, opts)
       local note = cn + ((octave + 1) * 12)
       local strum_offset = timing[j] * strum
 
+      -- Apply tone velocity curve (per-note shaping within chord)
+      local note_vel = chord_vel
+      if chord_def.vel_tone and chord_def.vel_tone ~= "Flat" then
+        local scale = tone_velocity_multiplier(timing[j], #chord_notes, chord_def.vel_tone, cn, chord_notes)
+        note_vel = util.clamp(math.floor(chord_vel * scale), 1, 127)
+      end
+
       table.insert(events, {
         time = time + strum_offset,
         type = "note_on",
         note = note,
-        velocity = chord_vel,
+        velocity = note_vel,
         x = 0, y = 0,
         is_playback = true,
         attack = att,

@@ -28,6 +28,10 @@ local ROTATION_NAMES = {
 }
 local VOICING_NAMES = {"Close", "Open", "Drop 2", "Drop 3", "Spread"}
 local STRUM_ORDER_NAMES = {"Up", "Down", "Out>In", "In>Out", "Random"}
+local GATE_NAMES = {"Staccato", "Normal", "Legato", "Drone"}
+local GATE_VALUES = {0.3, 0.6, 0.85, 1.0}
+local VEL_STAGE_NAMES = {"Flat", "Crescendo", "Decrescendo", "Arch", "Scoop", "Random"}
+local VEL_TONE_NAMES = {"Flat", "Strum", "Swell", "Pluck", "Accent Root", "Random"}
 
 -- Name-to-index lookup tables (avoid linear search in hot paths)
 local VOICING_INDEX = {}
@@ -38,6 +42,12 @@ local ROTATION_INDEX = {}
 for i, name in ipairs(ROTATION_NAMES) do ROTATION_INDEX[name] = i end
 local CHORD_LEN_INDEX = {}
 for i, name in ipairs(CHORD_LEN_NAMES) do CHORD_LEN_INDEX[name] = i end
+local GATE_INDEX = {}
+for i, name in ipairs(GATE_NAMES) do GATE_INDEX[name] = i end
+local VEL_STAGE_INDEX = {}
+for i, name in ipairs(VEL_STAGE_NAMES) do VEL_STAGE_INDEX[name] = i end
+local VEL_TONE_INDEX = {}
+for i, name in ipairs(VEL_TONE_NAMES) do VEL_TONE_INDEX[name] = i end
 
 -- Export name arrays and index lookups for other modules
 Composer.DEGREE_NAMES = DEGREE_NAMES
@@ -49,6 +59,13 @@ Composer.VOICING_INDEX = VOICING_INDEX
 Composer.STRUM_INDEX = STRUM_INDEX
 Composer.ROTATION_INDEX = ROTATION_INDEX
 Composer.CHORD_LEN_INDEX = CHORD_LEN_INDEX
+Composer.GATE_NAMES = GATE_NAMES
+Composer.GATE_VALUES = GATE_VALUES
+Composer.GATE_INDEX = GATE_INDEX
+Composer.VEL_STAGE_NAMES = VEL_STAGE_NAMES
+Composer.VEL_TONE_NAMES = VEL_TONE_NAMES
+Composer.VEL_STAGE_INDEX = VEL_STAGE_INDEX
+Composer.VEL_TONE_INDEX = VEL_TONE_INDEX
 
 -- Option index to actual value conversions
 local function movement_value(idx) return idx - 7 end   -- index 7 = Pedal (0)
@@ -58,6 +75,22 @@ local function chord_len_value(idx) return idx + 1 end   -- index 1 = Dyad (2)
 Composer.movement_value = movement_value
 Composer.rotation_value = rotation_value
 Composer.chord_len_value = chord_len_value
+
+-- Stage velocity: shaped dynamics across progression stages
+function Composer.calculate_stage_velocity(stage_index, num_stages, curve, vel_min, vel_max)
+  if num_stages <= 1 then return math.floor((vel_min + vel_max) / 2) end
+  local t = (stage_index - 1) / (num_stages - 1)
+  local vel
+  if curve == "Flat" then vel = (vel_min + vel_max) / 2
+  elseif curve == "Crescendo" then vel = vel_min + (vel_max - vel_min) * t
+  elseif curve == "Decrescendo" then vel = vel_max - (vel_max - vel_min) * t
+  elseif curve == "Arch" then vel = vel_min + (vel_max - vel_min) * math.sin(math.pi * t)
+  elseif curve == "Scoop" then vel = vel_max - (vel_max - vel_min) * math.sin(math.pi * t)
+  elseif curve == "Random" then vel = vel_min + math.random() * (vel_max - vel_min)
+  else vel = (vel_min + vel_max) / 2
+  end
+  return util.clamp(math.floor(vel), vel_min, vel_max)
+end
 
 -- Param definitions for per-lane save/load
 local COMPOSER_PARAMS = {
@@ -71,6 +104,11 @@ local COMPOSER_PARAMS = {
   {id = "rc_composer_stages", default = 1},
   {id = "rc_composer_loops", default = 2},
   {id = "rc_composer_beats", default = 4},
+  {id = "rc_composer_vel_min", default = 70},
+  {id = "rc_composer_vel_max", default = 110},
+  {id = "rc_composer_vel_stage", default = 1},
+  {id = "rc_composer_vel_tone", default = 1},
+  {id = "rc_composer_gate", default = 2},
 }
 
 Composer.COMPOSER_PARAMS = COMPOSER_PARAMS
@@ -123,6 +161,10 @@ function Composer.rebuild()
   local num_stages = params:get("rc_composer_stages")
   local loops = params:get("rc_composer_loops")
   local beats = params:get("rc_composer_beats")
+  local vel_min = params:get("rc_composer_vel_min")
+  local vel_max = params:get("rc_composer_vel_max")
+  local vel_stage_curve = VEL_STAGE_NAMES[params:get("rc_composer_vel_stage")]
+  local vel_tone = VEL_TONE_NAMES[params:get("rc_composer_vel_tone")]
 
   local lane_id = _seeker.ui_state.get_focused_lane()
   local lane = _seeker.lanes[lane_id]
@@ -139,14 +181,14 @@ function Composer.rebuild()
     local stage_strum_order = strum_overrides[i] or base_strum_order
     local stage_voicing = voicing_overrides[i] or voicing
 
-    -- Per-chord rotation: override is a name string, convert to value
+    -- Per-stage overrides store option names (not indices) so they survive reordering.
+    -- Convert to values before passing to RC.
     local stage_rotation = rotation
     if rotation_overrides[i] then
       local idx = ROTATION_INDEX[rotation_overrides[i]]
       if idx then stage_rotation = rotation_value(idx) end
     end
 
-    -- Per-chord chord_len: override is a name string, convert to value
     local stage_chord_len = chord_len
     if chord_len_overrides[i] then
       local idx = CHORD_LEN_INDEX[chord_len_overrides[i]]
@@ -154,7 +196,10 @@ function Composer.rebuild()
     end
 
     local strum_delay = (spread / 100) * beats / stage_chord_len
-    local stage_gate = 0.8 * (1 - spread / 100 * (1 - 1 / stage_chord_len))
+    -- Gate shortens as spread increases to prevent strum note overlap
+    local base_gate = GATE_VALUES[params:get("rc_composer_gate")]
+    local stage_gate = base_gate * (1 - spread / 100 * (1 - 1 / stage_chord_len))
+    local stage_vel = Composer.calculate_stage_velocity(i, num_stages, vel_stage_curve, vel_min, vel_max)
 
     table.insert(stages, {
       chords = {{
@@ -165,6 +210,8 @@ function Composer.rebuild()
         chord_len = stage_chord_len,
         voicing = stage_voicing,
         rotation = stage_rotation,
+        velocity = stage_vel,
+        vel_tone = vel_tone,
       }},
       octave = 3,
       strum = strum_delay,
@@ -359,7 +406,13 @@ function Composer.randomize()
   local spread_options = {0, 10, 20, 30, 50, 70, 100}
   params:set("rc_composer_spread", spread_options[math.random(1, #spread_options)])
   params:set("rc_composer_strum_order", math.random(1, #STRUM_ORDER_NAMES))
+  params:set("rc_composer_gate", math.random(1, #GATE_NAMES))
   params:set("rc_composer_loops", math.random(1, 4))
+  params:set("rc_composer_vel_stage", math.random(1, #VEL_STAGE_NAMES))
+  params:set("rc_composer_vel_tone", math.random(1, #VEL_TONE_NAMES))
+  local vel_a, vel_b = math.random(50, 127), math.random(50, 127)
+  params:set("rc_composer_vel_min", math.min(vel_a, vel_b))
+  params:set("rc_composer_vel_max", math.max(vel_a, vel_b))
   snapshot_loading = false
 
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -389,7 +442,7 @@ end
 -- Create params
 ---------------------------------------------------------------
 function Composer.create_params()
-  params:add_group("rc_composer_group", "COMPOSER", 10)
+  params:add_group("rc_composer_group", "COMPOSER", 15)
 
   params:add_option("rc_composer_start", "Start Degree", DEGREE_NAMES, 1)
   params:set_action("rc_composer_start", function() Composer.rebuild() end)
@@ -437,6 +490,21 @@ function Composer.create_params()
 
   params:add_number("rc_composer_beats", "Beats", 1, 16, 4)
   params:set_action("rc_composer_beats", function() Composer.rebuild() end)
+
+  params:add_option("rc_composer_gate", "Gate", GATE_NAMES, 2)
+  params:set_action("rc_composer_gate", function() Composer.rebuild() end)
+
+  params:add_number("rc_composer_vel_min", "Dyn Soft", 1, 127, 70)
+  params:set_action("rc_composer_vel_min", function() Composer.rebuild() end)
+
+  params:add_number("rc_composer_vel_max", "Dyn Loud", 1, 127, 110)
+  params:set_action("rc_composer_vel_max", function() Composer.rebuild() end)
+
+  params:add_option("rc_composer_vel_stage", "Dyn Shape", VEL_STAGE_NAMES, 1)
+  params:set_action("rc_composer_vel_stage", function() Composer.rebuild() end)
+
+  params:add_option("rc_composer_vel_tone", "Dyn Touch", VEL_TONE_NAMES, 1)
+  params:set_action("rc_composer_vel_tone", function() Composer.rebuild() end)
 
   params_initialized = true
 end

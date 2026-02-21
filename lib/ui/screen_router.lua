@@ -60,6 +60,7 @@ function ScreenUI.init()
         if _seeker.motif_recorder.is_recording or
            (section and section.needs_playback_refresh) or
            (_seeker.modal and _seeker.modal.is_active()) or
+           (_seeker.modal and _seeker.modal.is_toast_active()) or
            (_seeker.hold_confirm and _seeker.hold_confirm.is_active()) then
           ScreenUI.set_needs_redraw()
         end
@@ -115,6 +116,10 @@ function ScreenUI.redraw()
     local section = ScreenUI.get_active_section()
     if section and section.state.is_active then
       section:draw()
+    end
+    -- Toast draws on top of the active section (non-intrusive bottom text)
+    if _seeker.modal then
+      _seeker.modal.draw_toast()
     end
   end
   screen.update()

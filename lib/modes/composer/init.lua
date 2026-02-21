@@ -22,12 +22,12 @@ local VOICES = {
 }
 
 ---------------------------------------------------------------
--- COMPOSER_HOME: placeholder landing screen
+-- COMPOSER_HOME: landing screen for composer sub-mode
 ---------------------------------------------------------------
 local function create_home_section()
   local norns_ui = NornsUI.new({
     id = "COMPOSER_HOME",
-    name = "Composer",
+    name = "Composer Config",
     description = "Algorithmic chord progressions across lanes.",
     params = {}
   })
@@ -35,7 +35,7 @@ local function create_home_section()
   norns_ui.draw = function(self)
     screen.level(6)
     screen.move(64, 30)
-    screen.text_center("click row on left to start")
+    screen.text_center("Composer Config")
   end
 
   return norns_ui

@@ -1,6 +1,6 @@
 -- live_view.lua
--- Composer live view: voice leading graph, grid (lane/stage buttons), arc display, PageState footer.
--- E2/E3/K3 navigate paged params. Arc rings map to slots. Grid stages: tap=select, double-tap=flip page.
+-- Composer live view: voice leading graph, grid lane/stage buttons, and paged arc parameter display.
+-- Arc button and K3 cycle pages. Grid stage: first tap selects, second tap on same stage cycles arc page.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -13,7 +13,7 @@ local LiveView = {}
 -- Module-level state shared between screen and grid
 local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
 local page_state = nil              -- PageState for per-stage live view (harmony + articulation pages)
-local progression_page_state = nil  -- PageState for global progression view (single page)
+local progression_page_state = nil  -- PageState for global progression view (structure/spread/dynamics pages)
 
 -- Forward declaration
 local update_live_arc
@@ -240,37 +240,68 @@ end
 local function build_progression_pages()
   return {
     {
-      name = "progression",
+      name = "structure",
       slots = {
         { label = "Beats", param_id = "rc_composer_beats", threshold = 56 },
+        { label = "Loops", param_id = "rc_composer_loops", threshold = 56 },
+        { label = "CLen",  param_id = "rc_composer_chord_len", threshold = 56 },
+        { label = "Gate",  param_id = "rc_composer_gate", threshold = 56 },
+      },
+    },
+    {
+      name = "spread",
+      slots = {
         { label = "Sprd",  param_id = "rc_composer_spread", threshold = 30, step = 5 },
         { label = "Sprd~", param_id = "rc_composer_spread", threshold = 80, step = 1 },
-        { label = "CLen",  param_id = "rc_composer_chord_len", threshold = 56 },
+        { label = "Strum", param_id = "rc_composer_strum_order", threshold = 56 },
+      },
+    },
+    {
+      name = "dynamics",
+      slots = {
+        { label = "Shape", param_id = "rc_composer_vel_stage", threshold = 56 },
+        { label = "Touch", param_id = "rc_composer_vel_tone", threshold = 56 },
+        { label = "Soft",  param_id = "rc_composer_vel_min", threshold = 56 },
+        { label = "Loud",  param_id = "rc_composer_vel_max", threshold = 56 },
       },
     },
   }
 end
 
 ---------------------------------------------------------------
--- Arc display for COMPOSER_PROGRESSION (beats/spread/spread~/chord_len)
+-- Arc display for COMPOSER_PROGRESSION: structure (beats/loops/chord_len/gate), spread (spread/strum), dynamics (shape/touch/range)
 ---------------------------------------------------------------
 update_progression_arc = function(Composer)
   local dev = _seeker.arc
   if not dev then return end
   if not params.lookup["rc_composer_beats"] then return end
 
-  -- Ring 1: beats position
-  local beats_obj = params:lookup_param("rc_composer_beats")
-  draw_arc_position(dev, 1, params:get("rc_composer_beats"), beats_obj.min, beats_obj.max)
+  if progression_page_state.page == 1 then
+    -- Structure: beats, loops, chord length, gate
+    local beats_obj = params:lookup_param("rc_composer_beats")
+    draw_arc_position(dev, 1, params:get("rc_composer_beats"), beats_obj.min, beats_obj.max)
 
-  -- Ring 2+3: spread (coarse + fine, same fill display)
-  local spread_spec = params:lookup_param("rc_composer_spread").controlspec
-  draw_arc_fill(dev, 2, params:get("rc_composer_spread"), spread_spec)
-  draw_arc_fill(dev, 3, params:get("rc_composer_spread"), spread_spec)
+    local loops_obj = params:lookup_param("rc_composer_loops")
+    draw_arc_position(dev, 2, params:get("rc_composer_loops"), loops_obj.min, loops_obj.max)
 
-  -- Ring 4: chord length
-  local chord_len_idx = params:get("rc_composer_chord_len")
-  draw_arc_option_segments(dev, 4, chord_len_idx, #Composer.CHORD_LEN_NAMES, false)
+    draw_arc_option_segments(dev, 3, params:get("rc_composer_chord_len"), #Composer.CHORD_LEN_NAMES, false)
+    draw_arc_option_segments(dev, 4, params:get("rc_composer_gate"), #Composer.GATE_NAMES, false)
+
+  elseif progression_page_state.page == 2 then
+    -- Spread: spread coarse, spread fine, strum, ring 4 dark
+    local spread_spec = params:lookup_param("rc_composer_spread").controlspec
+    draw_arc_fill(dev, 1, params:get("rc_composer_spread"), spread_spec)
+    draw_arc_fill(dev, 2, params:get("rc_composer_spread"), spread_spec)
+    draw_arc_option_segments(dev, 3, params:get("rc_composer_strum_order"), #Composer.STRUM_ORDER_NAMES, false)
+    for i = 1, 64 do dev:led(4, i, 0) end
+
+  elseif progression_page_state.page == 3 then
+    -- Dynamics: shape, touch, soft, loud
+    draw_arc_option_segments(dev, 1, params:get("rc_composer_vel_stage"), #Composer.VEL_STAGE_NAMES, false)
+    draw_arc_option_segments(dev, 2, params:get("rc_composer_vel_tone"), #Composer.VEL_TONE_NAMES, false)
+    draw_arc_position(dev, 3, params:get("rc_composer_vel_min"), 1, 127)
+    draw_arc_position(dev, 4, params:get("rc_composer_vel_max"), 1, 127)
+  end
 
   dev:refresh()
 end
@@ -390,15 +421,15 @@ local function draw_live(norns_ui, Composer)
   end
 
   -- Select the PageState for whichever section is currently active
-  local active_ps = (_seeker.ui_state.get_current_section() == "COMPOSER_PROGRESSION") and progression_page_state or page_state
+  local active_page_state = (_seeker.ui_state.get_current_section() == "COMPOSER_PROGRESSION") and progression_page_state or page_state
 
   -- Page indicator: small squares top-right (only for multi-page sections)
-  if #active_ps.pages > 1 then
-    for p = 1, #active_ps.pages do
+  if #active_page_state.pages > 1 then
+    for p = 1, #active_page_state.pages do
       local px = 120 + (p - 1) * 5
-      screen.level(p == active_ps.page and 10 or 3)
+      screen.level(p == active_page_state.page and 10 or 3)
       screen.rect(px, 2, 3, 3)
-      if p == active_ps.page then screen.fill() else screen.stroke() end
+      if p == active_page_state.page then screen.fill() else screen.stroke() end
     end
   end
 
@@ -418,7 +449,7 @@ local function draw_live(norns_ui, Composer)
   end
 
   -- Footer: PageState handles overlay and 4-column labels
-  active_ps:draw_footer()
+  active_page_state:draw_footer()
 end
 
 ---------------------------------------------------------------
@@ -444,12 +475,18 @@ local function create_screen_ui(Composer)
       { separator = true, title = "Articulation" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
-      { id = "rc_composer_loops" },
+      { id = "rc_composer_gate" },
       { separator = true, title = "Structure" },
       { id = "rc_composer_start" },
       { id = "rc_composer_movement" },
       { id = "rc_composer_stages" },
+      { id = "rc_composer_loops" },
       { id = "rc_composer_beats" },
+      { separator = true, title = "Dynamics" },
+      { id = "rc_composer_vel_stage" },
+      { id = "rc_composer_vel_tone" },
+      { id = "rc_composer_vel_min" },
+      { id = "rc_composer_vel_max" },
     }
   end
 
@@ -502,11 +539,16 @@ local function create_progression_screen_ui(Composer)
   norns_ui.rebuild_params = function(self)
     self.params = {
       { id = "rc_composer_beats" },
-      { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
+      { id = "rc_composer_loops" },
       { id = "rc_composer_chord_len" },
-      { id = "rc_composer_voicing" },
+      { id = "rc_composer_gate" },
+      { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
-      { id = "rc_composer_rotation" },
+      { separator = true, title = "Dynamics" },
+      { id = "rc_composer_vel_stage" },
+      { id = "rc_composer_vel_tone" },
+      { id = "rc_composer_vel_min" },
+      { id = "rc_composer_vel_max" },
     }
   end
 
@@ -517,7 +559,11 @@ local function create_progression_screen_ui(Composer)
     update_progression_arc(Composer)
     _seeker.screen_ui.set_needs_redraw()
   end
-  norns_ui.handle_arc_key = function(self, n, z) end
+  norns_ui.handle_arc_key = function(self, n, z)
+    progression_page_state:handle_arc_key(n, z)
+    update_progression_arc(Composer)
+    _seeker.screen_ui.set_needs_redraw()
+  end
 
   -- E2/E3 in live view: progression_page_state handles cursor + param adjustment
   norns_ui.handle_live_enc = function(self, n, d)
@@ -526,7 +572,13 @@ local function create_progression_screen_ui(Composer)
     _seeker.screen_ui.set_needs_redraw()
   end
 
-  norns_ui.handle_live_key = function(self, n, z) end
+  norns_ui.handle_live_key = function(self, n, z)
+    if n == 3 and z == 1 then
+      progression_page_state:next_page()
+      update_progression_arc(Composer)
+      _seeker.screen_ui.set_needs_redraw()
+    end
+  end
 
   return norns_ui
 end

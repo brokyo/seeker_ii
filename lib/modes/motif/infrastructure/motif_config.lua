@@ -122,7 +122,7 @@ end
 local function create_tape_home_screen()
     local norns_ui = NornsUI.new({
         id = "TAPE_HOME",
-        name = "Keyboard Layout",
+        name = "Tape Config",
         description = "Grid layout for the tape keyboard.\n\nColumn and row spacing control how notes are arranged on the grid.",
         params = {}
     })
