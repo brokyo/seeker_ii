@@ -177,8 +177,7 @@ function init()
   _seeker.rc_overlay = rc_overlay
 
   _seeker.current_mode = "music"
-  _seeker.current_sub_mode = "composer"
-  _seeker.ui_state.set_current_section("COMPOSER_HOME")
+  _seeker.ui_state.set_current_section("MOTIF")
 
   -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()
