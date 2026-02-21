@@ -8,7 +8,6 @@ local modules = {
   keyboard = include("lib/modes/motif/types/composer/keyboard"),
   expression_stages = include("lib/modes/motif/types/composer/expression_stages"),
   harmonic_stages = include("lib/modes/motif/types/composer/harmonic_stages"),
-  cycling = include("lib/modes/motif/types/composer/cycling"),
   playback = include("lib/modes/motif/types/composer/playback"),
   create = include("lib/modes/motif/types/composer/create"),
   clear = include("lib/modes/motif/types/composer/clear"),
@@ -19,7 +18,6 @@ local modules = {
 local SECTION_IDS = {
   expression_stages = "COMPOSER_EXPRESSION_STAGES",
   harmonic_stages = "COMPOSER_HARMONIC_STAGES",
-  cycling = "COMPOSER_CYCLING",
   playback = "COMPOSER_PLAYBACK",
   create = "COMPOSER_CREATE",
   clear = "COMPOSER_CLEAR",
@@ -40,8 +38,8 @@ function Composer.init()
       instance.sections[SECTION_IDS[name]] = instance[name].screen
     end
 
-    -- Auto-build grid components table (only cycling, playback, perform, keyboard)
-    local GRID_COMPONENTS = {cycling = true, playback = true, perform = true, keyboard = true}
+    -- Auto-build grid components table (playback, perform, keyboard only)
+    local GRID_COMPONENTS = {playback = true, perform = true, keyboard = true}
     if instance[name].grid and GRID_COMPONENTS[name] then
       instance.grids[name] = instance[name].grid
     end

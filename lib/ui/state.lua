@@ -126,8 +126,8 @@ function UIState.set_focused_lane(lane_idx)
   UIState.state.focused_lane = lane_idx
 
   -- Notify cycling of lane change (save outgoing snapshot, load incoming)
-  if _seeker.composer and _seeker.composer.cycling and _seeker.composer.cycling.on_lane_change then
-    _seeker.composer.cycling.on_lane_change(old_lane_id, lane_idx)
+  if _seeker.cycling_mode and _seeker.cycling_mode.cycling and _seeker.cycling_mode.cycling.on_lane_change then
+    _seeker.cycling_mode.cycling.on_lane_change(old_lane_id, lane_idx)
   end
   
   -- Update UI

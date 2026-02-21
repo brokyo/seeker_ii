@@ -2,7 +2,9 @@
 -- Cycling chord progression generator with dual-mode NornsUI.
 -- Live view (default): voice leading graph with arc/K3 control.
 -- Param view (K2 toggle): standard param list for all cycling params.
--- Grid row 7 controls: mode toggle, +/- stages, hold-to-randomize.
+-- Grid: 4 lane rows (rows 4-7). Col 1 = lane button (tap play/stop, hold randomize).
+-- Cols 2-9 = per-lane stage buttons. Col 1 tap = voice routing, hold = play/stop.
+-- Arc: 3-page control (chord overrides, shape params, texture params).
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
@@ -94,25 +96,38 @@ local STAGE_BRIGHTNESS = {3, 4, 6, 7, 9, 10, 12, 13}
 -- Module-level state for the live view (edit stage, arc mode, overlay display)
 ---------------------------------------------------------------
 local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
-local control_mode = "chord"  -- "chord" = per-stage, "progression" = global
+local arc_page = 1            -- 1 = chord (per-stage), 2 = shape, 3 = texture
 local arc_overlay = nil       -- {name, value, time, duration?}
 local arc_accum = {0, 0, 0, 0}
 
--- Arc ring mappings: chord mode (per-stage overrides via cycle functions)
+-- Arc ring mappings per page. Page 1 uses cycle functions (per-stage overrides).
+-- Pages 2-3 use step_param on global cycling params.
 local ARC_CHORD = {
-  [1] = {param = "Rot",    fn = "cycle_stage_rotation",  threshold = 56},
-  [2] = {param = "Degree", fn = "cycle_stage_degree",    threshold = 56},
-  [3] = {param = "Voice",  fn = "cycle_stage_voicing",   threshold = 56},
-  [4] = {param = "Strum",  fn = "cycle_stage_strum",     threshold = 56},
+  [1] = {label = "Rot",    fn = "cycle_stage_rotation",  threshold = 56},
+  [2] = {label = "Deg",    fn = "cycle_stage_degree",    threshold = 56},
+  [3] = {label = "Voice",  fn = "cycle_stage_voicing",   threshold = 56},
+  [4] = {label = "Strum",  fn = "cycle_stage_strum",     threshold = 56},
 }
 
--- Arc ring mappings: progression mode (global params)
-local ARC_PROGRESSION = {
-  [1] = {param = "Beat",   param_id = "rc_cycling_beats",      threshold = 56},
-  [2] = {param = "Spread", param_id = "rc_cycling_spread",    threshold = 40, delta = 5},
-  [3] = {param = "Spread", param_id = "rc_cycling_spread",    threshold = 20, delta = 1},
-  [4] = {param = "Len",    param_id = "rc_cycling_chord_len",  threshold = 56},
+local ARC_PAGES = {
+  [1] = ARC_CHORD,
+  [2] = {
+    label = "shape",
+    [1] = {label = "Start",  param_id = "rc_cycling_start",    threshold = 56},
+    [2] = {label = "Move",   param_id = "rc_cycling_movement", threshold = 56},
+    [3] = {label = "Qual",   param_id = "rc_cycling_quality",  threshold = 56},
+    [4] = {label = "Flavor", param_id = "rc_cycling_flavor",   threshold = 56},
+  },
+  [3] = {
+    label = "texture",
+    [1] = {label = "Beat",  param_id = "rc_cycling_beats",     threshold = 56},
+    [2] = {label = "Sprd",  param_id = "rc_cycling_spread",    threshold = 30},
+    [3] = {label = "Oct",   param_id = "rc_cycling_octave",    threshold = 56},
+    [4] = {label = "Len",   param_id = "rc_cycling_chord_len", threshold = 56},
+  },
 }
+
+local ARC_PAGE_NAMES = {"chord", "shape", "texture"}
 
 ---------------------------------------------------------------
 -- Strum ordering utility: reorder notes by strum pattern name.
@@ -151,6 +166,8 @@ local function rebuild()
   if not initialized then return end
   if loading then return end
   if not _seeker or not _seeker.rc then return end
+
+  local lane_id = _seeker.ui_state.get_focused_lane()
 
   local start = params:get("rc_cycling_start")
   local movement = movement_value(params:get("rc_cycling_movement"))
@@ -244,14 +261,48 @@ local function rebuild()
 end
 
 ---------------------------------------------------------------
--- Arc display: update LED rings based on control mode
+-- Arc display helpers
+---------------------------------------------------------------
+
+-- Draw option segments on a ring: one bright segment for the current index
+local function draw_arc_option_segments(dev, ring, current_idx, num_options, is_overridden)
+  for i = 1, 64 do dev:led(ring, i, 2) end
+  local segment = math.floor(64 / num_options)
+  local start = (current_idx - 1) * segment + 1
+  local brightness = is_overridden and 14 or 10
+  for i = start, math.min(64, start + segment - 1) do
+    dev:led(ring, i, brightness)
+  end
+end
+
+-- Draw position marker on a ring: dot with flanking glow
+local function draw_arc_position(dev, ring, value, min_val, max_val)
+  for i = 1, 64 do dev:led(ring, i, 2) end
+  local norm = (value - min_val) / (max_val - min_val)
+  local pos = math.floor(norm * 63) + 1
+  dev:led(ring, pos, 12)
+  if pos > 1 then dev:led(ring, pos - 1, 6) end
+  if pos < 64 then dev:led(ring, pos + 1, 6) end
+end
+
+-- Draw fill bar on a ring: filled from 0 to normalized position
+local function draw_arc_fill(dev, ring, value, spec)
+  for i = 1, 64 do dev:led(ring, i, 2) end
+  local norm = (value - spec.minval) / (spec.maxval - spec.minval)
+  local fill_end = math.floor(norm * 64)
+  for i = 1, fill_end do dev:led(ring, i, 10) end
+end
+
+---------------------------------------------------------------
+-- Arc display: update LED rings based on arc page
 ---------------------------------------------------------------
 local function update_arc()
   local dev = _seeker.arc
   if not dev then return end
   if not params.lookup["rc_cycling_flavor"] then return end
 
-  if control_mode == "chord" then
+  if arc_page == 1 then
+    -- Chord page: per-stage overrides with segment displays
     local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
     local stage_idx = edit_stage or lane.current_stage_index or 1
     local degree_overrides = lane.cycling_degree_overrides or {}
@@ -259,174 +310,115 @@ local function update_arc()
     local strum_overrides = lane.cycling_strum_overrides or {}
     local rotation_overrides = lane.cycling_rotation_overrides or {}
 
-    -- Ring 1: rotation/inversion
-    for i = 1, 64 do dev:led(1, i, 2) end
+    -- Ring 1: rotation
     local rot_idx = params:get("rc_cycling_rotation")
     if rotation_overrides[stage_idx] then
       rot_idx = ROTATION_INDEX[rotation_overrides[stage_idx]] or rot_idx
     end
-    local rot_segment = math.floor(64 / #ROTATION_NAMES)
-    local rot_start = (rot_idx - 1) * rot_segment + 1
-    local rot_brightness = rotation_overrides[stage_idx] and 14 or 8
-    for i = rot_start, math.min(64, rot_start + rot_segment - 1) do
-      dev:led(1, i, rot_brightness)
-    end
+    draw_arc_option_segments(dev, 1, rot_idx, #ROTATION_NAMES, rotation_overrides[stage_idx])
 
     -- Ring 2: degree
-    for i = 1, 64 do dev:led(2, i, 2) end
     local start = params:get("rc_cycling_start")
     local movement = params:get("rc_cycling_movement") - 7
     local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
     local current_degree = degree_overrides[stage_idx] or default_degree
-    local deg_segment = math.floor(64 / #DEGREE_NAMES)
-    local deg_start = (current_degree - 1) * deg_segment + 1
-    local deg_brightness = degree_overrides[stage_idx] and 14 or 8
-    for i = deg_start, math.min(64, deg_start + deg_segment - 1) do
-      dev:led(2, i, deg_brightness)
-    end
+    draw_arc_option_segments(dev, 2, current_degree, #DEGREE_NAMES, degree_overrides[stage_idx])
 
     -- Ring 3: voicing
-    for i = 1, 64 do dev:led(3, i, 2) end
     local voicing_idx = params:get("rc_cycling_voicing")
     if voicing_overrides[stage_idx] then
       voicing_idx = VOICING_INDEX[voicing_overrides[stage_idx]] or voicing_idx
     end
-    local voi_segment = math.floor(64 / #VOICING_NAMES)
-    local voi_start = (voicing_idx - 1) * voi_segment + 1
-    local voi_brightness = voicing_overrides[stage_idx] and 14 or 8
-    for i = voi_start, math.min(64, voi_start + voi_segment - 1) do
-      dev:led(3, i, voi_brightness)
-    end
+    draw_arc_option_segments(dev, 3, voicing_idx, #VOICING_NAMES, voicing_overrides[stage_idx])
 
     -- Ring 4: strum order
-    for i = 1, 64 do dev:led(4, i, 2) end
     local strum_idx = params:get("rc_cycling_strum_order")
     if strum_overrides[stage_idx] then
       strum_idx = STRUM_INDEX[strum_overrides[stage_idx]] or strum_idx
     end
-    local strum_segment = math.floor(64 / #STRUM_ORDER_NAMES)
-    local strum_start = (strum_idx - 1) * strum_segment + 1
-    local strum_brightness = strum_overrides[stage_idx] and 14 or 8
-    for i = strum_start, math.min(64, strum_start + strum_segment - 1) do
-      dev:led(4, i, strum_brightness)
-    end
+    draw_arc_option_segments(dev, 4, strum_idx, #STRUM_ORDER_NAMES, strum_overrides[stage_idx])
 
-  else
-    -- Progression mode: global params
+  elseif arc_page == 2 then
+    -- Shape page: global option params as segments
+    draw_arc_option_segments(dev, 1, params:get("rc_cycling_start"), #DEGREE_NAMES, false)
+    draw_arc_option_segments(dev, 2, params:get("rc_cycling_movement"), #MOVEMENT_NAMES, false)
+    draw_arc_option_segments(dev, 3, params:get("rc_cycling_quality"), #QUALITY_NAMES, false)
+    draw_arc_option_segments(dev, 4, params:get("rc_cycling_flavor"), #FLAVOR_NAMES, false)
 
-    -- Ring 1: beats
-    for i = 1, 64 do dev:led(1, i, 2) end
-    local beats = params:get("rc_cycling_beats")
+  elseif arc_page == 3 then
+    -- Texture page: mixed display types
     local beats_obj = params:lookup_param("rc_cycling_beats")
-    local beat_norm = (beats - beats_obj.min) / (beats_obj.max - beats_obj.min)
-    local beat_pos = math.floor(beat_norm * 63) + 1
-    dev:led(1, beat_pos, 12)
-    if beat_pos > 1 then dev:led(1, beat_pos - 1, 6) end
-    if beat_pos < 64 then dev:led(1, beat_pos + 1, 6) end
+    draw_arc_position(dev, 1, params:get("rc_cycling_beats"), beats_obj.min, beats_obj.max)
 
-    -- Rings 2-3: spread (same fill bar on both)
-    local spread = params:get("rc_cycling_spread")
-    local spec = params:lookup_param("rc_cycling_spread").controlspec
-    local spread_norm = (spread - spec.minval) / (spec.maxval - spec.minval)
-    local fill_end = math.floor(spread_norm * 64)
-    for ring = 2, 3 do
-      for i = 1, 64 do dev:led(ring, i, 2) end
-      for i = 1, fill_end do
-        dev:led(ring, i, 10)
-      end
-    end
+    local spread_spec = params:lookup_param("rc_cycling_spread").controlspec
+    draw_arc_fill(dev, 2, params:get("rc_cycling_spread"), spread_spec)
 
-    -- Ring 4: chord length segment
-    for i = 1, 64 do dev:led(4, i, 2) end
-    local len_idx = params:get("rc_cycling_chord_len")
-    local len_obj = params:lookup_param("rc_cycling_chord_len")
-    local len_segment = math.floor(64 / #len_obj.options)
-    local len_start = (len_idx - 1) * len_segment + 1
-    for i = len_start, math.min(64, len_start + len_segment - 1) do
-      dev:led(4, i, 10)
-    end
+    local oct_obj = params:lookup_param("rc_cycling_octave")
+    draw_arc_position(dev, 3, params:get("rc_cycling_octave"), oct_obj.min, oct_obj.max)
+
+    draw_arc_option_segments(dev, 4, params:get("rc_cycling_chord_len"), #CHORD_LEN_NAMES, false)
   end
 
   dev:refresh()
 end
 
 ---------------------------------------------------------------
--- Handle arc delta: accumulate and step params
+-- Handle arc delta: accumulate and step params based on arc page
 ---------------------------------------------------------------
 local function handle_arc_delta(n, delta)
   if not params.lookup["rc_cycling_flavor"] then return end
 
-  if control_mode == "chord" then
-    local mapping = ARC_CHORD[n]
-    if not mapping then return end
+  local page = ARC_PAGES[arc_page]
+  local mapping = page and page[n]
+  if not mapping then return end
 
-    arc_accum[n] = arc_accum[n] + 1
-    if arc_accum[n] >= mapping.threshold then
-      arc_accum[n] = 0
-      if Cycling[mapping.fn] then
-        local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-        local stage_idx = edit_stage or lane.current_stage_index or 1
-        local direction = delta > 0 and 1 or -1
-        local new_val = Cycling[mapping.fn](stage_idx, direction)
-        arc_overlay = {
-          name = "S" .. stage_idx .. " " .. mapping.param,
-          value = new_val,
-          time = util.time()
-        }
-        update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end
-  else
-    -- Progression mode
-    local mapping = ARC_PROGRESSION[n]
-    if not mapping then return end
+  arc_accum[n] = arc_accum[n] + 1
+  if arc_accum[n] < mapping.threshold then return end
+  arc_accum[n] = 0
 
-    arc_accum[n] = arc_accum[n] + 1
-    if arc_accum[n] >= mapping.threshold then
-      arc_accum[n] = 0
-      local param_id = mapping.param_id
-      if not params.lookup[param_id] then return end
+  local direction = delta > 0 and 1 or -1
 
-      local direction = delta > 0 and 1 or -1
-      local param_obj = params:lookup_param(param_id)
-      local current = params:get(param_id)
-
-      if mapping.delta then
-        local new_val = current + direction * mapping.delta
-        if param_obj.controlspec then
-          new_val = util.clamp(new_val, param_obj.controlspec.minval, param_obj.controlspec.maxval)
-        end
-        params:set(param_id, new_val)
-      elseif param_obj.t == params.tOPTION then
-        params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
-      elseif param_obj.min and param_obj.max then
-        params:set(param_id, util.clamp(current + direction, param_obj.min, param_obj.max))
-      end
-
+  if arc_page == 1 then
+    -- Chord page: per-stage overrides via cycle functions
+    if Cycling[mapping.fn] then
+      local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+      local stage_idx = edit_stage or lane.current_stage_index or 1
+      local new_val = Cycling[mapping.fn](stage_idx, direction)
       arc_overlay = {
-        name = mapping.param,
-        value = params:string(param_id),
+        name = "S" .. stage_idx .. " " .. mapping.label,
+        value = new_val,
         time = util.time()
       }
-      update_arc()
-      _seeker.screen_ui.set_needs_redraw()
     end
+  else
+    -- Shape/texture pages: step global params
+    local param_id = mapping.param_id
+    if not params.lookup[param_id] then return end
+    _seeker.arc.step_param(param_id, direction)
+    arc_overlay = {
+      name = mapping.label,
+      value = params:string(param_id),
+      time = util.time()
+    }
   end
+
+  update_arc()
+  _seeker.screen_ui.set_needs_redraw()
 end
 
 ---------------------------------------------------------------
--- Handle arc button: step through edit stages
+-- Handle arc button: cycle through arc pages
 ---------------------------------------------------------------
 local function handle_arc_key(n, z)
   if z ~= 1 then return end
-  -- Switch to chord mode and advance edit stage
-  control_mode = "chord"
-  local num_stages = params:get("rc_cycling_stages")
-  local current_edit = edit_stage
-    or (_seeker.lanes[_seeker.ui_state.get_focused_lane()].current_stage_index or 1)
-  local next_edit = (current_edit % num_stages) + 1
-  edit_stage = next_edit
+  arc_page = (arc_page % 3) + 1
+  arc_accum = {0, 0, 0, 0}
+  arc_overlay = {
+    name = ARC_PAGE_NAMES[arc_page],
+    value = arc_page .. "/3",
+    time = util.time(),
+    duration = 0.4,
+  }
   update_arc()
   _seeker.screen_ui.set_needs_redraw()
 end
@@ -479,7 +471,16 @@ local function draw_live(norns_ui)
     end
   end
 
-  if not has_notes then return end
+  if not has_notes then
+    -- Show header even when lane has no motif data yet
+    screen.level(6)
+    screen.move(2, 6)
+    screen.text("L" .. lane_id)
+    screen.level(3)
+    screen.move(64, 32)
+    screen.text_center(num_stages .. " stages")
+    return
+  end
 
   -- Vertical pitch area with margins for labels
   local Y_TOP = 14
@@ -543,10 +544,14 @@ local function draw_live(norns_ui)
     end
   end
 
-  -- Header: lane indicator, K2 hint
+  -- Header: lane indicator, arc page label (center), K2 hint (right)
   screen.level(6)
   screen.move(2, 6)
   screen.text("L" .. lane_id)
+
+  screen.level(5)
+  screen.move(64, 6)
+  screen.text_center(ARC_PAGE_NAMES[arc_page] .. " " .. arc_page .. "/3")
 
   screen.level(3)
   screen.move(126, 6)
@@ -567,7 +572,7 @@ local function draw_live(norns_ui)
     end
   end
 
-  -- Footer: 4-column layout with labels and values
+  -- Footer: 4-column layout with labels and values, content varies by arc page
   screen.level(0)
   screen.rect(0, 46, 128, 18)
   screen.fill()
@@ -581,53 +586,49 @@ local function draw_live(norns_ui)
   else
     local display_stage = edit_stage or (lane and lane.current_stage_index) or 1
     local cols = {16, 48, 80, 112}
+    local labels, values
 
-    if control_mode == "chord" then
+    if arc_page == 1 then
       local rotation_overrides = lane and lane.cycling_rotation_overrides or {}
       local voicing_overrides = lane and lane.cycling_voicing_overrides or {}
-
       local rot_idx = params:get("rc_cycling_rotation")
       if rotation_overrides[display_stage] then
         rot_idx = ROTATION_INDEX[rotation_overrides[display_stage]] or rot_idx
       end
-
-      local values = {
+      labels = {"Rot", "Deg", "Voice", "Strum"}
+      values = {
         tostring(rot_idx - 6),
         DEGREE_NAMES[degrees[display_stage] or 1],
         voicing_overrides[display_stage] or params:string("rc_cycling_voicing"),
         strum_overrides[display_stage] or params:string("rc_cycling_strum_order"),
       }
-      local labels = {"Rot", "Deg", "Voice", "Strum"}
-
-      screen.level(5)
-      for i = 1, 4 do
-        screen.move(cols[i], 55)
-        screen.text_center(labels[i])
-      end
-      screen.level(12)
-      for i = 1, 4 do
-        screen.move(cols[i], 63)
-        screen.text_center(values[i])
-      end
+    elseif arc_page == 2 then
+      labels = {"Start", "Move", "Qual", "Flavor"}
+      values = {
+        params:string("rc_cycling_start"),
+        params:string("rc_cycling_movement"),
+        params:string("rc_cycling_quality"),
+        params:string("rc_cycling_flavor"),
+      }
     else
-      local values = {
+      labels = {"Beat", "Sprd", "Oct", "Len"}
+      values = {
         params:string("rc_cycling_beats"),
         params:string("rc_cycling_spread"),
-        "-",
-        tostring(params:get("rc_cycling_chord_len") + 1),
+        params:string("rc_cycling_octave"),
+        params:string("rc_cycling_chord_len"),
       }
-      local labels = {"Beat", "Sprd", "-", "Len"}
+    end
 
-      screen.level(5)
-      for i = 1, 4 do
-        screen.move(cols[i], 55)
-        screen.text_center(labels[i])
-      end
-      screen.level(12)
-      for i = 1, 4 do
-        screen.move(cols[i], 63)
-        screen.text_center(values[i])
-      end
+    screen.level(5)
+    for i = 1, 4 do
+      screen.move(cols[i], 55)
+      screen.text_center(labels[i])
+    end
+    screen.level(12)
+    for i = 1, 4 do
+      screen.move(cols[i], 63)
+      screen.text_center(values[i])
     end
   end
 end
@@ -637,7 +638,7 @@ end
 ---------------------------------------------------------------
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
-    id = "COMPOSER_CYCLING",
+    id = "CYCLING_LIVE",
     name = "Cycling",
     description = Descriptions.COMPOSER_CYCLING,
     params = {}
@@ -671,13 +672,20 @@ local function create_screen_ui()
   norns_ui.handle_arc_delta = function(self, n, delta) handle_arc_delta(n, delta) end
   norns_ui.handle_arc_key = function(self, n, z) handle_arc_key(n, z) end
 
-  -- K3 in live view: cycles strum order for current edit stage (progression mode only)
+  -- K3 in live view: chord page = cycle degree, other pages = cycle strum
   norns_ui.handle_live_key = function(self, n, z)
     if n == 3 and z == 1 then
       local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
       local stage_idx = edit_stage or lane.current_stage_index or 1
 
-      if control_mode ~= "chord" then
+      if arc_page == 1 then
+        local new_val = Cycling.cycle_stage_degree(stage_idx)
+        arc_overlay = {
+          name = "S" .. stage_idx .. " Deg",
+          value = new_val,
+          time = util.time()
+        }
+      else
         local new_val = Cycling.cycle_stage_strum(stage_idx)
         arc_overlay = {
           name = "S" .. stage_idx .. " Strum",
@@ -810,100 +818,122 @@ function Cycling.randomize()
 end
 
 ---------------------------------------------------------------
--- Grid UI: row 7 controls
+-- Grid UI: 4 lane rows (rows 4-7), each with lane button (col 1)
+-- and stage buttons (cols 2-9). All lanes visible simultaneously.
 ---------------------------------------------------------------
+local NUM_WHEEL_LANES = 4
+local FIRST_ROW = 4
+local HOLD_THRESHOLD_STAGE = 0.5     -- seconds for hold-to-truncate
+
+-- Get stage count for a lane (global params if focused, snapshot otherwise)
+local function get_lane_stages(lane_idx)
+  if lane_idx == _seeker.ui_state.get_focused_lane() then
+    return params:get("rc_cycling_stages")
+  end
+  local lane = _seeker.lanes[lane_idx]
+  if lane.cycling_param_snapshot then
+    return lane.cycling_param_snapshot.rc_cycling_stages or 1
+  end
+  return 1
+end
+
 local function create_grid_ui()
   local grid_ui = GridUI.new({
-    id = "COMPOSER_CYCLING",
+    id = "CYCLING_GRID",
     layout = {
       x = 1,
-      y = 7,
-      width = 4,
-      height = 1
+      y = FIRST_ROW,
+      width = 9,
+      height = NUM_WHEEL_LANES
     }
   })
 
-  grid_ui.long_press_threshold = 1.0
+
+
+  grid_ui.contains = function(self, x, y)
+    if y < FIRST_ROW or y > FIRST_ROW + NUM_WHEEL_LANES - 1 then return false end
+    if x >= 1 and x <= 9 then return true end
+    return false
+  end
 
   grid_ui.draw = function(self, layers)
-    local focused_lane_id = _seeker.ui_state.get_focused_lane()
-    local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
-    if motif_type ~= COMPOSER_MODE then return end
+    local focused_lane = _seeker.ui_state.get_focused_lane()
 
-    -- Col 1: control mode toggle (chord / progression)
-    local in_progression = control_mode == "progression"
-    layers.ui[1][7] = in_progression
-      and GridConstants.BRIGHTNESS.UI.FOCUSED
-      or GridConstants.BRIGHTNESS.UI.NORMAL
+    for i = 1, NUM_WHEEL_LANES do
+      local row = FIRST_ROW + i - 1
+      local lane = _seeker.lanes[i]
+      local is_focused = i == focused_lane
+      local num_stages = get_lane_stages(i)
+      local current_stage = lane.current_stage_index or 1
 
-    local num_stages = params:get("rc_cycling_stages")
+      -- Col 1: lane button
+      local lane_brightness
+      if is_focused then
+        lane_brightness = GridConstants.BRIGHTNESS.FULL
+      elseif lane.playing then
+        -- Pulse synced to beat
+        lane_brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
+      else
+        lane_brightness = GridConstants.BRIGHTNESS.LOW
+      end
+      layers.ui[1][row] = lane_brightness
 
-    -- Col 2: remove chord
-    layers.ui[2][7] = num_stages > 1
-      and (STAGE_BRIGHTNESS[num_stages - 1] or 4)
-      or 2
+      -- Cols 2-9: stage buttons for this lane
+      for stage = 1, 8 do
+        local col = stage + 1
+        local brightness
 
-    -- Col 3: add chord
-    layers.ui[3][7] = num_stages < 8
-      and (STAGE_BRIGHTNESS[num_stages + 1] or 4)
-      or 2
-
-    -- Col 4: hold-to-randomize (long press fill animation)
-    local randomize_brightness = GridConstants.BRIGHTNESS.UI.NORMAL
-    if self:is_holding_long_press() then
-      local key_id = "4,7"
-      local press = self.press_state.pressed_keys[key_id]
-      if press then
-        local elapsed = util.time() - press.start_time
-        local progress = math.min(elapsed / self.long_press_threshold, 1)
-        randomize_brightness = math.floor(3 + progress * 12)
+        if stage > num_stages then
+          brightness = GridConstants.BRIGHTNESS.DIM
+        elseif lane.playing and stage == current_stage then
+          brightness = GridConstants.BRIGHTNESS.HIGH
+        elseif is_focused and edit_stage and stage == edit_stage then
+          brightness = GridConstants.BRIGHTNESS.MEDIUM
+        else
+          brightness = GridConstants.BRIGHTNESS.LOW
+        end
+        layers.ui[col][row] = brightness
       end
     end
-    layers.ui[4][7] = randomize_brightness
   end
 
   grid_ui.handle_key = function(self, x, y, z)
-    local focused_lane_id = _seeker.ui_state.get_focused_lane()
-    local motif_type = params:get("lane_" .. focused_lane_id .. "_motif_type")
-    if motif_type ~= COMPOSER_MODE then return end
+    local lane_idx = y - FIRST_ROW + 1
+    if lane_idx < 1 or lane_idx > NUM_WHEEL_LANES then return end
 
-    -- Randomize button (4,7): hold to confirm, release early to cancel
-    if x == 4 and y == 7 then
-      local key_id = "4,7"
+    -- Navigate to cycling section on any press
+    if z == 1 then
+      local current = _seeker.ui_state.get_current_section()
+      if current ~= "CYCLING_LIVE" then
+        _seeker.ui_state.set_current_section("CYCLING_LIVE")
+      end
+
+      -- Focusing saves outgoing cycling params, loads incoming lane's snapshot
+      local old_lane = _seeker.ui_state.get_focused_lane()
+      if lane_idx ~= old_lane then
+        _seeker.ui_state.set_focused_lane(lane_idx)
+      end
+    end
+
+    -- Col 1: lane button (tap = voice routing, hold = play/stop)
+    if x == 1 then
+      local key_id = string.format("1,%d", y)
       if z == 1 then
         self:key_down(key_id)
-        -- Navigate to cycling section
-        if _seeker.ui_state.get_current_section() ~= "COMPOSER_CYCLING" then
-          _seeker.ui_state.set_current_section("COMPOSER_CYCLING")
-        end
-        -- Show hold prompt and start countdown clock
-        if _seeker.modal then
-          _seeker.modal.show_warning({ body = "Hold to randomize..." })
-        end
-        self.randomize_clock = clock.run(function()
-          clock.sleep(self.long_press_threshold)
-          -- Still holding: fire randomize
-          if self.press_state.pressed_keys[key_id] then
-            Cycling.randomize()
-            update_arc()
-            if _seeker.modal then
-              _seeker.modal.dismiss()
-              _seeker.modal.show_status({ body = "RANDOMIZED" })
-            end
-            clock.sleep(0.5)
-            if _seeker.modal then _seeker.modal.dismiss() end
-            _seeker.screen_ui.set_needs_redraw()
-          end
-        end)
+
+        -- Navigate to voice routing screen
+        _seeker.ui_state.set_current_section("LANE_CONFIG")
+        _seeker.lane_config.screen:rebuild_params()
         _seeker.screen_ui.set_needs_redraw()
       else
-        -- Release: cancel countdown if not yet fired
-        if self.randomize_clock then
-          clock.cancel(self.randomize_clock)
-          self.randomize_clock = nil
-        end
-        if _seeker.modal and _seeker.modal.is_active() then
-          _seeker.modal.dismiss()
+        if self:is_long_press(key_id) then
+          -- Long press: toggle play/stop
+          local lane = _seeker.lanes[lane_idx]
+          if lane.playing then
+            lane:stop()
+          else
+            lane:play({quantize = true})
+          end
         end
         self:key_release(key_id)
         _seeker.screen_ui.set_needs_redraw()
@@ -911,41 +941,55 @@ local function create_grid_ui()
       return
     end
 
-    -- All other buttons: press-only
-    if z ~= 1 then return end
+    -- Cols 2-9: stage buttons (operate on focused lane's global params)
+    if x >= 2 and x <= 9 then
+      local stage = x - 1
+      local num_stages = params:get("rc_cycling_stages")
+      local key_id = string.format("%d,%d", x, y)
 
-    -- Navigate to cycling section on any button press
-    if _seeker.ui_state.get_current_section() ~= "COMPOSER_CYCLING" then
-      _seeker.ui_state.set_current_section("COMPOSER_CYCLING")
-    end
+      if z == 1 then
+        self:key_down(key_id)
 
-    if x == 1 and y == 7 then
-      -- Toggle arc control mode: chord (per-stage) vs progression (global)
-      control_mode = control_mode == "chord" and "progression" or "chord"
-      arc_overlay = {
-        name = "Mode",
-        value = control_mode == "chord" and "Chord" or "Progression",
-        time = util.time(),
-        duration = 0.4,
-      }
-      update_arc()
-      _seeker.screen_ui.set_needs_redraw()
+        if stage > num_stages then
+          -- Tap inactive stage: extend stage count
+          params:set("rc_cycling_stages", stage)
+          arc_overlay = { name = "Stages", value = tostring(stage), time = util.time() }
+        else
+          -- Tap active stage: pin/unpin edit focus
+          if edit_stage == stage then
+            edit_stage = nil
+          else
+            edit_stage = stage
+          end
+        end
 
-    elseif x == 2 and y == 7 then
-      local current = params:get("rc_cycling_stages")
-      if current > 1 then
-        params:set("rc_cycling_stages", current - 1)
-        arc_overlay = { name = "Stages", value = tostring(current - 1), time = util.time() }
+        -- Activate live view
+        if _seeker.screen_ui then
+          local section = _seeker.screen_ui.sections["CYCLING_LIVE"]
+          if section and section.live_view_enabled and not section.live_view_active then
+            section.live_view_active = true
+          end
+        end
+        update_arc()
+        _seeker.screen_ui.set_needs_redraw()
+
+      else
+        -- Hold active stage: truncate stage count
+        if stage <= num_stages and self:is_long_press(key_id) then
+          params:set("rc_cycling_stages", stage)
+          arc_overlay = { name = "Stages", value = tostring(stage), time = util.time() }
+          if _seeker.modal then
+            _seeker.modal.show_status({ body = "Stages: " .. stage })
+            clock.run(function()
+              clock.sleep(0.5)
+              if _seeker.modal then _seeker.modal.dismiss() end
+            end)
+          end
+        end
+        self:key_release(key_id)
         _seeker.screen_ui.set_needs_redraw()
       end
-
-    elseif x == 3 and y == 7 then
-      local current = params:get("rc_cycling_stages")
-      if current < 8 then
-        params:set("rc_cycling_stages", current + 1)
-        arc_overlay = { name = "Stages", value = tostring(current + 1), time = util.time() }
-        _seeker.screen_ui.set_needs_redraw()
-      end
+      return
     end
   end
 
@@ -1072,10 +1116,11 @@ function Cycling.load_cycling_params(lane_id)
   loading = false
 end
 
--- Lane change callback: save outgoing, load incoming
+-- Lane change callback: save outgoing, load incoming, generate chords for new lane
 function Cycling.on_lane_change(old_lane_id, new_lane_id)
   Cycling.save_cycling_params(old_lane_id)
   Cycling.load_cycling_params(new_lane_id)
+  rebuild()
 end
 
 -- Trigger a rebuild from outside

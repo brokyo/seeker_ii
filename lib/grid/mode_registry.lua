@@ -51,8 +51,9 @@ GridModeRegistry.MODES = {
       "SAMPLER_CLEAR",
       "SAMPLER_VELOCITY",
       "SAMPLER_PERFORM",
+      -- Wheel (cycling chord progressions)
+      "CYCLING_LIVE",
       -- Composer type sections
-      "COMPOSER_CYCLING",
       "COMPOSER_CREATE",
       "COMPOSER_CLEAR",
       "COMPOSER_PLAYBACK",

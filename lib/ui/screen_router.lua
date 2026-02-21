@@ -26,6 +26,7 @@ function ScreenUI.init()
   -- Auto-register sections from mode modules (each provides a .sections table)
   local mode_modules = {
     _seeker.tape, _seeker.sampler_type, _seeker.composer,
+    _seeker.cycling_mode,
     _seeker.wtape, _seeker.eurorack, _seeker.osc
   }
   for _, mode_module in ipairs(mode_modules) do

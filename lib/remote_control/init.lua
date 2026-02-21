@@ -790,8 +790,8 @@ function RC.restore(slot)
   end
 
   -- Reload cycling params for the focused lane
-  if _seeker.composer and _seeker.composer.cycling then
-    _seeker.composer.cycling.load_cycling_params(_seeker.ui_state.get_focused_lane())
+  if _seeker.cycling_mode and _seeker.cycling_mode.cycling then
+    _seeker.cycling_mode.cycling.load_cycling_params(_seeker.ui_state.get_focused_lane())
   end
 
   -- Restart lanes that were playing when saved

@@ -39,7 +39,13 @@ function ModeSwitcher.handle_key(x, y, z)
     if mode_id then
       local config = GridModeRegistry.get_mode(mode_id)
       _seeker.current_mode = mode_id
-      _seeker.ui_state.set_current_section(config.default_section)
+
+      -- Motif mode respects sub-mode (tape vs wheel) for default section
+      if mode_id == "motif" and _seeker.motif_sub_mode == "wheel" then
+        _seeker.ui_state.set_current_section("CYCLING_LIVE")
+      else
+        _seeker.ui_state.set_current_section(config.default_section)
+      end
       return true
     end
   end
