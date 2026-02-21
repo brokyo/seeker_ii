@@ -67,9 +67,9 @@ function ScreenSaver.check_timeout()
     return false
   end
 
-  -- Form mode has its own live view and grid animations; screensaver would interrupt
+  -- Composer mode has its own live view and grid animations; screensaver would interrupt
   local current_section = _seeker.ui_state.get_current_section()
-  if current_section and current_section:sub(1, 5) == "FORM_" then
+  if current_section and current_section:sub(1, 9) == "COMPOSER_" then
     ScreenSaver.state.is_active = false
     return false
   end

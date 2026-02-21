@@ -34,13 +34,12 @@ local mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
 -- Motif Types
 local Tape = include("lib/modes/motif/types/tape/init")
 local Sampler = include("lib/modes/motif/types/sampler/init")
-local Composer = include("lib/modes/motif/types/composer/init")
 
 -- Mode Types
 local WTape = include("lib/modes/wtape/init")
 local Eurorack = include("lib/modes/eurorack/init")
 local Osc = include("lib/modes/osc/init")
-local FormMode = include("lib/modes/form/init")
+local ComposerMode = include("lib/modes/composer/init")
 
 -- Remote Control
 local RemoteControl = include("lib/remote_control/init")
@@ -64,7 +63,7 @@ _seeker = {
   hold_confirm = HoldConfirm,
 
   current_mode = nil,
-  motif_sub_mode = "form",  -- "tape" or "form"
+  current_sub_mode = nil,
 
   -- Remote Control
   rc = nil,
@@ -76,8 +75,7 @@ _seeker = {
   -- Mode Types (initialized via init.lua)
   tape = nil,
   sampler_type = nil,
-  composer = nil,
-  form_mode = nil,
+  composer_mode = nil,
   wtape = nil,
   eurorack = nil,
   osc = nil,
@@ -113,10 +111,9 @@ function init()
   -- Motif Types
   _seeker.tape = Tape.init()
   _seeker.sampler_type = Sampler.init()
-  _seeker.composer = Composer.init()
 
   -- Mode Types
-  _seeker.form_mode = FormMode.init()
+  _seeker.composer_mode = ComposerMode.init()
   _seeker.wtape = WTape.init()
   _seeker.eurorack = Eurorack.init()
   _seeker.osc = Osc.init()
@@ -164,8 +161,7 @@ function init()
     _seeker.lanes[i].midi_out_device = midi.connect(1)
   end
 
-  -- Lane 1 defaults: composer mode with MX Samples epiano
-  params:set("lane_1_motif_type", 2)
+  -- Lane 1 defaults: MX Samples epiano
   params:set("lane_1_mx_samples_active", 1)
   local instruments = mx_samples.get_instrument_list()
   for idx, name in ipairs(instruments) do
@@ -180,8 +176,9 @@ function init()
   _seeker.rc.init()
   _seeker.rc_overlay = rc_overlay
 
-  _seeker.current_mode = "motif"
-  _seeker.ui_state.set_current_section("FORM_LIVE")
+  _seeker.current_mode = "music"
+  _seeker.current_sub_mode = "composer"
+  _seeker.ui_state.set_current_section("COMPOSER_HOME")
 
   -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()

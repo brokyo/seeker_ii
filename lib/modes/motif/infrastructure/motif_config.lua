@@ -96,31 +96,18 @@ local MOTIF_TYPE_TAPE = 1
 
 local function create_screen_ui()
     local norns_ui = NornsUI.new({
-        id = "MOTIF_CONFIG",
-        name = "Motif Config",
-        description = Descriptions.MOTIF_CONFIG,
+        id = "MOTIF",
+        name = "Motif",
+        description = Descriptions.MOTIF,
         params = {}
     })
 
-    -- Dynamic parameter rebuilding based on motif type
     norns_ui.rebuild_params = function(self)
-        local lane_idx = _seeker.ui_state.get_focused_lane()
-        local motif_type = params:get("lane_" .. lane_idx .. "_motif_type")
-
-        local param_table = {
-            { separator = true, title = "Actions" },
-            { id = "motif_config_sync_all_clocks", is_action = true },
-            { separator = true, title = "Tuning" },
+        self.params = {
             { id = "tuning_preset" },
             { id = "root_note" },
-            { id = "scale_type" }
+            { id = "scale_type" },
         }
-
-        table.insert(param_table, { separator = true, title = "Global Layout" })
-        table.insert(param_table, { id = "motif_config_column_steps" })
-        table.insert(param_table, { id = "motif_config_row_steps" })
-
-        self.params = param_table
     end
 
     local original_enter = norns_ui.enter
@@ -132,15 +119,34 @@ local function create_screen_ui()
     return norns_ui
 end
 
-local function create_grid_ui()
-    -- Grid UI disabled - navigation handled by mode button at (16, 2)
-    return nil
+local function create_tape_home_screen()
+    local norns_ui = NornsUI.new({
+        id = "TAPE_HOME",
+        name = "Keyboard Layout",
+        description = "Grid layout for the tape keyboard.\n\nColumn and row spacing control how notes are arranged on the grid.",
+        params = {}
+    })
+
+    norns_ui.rebuild_params = function(self)
+        self.params = {
+            { id = "motif_config_column_steps" },
+            { id = "motif_config_row_steps" },
+        }
+    end
+
+    local original_enter = norns_ui.enter
+    norns_ui.enter = function(self)
+        self:rebuild_params()
+        original_enter(self)
+    end
+
+    return norns_ui
 end
 
 function MotifConfig.init()
     local component = {
         screen = create_screen_ui(),
-        grid = create_grid_ui()
+        tape_home_screen = create_tape_home_screen(),
     }
     create_params()
 

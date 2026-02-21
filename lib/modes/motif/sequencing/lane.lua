@@ -17,10 +17,7 @@ local Motif = include('lib/modes/motif/core/motif')
 local lane_handlers = include('lib/modes/motif/sequencing/lane_handlers')
 
 -- Motif type constants
-local TAPE_MODE = 1
-local COMPOSER_MODE = 2
 local SAMPLER_MODE = 3
-local FORM_MODE = 4
 local GridConstants = include('lib/grid/constants')
 local theory = include('lib/modes/motif/core/theory')
 local musicutil = require('musicutil')
@@ -209,7 +206,7 @@ function Lane.new(config)
   lane.rc_stage_motifs = {}
 
   -- Per-lane form param snapshot
-  lane.form_param_snapshot = nil
+  lane.composer_param_snapshot = nil
 
   -- Add trails state
   lane.trails = {}  -- Store fading note trails

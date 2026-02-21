@@ -58,8 +58,8 @@ local function create_params()
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
             -- Rebuild Form voice section if it exists (shows voice-specific params)
-            if _seeker.screen_ui and _seeker.screen_ui.sections.FORM_VOICE and _seeker.screen_ui.sections.FORM_VOICE.rebuild_params then
-              _seeker.screen_ui.sections.FORM_VOICE:rebuild_params()
+            if _seeker.screen_ui and _seeker.screen_ui.sections.COMPOSER_VOICE and _seeker.screen_ui.sections.COMPOSER_VOICE.rebuild_params then
+              _seeker.screen_ui.sections.COMPOSER_VOICE:rebuild_params()
             end
             _seeker.screen_ui.set_needs_redraw()
         end)
@@ -370,8 +370,8 @@ local function create_screen_ui()
         self:filter_active_params()
 
         -- Also rebuild Form voice section if it exists (voice toggles trigger this)
-        if _seeker.screen_ui and _seeker.screen_ui.sections.FORM_VOICE then
-          _seeker.screen_ui.sections.FORM_VOICE:rebuild_params()
+        if _seeker.screen_ui and _seeker.screen_ui.sections.COMPOSER_VOICE then
+          _seeker.screen_ui.sections.COMPOSER_VOICE:rebuild_params()
         end
     end
 

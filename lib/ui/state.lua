@@ -125,9 +125,9 @@ function UIState.set_focused_lane(lane_idx)
 
   UIState.state.focused_lane = lane_idx
 
-  -- Notify form of lane change (save outgoing snapshot, load incoming)
-  if _seeker.form_mode and _seeker.form_mode.form and _seeker.form_mode.form.on_lane_change then
-    _seeker.form_mode.form.on_lane_change(old_lane_id, lane_idx)
+  -- Notify composer of lane change (save outgoing snapshot, load incoming)
+  if _seeker.composer_mode and _seeker.composer_mode.composer and _seeker.composer_mode.composer.on_lane_change then
+    _seeker.composer_mode.composer.on_lane_change(old_lane_id, lane_idx)
   end
   
   -- Update UI
@@ -188,6 +188,12 @@ function UIState.set_current_section(section_id)
       _seeker.current_mode = required_mode
     elseif not required_mode and not section_id:match("^RC_") then
       print("⚠ Warning: Section '" .. section_id .. "' not registered in any mode")
+    end
+
+    -- Auto-set sub-mode when navigating to a section within a sub-mode
+    local sub_mode = GridModeRegistry.get_sub_mode_for_section(section_id)
+    if sub_mode then
+      _seeker.current_sub_mode = sub_mode
     end
   end
 

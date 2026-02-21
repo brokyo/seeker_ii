@@ -143,115 +143,6 @@ function RC.lane(lane_id)
   print_separator()
 end
 
--- Print composer-specific state with resolved params per stage
-function RC.composer(lane_id)
-  lane_id = lane_id or _seeker.ui_state.get_focused_lane()
-  local lane = _seeker.lanes[lane_id]
-  if not lane then
-    p("ERROR: No lane " .. tostring(lane_id))
-    return
-  end
-
-  local mtype_idx = params:get("lane_" .. lane_id .. "_motif_type")
-  if mtype_idx ~= 2 then
-    p(string.format("Lane %d is not in Composer mode (current: %s)", lane_id, MOTIF_TYPES[mtype_idx] or "?"))
-    return
-  end
-
-  print_separator()
-  p(string.format("COMPOSER - Lane %d", lane_id))
-  print_separator()
-
-  -- Lane-level composer params
-  local stage_mode = params:string("lane_" .. lane_id .. "_composer_stage_mode")
-  local step_length = params:string("lane_" .. lane_id .. "_composer_step_length")
-  local num_steps = params:get("lane_" .. lane_id .. "_composer_num_steps")
-
-  p(string.format("Stage Mode: %s  Steps: %d  Step Length: %s", stage_mode, num_steps, step_length))
-
-  -- Transform drift params (only meaningful in Transform mode)
-  if stage_mode == "Transform" then
-    p(string.format("Harmonic Motion: %s", params:string("lane_" .. lane_id .. "_composer_harmonic_motion")))
-    p(string.format("Drift - Voice: %d  Octave: %d  Duration: %d%%  Velocity: %d  Strum: %d%%",
-      params:get("lane_" .. lane_id .. "_composer_voice_drift"),
-      params:get("lane_" .. lane_id .. "_composer_octave_drift"),
-      params:get("lane_" .. lane_id .. "_composer_duration_drift"),
-      params:get("lane_" .. lane_id .. "_composer_velocity_drift"),
-      params:get("lane_" .. lane_id .. "_composer_strum_drift")))
-  end
-
-  print_separator()
-
-  -- Resolved params for each stage
-  -- Resolve parameters per stage, applying Transform mode derivation rules
-  local is_transform = stage_mode == "Transform"
-  for stage_id = 1, #lane.stages do
-    local s = lane.stages[stage_id]
-    local active = s.active and "ON" or "off"
-    local current = (stage_id == lane.current_stage_index and lane.playing) and " <-" or ""
-
-    -- Read resolved params (same logic as generator.resolve_stage_params)
-    local prefix = "lane_" .. lane_id .. "_stage_" .. stage_id .. "_composer_"
-    local seed = "lane_" .. lane_id .. "_stage_1_composer_"
-
-    local chord_root, chord_type, chord_length, voice_rotation, voicing_style, octave
-    local pattern, note_duration, vel_curve, vel_min, vel_max
-    local strum_amount, strum_curve, strum_shape
-
-    if not is_transform or stage_id == 1 then
-      chord_root = params:get(prefix .. "chord_root")
-      chord_type = params:string(prefix .. "chord_type")
-      chord_length = params:get(prefix .. "chord_length")
-      voice_rotation = params:get(prefix .. "voice_rotation")
-      voicing_style = params:string(prefix .. "voicing_style")
-      octave = params:get(prefix .. "octave")
-      pattern = params:string(prefix .. "pattern")
-      note_duration = params:get(prefix .. "note_duration")
-      vel_curve = params:string(prefix .. "velocity_curve")
-      vel_min = params:get(prefix .. "velocity_min")
-      vel_max = params:get(prefix .. "velocity_max")
-      strum_amount = params:get(prefix .. "strum_amount")
-      strum_curve = params:string(prefix .. "strum_curve")
-      strum_shape = params:string(prefix .. "strum_shape")
-    else
-      -- Transform mode: derive from Stage 1
-      local HARMONIC_MOTION = {0, 1, -1, 2, -2, 3, -3, 4, -4}
-      local steps = stage_id - 1
-      local degree_offset = HARMONIC_MOTION[params:get("lane_" .. lane_id .. "_composer_harmonic_motion")]
-      local v_drift = params:get("lane_" .. lane_id .. "_composer_voice_drift")
-      local o_drift = params:get("lane_" .. lane_id .. "_composer_octave_drift")
-      local d_drift = params:get("lane_" .. lane_id .. "_composer_duration_drift")
-      local vel_drift = params:get("lane_" .. lane_id .. "_composer_velocity_drift")
-      local s_drift = params:get("lane_" .. lane_id .. "_composer_strum_drift")
-
-      chord_root = ((params:get(seed .. "chord_root") - 1 + degree_offset * steps) % 7) + 1
-      chord_type = params:string(seed .. "chord_type")
-      chord_length = params:get(seed .. "chord_length")
-      voice_rotation = util.clamp(params:get(seed .. "voice_rotation") + v_drift * steps, -5, 5)
-      voicing_style = params:string(seed .. "voicing_style")
-      octave = util.clamp(params:get(seed .. "octave") + o_drift * steps, 1, 7)
-      pattern = params:string(seed .. "pattern")
-      note_duration = util.clamp(params:get(seed .. "note_duration") + d_drift * steps, 1, 300)
-      vel_curve = params:string(seed .. "velocity_curve")
-      vel_min = util.clamp(params:get(seed .. "velocity_min") + vel_drift * steps, 1, 127)
-      vel_max = util.clamp(params:get(seed .. "velocity_max") + vel_drift * steps, 1, 127)
-      strum_amount = util.clamp(params:get(seed .. "strum_amount") + s_drift * steps, 0, 100)
-      strum_curve = params:string(seed .. "strum_curve")
-      strum_shape = params:string(seed .. "strum_shape")
-    end
-
-    p(string.format("Stage %d [%s]%s:", stage_id, active, current))
-    p(string.format("  Chord: root=%d type=%s len=%d  Voice: rot=%d style=%s",
-      chord_root, chord_type, chord_length, voice_rotation, voicing_style))
-    p(string.format("  Octave: %d  Pattern: %s  Duration: %d%%",
-      octave, pattern, note_duration))
-    p(string.format("  Velocity: %s min=%d max=%d",
-      vel_curve, vel_min, vel_max))
-    p(string.format("  Strum: %d%% curve=%s shape=%s",
-      strum_amount, strum_curve, strum_shape))
-  end
-  print_separator()
-end
 
 -- Set a param and print confirmation
 function RC.set(param_id, value)
@@ -728,7 +619,7 @@ function RC.save(slot)
       genesis_duration = lane.motif.genesis.duration,
       playing = lane.playing,
       rc_stage_motifs = lane.rc_stage_motifs,
-      form_param_snapshot = lane.form_param_snapshot,
+      composer_param_snapshot = lane.composer_param_snapshot,
     }
     save_data[i] = lane_data
     if #lane.motif.events > 0 then
@@ -775,7 +666,7 @@ function RC.restore(slot)
     if lane_data then
       -- Restore RC stage motifs and form state
       lane.rc_stage_motifs = lane_data.rc_stage_motifs or {}
-      lane.form_param_snapshot = lane_data.form_param_snapshot
+      lane.composer_param_snapshot = lane_data.composer_param_snapshot
 
       if #lane_data.events > 0 then
         -- Restore genesis state
@@ -789,9 +680,9 @@ function RC.restore(slot)
     end
   end
 
-  -- Reload form params for the focused lane
-  if _seeker.form_mode and _seeker.form_mode.form then
-    _seeker.form_mode.form.load_form_params(_seeker.ui_state.get_focused_lane())
+  -- Reload composer params for the focused lane
+  if _seeker.composer_mode and _seeker.composer_mode.composer then
+    _seeker.composer_mode.composer.load_params(_seeker.ui_state.get_focused_lane())
   end
 
   -- Restart lanes that were playing when saved

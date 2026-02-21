@@ -214,8 +214,8 @@ function NornsUI:draw_footer()
   screen.move(2, 60)
   screen.text(self.name)
 
-  -- Only show lane/stage info in motif mode
-  if _seeker.current_mode == "motif" then
+  -- Only show lane/stage info in music mode (motif + composer)
+  if _seeker.current_mode == "music" then
     local lane_idx = _seeker.ui_state.get_focused_lane()
     local lane = _seeker.lanes[lane_idx]
     local stage_idx = lane.current_stage_index
@@ -457,8 +457,11 @@ function NornsUI:handle_enc_default(n, d)
 end
 
 function NornsUI:handle_enc(n, d)
-  -- Live view sections consume encoder input via arc/custom handlers instead
-  if self.live_view_enabled and self.state.live_view then return end
+  -- Live view: delegate to section's encoder handler if defined
+  if self.live_view_enabled and self.state.live_view then
+    if self.handle_live_enc then self:handle_live_enc(n, d) end
+    return
+  end
   self:handle_enc_default(n, d)
 end
 

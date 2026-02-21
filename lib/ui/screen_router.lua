@@ -19,14 +19,15 @@ function ScreenUI.init()
     CONFIG = _seeker.config.screen,
 
     -- Motif Mode
-    MOTIF_CONFIG = _seeker.motif_config.screen,
+    MOTIF = _seeker.motif_config.screen,
+    TAPE_HOME = _seeker.motif_config.tape_home_screen,
     LANE_CONFIG = _seeker.lane_config.screen,
   }
 
   -- Auto-register sections from mode modules (each provides a .sections table)
   local mode_modules = {
-    _seeker.tape, _seeker.sampler_type, _seeker.composer,
-    _seeker.form_mode,
+    _seeker.tape, _seeker.sampler_type,
+    _seeker.composer_mode,
     _seeker.wtape, _seeker.eurorack, _seeker.osc
   }
   for _, mode_module in ipairs(mode_modules) do

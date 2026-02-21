@@ -1,11 +1,11 @@
--- Form mode initialization
--- Form sub-mode for motif: algorithmic chord progressions.
+-- Composer mode initialization
+-- Top-level grid mode for algorithmic chord progressions.
 -- Grid handles lane buttons + per-lane stages directly.
--- Lane button cycles through FORM_LIVE, FORM_PLAYBACK, FORM_VOICE sections.
+-- Lane button cycles through COMPOSER_LIVE, COMPOSER_PLAYBACK, COMPOSER_VOICE sections.
 
 local NornsUI = include("lib/ui/base/norns_ui")
-local Form = include("lib/modes/motif/types/composer/cycling")
-local composer_generator = include("lib/modes/motif/types/composer/generator")
+local Composer = include("lib/modes/composer/composer")
+local LiveView = include("lib/modes/composer/live_view")
 local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 
 -- Voice parameter modules (same registry as lane_config)
@@ -21,17 +21,32 @@ local VOICES = {
     include("lib/modes/motif/infrastructure/voices/wsyn"),
 }
 
-local VOICE_NAMES = {}
-for _, voice in ipairs(VOICES) do
-    table.insert(VOICE_NAMES, voice.name)
+---------------------------------------------------------------
+-- COMPOSER_HOME: placeholder landing screen
+---------------------------------------------------------------
+local function create_home_section()
+  local norns_ui = NornsUI.new({
+    id = "COMPOSER_HOME",
+    name = "Composer",
+    description = "Algorithmic chord progressions across lanes.",
+    params = {}
+  })
+
+  norns_ui.draw = function(self)
+    screen.level(6)
+    screen.move(64, 30)
+    screen.text_center("click row on left to start")
+  end
+
+  return norns_ui
 end
 
 ---------------------------------------------------------------
--- FORM_PLAYBACK: speed, octave, volume for the focused lane
+-- COMPOSER_PLAYBACK: speed, volume, swing for the focused lane
 ---------------------------------------------------------------
 local function create_playback_section()
   local norns_ui = NornsUI.new({
-    id = "FORM_PLAYBACK",
+    id = "COMPOSER_PLAYBACK",
     name = "Playback",
     description = "Lane playback controls: volume, speed, octave offset.",
     params = {}
@@ -52,11 +67,11 @@ local function create_playback_section()
 end
 
 ---------------------------------------------------------------
--- FORM_VOICE: voice routing for the focused lane
+-- COMPOSER_VOICE: voice routing for the focused lane
 ---------------------------------------------------------------
 local function create_voice_section()
   local norns_ui = NornsUI.new({
-    id = "FORM_VOICE",
+    id = "COMPOSER_VOICE",
     name = "Voice",
     description = "Voice routing: select output destination and configure voice parameters.",
     params = {}
@@ -71,7 +86,6 @@ local function create_voice_section()
       { id = "lane_" .. lane_idx .. "_visible_voice" },
     }
 
-    -- Voice-specific params from the selected voice module
     local voice_module = VOICES[visible_voice]
     if voice_module and voice_module.get_ui_params then
       local voice_params = voice_module.get_ui_params(lane_idx)
@@ -87,33 +101,32 @@ local function create_voice_section()
 end
 
 ---------------------------------------------------------------
--- FORM_PARAMS: chord shape, texture, and structure params
+-- COMPOSER_PARAMS: chord shape, texture, and structure
 ---------------------------------------------------------------
 local function create_params_section()
   local norns_ui = NornsUI.new({
-    id = "FORM_PARAMS",
-    name = "Form",
+    id = "COMPOSER_PARAMS",
+    name = "Composer",
     description = "Chord progression shape, texture, and structure.",
     params = {}
   })
 
   norns_ui.rebuild_params = function(self)
-    local lane_idx = _seeker.ui_state.get_focused_lane()
-    self.name = "Form"
+    self.name = "Composer"
     self.params = {
-      { separator = true, title = "Form Settings" },
-      { id = "rc_form_start" },
-      { id = "rc_form_movement" },
-      { id = "rc_form_stages" },
-      { id = "rc_form_beats" },
+      { separator = true, title = "Structure" },
+      { id = "rc_composer_start" },
+      { id = "rc_composer_movement" },
+      { id = "rc_composer_stages" },
+      { id = "rc_composer_beats" },
       { separator = true, title = "Harmony" },
-      { id = "rc_form_chord_len" },
-      { id = "rc_form_voicing" },
-      { id = "rc_form_rotation" },
+      { id = "rc_composer_chord_len" },
+      { id = "rc_composer_voicing" },
+      { id = "rc_composer_rotation" },
       { separator = true, title = "Articulation" },
-      { id = "rc_form_spread", arc_multi_float = {5, 2, 0.5} },
-      { id = "rc_form_strum_order" },
-      { id = "rc_form_loops" },
+      { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
+      { id = "rc_composer_strum_order" },
+      { id = "rc_composer_loops" },
     }
   end
 
@@ -121,36 +134,41 @@ local function create_params_section()
 end
 
 ---------------------------------------------------------------
--- FormMode
+-- ComposerMode
 ---------------------------------------------------------------
-local FormMode = {}
+local ComposerMode = {}
 
-function FormMode.init()
+function ComposerMode.init()
   local instance = {
     sections = {},
     grids = {}
   }
 
-  -- Initialize form component (creates params, screen UI, grid UI)
-  instance.form = Form.init()
+  -- Create params first (needed before live_view builds PageState)
+  Composer.create_params()
+
+  -- Initialize live view (creates screen UI, grid UI, PageState)
+  LiveView.init(Composer)
+
+  -- Store core reference for RC and other modules
+  instance.composer = Composer
 
   -- Register screen sections
-  instance.sections["FORM_LIVE"] = instance.form.screen
-  instance.sections["FORM_PLAYBACK"] = create_playback_section()
-  instance.sections["FORM_VOICE"] = create_voice_section()
-  instance.sections["FORM_PARAMS"] = create_params_section()
+  instance.sections["COMPOSER_HOME"] = create_home_section()
+  instance.sections["COMPOSER_LIVE"] = LiveView.screen
+  instance.sections["COMPOSER_PROGRESSION"] = LiveView.progression_screen
+  instance.sections["COMPOSER_PLAYBACK"] = create_playback_section()
+  instance.sections["COMPOSER_VOICE"] = create_voice_section()
+  instance.sections["COMPOSER_PARAMS"] = create_params_section()
 
   -- Register grid
-  instance.grids.form = instance.form.grid
+  instance.grids.composer = LiveView.grid
 
-  -- Register lane handler for Form (motif_type 4)
-  -- Form shares Composer's generator and keyboard but has its own mode identity.
+  -- Register lane handler for Composer (motif_type 4)
+  -- Note: prepare_stage is a no-op because Composer writes to rc_stage_motifs,
+  -- which lane.lua loads directly before reaching the handler.
   lane_handlers.register(4, {
-    prepare_stage = function(lane, stage)
-      composer_generator.prepare_stage(lane.id, stage.id, lane.motif)
-    end,
-
-    -- No on_stage_start: form has no stage config blink (stages managed by grid)
+    prepare_stage = function(lane, stage) end,
 
     is_muted = function(lane_id)
       return false
@@ -172,21 +190,7 @@ function FormMode.init()
     end,
 
     get_active_positions = function(lane)
-      local positions = {}
-      if not lane.playing then
-        return positions
-      end
-      local composer_keyboard = _seeker.composer and _seeker.composer.keyboard and _seeker.composer.keyboard.grid
-      if not composer_keyboard then return positions end
-      for _, note in pairs(lane.active_notes) do
-        local current_positions = composer_keyboard.note_to_positions(note.note)
-        if current_positions then
-          for _, pos in ipairs(current_positions) do
-            table.insert(positions, {x = pos.x, y = pos.y, note = note.note})
-          end
-        end
-      end
-      return positions
+      return {}
     end,
 
     trail_mode = "immediate"
@@ -195,4 +199,4 @@ function FormMode.init()
   return instance
 end
 
-return FormMode
+return ComposerMode

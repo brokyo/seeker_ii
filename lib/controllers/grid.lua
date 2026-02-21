@@ -49,20 +49,37 @@ function grid_redraw_clock()
   end
 end
 
--- Get the active grid mode based on current_mode (lazy-loaded from registry)
-local function get_active_mode()
+-- Resolve the grid layout path for the current mode/sub-mode
+-- Parent modes with sub_modes have no layout of their own (uses sub-mode layout)
+local function get_layout_path()
   local mode_id = _seeker.current_mode
   if not mode_id then return nil end
 
-  -- Lazy-load mode implementation if not already loaded
-  if not mode_impls[mode_id] then
-    local config = GridModeRegistry.get_mode(mode_id)
-    if config then
-      mode_impls[mode_id] = include(config.path)
+  local config = GridModeRegistry.get_mode(mode_id)
+  if not config then return nil end
+
+  if config.sub_modes then
+    local sub_mode_id = _seeker.current_sub_mode
+    if sub_mode_id and config.sub_modes[sub_mode_id] then
+      return config.sub_modes[sub_mode_id].path
     end
+    return nil
   end
 
-  return mode_impls[mode_id]
+  return config.path
+end
+
+-- Get the active grid mode based on current_mode (lazy-loaded from registry)
+local function get_active_mode()
+  local path = get_layout_path()
+  if not path then return nil end
+
+  -- Lazy-load mode implementation by path
+  if not mode_impls[path] then
+    mode_impls[path] = include(path)
+  end
+
+  return mode_impls[path]
 end
 
 
@@ -124,12 +141,17 @@ function GridUI.key(x, y, z)
               end
             end
           else
-            -- Tap: select output and navigate to cv_monitor
+            -- Tap: select output, or cycle page if already selected
             if _seeker.eurorack.cv_monitor then
-              _seeker.eurorack.cv_monitor.select_output(source, output_num)
-            end
-            if current_section ~= "EURORACK_CONFIG" then
-              _seeker.ui_state.set_current_section("EURORACK_CONFIG")
+              local sel = _seeker.eurorack.cv_monitor.get_selected()
+              if sel and sel.source == source and sel.num == output_num and current_section == "EURORACK_CONFIG" then
+                _seeker.eurorack.cv_monitor.cycle_page()
+              else
+                _seeker.eurorack.cv_monitor.select_output(source, output_num)
+                if current_section ~= "EURORACK_CONFIG" then
+                  _seeker.ui_state.set_current_section("EURORACK_CONFIG")
+                end
+              end
             end
           end
         end
@@ -164,9 +186,11 @@ function GridUI.key(x, y, z)
     return
   end
 
-  -- Delegate to active mode
+  -- Delegate to active mode (nil when parent config has no grid layout)
   local mode = get_active_mode()
-  mode.handle_full_page_key(x, y, z)
+  if mode then
+    mode.handle_full_page_key(x, y, z)
+  end
 end
 
 function GridUI.redraw()
@@ -185,9 +209,11 @@ function GridUI.redraw()
 		ModeSwitcher.draw(GridUI.layers)
 	end
 
-	-- Delegate to active mode for mode-specific content
+	-- Delegate to active mode for mode-specific content (nil when parent config has no grid layout)
 	local mode = get_active_mode()
-	mode.draw_full_page(GridUI.layers)
+	if mode then
+		mode.draw_full_page(GridUI.layers)
+	end
 
 	-- Apply composite to grid
 	GridLayers.apply_to_grid(g, GridUI.layers)
