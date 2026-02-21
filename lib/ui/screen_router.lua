@@ -26,7 +26,7 @@ function ScreenUI.init()
   -- Auto-register sections from mode modules (each provides a .sections table)
   local mode_modules = {
     _seeker.tape, _seeker.sampler_type, _seeker.composer,
-    _seeker.cycling_mode,
+    _seeker.form_mode,
     _seeker.wtape, _seeker.eurorack, _seeker.osc
   }
   for _, mode_module in ipairs(mode_modules) do
@@ -58,7 +58,8 @@ function ScreenUI.init()
         local section = ScreenUI.sections[current_section]
         if _seeker.motif_recorder.is_recording or
            (section and section.needs_playback_refresh) or
-           (_seeker.modal and _seeker.modal.is_active()) then
+           (_seeker.modal and _seeker.modal.is_active()) or
+           (_seeker.hold_confirm and _seeker.hold_confirm.is_active()) then
           ScreenUI.set_needs_redraw()
         end
 
@@ -107,6 +108,8 @@ function ScreenUI.redraw()
     ScreenSaver.draw()
   elseif _seeker.modal and _seeker.modal.is_active() then
     _seeker.modal.draw()
+  elseif _seeker.hold_confirm and _seeker.hold_confirm.is_active() then
+    _seeker.hold_confirm.draw()
   else
     local section = ScreenUI.get_active_section()
     if section and section.state.is_active then

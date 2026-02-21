@@ -14,16 +14,13 @@ local mx_samples = include('lib/modes/motif/infrastructure/voices/mx_samples')
 local txo_osc = include('lib/modes/motif/infrastructure/voices/txo_osc')
 local disting_nt = include('lib/modes/motif/infrastructure/voices/disting_nt')
 local Motif = include('lib/modes/motif/core/motif')
--- Stage type modules for mode-specific preparation
-local tape_transform = include('lib/modes/motif/types/tape/transform')
-local composer_generator = include('lib/modes/motif/types/composer/generator')
-local sampler_transforms = include('lib/modes/motif/types/sampler/transforms')
--- Note: Performance state is accessed via _seeker.{type}.perform at runtime
+local lane_handlers = include('lib/modes/motif/sequencing/lane_handlers')
 
 -- Motif type constants
 local TAPE_MODE = 1
 local COMPOSER_MODE = 2
 local SAMPLER_MODE = 3
+local FORM_MODE = 4
 local GridConstants = include('lib/grid/constants')
 local theory = include('lib/modes/motif/core/theory')
 local musicutil = require('musicutil')
@@ -35,77 +32,9 @@ local function asl_to(volts, time, shape)
   return string.format("to(%f,%f,'%s')", volts, time, shape or "logarithmic")
 end
 
--- Quantization helper function
-local function quantize_to_interval(time, interval_beats)
-  if interval_beats <= 0 then
-    return time -- No quantization
-  end
-  return math.floor(time / interval_beats + 0.5) * interval_beats
+local function trail_key(x, y)
+  return string.format("%d,%d", x, y)
 end
-
--- Pre-quantize motif events in place (before transforms run)
--- Applies quantization and swing to note times, preserving note durations
-local function pre_quantize_events(events, lane_id)
-  local quantize_option = params:get("lane_" .. lane_id .. "_quantize")
-  local quantize_values = {0, 1/8, 1/4, 1/2, 1}
-  local quantize_interval = quantize_values[quantize_option]
-
-  -- No quantization needed
-  if quantize_interval <= 0 then
-    return
-  end
-
-  local swing_amount = params:get("lane_" .. lane_id .. "_swing") / 100
-
-  -- Track timing offsets per note instance to preserve durations
-  local note_trigger_counts = {}
-  local note_timing_offsets = {}
-
-  -- First pass: calculate offsets for note_on events
-  for _, event in ipairs(events) do
-    if event.type == "note_on" then
-      note_trigger_counts[event.note] = (note_trigger_counts[event.note] or 0) + 1
-      local note_instance_id = event.note .. "_" .. note_trigger_counts[event.note]
-
-      local original_time = event.time
-      local quantized_time = quantize_to_interval(original_time, quantize_interval)
-      local total_offset = quantized_time - original_time
-
-      -- Apply swing to even subdivisions
-      if swing_amount > 0 then
-        local subdivision_position = quantized_time / quantize_interval
-        local subdivision_index = math.floor(subdivision_position + 0.5)
-
-        if subdivision_index % 2 == 0 then
-          local swing_offset = quantize_interval * swing_amount * 0.5
-          quantized_time = quantized_time + swing_offset
-          total_offset = total_offset + swing_offset
-        end
-      end
-
-      event.time = quantized_time
-      note_timing_offsets[note_instance_id] = total_offset
-    end
-  end
-
-  -- Reset counter for note_off pass
-  note_trigger_counts = {}
-
-  -- Second pass: apply same offsets to note_off events
-  for _, event in ipairs(events) do
-    if event.type == "note_off" then
-      note_trigger_counts[event.note] = (note_trigger_counts[event.note] or 0) + 1
-      local note_instance_id = event.note .. "_" .. note_trigger_counts[event.note]
-      local offset = note_timing_offsets[note_instance_id] or 0
-      event.time = event.time + offset
-    end
-  end
-end
-
-  -- Helper for trail keys
-  local function trail_key(x, y)
-    return string.format("%d,%d", x, y)
-  end
 
 -- Create a new lane with the given config
 -- Config: { id, speed?, stages? }
@@ -279,8 +208,8 @@ function Lane.new(config)
   -- Per-stage event data set by RC, indexed by stage id
   lane.rc_stage_motifs = {}
 
-  -- Per-lane cycling param snapshot
-  lane.cycling_param_snapshot = nil
+  -- Per-lane form param snapshot
+  lane.form_param_snapshot = nil
 
   -- Add trails state
   lane.trails = {}  -- Store fading note trails
@@ -370,37 +299,10 @@ function Lane:prepare_stage(stage)
   end
 
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local handler = lane_handlers.get(motif_type)
 
-  if motif_type == TAPE_MODE then
-    -- Reset motif to genesis if configured
-    local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
-    if reset_motif then
-      self.motif:reset_to_genesis()
-    end
-    -- Quantize BEFORE transform so transforms act on quantized times
-    pre_quantize_events(self.motif.events, self.id)
-    -- Apply transform
-    tape_transform.apply_transform(self.id, stage.id, self.motif)
-
-  elseif motif_type == COMPOSER_MODE then
-    -- Composer generates fresh events at step positions (inherently quantized)
-    composer_generator.prepare_stage(self.id, stage.id, self.motif)
-
-  elseif motif_type == SAMPLER_MODE then
-    -- Reset motif to genesis if configured
-    local reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage.id .. "_reset_motif") == 2
-    if reset_motif then
-      self.motif:reset_to_genesis()
-    end
-    -- Quantize BEFORE transform so transforms act on quantized times
-    pre_quantize_events(self.motif.events, self.id)
-    -- Apply sampler transform
-    local transform_ui_name = params:string("lane_" .. self.id .. "_sampler_transform_stage_" .. stage.id)
-    local transform_id = sampler_transforms.get_transform_id_by_ui_name(transform_ui_name)
-    if transform_id and transform_id ~= "none" then
-      local transform = sampler_transforms.available[transform_id]
-      self.motif.events = transform.fn(self.motif.events, self.id, stage.id)
-    end
+  if handler and handler.prepare_stage then
+    handler.prepare_stage(self, stage)
   end
 
   return true
@@ -436,21 +338,6 @@ function Lane:schedule_stage(stage_index, start_time)
 
   -- Store the start time in the stage for visualization synchronization
   stage.last_start_time = start_time
-  
-  -- Create visual markers for the hierarchy
-  local stage_marker = stage.current_loop == 0 and "╔" or "╠"
-  local timing_info = string.format("@%.2f", start_time)
-  
-  -- Print stage/loop info with timing
-  -- print(string.format('%s══ L_%d S_%d (%d/%d loops) %s\n', 
-    -- stage_marker,
-    -- self.id,
-    -- stage_index,
-    -- stage.current_loop + 1,
-    -- stage.loops,
-    -- timing_info))
-    
-  local stage = self.stages[stage_index]
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
@@ -612,30 +499,14 @@ function Lane:schedule_stage(stage_index, start_time)
   end
   
 
-  -- Trigger stage config button blink on stage start (first loop only)
+  -- Trigger stage blink on first loop of each stage
   if stage.current_loop == 0 and self.id == _seeker.ui_state.get_focused_lane() then
     local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-    local stage_config = nil
-
-    if motif_type == 1 and _seeker.tape and _seeker.tape.stage_config then
-      stage_config = _seeker.tape.stage_config
-    elseif motif_type == 3 and _seeker.sampler_type and _seeker.sampler_type.stage_config then
-      stage_config = _seeker.sampler_type.stage_config
-    end
-
-    if stage_config and stage_config.grid then
-      _seeker.conductor.insert_event({
-        time = start_time,
-        lane_id = self.id,
-        callback = function()
-          stage_config.grid:trigger_stage_blink(stage_index)
-        end
-      })
+    local handler = lane_handlers.get(motif_type)
+    if handler and handler.on_stage_start then
+      handler.on_stage_start(self, stage_index, start_time)
     end
   end
-
-  -- Print debug info about events
-  -- self:debug_print_events(false)
 end
 
 ---------------------------------------------------------
@@ -695,34 +566,16 @@ end
 --   (attack/decay/sustain/release/pan for tape, chop params for sampler)
 ---------------------------------------------------------
 function Lane:on_note_on(event)
-  -- Check performance mute by motif type
+  -- Check performance mute and velocity via mode handler
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local handler = lane_handlers.get(motif_type)
 
-  -- Tape performance
-  local tape_performance = _seeker and _seeker.tape and _seeker.tape.perform
-  if motif_type == TAPE_MODE and tape_performance and tape_performance.is_muted(self.id) then
+  if handler and handler.is_muted and handler.is_muted(self.id) then
     return
   end
 
-  -- Sampler performance
-  local sampler_performance = _seeker and _seeker.sampler_type and _seeker.sampler_type.perform
-  if motif_type == SAMPLER_MODE and sampler_performance and sampler_performance.is_muted(self.id) then
-    return
-  end
-
-  -- Composer performance
-  local composer_performance = _seeker and _seeker.composer and _seeker.composer.perform
-  if motif_type == COMPOSER_MODE and composer_performance and composer_performance.is_muted(self.id) then
-    return
-  end
-
-  -- Apply performance velocity multiplier by motif type
-  if motif_type == TAPE_MODE and tape_performance then
-    event.velocity = event.velocity * tape_performance.get_velocity_multiplier(self.id)
-  elseif motif_type == SAMPLER_MODE and sampler_performance then
-    event.velocity = event.velocity * sampler_performance.get_velocity_multiplier(self.id)
-  elseif motif_type == COMPOSER_MODE and composer_performance then
-    event.velocity = event.velocity * composer_performance.get_velocity_multiplier(self.id)
+  if handler and handler.get_velocity_multiplier then
+    event.velocity = event.velocity * handler.get_velocity_multiplier(self.id)
   end
 
   -- Get the note, applying playback offset if this is a playback event
@@ -752,18 +605,14 @@ function Lane:on_note_on(event)
     note = note + octave_offset
   end
 
-  -- Get all grid positions for this note
+  -- Get all grid positions for this note via mode handler
   local positions
-  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
 
   if event.positions then
     positions = event.positions
   elseif event.x and event.y then
-    -- Tape mode: notes may appear at multiple grid positions (same pitch on different rows)
-    -- Composer/Sampler: each note has a single grid position from the event
-    if motif_type == TAPE_MODE then
-      local keyboard = _seeker.tape.type.get_keyboard()
-      positions = keyboard.note_to_positions(note) or {{x = event.x, y = event.y}}
+    if handler and handler.note_positions then
+      positions = handler.note_positions(self, note, event)
     else
       positions = {{x = event.x, y = event.y}}
     end
@@ -771,14 +620,11 @@ function Lane:on_note_on(event)
 
   -- Store note with all its positions
   if positions then
-    -- For composer keyboard mode, use step-based key to allow multiple simultaneous steps
-    local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+    -- Mode handler determines the key (step-based for composer, note-based for tape/sampler)
     local note_key
-    if motif_type == 2 and event.step then
-      -- Composer mode: use step number as key to allow multiple active steps
-      note_key = "step_" .. event.step
+    if handler and handler.note_key then
+      note_key = handler.note_key(note, event)
     else
-      -- Tape mode: use note number as key (existing behavior)
       note_key = note
     end
 
@@ -790,7 +636,7 @@ function Lane:on_note_on(event)
       event_index = event.event_index
     }
 
-  end 
+  end
 
   --------------------------------
   -- VOICE OUTPUT ROUTING
@@ -1073,18 +919,14 @@ function Lane:on_note_on(event)
 
   --------------------------------
   -- GRID TRAIL VISUALIZATION
-  -- Creates fading brightness trails on grid when notes play.
-  -- Composer mode skips this (uses keyboard's built-in feedback).
+  -- Modes with trail_mode "immediate" skip fade trails on note_on.
   --------------------------------
 
-  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-  local is_composer_mode = (motif_type == 2)
-
-  if is_composer_mode then
+  local trail_mode = handler and handler.trail_mode or "fade"
+  if trail_mode == "immediate" then
     return
   end
 
-  -- Tape/Sampler: gradual fade trails
   local trail_brightness = GridConstants.BRIGHTNESS.HIGH
   local trail_decay = 0.95
 
@@ -1094,11 +936,10 @@ function Lane:on_note_on(event)
       self.trails[key] = {
         brightness = trail_brightness,
         decay = trail_decay,
-        is_new = true  -- Mark as new activation
+        is_new = true
       }
     end
   elseif event.x and event.y then
-    -- Fallback for direct position
     local key = trail_key(event.x, event.y)
     self.trails[key] = {
       brightness = trail_brightness,
@@ -1114,9 +955,6 @@ end
 --   Stops voices, clears active note tracking, manages gate output.
 ---------------------------------------------------------
 function Lane:on_note_off(event)
-  -- Simple unconditional logging
-  -- print("NOTE_OFF: note=" .. tostring(event.note))
-
   -- Get the note, applying playback offset if this is a playback event
   local note = event.note
   if event.is_playback then
@@ -1221,31 +1059,27 @@ function Lane:on_note_off(event)
 
   -- Handle sampler note_off events according to pad mode settings (Gate/Loop/One-Shot)
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local handler = lane_handlers.get(motif_type)
+
   if motif_type == SAMPLER_MODE then
     if _seeker and _seeker.sampler then
       local chop = _seeker.sampler.get_chop(self.id, note)
       if chop then
-        -- Gate mode: stop playback on note_off
-        if chop.mode == 1 then  -- MODE_GATE from sampler/manager.lua
+        if chop.mode == 1 then
           _seeker.sampler.stop_pad(self.id, note)
         end
-        -- Loop mode: ignore note_off, let it loop continuously
-        -- One-shot mode: already auto-stops after playback, ignore note_off
       end
     end
   end
 
   -- Stop hardware output if enabled
   local gate_out = params:get("lane_" .. self.id .. "_gate_out")
-  
-  -- Remove this note from active notes and get its positions
-  -- Use same key logic as on_note_on for composer mode
+
+  -- Remove this note from active notes (mode handler determines key strategy)
   local note_key
-  if motif_type == 2 and event.step then
-    -- Composer mode: use step number as key to match on_note_on
-    note_key = "step_" .. event.step
+  if handler and handler.note_key then
+    note_key = handler.note_key(note, event)
   else
-    -- Tape mode: use note number as key (existing behavior)
     note_key = note
   end
 
@@ -1282,35 +1116,28 @@ function Lane:on_note_off(event)
     -- TXO: AD envelope self-completes, no action needed
   end
 
-  -- Handle trails based on keyboard mode
-  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
-  local is_composer_mode = (motif_type == 2)
+  -- Handle trails: "immediate" removes on note_off, "fade" creates decay trails
+  local trail_mode = handler and handler.trail_mode or "fade"
 
-  if is_composer_mode then
-    -- Composer mode: remove trails immediately for on/off behavior
+  if trail_mode == "immediate" then
     if note_data and note_data.positions then
       for _, pos in ipairs(note_data.positions) do
-        local key = trail_key(pos.x, pos.y)
-        self.trails[key] = nil  -- Remove trail immediately
+        self.trails[trail_key(pos.x, pos.y)] = nil
       end
     elseif event.x and event.y then
-      local key = trail_key(event.x, event.y)
-      self.trails[key] = nil  -- Remove trail immediately
+      self.trails[trail_key(event.x, event.y)] = nil
     end
   else
-    -- Tape mode: create fading trails (existing behavior)
     if note_data and note_data.positions then
       for _, pos in ipairs(note_data.positions) do
-        local key = trail_key(pos.x, pos.y)
-        self.trails[key] = {
+        self.trails[trail_key(pos.x, pos.y)] = {
           brightness = GridConstants.BRIGHTNESS.HIGH,
           decay = 0.95,
-          is_new = true  -- Mark as new activation
+          is_new = true
         }
       end
     elseif event.x and event.y then
-      local key = trail_key(event.x, event.y)
-      self.trails[key] = {
+      self.trails[trail_key(event.x, event.y)] = {
         brightness = GridConstants.BRIGHTNESS.HIGH,
         decay = 0.95,
         is_new = true
@@ -1396,56 +1223,26 @@ function Lane:sync_all_stages_from_params()
 end
 
 function Lane:get_active_positions()
-  local positions = {}
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  local handler = lane_handlers.get(motif_type)
 
-  -- For composer mode, use note-based illumination
-  if motif_type == 2 then
-    if not self.playing then
-      return positions
-    end
-
-    local composer_keyboard = _seeker.composer.keyboard.grid
-    for key, note in pairs(self.active_notes) do
-      local current_positions = composer_keyboard.note_to_positions(note.note)
-      if current_positions then
-        for _, pos in ipairs(current_positions) do
-          table.insert(positions, {x = pos.x, y = pos.y, note = note.note})
-        end
-      end
-    end
-
-    return positions
+  if handler and handler.get_active_positions then
+    return handler.get_active_positions(self)
   end
 
-  -- For sampler mode, use stored positions from active_notes
-  if motif_type == SAMPLER_MODE then
-    for key, note in pairs(self.active_notes) do
-      if note.positions then
-        for _, pos in ipairs(note.positions) do
-          table.insert(positions, {x = pos.x, y = pos.y})
-        end
-      end
-    end
-    return positions
-  end
-
-  -- Tape mode: illuminate all grid positions where this note appears
-  local keyboard = _seeker.tape.type.get_keyboard()
-
-  for key, note in pairs(self.active_notes) do
-    local current_positions = keyboard.note_to_positions(note.note)
-    if current_positions then
-      for _, pos in ipairs(current_positions) do
+  -- Fallback: return stored positions from active_notes
+  local positions = {}
+  for _, note in pairs(self.active_notes) do
+    if note.positions then
+      for _, pos in ipairs(note.positions) do
         table.insert(positions, {x = pos.x, y = pos.y})
       end
     end
   end
-
   return positions
 end
 
--- Helper function to convert interval string to beats (copied from motif_recorder.lua)
+-- Converts an interval string ("1/4", "1/8", or a plain number) to a beat duration
 function Lane:_interval_to_beats(interval_str)
   if tonumber(interval_str) then
     return tonumber(interval_str)

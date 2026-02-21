@@ -1,6 +1,6 @@
 -- lane_selector.lua
 -- Wheel lane buttons: 4 lanes at col 1, rows 4-7.
--- Tap to focus lane (saves/loads cycling snapshot), hold to play/stop.
+-- Tap to focus lane (saves/loads form snapshot), hold to play/stop.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
@@ -12,7 +12,7 @@ local LaneSelector = {}
 
 function LaneSelector.init()
   local grid_ui = GridUI.new({
-    id = "CYCLING_LANE_SELECT",
+    id = "FORM_LANE_SELECT",
     layout = {
       x = 1,
       y = FIRST_ROW,

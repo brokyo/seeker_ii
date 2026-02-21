@@ -1,24 +1,25 @@
 -- cycling.lua
--- Cycling chord progression generator with dual-mode NornsUI.
--- Live view (default): voice leading graph with arc/K3 control.
--- Param view (K2 toggle): standard param list for all cycling params.
--- Grid: 4 lane rows (rows 4-7). Col 1 = lane button (tap play/stop, hold randomize).
--- Cols 2-9 = per-lane stage buttons. Col 1 tap = voice routing, hold = play/stop.
--- Arc: 3-page control (chord overrides, shape params, texture params).
+-- Form chord progression generator with dual-mode NornsUI.
+-- Voice leading graph with arc/K3 control. Encoders access form params.
+-- Grid: 4 lane rows (rows 4-7). Col 1 = lane button, cols 2-9 = per-lane stages.
+-- Hold gestures delegate to _seeker.hold_confirm for full-screen progress bar feedback.
+-- Lane tap cycles sections. Lane hold 1.5s = randomize.
+-- Stage tap: first click selects + snaps to FORM_LIVE, second click toggles arc page. Hold = set count.
+-- Arc: 2-page control (harmony per-stage overrides, articulation globals+strum).
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local Descriptions = include("lib/ui/component_descriptions")
 
-local Cycling = {}
-Cycling.__index = Cycling
+local Form = {}
+Form.__index = Form
 
 local COMPOSER_MODE = 2
 
 -- Guard against set_action firing during param creation
 local initialized = false
--- Suppress rebuild while loading a lane's cycling param snapshot
+-- Suppress rebuild while loading a lane's form param snapshot
 local loading = false
 
 -- Named option tables for musically meaningful labels
@@ -29,14 +30,13 @@ local MOVEMENT_NAMES = {
   "Steps Up", "3rds Up", "4ths Up", "5ths Up", "6ths Up", "7ths Up"
 }
 local CHORD_LEN_NAMES = {
-  "Dyad", "Triad", "Tetrad", "Pentad", "Hexad",
-  "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"
+  "2", "3", "4", "5", "6",
+  "7", "8", "9", "10", "11", "12", "13", "14", "15"
 }
 local ROTATION_NAMES = {
   "-5", "-4", "-3", "-2", "-1",
   "Root", "1st Inv", "2nd Inv", "3rd Inv", "4th Inv", "5th Inv"
 }
-local QUALITY_NAMES = {"Diatonic", "Major", "Minor", "Sus4", "Min7", "Maj7", "Dom7"}
 local VOICING_NAMES = {"Close", "Open", "Drop 2", "Drop 3", "Spread"}
 local STRUM_ORDER_NAMES = {"Up", "Down", "Out>In", "In>Out", "Random"}
 
@@ -51,42 +51,29 @@ local CHORD_LEN_INDEX = {}
 for i, name in ipairs(CHORD_LEN_NAMES) do CHORD_LEN_INDEX[name] = i end
 
 -- Export name arrays for RC and other modules
-Cycling.DEGREE_NAMES = DEGREE_NAMES
-Cycling.VOICING_NAMES = VOICING_NAMES
-Cycling.STRUM_ORDER_NAMES = STRUM_ORDER_NAMES
-Cycling.ROTATION_NAMES = ROTATION_NAMES
-Cycling.CHORD_LEN_NAMES = CHORD_LEN_NAMES
+Form.DEGREE_NAMES = DEGREE_NAMES
+Form.VOICING_NAMES = VOICING_NAMES
+Form.STRUM_ORDER_NAMES = STRUM_ORDER_NAMES
+Form.ROTATION_NAMES = ROTATION_NAMES
+Form.CHORD_LEN_NAMES = CHORD_LEN_NAMES
 
 -- Option index to actual value conversions
 local function movement_value(idx) return idx - 7 end   -- index 7 = Unison (0)
 local function rotation_value(idx) return idx - 6 end   -- index 6 = Root (0)
 local function chord_len_value(idx) return idx + 1 end   -- index 1 = Dyad (2)
 
--- Cycling param definitions for per-lane save/load
-local CYCLING_PARAMS = {
-  {id = "rc_cycling_flavor", default = 1},
-  {id = "rc_cycling_start", default = 1},
-  {id = "rc_cycling_movement", default = 10},   -- 4th Up
-  {id = "rc_cycling_quality", default = 1},
-  {id = "rc_cycling_chord_len", default = 3},    -- Tetrad
-  {id = "rc_cycling_voicing", default = 1},
-  {id = "rc_cycling_strum_order", default = 1},
-  {id = "rc_cycling_rotation", default = 6},     -- Root
-  {id = "rc_cycling_octave", default = 3},
-  {id = "rc_cycling_spread", default = 10},
-  {id = "rc_cycling_stages", default = 1},
-  {id = "rc_cycling_loops", default = 2},
-  {id = "rc_cycling_beats", default = 4},
-}
-
--- Flavor presets: named recipes combining movement, voicing, chord length, rotation.
-local FLAVOR_NAMES = {"Folk", "Jazz", "Ambient", "Minimal", "Orchestral"}
-local FLAVOR_RECIPES = {
-  {movement = 10, voicing = 1, chord_len = 2, rotation = 6},  -- 4ths, Close, Triad, Root
-  {movement = 10, voicing = 3, chord_len = 3, rotation = 6},  -- 4ths, Drop 2, Tetrad, Root
-  {movement = 9,  voicing = 2, chord_len = 2, rotation = 7},  -- 3rds Up, Open, Triad, 1st Inv
-  {movement = 8,  voicing = 1, chord_len = 1, rotation = 6},  -- Steps Up, Close, Dyad, Root
-  {movement = 11, voicing = 5, chord_len = 4, rotation = 6},  -- 5ths Up, Spread, Pentad, Root
+-- Form param definitions for per-lane save/load
+local FORM_PARAMS = {
+  {id = "rc_form_start", default = 1},
+  {id = "rc_form_movement", default = 10},   -- 4th Up
+  {id = "rc_form_chord_len", default = 3},    -- Tetrad
+  {id = "rc_form_voicing", default = 1},
+  {id = "rc_form_strum_order", default = 1},
+  {id = "rc_form_rotation", default = 6},     -- Root
+  {id = "rc_form_spread", default = 10},
+  {id = "rc_form_stages", default = 1},
+  {id = "rc_form_loops", default = 2},
+  {id = "rc_form_beats", default = 4},
 }
 
 -- Stage count brightness: maps 1-8 stages to LED levels
@@ -96,44 +83,38 @@ local STAGE_BRIGHTNESS = {3, 4, 6, 7, 9, 10, 12, 13}
 -- Module-level state for the live view (edit stage, arc mode, overlay display)
 ---------------------------------------------------------------
 local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
-local arc_page = 1            -- 1 = chord (per-stage), 2 = shape, 3 = texture
+local arc_page = 1            -- 1 = harmony (per-stage), 2 = articulation
 local arc_overlay = nil       -- {name, value, time, duration?}
 local arc_accum = {0, 0, 0, 0}
-
--- Arc ring mappings per page. Page 1 uses cycle functions (per-stage overrides).
--- Pages 2-3 use step_param on global cycling params.
-local ARC_CHORD = {
-  [1] = {label = "Rot",    fn = "cycle_stage_rotation",  threshold = 56},
-  [2] = {label = "Deg",    fn = "cycle_stage_degree",    threshold = 56},
+-- Arc ring mappings per page.
+-- Page 1 (harmony): per-stage overrides via cycle functions.
+-- Page 2 (articulation): spread coarse/fine (global), strum (per-stage), loops (global).
+local ARC_HARMONY = {
+  [1] = {label = "Deg",    fn = "cycle_stage_degree",    threshold = 56},
+  [2] = {label = "Len",    fn = "cycle_stage_chord_len", threshold = 56},
   [3] = {label = "Voice",  fn = "cycle_stage_voicing",   threshold = 56},
-  [4] = {label = "Strum",  fn = "cycle_stage_strum",     threshold = 56},
+  [4] = {label = "Rot",    fn = "cycle_stage_rotation",  threshold = 56},
+}
+
+local ARC_ARTICULATION = {
+  [1] = {label = "Sprd",   param_id = "rc_form_spread",      threshold = 30,  step = 5},
+  [2] = {label = "Sprd~",  param_id = "rc_form_spread",      threshold = 80,  step = 1},
+  [3] = {label = "Strum",  fn = "cycle_stage_strum",          threshold = 56},
+  [4] = {label = "Loops",  param_id = "rc_form_loops",        threshold = 56},
 }
 
 local ARC_PAGES = {
-  [1] = ARC_CHORD,
-  [2] = {
-    label = "shape",
-    [1] = {label = "Start",  param_id = "rc_cycling_start",    threshold = 56},
-    [2] = {label = "Move",   param_id = "rc_cycling_movement", threshold = 56},
-    [3] = {label = "Qual",   param_id = "rc_cycling_quality",  threshold = 56},
-    [4] = {label = "Flavor", param_id = "rc_cycling_flavor",   threshold = 56},
-  },
-  [3] = {
-    label = "texture",
-    [1] = {label = "Beat",  param_id = "rc_cycling_beats",     threshold = 56},
-    [2] = {label = "Sprd",  param_id = "rc_cycling_spread",    threshold = 30},
-    [3] = {label = "Oct",   param_id = "rc_cycling_octave",    threshold = 56},
-    [4] = {label = "Len",   param_id = "rc_cycling_chord_len", threshold = 56},
-  },
+  [1] = ARC_HARMONY,
+  [2] = ARC_ARTICULATION,
 }
 
-local ARC_PAGE_NAMES = {"chord", "shape", "texture"}
+local ARC_PAGE_NAMES = {"harmony", "articulation"}
 
 ---------------------------------------------------------------
 -- Strum ordering utility: reorder notes by strum pattern name.
 -- Returns a new array of notes in play order.
 ---------------------------------------------------------------
-function Cycling.order_notes(notes, strum_name)
+function Form.order_notes(notes, strum_name)
   local ordered = {}
   if strum_name == "Up" then
     for _, n in ipairs(notes) do table.insert(ordered, n) end
@@ -167,31 +148,27 @@ local function rebuild()
   if loading then return end
   if not _seeker or not _seeker.rc then return end
 
-  local lane_id = _seeker.ui_state.get_focused_lane()
-
-  local start = params:get("rc_cycling_start")
-  local movement = movement_value(params:get("rc_cycling_movement"))
-  local quality = QUALITY_NAMES[params:get("rc_cycling_quality")]
-  local chord_len = chord_len_value(params:get("rc_cycling_chord_len"))
-  local voicing = VOICING_NAMES[params:get("rc_cycling_voicing")]
-  local rotation = rotation_value(params:get("rc_cycling_rotation"))
-  local spread = params:get("rc_cycling_spread")
-  local base_strum_order = STRUM_ORDER_NAMES[params:get("rc_cycling_strum_order")]
-  local octave = params:get("rc_cycling_octave")
-  local num_stages = params:get("rc_cycling_stages")
-  local loops = params:get("rc_cycling_loops")
-  local beats = params:get("rc_cycling_beats")
+  local start = params:get("rc_form_start")
+  local movement = movement_value(params:get("rc_form_movement"))
+  local chord_len = chord_len_value(params:get("rc_form_chord_len"))
+  local voicing = VOICING_NAMES[params:get("rc_form_voicing")]
+  local rotation = rotation_value(params:get("rc_form_rotation"))
+  local spread = params:get("rc_form_spread")
+  local base_strum_order = STRUM_ORDER_NAMES[params:get("rc_form_strum_order")]
+  local num_stages = params:get("rc_form_stages")
+  local loops = params:get("rc_form_loops")
+  local beats = params:get("rc_form_beats")
 
   local lane_id = _seeker.ui_state.get_focused_lane()
   local lane = _seeker.lanes[lane_id]
-  local strum_overrides = lane.cycling_strum_overrides or {}
-  local voicing_overrides = lane.cycling_voicing_overrides or {}
-  local chord_len_overrides = lane.cycling_chord_len_overrides or {}
-  local rotation_overrides = lane.cycling_rotation_overrides or {}
+  local strum_overrides = lane.form_strum_overrides or {}
+  local voicing_overrides = lane.form_voicing_overrides or {}
+  local chord_len_overrides = lane.form_chord_len_overrides or {}
+  local rotation_overrides = lane.form_rotation_overrides or {}
 
   local stages = {}
   for i = 1, num_stages do
-    local degree_overrides = lane.cycling_degree_overrides or {}
+    local degree_overrides = lane.form_degree_overrides or {}
     local degree = degree_overrides[i] or ((start - 1 + movement * (i - 1)) % 7) + 1
     local stage_strum_order = strum_overrides[i] or base_strum_order
     local stage_voicing = voicing_overrides[i] or voicing
@@ -216,14 +193,14 @@ local function rebuild()
     table.insert(stages, {
       chords = {{
         degree = degree,
-        type = quality,
+        type = "Diatonic",
         dur = beats,
         gate = stage_gate,
         chord_len = stage_chord_len,
         voicing = stage_voicing,
         rotation = stage_rotation,
       }},
-      octave = octave,
+      octave = 3,
       strum = stage_strum,
       strum_order = stage_strum_order,
       loops = loops,
@@ -244,8 +221,9 @@ local function rebuild()
     lane:sync_all_stages_from_params()
     _seeker.rc.regen(lane_id)
   else
+    -- Prepare motif data without starting playback.
+    -- Playback starts from explicit gestures (hold stage, hold lane, randomize).
     _seeker.rc.form(lane_id, stages)
-    lane:play({quantize = true})
   end
 
   -- Clamp edit stage to valid range
@@ -253,7 +231,7 @@ local function rebuild()
     edit_stage = num_stages
   end
 
-  Cycling.save_cycling_params(lane_id)
+  Form.save_form_params(lane_id)
 
   if _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
@@ -299,64 +277,62 @@ end
 local function update_arc()
   local dev = _seeker.arc
   if not dev then return end
-  if not params.lookup["rc_cycling_flavor"] then return end
+  if not params.lookup["rc_form_start"] then return end
 
   if arc_page == 1 then
-    -- Chord page: per-stage overrides with segment displays
+    -- Harmony page: per-stage overrides with segment displays
     local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
     local stage_idx = edit_stage or lane.current_stage_index or 1
-    local degree_overrides = lane.cycling_degree_overrides or {}
-    local voicing_overrides = lane.cycling_voicing_overrides or {}
-    local strum_overrides = lane.cycling_strum_overrides or {}
-    local rotation_overrides = lane.cycling_rotation_overrides or {}
+    local degree_overrides = lane.form_degree_overrides or {}
+    local voicing_overrides = lane.form_voicing_overrides or {}
+    local rotation_overrides = lane.form_rotation_overrides or {}
+    local chord_len_overrides = lane.form_chord_len_overrides or {}
 
-    -- Ring 1: rotation
-    local rot_idx = params:get("rc_cycling_rotation")
-    if rotation_overrides[stage_idx] then
-      rot_idx = ROTATION_INDEX[rotation_overrides[stage_idx]] or rot_idx
-    end
-    draw_arc_option_segments(dev, 1, rot_idx, #ROTATION_NAMES, rotation_overrides[stage_idx])
-
-    -- Ring 2: degree
-    local start = params:get("rc_cycling_start")
-    local movement = params:get("rc_cycling_movement") - 7
+    -- Ring 1: degree
+    local start = params:get("rc_form_start")
+    local movement = params:get("rc_form_movement") - 7
     local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
     local current_degree = degree_overrides[stage_idx] or default_degree
-    draw_arc_option_segments(dev, 2, current_degree, #DEGREE_NAMES, degree_overrides[stage_idx])
+    draw_arc_option_segments(dev, 1, current_degree, #DEGREE_NAMES, degree_overrides[stage_idx])
+
+    -- Ring 2: chord length
+    local chord_len_idx = params:get("rc_form_chord_len")
+    if chord_len_overrides[stage_idx] then
+      chord_len_idx = CHORD_LEN_INDEX[chord_len_overrides[stage_idx]] or chord_len_idx
+    end
+    draw_arc_option_segments(dev, 2, chord_len_idx, #CHORD_LEN_NAMES, chord_len_overrides[stage_idx])
 
     -- Ring 3: voicing
-    local voicing_idx = params:get("rc_cycling_voicing")
+    local voicing_idx = params:get("rc_form_voicing")
     if voicing_overrides[stage_idx] then
       voicing_idx = VOICING_INDEX[voicing_overrides[stage_idx]] or voicing_idx
     end
     draw_arc_option_segments(dev, 3, voicing_idx, #VOICING_NAMES, voicing_overrides[stage_idx])
 
-    -- Ring 4: strum order
-    local strum_idx = params:get("rc_cycling_strum_order")
+    -- Ring 4: rotation
+    local rot_idx = params:get("rc_form_rotation")
+    if rotation_overrides[stage_idx] then
+      rot_idx = ROTATION_INDEX[rotation_overrides[stage_idx]] or rot_idx
+    end
+    draw_arc_option_segments(dev, 4, rot_idx, #ROTATION_NAMES, rotation_overrides[stage_idx])
+
+  elseif arc_page == 2 then
+    -- Articulation page: spread (coarse + fine), strum per-stage, loops
+    local spread_spec = params:lookup_param("rc_form_spread").controlspec
+    draw_arc_fill(dev, 1, params:get("rc_form_spread"), spread_spec)
+    draw_arc_fill(dev, 2, params:get("rc_form_spread"), spread_spec)
+
+    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+    local stage_idx = edit_stage or lane.current_stage_index or 1
+    local strum_overrides = lane.form_strum_overrides or {}
+    local strum_idx = params:get("rc_form_strum_order")
     if strum_overrides[stage_idx] then
       strum_idx = STRUM_INDEX[strum_overrides[stage_idx]] or strum_idx
     end
-    draw_arc_option_segments(dev, 4, strum_idx, #STRUM_ORDER_NAMES, strum_overrides[stage_idx])
+    draw_arc_option_segments(dev, 3, strum_idx, #STRUM_ORDER_NAMES, strum_overrides[stage_idx])
 
-  elseif arc_page == 2 then
-    -- Shape page: global option params as segments
-    draw_arc_option_segments(dev, 1, params:get("rc_cycling_start"), #DEGREE_NAMES, false)
-    draw_arc_option_segments(dev, 2, params:get("rc_cycling_movement"), #MOVEMENT_NAMES, false)
-    draw_arc_option_segments(dev, 3, params:get("rc_cycling_quality"), #QUALITY_NAMES, false)
-    draw_arc_option_segments(dev, 4, params:get("rc_cycling_flavor"), #FLAVOR_NAMES, false)
-
-  elseif arc_page == 3 then
-    -- Texture page: mixed display types
-    local beats_obj = params:lookup_param("rc_cycling_beats")
-    draw_arc_position(dev, 1, params:get("rc_cycling_beats"), beats_obj.min, beats_obj.max)
-
-    local spread_spec = params:lookup_param("rc_cycling_spread").controlspec
-    draw_arc_fill(dev, 2, params:get("rc_cycling_spread"), spread_spec)
-
-    local oct_obj = params:lookup_param("rc_cycling_octave")
-    draw_arc_position(dev, 3, params:get("rc_cycling_octave"), oct_obj.min, oct_obj.max)
-
-    draw_arc_option_segments(dev, 4, params:get("rc_cycling_chord_len"), #CHORD_LEN_NAMES, false)
+    local loops_obj = params:lookup_param("rc_form_loops")
+    draw_arc_position(dev, 4, params:get("rc_form_loops"), loops_obj.min, loops_obj.max)
   end
 
   dev:refresh()
@@ -366,7 +342,7 @@ end
 -- Handle arc delta: accumulate and step params based on arc page
 ---------------------------------------------------------------
 local function handle_arc_delta(n, delta)
-  if not params.lookup["rc_cycling_flavor"] then return end
+  if not params.lookup["rc_form_start"] then return end
 
   local page = ARC_PAGES[arc_page]
   local mapping = page and page[n]
@@ -378,12 +354,12 @@ local function handle_arc_delta(n, delta)
 
   local direction = delta > 0 and 1 or -1
 
-  if arc_page == 1 then
-    -- Chord page: per-stage overrides via cycle functions
-    if Cycling[mapping.fn] then
+  if mapping.fn then
+    -- Per-stage override via cycle function (harmony page + articulation strum)
+    if Form[mapping.fn] then
       local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
       local stage_idx = edit_stage or lane.current_stage_index or 1
-      local new_val = Cycling[mapping.fn](stage_idx, direction)
+      local new_val = Form[mapping.fn](stage_idx, direction)
       arc_overlay = {
         name = "S" .. stage_idx .. " " .. mapping.label,
         value = new_val,
@@ -391,10 +367,10 @@ local function handle_arc_delta(n, delta)
       }
     end
   else
-    -- Shape/texture pages: step global params
+    -- Global param step (articulation spread/loops)
     local param_id = mapping.param_id
     if not params.lookup[param_id] then return end
-    _seeker.arc.step_param(param_id, direction)
+    _seeker.arc.step_param(param_id, direction, mapping.step)
     arc_overlay = {
       name = mapping.label,
       value = params:string(param_id),
@@ -411,11 +387,11 @@ end
 ---------------------------------------------------------------
 local function handle_arc_key(n, z)
   if z ~= 1 then return end
-  arc_page = (arc_page % 3) + 1
+  arc_page = (arc_page % 2) + 1
   arc_accum = {0, 0, 0, 0}
   arc_overlay = {
     name = ARC_PAGE_NAMES[arc_page],
-    value = arc_page .. "/3",
+    value = arc_page .. "/2",
     time = util.time(),
     duration = 0.4,
   }
@@ -427,16 +403,16 @@ end
 -- Voice leading graph drawing (live view)
 ---------------------------------------------------------------
 local function draw_live(norns_ui)
-  if not params.lookup["rc_cycling_start"] then return end
+  if not params.lookup["rc_form_start"] then return end
 
-  local start_degree = params:get("rc_cycling_start")
-  local movement = params:get("rc_cycling_movement") - 7
-  local num_stages = params:get("rc_cycling_stages")
+  local start_degree = params:get("rc_form_start")
+  local movement = params:get("rc_form_movement") - 7
+  local num_stages = params:get("rc_form_stages")
   local lane_id = _seeker.ui_state.get_focused_lane()
   local lane = _seeker.lanes[lane_id]
   local current_stage = math.min(lane.current_stage_index or 1, num_stages)
 
-  local degree_overrides = lane.cycling_degree_overrides or {}
+  local degree_overrides = lane.form_degree_overrides or {}
   local degrees = {}
   for i = 1, num_stages do
     degrees[i] = degree_overrides[i] or ((start_degree - 1 + movement * (i - 1)) % 7) + 1
@@ -472,10 +448,6 @@ local function draw_live(norns_ui)
   end
 
   if not has_notes then
-    -- Show header even when lane has no motif data yet
-    screen.level(6)
-    screen.move(2, 6)
-    screen.text("L" .. lane_id)
     screen.level(3)
     screen.move(64, 32)
     screen.text_center(num_stages .. " stages")
@@ -483,7 +455,7 @@ local function draw_live(norns_ui)
   end
 
   -- Vertical pitch area with margins for labels
-  local Y_TOP = 14
+  local Y_TOP = 10
   local Y_BOTTOM = 45
   local MIN_RANGE = 24
   local raw_range = global_max - global_min + 4
@@ -503,15 +475,15 @@ local function draw_live(norns_ui)
   end
 
   local active_notes = lane.active_notes or {}
-  local strum_overrides = lane.cycling_strum_overrides or {}
-  local base_strum = params:string("rc_cycling_strum_order")
+  local strum_overrides = lane.form_strum_overrides or {}
+  local base_strum = params:string("rc_form_strum_order")
 
   -- Strum voice lines: connect notes by strum position between adjacent chords
   -- Shows the melodic paths the ear follows (1st-strummed to 1st-strummed, etc.)
   local strum_ordered = {}
   for i = 1, num_stages do
     local strum = strum_overrides[i] or base_strum
-    strum_ordered[i] = Cycling.order_notes(stage_notes[i], strum)
+    strum_ordered[i] = Form.order_notes(stage_notes[i], strum)
   end
 
   for i = 1, num_stages - 1 do
@@ -544,35 +516,30 @@ local function draw_live(norns_ui)
     end
   end
 
-  -- Header: lane indicator, arc page label (center), K2 hint (right)
-  screen.level(6)
-  screen.move(2, 6)
-  screen.text("L" .. lane_id)
-
-  screen.level(5)
-  screen.move(64, 6)
-  screen.text_center(ARC_PAGE_NAMES[arc_page] .. " " .. arc_page .. "/3")
-
-  screen.level(3)
-  screen.move(126, 6)
-  screen.text_right("K2")
+  -- Page indicator: small squares top-right (filled = current page)
+  for p = 1, 2 do
+    local px = 120 + (p - 1) * 5
+    screen.level(p == arc_page and 10 or 3)
+    screen.rect(px, 2, 3, 3)
+    if p == arc_page then screen.fill() else screen.stroke() end
+  end
 
   -- Degree labels above each column
   for i = 1, num_stages do
     local is_playing = (i == current_stage)
     local is_editing = (edit_stage and i == edit_stage)
     screen.level(is_playing and 12 or (is_editing and 10 or 4))
-    screen.move(col_x[i], 12)
+    screen.move(col_x[i], 8)
     screen.text_center(DEGREE_NAMES[degrees[i]])
     if is_editing then
       screen.level(8)
-      screen.move(col_x[i] - 4, 13)
-      screen.line(col_x[i] + 4, 13)
+      screen.move(col_x[i] - 4, 9)
+      screen.line(col_x[i] + 4, 9)
       screen.stroke()
     end
   end
 
-  -- Footer: 4-column layout with labels and values, content varies by arc page
+  -- Footer: arc overlay or 4-column param labels
   screen.level(0)
   screen.rect(0, 46, 128, 18)
   screen.fill()
@@ -589,34 +556,27 @@ local function draw_live(norns_ui)
     local labels, values
 
     if arc_page == 1 then
-      local rotation_overrides = lane and lane.cycling_rotation_overrides or {}
-      local voicing_overrides = lane and lane.cycling_voicing_overrides or {}
-      local rot_idx = params:get("rc_cycling_rotation")
+      local voicing_overrides = lane and lane.form_voicing_overrides or {}
+      local rotation_overrides = lane and lane.form_rotation_overrides or {}
+      local chord_len_overrides = lane and lane.form_chord_len_overrides or {}
+      local rot_idx = params:get("rc_form_rotation")
       if rotation_overrides[display_stage] then
         rot_idx = ROTATION_INDEX[rotation_overrides[display_stage]] or rot_idx
       end
-      labels = {"Rot", "Deg", "Voice", "Strum"}
+      labels = {"Deg", "Len", "Voice", "Rot"}
       values = {
-        tostring(rot_idx - 6),
         DEGREE_NAMES[degrees[display_stage] or 1],
-        voicing_overrides[display_stage] or params:string("rc_cycling_voicing"),
-        strum_overrides[display_stage] or params:string("rc_cycling_strum_order"),
-      }
-    elseif arc_page == 2 then
-      labels = {"Start", "Move", "Qual", "Flavor"}
-      values = {
-        params:string("rc_cycling_start"),
-        params:string("rc_cycling_movement"),
-        params:string("rc_cycling_quality"),
-        params:string("rc_cycling_flavor"),
+        chord_len_overrides[display_stage] or params:string("rc_form_chord_len"),
+        voicing_overrides[display_stage] or params:string("rc_form_voicing"),
+        tostring(rot_idx - 6),
       }
     else
-      labels = {"Beat", "Sprd", "Oct", "Len"}
+      labels = {"Sprd", "Sprd~", "Strum", "Loops"}
       values = {
-        params:string("rc_cycling_beats"),
-        params:string("rc_cycling_spread"),
-        params:string("rc_cycling_octave"),
-        params:string("rc_cycling_chord_len"),
+        params:string("rc_form_spread"),
+        params:string("rc_form_spread"),
+        strum_overrides[display_stage] or params:string("rc_form_strum_order"),
+        params:string("rc_form_loops"),
       }
     end
 
@@ -638,32 +598,30 @@ end
 ---------------------------------------------------------------
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
-    id = "CYCLING_LIVE",
-    name = "Cycling",
-    description = Descriptions.COMPOSER_CYCLING,
+    id = "FORM_LIVE",
+    name = "Form",
+    description = Descriptions.COMPOSER_FORM,
     params = {}
   })
 
-  norns_ui.needs_playback_refresh = true
   norns_ui.live_view_enabled = true
+  norns_ui.needs_playback_refresh = true
 
   norns_ui.rebuild_params = function(self)
     self.params = {
-      { separator = true, title = "Cycle Shape" },
-      { id = "rc_cycling_start" },
-      { id = "rc_cycling_movement" },
-      { id = "rc_cycling_quality" },
-      { separator = true, title = "Texture" },
-      { id = "rc_cycling_chord_len" },
-      { id = "rc_cycling_voicing" },
-      { id = "rc_cycling_rotation" },
-      { id = "rc_cycling_octave" },
-      { id = "rc_cycling_spread", arc_multi_float = {5, 2, 0.5} },
-      { id = "rc_cycling_strum_order" },
+      { separator = true, title = "Harmony" },
+      { id = "rc_form_chord_len" },
+      { id = "rc_form_voicing" },
+      { id = "rc_form_rotation" },
+      { separator = true, title = "Articulation" },
+      { id = "rc_form_spread", arc_multi_float = {5, 2, 0.5} },
+      { id = "rc_form_strum_order" },
+      { id = "rc_form_loops" },
       { separator = true, title = "Structure" },
-      { id = "rc_cycling_stages" },
-      { id = "rc_cycling_loops" },
-      { id = "rc_cycling_beats" },
+      { id = "rc_form_start" },
+      { id = "rc_form_movement" },
+      { id = "rc_form_stages" },
+      { id = "rc_form_beats" },
     }
   end
 
@@ -672,21 +630,21 @@ local function create_screen_ui()
   norns_ui.handle_arc_delta = function(self, n, delta) handle_arc_delta(n, delta) end
   norns_ui.handle_arc_key = function(self, n, z) handle_arc_key(n, z) end
 
-  -- K3 in live view: chord page = cycle degree, other pages = cycle strum
+  -- K3 in live view: harmony page = cycle degree, articulation page = cycle strum
   norns_ui.handle_live_key = function(self, n, z)
     if n == 3 and z == 1 then
       local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
       local stage_idx = edit_stage or lane.current_stage_index or 1
 
       if arc_page == 1 then
-        local new_val = Cycling.cycle_stage_degree(stage_idx)
+        local new_val = Form.cycle_stage_degree(stage_idx)
         arc_overlay = {
           name = "S" .. stage_idx .. " Deg",
           value = new_val,
           time = util.time()
         }
       else
-        local new_val = Cycling.cycle_stage_strum(stage_idx)
+        local new_val = Form.cycle_stage_strum(stage_idx)
         arc_overlay = {
           name = "S" .. stage_idx .. " Strum",
           value = new_val,
@@ -699,10 +657,6 @@ local function create_screen_ui()
     end
   end
 
-  norns_ui.on_enter = function(self)
-    rebuild()
-  end
-
   return norns_ui
 end
 
@@ -710,81 +664,54 @@ end
 -- Params
 ---------------------------------------------------------------
 local function create_params()
-  params:add_group("rc_cycling_group", "CYCLING CHORDS", 13)
+  params:add_group("rc_form_group", "FORM CHORDS", 10)
 
-  params:add_option("rc_cycling_flavor", "Flavor", FLAVOR_NAMES, 1)
-  params:set_action("rc_cycling_flavor", function(value)
-    if not initialized then return end
-    local recipe = FLAVOR_RECIPES[value]
-    if not recipe then return end
-    loading = true
-    params:set("rc_cycling_movement", recipe.movement)
-    params:set("rc_cycling_voicing", recipe.voicing)
-    params:set("rc_cycling_chord_len", recipe.chord_len)
-    params:set("rc_cycling_rotation", recipe.rotation)
-    loading = false
+  params:add_option("rc_form_start", "Start Degree", DEGREE_NAMES, 1)
+  params:set_action("rc_form_start", function() rebuild() end)
+
+  params:add_option("rc_form_movement", "Movement", MOVEMENT_NAMES, 10)
+  params:set_action("rc_form_movement", function() rebuild() end)
+
+  params:add_option("rc_form_chord_len", "Chord Len", CHORD_LEN_NAMES, 3)
+  params:set_action("rc_form_chord_len", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
-    local lane = _seeker.lanes[lane_id]
-    lane.cycling_voicing_overrides = {}
-    lane.cycling_chord_len_overrides = {}
-    lane.cycling_strum_overrides = {}
-    lane.cycling_degree_overrides = {}
-    lane.cycling_rotation_overrides = {}
+    _seeker.lanes[lane_id].form_chord_len_overrides = {}
     rebuild()
   end)
 
-  params:add_option("rc_cycling_start", "Start Degree", DEGREE_NAMES, 1)
-  params:set_action("rc_cycling_start", function() rebuild() end)
-
-  params:add_option("rc_cycling_movement", "Movement", MOVEMENT_NAMES, 10)
-  params:set_action("rc_cycling_movement", function() rebuild() end)
-
-  params:add_option("rc_cycling_quality", "Quality", QUALITY_NAMES, 1)
-  params:set_action("rc_cycling_quality", function() rebuild() end)
-
-  params:add_option("rc_cycling_chord_len", "Chord Len", CHORD_LEN_NAMES, 3)
-  params:set_action("rc_cycling_chord_len", function()
+  params:add_option("rc_form_voicing", "Voicing", VOICING_NAMES, 1)
+  params:set_action("rc_form_voicing", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].cycling_chord_len_overrides = {}
+    _seeker.lanes[lane_id].form_voicing_overrides = {}
     rebuild()
   end)
 
-  params:add_option("rc_cycling_voicing", "Voicing", VOICING_NAMES, 1)
-  params:set_action("rc_cycling_voicing", function()
+  params:add_option("rc_form_strum_order", "Strum Order", STRUM_ORDER_NAMES, 1)
+  params:set_action("rc_form_strum_order", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].cycling_voicing_overrides = {}
+    _seeker.lanes[lane_id].form_strum_overrides = {}
     rebuild()
   end)
 
-  params:add_option("rc_cycling_strum_order", "Strum Order", STRUM_ORDER_NAMES, 1)
-  params:set_action("rc_cycling_strum_order", function()
+  params:add_option("rc_form_rotation", "Rotation", ROTATION_NAMES, 6)
+  params:set_action("rc_form_rotation", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].cycling_strum_overrides = {}
+    _seeker.lanes[lane_id].form_rotation_overrides = {}
     rebuild()
   end)
 
-  params:add_option("rc_cycling_rotation", "Rotation", ROTATION_NAMES, 6)
-  params:set_action("rc_cycling_rotation", function()
-    local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].cycling_rotation_overrides = {}
-    rebuild()
-  end)
-
-  params:add_number("rc_cycling_octave", "Octave", 1, 7, 3)
-  params:set_action("rc_cycling_octave", function() rebuild() end)
-
-  params:add_control("rc_cycling_spread", "Spread",
+  params:add_control("rc_form_spread", "Spread",
     controlspec.new(0, 100, "lin", 1, 10, "%"))
-  params:set_action("rc_cycling_spread", function() rebuild() end)
+  params:set_action("rc_form_spread", function() rebuild() end)
 
-  params:add_number("rc_cycling_stages", "Stages", 1, 8, 1)
-  params:set_action("rc_cycling_stages", function() rebuild() end)
+  params:add_number("rc_form_stages", "Stages", 1, 8, 1)
+  params:set_action("rc_form_stages", function() rebuild() end)
 
-  params:add_number("rc_cycling_loops", "Loops", 1, 8, 2)
-  params:set_action("rc_cycling_loops", function() rebuild() end)
+  params:add_number("rc_form_loops", "Loops", 1, 8, 2)
+  params:set_action("rc_form_loops", function() rebuild() end)
 
-  params:add_number("rc_cycling_beats", "Beats", 1, 16, 4)
-  params:set_action("rc_cycling_beats", function() rebuild() end)
+  params:add_number("rc_form_beats", "Beats", 1, 16, 4)
+  params:set_action("rc_form_beats", function() rebuild() end)
 
   initialized = true
 end
@@ -792,74 +719,88 @@ end
 ---------------------------------------------------------------
 -- Randomize
 ---------------------------------------------------------------
-function Cycling.randomize()
-  params:set("rc_cycling_flavor", math.random(1, #FLAVOR_NAMES))
-
+function Form.randomize()
   loading = true
-  params:set("rc_cycling_stages", math.random(2, 5))
+  params:set("rc_form_start", math.random(1, #DEGREE_NAMES))
+  params:set("rc_form_movement", math.random(1, #MOVEMENT_NAMES))
+  params:set("rc_form_stages", math.random(2, 5))
   local beat_options = {2, 3, 4, 5, 6, 8, 10, 12}
-  params:set("rc_cycling_beats", beat_options[math.random(1, #beat_options)])
+  params:set("rc_form_beats", beat_options[math.random(1, #beat_options)])
+  params:set("rc_form_chord_len", math.random(1, #CHORD_LEN_NAMES))
+  params:set("rc_form_voicing", math.random(1, #VOICING_NAMES))
+  params:set("rc_form_rotation", math.random(1, #ROTATION_NAMES))
   local spread_options = {0, 10, 20, 30, 50, 70, 100}
-  params:set("rc_cycling_spread", spread_options[math.random(1, #spread_options)])
+  params:set("rc_form_spread", spread_options[math.random(1, #spread_options)])
+  params:set("rc_form_strum_order", math.random(1, #STRUM_ORDER_NAMES))
+  params:set("rc_form_loops", math.random(1, 4))
   loading = false
 
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  local num_stages = params:get("rc_cycling_stages")
-  lane.cycling_degree_overrides = {}
+  local num_stages = params:get("rc_form_stages")
+  lane.form_degree_overrides = {}
   for i = 1, num_stages do
-    lane.cycling_degree_overrides[i] = math.random(1, 7)
+    lane.form_degree_overrides[i] = math.random(1, 7)
   end
-  lane.cycling_voicing_overrides = {}
-  lane.cycling_chord_len_overrides = {}
-  lane.cycling_strum_overrides = {}
-  lane.cycling_rotation_overrides = {}
+  lane.form_voicing_overrides = {}
+  lane.form_chord_len_overrides = {}
+  lane.form_strum_overrides = {}
+  lane.form_rotation_overrides = {}
+
+  -- Stop existing playback so randomize takes effect immediately
+  if lane.playing then
+    lane:stop()
+  end
 
   rebuild()
+  lane:play({quantize = true})
 end
 
 ---------------------------------------------------------------
 -- Grid UI: 4 lane rows (rows 4-7), each with lane button (col 1)
 -- and stage buttons (cols 2-9). All lanes visible simultaneously.
 ---------------------------------------------------------------
-local NUM_WHEEL_LANES = 4
+local NUM_FORM_LANES = 4
 local FIRST_ROW = 4
-local HOLD_THRESHOLD_STAGE = 0.5     -- seconds for hold-to-truncate
+local HOLD_THRESHOLD_STAGE = 1.0     -- visible progress duration after display delay
+local HOLD_THRESHOLD_RANDOMIZE = 1.5 -- seconds for hold-to-randomize (matches tape clear)
 
 -- Get stage count for a lane (global params if focused, snapshot otherwise)
 local function get_lane_stages(lane_idx)
   if lane_idx == _seeker.ui_state.get_focused_lane() then
-    return params:get("rc_cycling_stages")
+    return params:get("rc_form_stages")
   end
   local lane = _seeker.lanes[lane_idx]
-  if lane.cycling_param_snapshot then
-    return lane.cycling_param_snapshot.rc_cycling_stages or 1
+  if lane.form_param_snapshot then
+    return lane.form_param_snapshot.rc_form_stages or 1
   end
   return 1
 end
 
 local function create_grid_ui()
   local grid_ui = GridUI.new({
-    id = "CYCLING_GRID",
+    id = "FORM_GRID",
     layout = {
       x = 1,
       y = FIRST_ROW,
       width = 9,
-      height = NUM_WHEEL_LANES
+      height = NUM_FORM_LANES
     }
   })
 
 
 
   grid_ui.contains = function(self, x, y)
-    if y < FIRST_ROW or y > FIRST_ROW + NUM_WHEEL_LANES - 1 then return false end
+    if y < FIRST_ROW or y > FIRST_ROW + NUM_FORM_LANES - 1 then return false end
     if x >= 1 and x <= 9 then return true end
     return false
   end
 
   grid_ui.draw = function(self, layers)
     local focused_lane = _seeker.ui_state.get_focused_lane()
+    local DIM = GridConstants.BRIGHTNESS.DIM
+    local HIGH = GridConstants.BRIGHTNESS.HIGH
 
-    for i = 1, NUM_WHEEL_LANES do
+    for i = 1, NUM_FORM_LANES do
       local row = FIRST_ROW + i - 1
       local lane = _seeker.lanes[i]
       local is_focused = i == focused_lane
@@ -871,22 +812,60 @@ local function create_grid_ui()
       if is_focused then
         lane_brightness = GridConstants.BRIGHTNESS.FULL
       elseif lane.playing then
-        -- Pulse synced to beat
         lane_brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
       else
         lane_brightness = GridConstants.BRIGHTNESS.LOW
       end
       layers.ui[1][row] = lane_brightness
 
-      -- Cols 2-9: stage buttons for this lane
+      -- Detect active hold gesture: lane hold sweeps all 8, stage hold sweeps to target
+      local charge_progress = nil
+      local charge_end_stage = 8
+
+      -- Lane button hold (randomize): smooth sweep across all 8 stages
+      local lane_key = string.format("1,%d", row)
+      local lane_press = self.press_state.pressed_keys[lane_key]
+      if lane_press then
+        local elapsed = util.time() - lane_press.start_time
+        if elapsed > 0.3 then
+          local progress = math.min((elapsed - 0.3) / (HOLD_THRESHOLD_RANDOMIZE - 0.3), 1)
+          charge_progress = progress * 8
+          charge_end_stage = 8
+          lane_brightness = math.floor(GridConstants.BRIGHTNESS.LOW + progress * (GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW))
+          layers.ui[1][row] = lane_brightness
+        end
+      end
+
+      -- Stage button hold (set count): smooth sweep toward target stage
+      if not charge_progress then
+        for stage = 1, 8 do
+          local stage_key = string.format("%d,%d", stage + 1, row)
+          local stage_press = self.press_state.pressed_keys[stage_key]
+          if stage_press then
+            local elapsed = util.time() - stage_press.start_time
+            if elapsed > 0.3 then
+              local progress = math.min((elapsed - 0.3) / (HOLD_THRESHOLD_STAGE - 0.3), 1)
+              charge_progress = progress * stage
+              charge_end_stage = stage
+              break
+            end
+          end
+        end
+      end
+
+      -- Cols 2-9: stage buttons with per-LED charge-up interpolation
       for stage = 1, 8 do
         local col = stage + 1
         local brightness
 
-        if stage > num_stages then
-          brightness = GridConstants.BRIGHTNESS.DIM
+        if charge_progress and stage <= charge_end_stage then
+          -- Smooth charge: each LED fades from DIM to HIGH as the sweep passes it
+          local stage_progress = util.clamp(charge_progress - (stage - 1), 0, 1)
+          brightness = DIM + math.floor(stage_progress * (HIGH - DIM))
+        elseif stage > num_stages then
+          brightness = DIM
         elseif lane.playing and stage == current_stage then
-          brightness = GridConstants.BRIGHTNESS.HIGH
+          brightness = HIGH
         elseif is_focused and edit_stage and stage == edit_stage then
           brightness = GridConstants.BRIGHTNESS.MEDIUM
         else
@@ -897,96 +876,124 @@ local function create_grid_ui()
     end
   end
 
+  -- Section cycle order for lane button taps
+  local LANE_TAP_SECTIONS = {"FORM_VOICE", "FORM_PLAYBACK", "FORM_LIVE"}
+
   grid_ui.handle_key = function(self, x, y, z)
     local lane_idx = y - FIRST_ROW + 1
-    if lane_idx < 1 or lane_idx > NUM_WHEEL_LANES then return end
+    if lane_idx < 1 or lane_idx > NUM_FORM_LANES then return end
 
-    -- Navigate to cycling section on any press
+    -- Track whether this press switched lanes
+    local old_lane = _seeker.ui_state.get_focused_lane()
+    local switched_lane = false
+
     if z == 1 then
-      local current = _seeker.ui_state.get_current_section()
-      if current ~= "CYCLING_LIVE" then
-        _seeker.ui_state.set_current_section("CYCLING_LIVE")
-      end
-
-      -- Focusing saves outgoing cycling params, loads incoming lane's snapshot
-      local old_lane = _seeker.ui_state.get_focused_lane()
+      -- Focus this lane (saves outgoing params, loads incoming snapshot)
       if lane_idx ~= old_lane then
         _seeker.ui_state.set_focused_lane(lane_idx)
+        switched_lane = true
       end
     end
 
-    -- Col 1: lane button (tap = voice routing, hold = play/stop)
+    -- Col 1: lane button (tap = cycle sections, hold = randomize)
     if x == 1 then
       local key_id = string.format("1,%d", y)
       if z == 1 then
         self:key_down(key_id)
 
-        -- Navigate to voice routing screen
-        _seeker.ui_state.set_current_section("LANE_CONFIG")
-        _seeker.lane_config.screen:rebuild_params()
-        _seeker.screen_ui.set_needs_redraw()
-      else
-        if self:is_long_press(key_id) then
-          -- Long press: toggle play/stop
-          local lane = _seeker.lanes[lane_idx]
-          if lane.playing then
-            lane:stop()
-          else
-            lane:play({quantize = true})
+        if not switched_lane then
+          -- Already focused: cycle through sections
+          local current = _seeker.ui_state.get_current_section()
+          local next_section = LANE_TAP_SECTIONS[1]
+          for i, section in ipairs(LANE_TAP_SECTIONS) do
+            if current == section then
+              next_section = LANE_TAP_SECTIONS[(i % #LANE_TAP_SECTIONS) + 1]
+              break
+            end
+          end
+          _seeker.ui_state.set_current_section(next_section)
+        else
+          -- Switched lane: rebuild current section for new lane's params
+          local current = _seeker.ui_state.get_current_section()
+          local section = _seeker.screen_ui.sections[current]
+          if section and section.rebuild_params then
+            section:rebuild_params()
           end
         end
+
+        _seeker.hold_confirm.start({
+          text = "randomizing...",
+          threshold = HOLD_THRESHOLD_RANDOMIZE,
+          on_confirm = function()
+            Form.randomize()
+            update_arc()
+          end
+        })
+
+        _seeker.screen_ui.set_needs_redraw()
+      else
+        _seeker.hold_confirm.cancel()
         self:key_release(key_id)
         _seeker.screen_ui.set_needs_redraw()
       end
       return
     end
 
-    -- Cols 2-9: stage buttons (operate on focused lane's global params)
+    -- Cols 2-9: stage buttons
+    -- Tap: first click selects stage + snaps to FORM_LIVE, second click toggles arc page.
+    -- Hold: set stage count via HoldConfirm.
     if x >= 2 and x <= 9 then
       local stage = x - 1
-      local num_stages = params:get("rc_cycling_stages")
       local key_id = string.format("%d,%d", x, y)
 
       if z == 1 then
         self:key_down(key_id)
 
-        if stage > num_stages then
-          -- Tap inactive stage: extend stage count
-          params:set("rc_cycling_stages", stage)
-          arc_overlay = { name = "Stages", value = tostring(stage), time = util.time() }
+        -- Stage tap flow: select or toggle arc page
+        local current = _seeker.ui_state.get_current_section()
+        if current ~= "FORM_LIVE" or edit_stage ~= stage then
+          -- First click: select this stage, snap to live view
+          _seeker.ui_state.set_current_section("FORM_LIVE")
+          edit_stage = stage
+          arc_overlay = {
+            name = ARC_PAGE_NAMES[arc_page],
+            value = arc_page .. "/2",
+            time = util.time(),
+            duration = 0.4,
+          }
         else
-          -- Tap active stage: pin/unpin edit focus
-          if edit_stage == stage then
-            edit_stage = nil
-          else
-            edit_stage = stage
-          end
+          -- Second click (same stage, already on FORM_LIVE): toggle arc page
+          arc_page = (arc_page % 2) + 1
+          arc_accum = {0, 0, 0, 0}
+          arc_overlay = {
+            name = ARC_PAGE_NAMES[arc_page],
+            value = arc_page .. "/2",
+            time = util.time(),
+            duration = 0.4,
+          }
         end
 
-        -- Activate live view
-        if _seeker.screen_ui then
-          local section = _seeker.screen_ui.sections["CYCLING_LIVE"]
-          if section and section.live_view_enabled and not section.live_view_active then
-            section.live_view_active = true
+        -- Hold: confirm threshold sets stage count and starts playback if stopped
+        _seeker.hold_confirm.start({
+          text = "stages: " .. stage,
+          threshold = HOLD_THRESHOLD_STAGE,
+          on_confirm = function()
+            params:set("rc_form_stages", stage)
+            local lane = _seeker.lanes[lane_idx]
+            if not lane.playing then
+              lane:play({quantize = true})
+            end
+            update_arc()
           end
-        end
+        })
+
         update_arc()
         _seeker.screen_ui.set_needs_redraw()
 
       else
-        -- Hold active stage: truncate stage count
-        if stage <= num_stages and self:is_long_press(key_id) then
-          params:set("rc_cycling_stages", stage)
-          arc_overlay = { name = "Stages", value = tostring(stage), time = util.time() }
-          if _seeker.modal then
-            _seeker.modal.show_status({ body = "Stages: " .. stage })
-            clock.run(function()
-              clock.sleep(0.5)
-              if _seeker.modal then _seeker.modal.dismiss() end
-            end)
-          end
-        end
+        _seeker.hold_confirm.cancel()
         self:key_release(key_id)
+        update_arc()
         _seeker.screen_ui.set_needs_redraw()
       end
       return
@@ -1017,15 +1024,15 @@ local function advance_stage_override(names, index_lookup, overrides, stage_inde
 end
 
 -- Cycle degree for a specific stage. direction: nil=wrap, +1/-1=clamp.
-function Cycling.cycle_stage_degree(stage_index, direction)
+function Form.cycle_stage_degree(stage_index, direction)
   local lane_id = _seeker.ui_state.get_focused_lane()
   local lane = _seeker.lanes[lane_id]
-  lane.cycling_degree_overrides = lane.cycling_degree_overrides or {}
+  lane.form_degree_overrides = lane.form_degree_overrides or {}
 
-  local start = params:get("rc_cycling_start")
-  local movement = movement_value(params:get("rc_cycling_movement"))
+  local start = params:get("rc_form_start")
+  local movement = movement_value(params:get("rc_form_movement"))
   local default_degree = ((start - 1 + movement * (stage_index - 1)) % 7) + 1
-  local current = lane.cycling_degree_overrides[stage_index] or default_degree
+  local current = lane.form_degree_overrides[stage_index] or default_degree
 
   local next_degree
   if direction then
@@ -1033,43 +1040,43 @@ function Cycling.cycle_stage_degree(stage_index, direction)
   else
     next_degree = (current % 7) + 1
   end
-  lane.cycling_degree_overrides[stage_index] = next_degree
+  lane.form_degree_overrides[stage_index] = next_degree
   rebuild()
   return DEGREE_NAMES[next_degree]
 end
 
-function Cycling.cycle_stage_rotation(stage_index, direction)
+function Form.cycle_stage_rotation(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.cycling_rotation_overrides = lane.cycling_rotation_overrides or {}
-  local base = ROTATION_NAMES[params:get("rc_cycling_rotation")]
-  local result = advance_stage_override(ROTATION_NAMES, ROTATION_INDEX, lane.cycling_rotation_overrides, stage_index, base, direction)
+  lane.form_rotation_overrides = lane.form_rotation_overrides or {}
+  local base = ROTATION_NAMES[params:get("rc_form_rotation")]
+  local result = advance_stage_override(ROTATION_NAMES, ROTATION_INDEX, lane.form_rotation_overrides, stage_index, base, direction)
   rebuild()
   return result
 end
 
-function Cycling.cycle_stage_strum(stage_index, direction)
+function Form.cycle_stage_strum(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.cycling_strum_overrides = lane.cycling_strum_overrides or {}
-  local base = STRUM_ORDER_NAMES[params:get("rc_cycling_strum_order")]
-  local result = advance_stage_override(STRUM_ORDER_NAMES, STRUM_INDEX, lane.cycling_strum_overrides, stage_index, base, direction)
+  lane.form_strum_overrides = lane.form_strum_overrides or {}
+  local base = STRUM_ORDER_NAMES[params:get("rc_form_strum_order")]
+  local result = advance_stage_override(STRUM_ORDER_NAMES, STRUM_INDEX, lane.form_strum_overrides, stage_index, base, direction)
   rebuild()
   return result
 end
 
-function Cycling.cycle_stage_voicing(stage_index, direction)
+function Form.cycle_stage_voicing(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.cycling_voicing_overrides = lane.cycling_voicing_overrides or {}
-  local base = VOICING_NAMES[params:get("rc_cycling_voicing")]
-  local result = advance_stage_override(VOICING_NAMES, VOICING_INDEX, lane.cycling_voicing_overrides, stage_index, base, direction)
+  lane.form_voicing_overrides = lane.form_voicing_overrides or {}
+  local base = VOICING_NAMES[params:get("rc_form_voicing")]
+  local result = advance_stage_override(VOICING_NAMES, VOICING_INDEX, lane.form_voicing_overrides, stage_index, base, direction)
   rebuild()
   return result
 end
 
-function Cycling.cycle_stage_chord_len(stage_index, direction)
+function Form.cycle_stage_chord_len(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.cycling_chord_len_overrides = lane.cycling_chord_len_overrides or {}
-  local base = CHORD_LEN_NAMES[params:get("rc_cycling_chord_len")]
-  local result = advance_stage_override(CHORD_LEN_NAMES, CHORD_LEN_INDEX, lane.cycling_chord_len_overrides, stage_index, base, direction)
+  lane.form_chord_len_overrides = lane.form_chord_len_overrides or {}
+  local base = CHORD_LEN_NAMES[params:get("rc_form_chord_len")]
+  local result = advance_stage_override(CHORD_LEN_NAMES, CHORD_LEN_INDEX, lane.form_chord_len_overrides, stage_index, base, direction)
   rebuild()
   return result
 end
@@ -1077,65 +1084,65 @@ end
 ---------------------------------------------------------------
 -- Save/load cycling param snapshots per lane
 ---------------------------------------------------------------
-function Cycling.save_cycling_params(lane_id)
+function Form.save_form_params(lane_id)
   local lane = _seeker.lanes[lane_id]
   local snapshot = {}
-  for _, p in ipairs(CYCLING_PARAMS) do
+  for _, p in ipairs(FORM_PARAMS) do
     snapshot[p.id] = params:get(p.id)
   end
-  snapshot.strum_overrides = lane.cycling_strum_overrides or {}
-  snapshot.voicing_overrides = lane.cycling_voicing_overrides or {}
-  snapshot.chord_len_overrides = lane.cycling_chord_len_overrides or {}
-  snapshot.degree_overrides = lane.cycling_degree_overrides or {}
-  snapshot.rotation_overrides = lane.cycling_rotation_overrides or {}
-  lane.cycling_param_snapshot = snapshot
+  snapshot.strum_overrides = lane.form_strum_overrides or {}
+  snapshot.voicing_overrides = lane.form_voicing_overrides or {}
+  snapshot.chord_len_overrides = lane.form_chord_len_overrides or {}
+  snapshot.degree_overrides = lane.form_degree_overrides or {}
+  snapshot.rotation_overrides = lane.form_rotation_overrides or {}
+  lane.form_param_snapshot = snapshot
 end
 
-function Cycling.load_cycling_params(lane_id)
+function Form.load_form_params(lane_id)
   local lane = _seeker.lanes[lane_id]
   loading = true
-  if lane.cycling_param_snapshot then
-    for _, p in ipairs(CYCLING_PARAMS) do
-      params:set(p.id, lane.cycling_param_snapshot[p.id] or p.default)
+  if lane.form_param_snapshot then
+    for _, p in ipairs(FORM_PARAMS) do
+      params:set(p.id, lane.form_param_snapshot[p.id] or p.default)
     end
-    lane.cycling_strum_overrides = lane.cycling_param_snapshot.strum_overrides or {}
-    lane.cycling_voicing_overrides = lane.cycling_param_snapshot.voicing_overrides or {}
-    lane.cycling_chord_len_overrides = lane.cycling_param_snapshot.chord_len_overrides or {}
-    lane.cycling_degree_overrides = lane.cycling_param_snapshot.degree_overrides or {}
-    lane.cycling_rotation_overrides = lane.cycling_param_snapshot.rotation_overrides or {}
+    lane.form_strum_overrides = lane.form_param_snapshot.strum_overrides or {}
+    lane.form_voicing_overrides = lane.form_param_snapshot.voicing_overrides or {}
+    lane.form_chord_len_overrides = lane.form_param_snapshot.chord_len_overrides or {}
+    lane.form_degree_overrides = lane.form_param_snapshot.degree_overrides or {}
+    lane.form_rotation_overrides = lane.form_param_snapshot.rotation_overrides or {}
   else
-    for _, p in ipairs(CYCLING_PARAMS) do
+    for _, p in ipairs(FORM_PARAMS) do
       params:set(p.id, p.default)
     end
-    lane.cycling_strum_overrides = {}
-    lane.cycling_voicing_overrides = {}
-    lane.cycling_chord_len_overrides = {}
-    lane.cycling_degree_overrides = {}
-    lane.cycling_rotation_overrides = {}
+    lane.form_strum_overrides = {}
+    lane.form_voicing_overrides = {}
+    lane.form_chord_len_overrides = {}
+    lane.form_degree_overrides = {}
+    lane.form_rotation_overrides = {}
   end
   loading = false
 end
 
 -- Lane change callback: save outgoing, load incoming, generate chords for new lane
-function Cycling.on_lane_change(old_lane_id, new_lane_id)
-  Cycling.save_cycling_params(old_lane_id)
-  Cycling.load_cycling_params(new_lane_id)
+function Form.on_lane_change(old_lane_id, new_lane_id)
+  Form.save_form_params(old_lane_id)
+  Form.load_form_params(new_lane_id)
   rebuild()
 end
 
 -- Trigger a rebuild from outside
-function Cycling.rebuild()
+function Form.rebuild()
   rebuild()
 end
 
 -- Expose param registry for RC save/restore
-Cycling.CYCLING_PARAMS = CYCLING_PARAMS
+Form.FORM_PARAMS = FORM_PARAMS
 
-function Cycling.init()
-  Cycling.screen = create_screen_ui()
-  Cycling.grid = create_grid_ui()
+function Form.init()
+  Form.screen = create_screen_ui()
+  Form.grid = create_grid_ui()
   create_params()
-  return Cycling
+  return Form
 end
 
-return Cycling
+return Form

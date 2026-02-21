@@ -728,7 +728,7 @@ function RC.save(slot)
       genesis_duration = lane.motif.genesis.duration,
       playing = lane.playing,
       rc_stage_motifs = lane.rc_stage_motifs,
-      cycling_param_snapshot = lane.cycling_param_snapshot,
+      form_param_snapshot = lane.form_param_snapshot,
     }
     save_data[i] = lane_data
     if #lane.motif.events > 0 then
@@ -773,9 +773,9 @@ function RC.restore(slot)
     local lane = _seeker.lanes[i]
     local lane_data = save_data[i]
     if lane_data then
-      -- Restore RC stage motifs and cycling state
+      -- Restore RC stage motifs and form state
       lane.rc_stage_motifs = lane_data.rc_stage_motifs or {}
-      lane.cycling_param_snapshot = lane_data.cycling_param_snapshot
+      lane.form_param_snapshot = lane_data.form_param_snapshot
 
       if #lane_data.events > 0 then
         -- Restore genesis state
@@ -789,9 +789,9 @@ function RC.restore(slot)
     end
   end
 
-  -- Reload cycling params for the focused lane
-  if _seeker.cycling_mode and _seeker.cycling_mode.cycling then
-    _seeker.cycling_mode.cycling.load_cycling_params(_seeker.ui_state.get_focused_lane())
+  -- Reload form params for the focused lane
+  if _seeker.form_mode and _seeker.form_mode.form then
+    _seeker.form_mode.form.load_form_params(_seeker.ui_state.get_focused_lane())
   end
 
   -- Restart lanes that were playing when saved

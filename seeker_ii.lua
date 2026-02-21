@@ -20,6 +20,7 @@ local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
 local SamplerEngine = include("lib/modes/motif/types/sampler/engine")
 local Modal = include("lib/ui/components/modal")
+local HoldConfirm = include("lib/ui/components/hold_confirm")
 
 -- Global Config Mode
 local Config = include("lib/modes/config/init")
@@ -39,7 +40,7 @@ local Composer = include("lib/modes/motif/types/composer/init")
 local WTape = include("lib/modes/wtape/init")
 local Eurorack = include("lib/modes/eurorack/init")
 local Osc = include("lib/modes/osc/init")
-local CyclingMode = include("lib/modes/cycling/init")
+local FormMode = include("lib/modes/form/init")
 
 -- Remote Control
 local RemoteControl = include("lib/remote_control/init")
@@ -60,9 +61,10 @@ _seeker = {
   arc = nil,
   sampler = nil,
   modal = Modal,  -- Single shared Modal instance
+  hold_confirm = HoldConfirm,
 
   current_mode = nil,
-  motif_sub_mode = "wheel",  -- "tape" or "wheel"
+  motif_sub_mode = "form",  -- "tape" or "form"
 
   -- Remote Control
   rc = nil,
@@ -75,7 +77,7 @@ _seeker = {
   tape = nil,
   sampler_type = nil,
   composer = nil,
-  cycling_mode = nil,
+  form_mode = nil,
   wtape = nil,
   eurorack = nil,
   osc = nil,
@@ -114,7 +116,7 @@ function init()
   _seeker.composer = Composer.init()
 
   -- Mode Types
-  _seeker.cycling_mode = CyclingMode.init()
+  _seeker.form_mode = FormMode.init()
   _seeker.wtape = WTape.init()
   _seeker.eurorack = Eurorack.init()
   _seeker.osc = Osc.init()
@@ -179,7 +181,7 @@ function init()
   _seeker.rc_overlay = rc_overlay
 
   _seeker.current_mode = "motif"
-  _seeker.ui_state.set_current_section("CYCLING_LIVE")
+  _seeker.ui_state.set_current_section("FORM_LIVE")
 
   -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()

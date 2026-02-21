@@ -1766,6 +1766,8 @@ end
 
 -- Sync all crow outputs by restarting their clocks
 function CrowOutput.sync()
+    -- Ensure i2c pullup resistors are active (crow.reset() can disable them)
+    crow.ii.pullup(true)
     for i = 1, 4 do
         CrowOutput.update_crow(i)
     end

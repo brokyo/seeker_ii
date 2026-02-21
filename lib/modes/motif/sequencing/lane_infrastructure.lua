@@ -93,7 +93,7 @@ local function create_basic_lane_params(i)
     params:add_group("lane_" .. i .. "_infrastructure", "LANE " .. i .. " CORE", 7)
 
     -- Per-lane motif creation type
-    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler"}, 1)
+    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler", "Form"}, 1)
     params:set_action("lane_" .. i .. "_motif_type", function(value)
         -- Sampler mode limited to 2 simultaneous lanes (softcut has 2 mono buffers)
         -- Prevent switching to sampler if buffers are full
@@ -129,9 +129,9 @@ local function create_basic_lane_params(i)
         end
 
         -- Set stage defaults based on motif type
-        -- Composer: enable all 8 stages (cycling manages active count)
+        -- Composer: enable all 8 stages (form manages active count)
         -- Tape/Sampler: enable only stage 1 (additional stages inactive by default)
-        local all_stages_active = (value == 2)  -- Composer
+        local all_stages_active = (value == 2 or value == 4)  -- Composer or Form
         for stage_idx = 1, 8 do
             if all_stages_active then
                 params:set("lane_" .. i .. "_stage_" .. stage_idx .. "_active", 2, true)

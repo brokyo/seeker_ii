@@ -62,10 +62,21 @@ function ScreenSaver.check_timeout()
     return false
   end
 
+  if _seeker.hold_confirm and _seeker.hold_confirm.is_active() then
+    ScreenSaver.state.is_active = false
+    return false
+  end
+
+  -- Form mode has its own live view and grid animations; screensaver would interrupt
+  local current_section = _seeker.ui_state.get_current_section()
+  if current_section and current_section:sub(1, 5) == "FORM_" then
+    ScreenSaver.state.is_active = false
+    return false
+  end
+
   -- Suppress screensaver when current section is in live view
-  -- (cycling voice graph, CV monitor bars are real-time displays)
+  -- (form voice graph, CV monitor bars are real-time displays)
   if _seeker.screen_ui then
-    local current_section = _seeker.ui_state.get_current_section()
     local section = _seeker.screen_ui.sections[current_section]
     if section and section.state and section.state.live_view then
       ScreenSaver.state.is_active = false
