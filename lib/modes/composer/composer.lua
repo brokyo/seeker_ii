@@ -173,6 +173,10 @@ function Composer.rebuild()
   local chord_len_overrides = lane.composer_chord_len_overrides or {}
   local rotation_overrides = lane.composer_rotation_overrides or {}
   local loops_overrides = lane.composer_loops_overrides or {}
+  local vel_min_overrides = lane.composer_vel_min_overrides or {}
+  local vel_max_overrides = lane.composer_vel_max_overrides or {}
+  local vel_stage_overrides = lane.composer_vel_stage_overrides or {}
+  local vel_tone_overrides = lane.composer_vel_tone_overrides or {}
 
   local stages = {}
   for i = 1, num_stages do
@@ -199,7 +203,13 @@ function Composer.rebuild()
     -- Gate shortens as spread increases to prevent strum note overlap
     local base_gate = GATE_VALUES[params:get("rc_composer_gate")]
     local stage_gate = base_gate * (1 - spread / 100 * (1 - 1 / stage_chord_len))
-    local stage_vel = Composer.calculate_stage_velocity(i, num_stages, vel_stage_curve, vel_min, vel_max)
+
+    -- Per-stage velocity overrides
+    local stage_vel_min = vel_min_overrides[i] or vel_min
+    local stage_vel_max = vel_max_overrides[i] or vel_max
+    local stage_vel_curve = vel_stage_overrides[i] or vel_stage_curve
+    local stage_vel_tone_name = vel_tone_overrides[i] or vel_tone
+    local stage_vel = Composer.calculate_stage_velocity(i, num_stages, stage_vel_curve, stage_vel_min, stage_vel_max)
 
     table.insert(stages, {
       chords = {{
@@ -211,7 +221,7 @@ function Composer.rebuild()
         voicing = stage_voicing,
         rotation = stage_rotation,
         velocity = stage_vel,
-        vel_tone = vel_tone,
+        vel_tone = stage_vel_tone_name,
       }},
       octave = 3,
       strum = strum_delay,
@@ -338,6 +348,57 @@ function Composer.cycle_stage_loops(stage_index, direction)
   return next_val
 end
 
+-- direction: +1/-1 for arc nudge, nil to increment by 1 (button press)
+function Composer.cycle_stage_vel_min(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_vel_min_overrides = lane.composer_vel_min_overrides or {}
+  local base = params:get("rc_composer_vel_min")
+  local current = lane.composer_vel_min_overrides[stage_index] or base
+  local next_val
+  if direction then
+    next_val = util.clamp(current + direction, 1, 127)
+  else
+    next_val = util.clamp(current + 1, 1, 127)
+  end
+  lane.composer_vel_min_overrides[stage_index] = next_val
+  Composer.rebuild()
+  return next_val
+end
+
+function Composer.cycle_stage_vel_max(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_vel_max_overrides = lane.composer_vel_max_overrides or {}
+  local base = params:get("rc_composer_vel_max")
+  local current = lane.composer_vel_max_overrides[stage_index] or base
+  local next_val
+  if direction then
+    next_val = util.clamp(current + direction, 1, 127)
+  else
+    next_val = util.clamp(current + 1, 1, 127)
+  end
+  lane.composer_vel_max_overrides[stage_index] = next_val
+  Composer.rebuild()
+  return next_val
+end
+
+function Composer.cycle_stage_vel_stage(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_vel_stage_overrides = lane.composer_vel_stage_overrides or {}
+  local base = VEL_STAGE_NAMES[params:get("rc_composer_vel_stage")]
+  local result = advance_stage_override(VEL_STAGE_NAMES, VEL_STAGE_INDEX, lane.composer_vel_stage_overrides, stage_index, base, direction)
+  Composer.rebuild()
+  return result
+end
+
+function Composer.cycle_stage_vel_tone(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_vel_tone_overrides = lane.composer_vel_tone_overrides or {}
+  local base = VEL_TONE_NAMES[params:get("rc_composer_vel_tone")]
+  local result = advance_stage_override(VEL_TONE_NAMES, VEL_TONE_INDEX, lane.composer_vel_tone_overrides, stage_index, base, direction)
+  Composer.rebuild()
+  return result
+end
+
 ---------------------------------------------------------------
 -- Save/load param snapshots per lane
 ---------------------------------------------------------------
@@ -353,6 +414,10 @@ function Composer.save_params(lane_id)
   snapshot.degree_overrides = lane.composer_degree_overrides or {}
   snapshot.rotation_overrides = lane.composer_rotation_overrides or {}
   snapshot.loops_overrides = lane.composer_loops_overrides or {}
+  snapshot.vel_min_overrides = lane.composer_vel_min_overrides or {}
+  snapshot.vel_max_overrides = lane.composer_vel_max_overrides or {}
+  snapshot.vel_stage_overrides = lane.composer_vel_stage_overrides or {}
+  snapshot.vel_tone_overrides = lane.composer_vel_tone_overrides or {}
   lane.composer_param_snapshot = snapshot
 end
 
@@ -369,6 +434,10 @@ function Composer.load_params(lane_id)
     lane.composer_degree_overrides = lane.composer_param_snapshot.degree_overrides or {}
     lane.composer_rotation_overrides = lane.composer_param_snapshot.rotation_overrides or {}
     lane.composer_loops_overrides = lane.composer_param_snapshot.loops_overrides or {}
+    lane.composer_vel_min_overrides = lane.composer_param_snapshot.vel_min_overrides or {}
+    lane.composer_vel_max_overrides = lane.composer_param_snapshot.vel_max_overrides or {}
+    lane.composer_vel_stage_overrides = lane.composer_param_snapshot.vel_stage_overrides or {}
+    lane.composer_vel_tone_overrides = lane.composer_param_snapshot.vel_tone_overrides or {}
   else
     for _, p in ipairs(COMPOSER_PARAMS) do
       params:set(p.id, p.default)
@@ -379,6 +448,10 @@ function Composer.load_params(lane_id)
     lane.composer_degree_overrides = {}
     lane.composer_rotation_overrides = {}
     lane.composer_loops_overrides = {}
+    lane.composer_vel_min_overrides = {}
+    lane.composer_vel_max_overrides = {}
+    lane.composer_vel_stage_overrides = {}
+    lane.composer_vel_tone_overrides = {}
   end
   snapshot_loading = false
 end
@@ -426,6 +499,10 @@ function Composer.randomize()
   lane.composer_strum_overrides = {}
   lane.composer_rotation_overrides = {}
   lane.composer_loops_overrides = {}
+  lane.composer_vel_min_overrides = {}
+  lane.composer_vel_max_overrides = {}
+  lane.composer_vel_stage_overrides = {}
+  lane.composer_vel_tone_overrides = {}
   for i = 1, num_stages do
     lane.composer_loops_overrides[i] = math.random(1, 4)
   end
@@ -495,16 +572,32 @@ function Composer.create_params()
   params:set_action("rc_composer_gate", function() Composer.rebuild() end)
 
   params:add_number("rc_composer_vel_min", "Dyn Soft", 1, 127, 70)
-  params:set_action("rc_composer_vel_min", function() Composer.rebuild() end)
+  params:set_action("rc_composer_vel_min", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_vel_min_overrides = {}
+    Composer.rebuild()
+  end)
 
   params:add_number("rc_composer_vel_max", "Dyn Loud", 1, 127, 110)
-  params:set_action("rc_composer_vel_max", function() Composer.rebuild() end)
+  params:set_action("rc_composer_vel_max", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_vel_max_overrides = {}
+    Composer.rebuild()
+  end)
 
   params:add_option("rc_composer_vel_stage", "Dyn Shape", VEL_STAGE_NAMES, 1)
-  params:set_action("rc_composer_vel_stage", function() Composer.rebuild() end)
+  params:set_action("rc_composer_vel_stage", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_vel_stage_overrides = {}
+    Composer.rebuild()
+  end)
 
   params:add_option("rc_composer_vel_tone", "Dyn Touch", VEL_TONE_NAMES, 1)
-  params:set_action("rc_composer_vel_tone", function() Composer.rebuild() end)
+  params:set_action("rc_composer_vel_tone", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_vel_tone_overrides = {}
+    Composer.rebuild()
+  end)
 
   params_initialized = true
 end

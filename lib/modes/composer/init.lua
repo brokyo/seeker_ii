@@ -32,12 +32,6 @@ local function create_home_section()
     params = {}
   })
 
-  norns_ui.draw = function(self)
-    screen.level(6)
-    screen.move(64, 30)
-    screen.text_center("Composer Config")
-  end
-
   return norns_ui
 end
 

@@ -12,8 +12,9 @@ local LiveView = {}
 
 -- Module-level state shared between screen and grid
 local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
-local page_state = nil              -- PageState for per-stage live view (harmony + articulation pages)
+local page_state = nil              -- PageState for live stage view (harmony, articulation, dynamics pages)
 local progression_page_state = nil  -- PageState for global progression view (structure/spread/dynamics pages)
+local last_lane_section = "COMPOSER_VOICE"  -- remembers last section navigated via lane button
 
 -- Forward declaration
 local update_live_arc
@@ -133,6 +134,71 @@ local function build_live_pages(Composer)
         },
       },
     },
+    {
+      name = "dynamics",
+      slots = {
+        {
+          label = "Soft",
+          threshold = 56,
+          on_delta = function(dir)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            Composer.cycle_stage_vel_min(stage_idx, dir)
+          end,
+          get_value = function()
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_min_overrides or {}
+            return tostring(overrides[stage_idx] or params:get("rc_composer_vel_min"))
+          end,
+        },
+        {
+          label = "Loud",
+          threshold = 56,
+          on_delta = function(dir)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            Composer.cycle_stage_vel_max(stage_idx, dir)
+          end,
+          get_value = function()
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_max_overrides or {}
+            return tostring(overrides[stage_idx] or params:get("rc_composer_vel_max"))
+          end,
+        },
+        {
+          label = "Shape",
+          threshold = 56,
+          on_delta = function(dir)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            Composer.cycle_stage_vel_stage(stage_idx, dir)
+          end,
+          get_value = function()
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_stage_overrides or {}
+            return overrides[stage_idx] or params:string("rc_composer_vel_stage")
+          end,
+        },
+        {
+          label = "Touch",
+          threshold = 56,
+          on_delta = function(dir)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            Composer.cycle_stage_vel_tone(stage_idx, dir)
+          end,
+          get_value = function()
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_tone_overrides or {}
+            return overrides[stage_idx] or params:string("rc_composer_vel_tone")
+          end,
+        },
+      },
+    },
   }
 end
 
@@ -229,6 +295,37 @@ update_live_arc = function(Composer)
     local stage_loops = loops_overrides[stage_idx] or params:get("rc_composer_loops")
     local loops_obj = params:lookup_param("rc_composer_loops")
     draw_arc_position(dev, 4, stage_loops, loops_obj.min, loops_obj.max)
+
+  elseif page_state.page == 3 then
+    -- Dynamics page: per-stage velocity overrides
+    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+    local stage_idx = edit_stage or lane.current_stage_index or 1
+    local vel_min_overrides = lane.composer_vel_min_overrides or {}
+    local vel_max_overrides = lane.composer_vel_max_overrides or {}
+    local vel_stage_overrides = lane.composer_vel_stage_overrides or {}
+    local vel_tone_overrides = lane.composer_vel_tone_overrides or {}
+
+    -- Ring 1: vel_min (numeric position)
+    local stage_vel_min = vel_min_overrides[stage_idx] or params:get("rc_composer_vel_min")
+    draw_arc_position(dev, 1, stage_vel_min, 1, 127)
+
+    -- Ring 2: vel_max (numeric position)
+    local stage_vel_max = vel_max_overrides[stage_idx] or params:get("rc_composer_vel_max")
+    draw_arc_position(dev, 2, stage_vel_max, 1, 127)
+
+    -- Ring 3: vel_stage (option segments)
+    local vel_stage_idx = params:get("rc_composer_vel_stage")
+    if vel_stage_overrides[stage_idx] then
+      vel_stage_idx = Composer.VEL_STAGE_INDEX[vel_stage_overrides[stage_idx]] or vel_stage_idx
+    end
+    draw_arc_option_segments(dev, 3, vel_stage_idx, #Composer.VEL_STAGE_NAMES, vel_stage_overrides[stage_idx])
+
+    -- Ring 4: vel_tone (option segments)
+    local vel_tone_idx = params:get("rc_composer_vel_tone")
+    if vel_tone_overrides[stage_idx] then
+      vel_tone_idx = Composer.VEL_TONE_INDEX[vel_tone_overrides[stage_idx]] or vel_tone_idx
+    end
+    draw_arc_option_segments(dev, 4, vel_tone_idx, #Composer.VEL_TONE_NAMES, vel_tone_overrides[stage_idx])
   end
 
   dev:refresh()
@@ -731,12 +828,19 @@ local function create_grid_ui(Composer)
               break
             end
           end
+          last_lane_section = next_section
           _seeker.ui_state.set_current_section(next_section)
         else
+          -- First tap on a new lane: show the same section as the previous lane.
+          -- If already on that section, rebuild manually (set_current_section no-ops).
           local current = _seeker.ui_state.get_current_section()
-          local section = _seeker.screen_ui.sections[current]
-          if section and section.rebuild_params then
-            section:rebuild_params()
+          if current == last_lane_section then
+            local section = _seeker.screen_ui.sections[current]
+            if section and section.rebuild_params then
+              section:rebuild_params()
+            end
+          else
+            _seeker.ui_state.set_current_section(last_lane_section)
           end
         end
 
