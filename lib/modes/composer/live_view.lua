@@ -100,8 +100,8 @@ local function build_live_pages(Composer)
     {
       name = "articulation",
       slots = {
-        { label = "Sprd",  param_id = "rc_composer_spread", threshold = 30, step = 5 },
-        { label = "Sprd~", param_id = "rc_composer_spread", threshold = 80, step = 1 },
+        { label = "Sprd", param_id = "rc_composer_spread", threshold = PageState.THRESH_RANGE },
+        false,  -- ring 2 dark
         {
           label = "Strum",
           threshold = 56,
@@ -139,7 +139,7 @@ local function build_live_pages(Composer)
       slots = {
         {
           label = "Soft",
-          threshold = 56,
+          threshold = PageState.THRESH_RANGE,
           on_delta = function(dir)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
@@ -154,7 +154,7 @@ local function build_live_pages(Composer)
         },
         {
           label = "Loud",
-          threshold = 56,
+          threshold = PageState.THRESH_RANGE,
           on_delta = function(dir)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
@@ -277,10 +277,10 @@ update_live_arc = function(Composer)
     draw_arc_option_segments(dev, 4, rot_idx, #Composer.ROTATION_NAMES, rotation_overrides[stage_idx])
 
   elseif page_state.page == 2 then
-    -- Articulation page: spread (coarse + fine), strum per-stage, loops
+    -- Articulation page: spread (ring 1), ring 2 dark, strum per-stage, loops
     local spread_spec = params:lookup_param("rc_composer_spread").controlspec
     draw_arc_fill(dev, 1, params:get("rc_composer_spread"), spread_spec)
-    draw_arc_fill(dev, 2, params:get("rc_composer_spread"), spread_spec)
+    for i = 1, 64 do dev:led(2, i, 0) end
 
     local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
     local stage_idx = edit_stage or lane.current_stage_index or 1
@@ -517,16 +517,35 @@ local function draw_live(norns_ui, Composer)
     end
   end
 
-  -- Select the PageState for whichever section is currently active
+  -- COMPOSER_LIVE and COMPOSER_PROGRESSION share this draw function; pick the matching PageState
   local active_page_state = (_seeker.ui_state.get_current_section() == "COMPOSER_PROGRESSION") and progression_page_state or page_state
 
-  -- Page indicator: small squares top-right (only for multi-page sections)
-  if #active_page_state.pages > 1 then
-    for p = 1, #active_page_state.pages do
-      local px = 120 + (p - 1) * 5
-      screen.level(p == active_page_state.page and 10 or 3)
-      screen.rect(px, 2, 3, 3)
-      if p == active_page_state.page then screen.fill() else screen.stroke() end
+  -- Page indicator: vertical lines top-right, thick for active page
+  local num_pages = #active_page_state.pages
+  if num_pages > 1 then
+    for p = 1, num_pages do
+      local px = 125 - (num_pages - p) * 4
+      screen.level(p == active_page_state.page and 12 or 4)
+      screen.rect(px, 2, p == active_page_state.page and 2 or 1, 4)
+      screen.fill()
+    end
+  end
+
+  -- Page name flash: centered over score on page change, black backing for readability
+  if active_page_state.page_flash then
+    local flash = active_page_state.page_flash
+    local elapsed = util.time() - flash.time
+    if elapsed < flash.duration then
+      local fade = math.max(0, 1 - elapsed / flash.duration)
+      local text_w = screen.text_extents(flash.name)
+      screen.level(0)
+      screen.rect(64 - text_w / 2 - 3, 22, text_w + 6, 12)
+      screen.fill()
+      screen.level(math.floor(12 * fade))
+      screen.move(64, 31)
+      screen.text_center(flash.name)
+    else
+      active_page_state.page_flash = nil
     end
   end
 
@@ -875,11 +894,11 @@ local function create_grid_ui(Composer)
           -- First click: select stage, snap to live view
           _seeker.ui_state.set_current_section("COMPOSER_LIVE")
           edit_stage = stage
-          page_state:show_overlay(
-            page_state.pages[page_state.page].name,
-            page_state.page .. "/" .. #page_state.pages,
-            0.4
-          )
+          page_state.page_flash = {
+            name = page_state.pages[page_state.page].name,
+            time = util.time(),
+            duration = 0.8,
+          }
         else
           -- Second click (same stage, already on COMPOSER_LIVE): toggle page
           page_state:next_page()
@@ -930,6 +949,9 @@ function LiveView.init(Composer)
   LiveView.edit_stage = function() return edit_stage end
   LiveView.set_edit_stage = function(val) edit_stage = val end
   LiveView.update_live_arc = function() update_live_arc(Composer) end
+
+  -- Refresh arc whenever rebuild fires (including automated meta-progression)
+  Composer.on_rebuild = function() update_live_arc(Composer) end
 
   return LiveView
 end

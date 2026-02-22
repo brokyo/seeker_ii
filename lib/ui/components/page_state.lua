@@ -11,6 +11,11 @@
 local PageState = {}
 PageState.__index = PageState
 
+-- Arc threshold tiers: OPTION for small discrete sets (3-12 values),
+-- RANGE for large numeric ranges where full traverse needs to be practical.
+PageState.THRESH_OPTION = 56
+PageState.THRESH_RANGE = 20
+
 function PageState.new(opts)
   local self = setmetatable({}, PageState)
   self.pages = opts.pages or {}
@@ -28,12 +33,12 @@ function PageState:set_pages(pages)
   self:_clamp_cursor()
 end
 
--- Cycle to next page, reset cursor and arc accumulator
+-- Advance to next page, reset cursor and arc accumulator, fire a page name flash
 function PageState:next_page()
   self.page = (self.page % #self.pages) + 1
   self.cursor = 1
   self.arc_accum = {0, 0, 0, 0}
-  self:show_overlay(self.pages[self.page].name, self.page .. "/" .. #self.pages, 0.4)
+  self.page_flash = { name = self.pages[self.page].name, time = util.time(), duration = 0.8 }
 end
 
 -- Show a toast overlay
@@ -133,7 +138,7 @@ function PageState:handle_key(n, z)
   end
 end
 
--- Arc ring n accumulates delta and steps slot n
+-- Arc ring n accumulates delta ticks until threshold, then steps slot n
 function PageState:handle_arc_delta(n, d)
   local page_def = self.pages[self.page]
   if not page_def then return end

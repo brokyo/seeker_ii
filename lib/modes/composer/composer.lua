@@ -11,6 +11,9 @@ local params_initialized = false
 -- Suppress rebuild while loading a lane's param snapshot
 local snapshot_loading = false
 
+-- Optional callback fired after each rebuild (used by live_view to refresh arc)
+Composer.on_rebuild = nil
+
 -- Named option tables for musically meaningful labels
 local DEGREE_NAMES = {"I", "ii", "iii", "IV", "V", "vi", "vii"}
 local MOVEMENT_NAMES = {
@@ -144,29 +147,46 @@ function Composer.order_notes(notes, strum_name)
 end
 
 ---------------------------------------------------------------
--- Build chord progression from params and apply via RC
+-- Read a composer param from a lane's snapshot (non-focused) or live params (focused)
 ---------------------------------------------------------------
-function Composer.rebuild()
+local function get_param(snapshot, param_id)
+  if snapshot then return snapshot[param_id] end
+  return params:get(param_id)
+end
+
+---------------------------------------------------------------
+-- Build chord progression from params and apply via RC.
+-- Optional lane_id targets a specific lane; nil = focused lane.
+---------------------------------------------------------------
+function Composer.rebuild(lane_id)
   if not params_initialized then return end
   if snapshot_loading then return end
   if not _seeker or not _seeker.rc then return end
 
-  local start = params:get("rc_composer_start")
-  local movement = movement_value(params:get("rc_composer_movement"))
-  local chord_len = chord_len_value(params:get("rc_composer_chord_len"))
-  local voicing = VOICING_NAMES[params:get("rc_composer_voicing")]
-  local rotation = rotation_value(params:get("rc_composer_rotation"))
-  local spread = params:get("rc_composer_spread")
-  local base_strum_order = STRUM_ORDER_NAMES[params:get("rc_composer_strum_order")]
-  local num_stages = params:get("rc_composer_stages")
-  local loops = params:get("rc_composer_loops")
-  local beats = params:get("rc_composer_beats")
-  local vel_min = params:get("rc_composer_vel_min")
-  local vel_max = params:get("rc_composer_vel_max")
-  local vel_stage_curve = VEL_STAGE_NAMES[params:get("rc_composer_vel_stage")]
-  local vel_tone = VEL_TONE_NAMES[params:get("rc_composer_vel_tone")]
+  lane_id = lane_id or _seeker.ui_state.get_focused_lane()
+  local is_focused = (lane_id == _seeker.ui_state.get_focused_lane())
 
-  local lane_id = _seeker.ui_state.get_focused_lane()
+  -- For non-focused lanes, read base params from snapshot instead of live params
+  local snapshot = nil
+  if not is_focused then
+    snapshot = _seeker.lanes[lane_id].composer_param_snapshot
+    if not snapshot then return end
+  end
+
+  local start = get_param(snapshot, "rc_composer_start")
+  local movement = movement_value(get_param(snapshot, "rc_composer_movement"))
+  local chord_len = chord_len_value(get_param(snapshot, "rc_composer_chord_len"))
+  local voicing = VOICING_NAMES[get_param(snapshot, "rc_composer_voicing")]
+  local rotation = rotation_value(get_param(snapshot, "rc_composer_rotation"))
+  local spread = get_param(snapshot, "rc_composer_spread")
+  local base_strum_order = STRUM_ORDER_NAMES[get_param(snapshot, "rc_composer_strum_order")]
+  local num_stages = get_param(snapshot, "rc_composer_stages")
+  local loops = get_param(snapshot, "rc_composer_loops")
+  local beats = get_param(snapshot, "rc_composer_beats")
+  local vel_min = get_param(snapshot, "rc_composer_vel_min")
+  local vel_max = get_param(snapshot, "rc_composer_vel_max")
+  local vel_stage_curve = VEL_STAGE_NAMES[get_param(snapshot, "rc_composer_vel_stage")]
+  local vel_tone = VEL_TONE_NAMES[get_param(snapshot, "rc_composer_vel_tone")]
   local lane = _seeker.lanes[lane_id]
   local strum_overrides = lane.composer_strum_overrides or {}
   local voicing_overrides = lane.composer_voicing_overrides or {}
@@ -201,7 +221,7 @@ function Composer.rebuild()
 
     local strum_delay = (spread / 100) * beats / stage_chord_len
     -- Gate shortens as spread increases to prevent strum note overlap
-    local base_gate = GATE_VALUES[params:get("rc_composer_gate")]
+    local base_gate = GATE_VALUES[get_param(snapshot, "rc_composer_gate")]
     local stage_gate = base_gate * (1 - spread / 100 * (1 - 1 / stage_chord_len))
 
     -- Per-stage velocity overrides
@@ -230,6 +250,11 @@ function Composer.rebuild()
     })
   end
 
+  -- Ensure lane is using Composer handlers
+  if params:get("lane_" .. lane_id .. "_motif_type") ~= 4 then
+    params:set("lane_" .. lane_id .. "_motif_type", 4)
+  end
+
   if lane.playing then
     -- Lane is mid-cycle: update stage data without resetting playback position.
     for i, entry in ipairs(stages) do
@@ -248,11 +273,16 @@ function Composer.rebuild()
     _seeker.rc.form(lane_id, stages)
   end
 
-  Composer.save_params(lane_id)
+  -- Only save params for the focused lane (snapshot is source of truth for remote lanes)
+  if is_focused then
+    Composer.save_params(lane_id)
+  end
 
   if _seeker.screen_ui then
     _seeker.screen_ui.set_needs_redraw()
   end
+
+  if Composer.on_rebuild then Composer.on_rebuild() end
 end
 
 ---------------------------------------------------------------
@@ -536,7 +566,9 @@ function Composer.randomize(style)
   params:set("rc_composer_vel_stage", math.random(1, #VEL_STAGE_NAMES))
   snapshot_loading = false
 
-  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  local lane_id = _seeker.ui_state.get_focused_lane()
+  params:set("lane_" .. lane_id .. "_motif_type", 4)
+  local lane = _seeker.lanes[lane_id]
   local num_stages = params:get("rc_composer_stages")
   local degree_pool = s and s.degree_pool
   lane.composer_degree_overrides = {}
@@ -566,6 +598,56 @@ function Composer.randomize(style)
 
   Composer.rebuild()
   lane:play({quantize = true})
+end
+
+---------------------------------------------------------------
+-- Get stage count for a lane (live params if focused, snapshot otherwise)
+---------------------------------------------------------------
+local function get_lane_stages(lane_id)
+  if lane_id == _seeker.ui_state.get_focused_lane() then
+    return params:get("rc_composer_stages")
+  end
+  local lane = _seeker.lanes[lane_id]
+  if lane.composer_param_snapshot then
+    return lane.composer_param_snapshot.rc_composer_stages or 1
+  end
+  return 1
+end
+
+---------------------------------------------------------------
+-- Meta-progression: automated rotation cycling on a clock
+---------------------------------------------------------------
+
+-- Cycle through rotation values on a lane, rebuilding at each step.
+-- rotations: array of ROTATION_NAMES indices (e.g. {3,4,5,4} = -3,-2,-1,-2)
+-- cycle_beats: clock.sync interval between rotation changes
+function Composer.meta_rotation(lane_id, rotations, cycle_beats)
+  if Composer._meta_clocks and Composer._meta_clocks[lane_id] then
+    clock.cancel(Composer._meta_clocks[lane_id])
+  end
+  Composer._meta_clocks = Composer._meta_clocks or {}
+  local idx = 0
+  Composer._meta_clocks[lane_id] = clock.run(function()
+    while true do
+      clock.sync(cycle_beats)
+      idx = (idx % #rotations) + 1
+      local lane = _seeker.lanes[lane_id]
+      lane.composer_rotation_overrides = lane.composer_rotation_overrides or {}
+      local rot_name = ROTATION_NAMES[rotations[idx]]
+      local num_stages = get_lane_stages(lane_id)
+      for s = 1, num_stages do
+        lane.composer_rotation_overrides[s] = rot_name
+      end
+      Composer.rebuild(lane_id)
+    end
+  end)
+end
+
+function Composer.stop_meta(lane_id)
+  if Composer._meta_clocks and Composer._meta_clocks[lane_id] then
+    clock.cancel(Composer._meta_clocks[lane_id])
+    Composer._meta_clocks[lane_id] = nil
+  end
 end
 
 ---------------------------------------------------------------
