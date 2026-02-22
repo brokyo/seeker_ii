@@ -6,6 +6,8 @@ local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
 local Descriptions = include("lib/ui/component_descriptions")
+local PageState = include("lib/ui/components/page_state")
+local ArcPages = include("lib/modes/eurorack/arc_pages")
 
 -- Use global Modal singleton
 local function get_modal()
@@ -16,68 +18,75 @@ local TxoCvOutput = {}
 TxoCvOutput.__index = TxoCvOutput
 
 -- Short codes for CV monitor display
-local TYPE_SHORT_CODES = { LFO = "LFO", ["Random Walk"] = "RW", Envelope = "ENV" }
+local TYPE_SHORT_CODES = { LFO = "LFO", Random = "RND", Envelope = "ENV" }
 
 -- Type descriptions for dynamic help
 local TYPE_DESCRIPTIONS = {
   LFO = "Clock-synced LFO.\n\nMORPH blends between adjacent waveforms.\n\nRECT clips or folds the output voltage.",
-  ["Random Walk"] = "Wandering voltage.\n\nJUMP picks a new random position each step.\n\nACCUMULATE drifts from current value by STEP SIZE.",
-  Envelope = "Clock-synced envelope.\n\nDURATION sets envelope time as percentage of clock period."
+  Random = "Wandering voltage.\n\nCENTER and DEPTH define the range.\n\nJUMP picks a new random position each step.\nACCUMULATE drifts from current value by STEP SIZE.",
+  Envelope = "Clock-synced envelope.\n\nAttack, decay, release in beats. Scales proportionally if total exceeds clock cycle."
 }
 
 -- Store active clock IDs globally
 local active_clocks = {}
 
--- Store random walk states globally for TXO CV outputs
-local random_walk_states = {}
-
--- Initialize random walk states for all 4 TXO CV outputs
+-- Per-output random state: current_value, initialized flag, and voltage history for monitor
+local random_states = {}
 for i = 1, 4 do
-    random_walk_states["txo_cv_" .. i] = {
+    random_states["txo_cv_" .. i] = {
         current_value = 0,
-        initialized = false
+        initialized = false,
+        history = {},
+        history_max = 32
     }
 end
 
 -- Track cycle start times for voltage estimation in CV monitor
 local cv_cycle_starts = {0, 0, 0, 0}
 
--- Clamp envelope param if total exceeds 100%
-local function clamp_envelope_if_needed(output_num, changed_param)
-    local attack = params:get("txo_cv_" .. output_num .. "_envelope_attack")
-    local decay = params:get("txo_cv_" .. output_num .. "_envelope_decay")
-    local release = params:get("txo_cv_" .. output_num .. "_envelope_release")
+-- Scale envelope stage times proportionally if they exceed the clock cycle.
+-- Returns {a_sec, d_sec, s_sec, r_sec} for ADSR, or {a_sec, r_sec, wait_sec} for AR.
+local function compute_envelope_times(output_num, cycle_sec)
+    local env_mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
+    local beat_sec = clock.get_beat_sec()
+    local a_beats = params:get("txo_cv_" .. output_num .. "_envelope_attack")
+    local r_beats = params:get("txo_cv_" .. output_num .. "_envelope_release")
 
-    local total = attack + decay + release
+    if env_mode == "ADSR" then
+        local d_beats = params:get("txo_cv_" .. output_num .. "_envelope_decay")
+        local total_sec = (a_beats + d_beats + r_beats) * beat_sec
 
-    if total > 100 then
-        local excess = total - 100
-        local current_value = params:get(changed_param)
-        local clamped_value = math.max(1, current_value - excess)
-        params:set(changed_param, clamped_value)
+        local a_sec = a_beats * beat_sec
+        local d_sec = d_beats * beat_sec
+        local r_sec = r_beats * beat_sec
+
+        if total_sec > cycle_sec then
+            local scale = cycle_sec / total_sec
+            a_sec = a_sec * scale
+            d_sec = d_sec * scale
+            r_sec = r_sec * scale
+        end
+
+        local s_sec = math.max(0, cycle_sec - a_sec - d_sec - r_sec)
+        return { mode = "ADSR", a = a_sec, d = d_sec, s = s_sec, r = r_sec, wait = 0 }
+    else
+        local total_sec = (a_beats + r_beats) * beat_sec
+        local a_sec = a_beats * beat_sec
+        local r_sec = r_beats * beat_sec
+
+        if total_sec > cycle_sec then
+            local scale = cycle_sec / total_sec
+            a_sec = a_sec * scale
+            r_sec = r_sec * scale
+        end
+
+        local wait = math.max(0, cycle_sec - a_sec - r_sec)
+        return { mode = "AR", a = a_sec, r = r_sec, wait = wait }
     end
 end
 
 
--- Get clock timing parameters
-local function get_clock_timing(interval, modifier, offset)
-    if interval == "Off" then return nil end
-
-    local interval_beats = tonumber(interval)
-    local modifier_value = EurorackUtils.modifier_to_value(modifier)
-    local offset_value = tonumber(offset)
-
-    local beats = interval_beats * modifier_value
-    if beats <= 0 then return nil end
-
-    local beat_sec = clock.get_beat_sec()
-    return {
-        beats = beats,
-        beat_sec = beat_sec,
-        total_sec = beats * beat_sec,
-        offset = offset_value
-    }
-end
+local get_clock_timing = EurorackUtils.get_clock_timing
 
 -- Setup clock helper
 local function setup_clock(output_id, clock_fn)
@@ -94,79 +103,73 @@ end
 -- Main TXO CV update function
 
 function TxoCvOutput.update_txo_cv(output_num)
-    -- Stop existing clock if any
     if active_clocks["txo_cv_" .. output_num] then
         clock.cancel(active_clocks["txo_cv_" .. output_num])
         active_clocks["txo_cv_" .. output_num] = nil
     end
 
-    -- Reset random walk state when changing types
-    random_walk_states["txo_cv_" .. output_num].initialized = false
+    random_states["txo_cv_" .. output_num].initialized = false
 
-    -- Get the output type
     local type = params:string("txo_cv_" .. output_num .. "_type")
     local clock_interval = params:string("txo_cv_" .. output_num .. "_clock_interval")
     local clock_modifier = params:string("txo_cv_" .. output_num .. "_clock_modifier")
     local clock_offset = params:string("txo_cv_" .. output_num .. "_clock_offset")
 
-    -- If sync is Off, disable the output and return early
     if clock_interval == "Off" then
-        -- Stop the oscillator by setting amplitude to 0
+        -- TXO amplitude 0 stops the oscillator
         crow.ii.txo.cv(output_num, 0)
         return
     end
 
-    -- Handle Random Walk type
-    if type == "Random Walk" then
-        local mode = params:string("txo_cv_" .. output_num .. "_random_walk_mode")
-        local slew = params:get("txo_cv_" .. output_num .. "_random_walk_slew") / 100
-        local min_value = params:get("txo_cv_" .. output_num .. "_random_walk_min")
-        local max_value = params:get("txo_cv_" .. output_num .. "_random_walk_max")
+    -- Handle Random type (center/depth range, Jump or Accumulate)
+    if type == "Random" then
+        local mode = params:string("txo_cv_" .. output_num .. "_random_mode")
+        local slew = params:get("txo_cv_" .. output_num .. "_random_slew") / 100
+        local center = params:get("txo_cv_" .. output_num .. "_random_center")
+        local depth = params:get("txo_cv_" .. output_num .. "_random_depth")
+        local min_value = util.clamp(center - depth, -10, 10)
+        local max_value = util.clamp(center + depth, -10, 10)
 
-        -- Initialize the CV output
         crow.ii.txo.cv_init(output_num)
 
         -- Initialize state if needed
         local state_key = "txo_cv_" .. output_num
-        if not random_walk_states[state_key].initialized then
+        if not random_states[state_key].initialized then
             if mode == "Accumulate" then
-                local offset = params:get("txo_cv_" .. output_num .. "_random_walk_offset")
-                random_walk_states[state_key].current_value = offset
+                random_states[state_key].current_value = center
             else
-                -- Start at a random position for Jump mode
-                random_walk_states[state_key].current_value = min_value + math.random() * (max_value - min_value)
+                random_states[state_key].current_value = min_value + math.random() * (max_value - min_value)
             end
-            random_walk_states[state_key].initialized = true
-            crow.ii.txo.cv_set(output_num, random_walk_states[state_key].current_value)
+            random_states[state_key].initialized = true
+            crow.ii.txo.cv_set(output_num, random_states[state_key].current_value)
         end
 
-        -- Setup clock for random walk
-        local function random_walk_function()
+        local function random_function()
             while true do
+                -- Re-read params each tick so arc changes take effect
+                local center = params:get("txo_cv_" .. output_num .. "_random_center")
+                local depth = params:get("txo_cv_" .. output_num .. "_random_depth")
+                local lo = util.clamp(center - depth, -10, 10)
+                local hi = util.clamp(center + depth, -10, 10)
                 local new_value
 
                 if mode == "Jump" then
-                    -- Jump to random value within range
-                    new_value = min_value + math.random() * (max_value - min_value)
+                    new_value = lo + math.random() * (hi - lo)
                 else
-                    -- Accumulate mode
-                    local step_size = params:get("txo_cv_" .. output_num .. "_random_walk_step_size")
+                    local step_size = params:get("txo_cv_" .. output_num .. "_random_step_size")
                     local step = (math.random() - 0.5) * 2 * step_size
-                    new_value = random_walk_states[state_key].current_value + step
+                    new_value = random_states[state_key].current_value + step
 
                     -- Reflect at boundaries
-                    if new_value > max_value then
-                        new_value = 2 * max_value - new_value
-                    elseif new_value < min_value then
-                        new_value = 2 * min_value - new_value
-                    end
-
-                    -- Extra safety clamp
-                    new_value = util.clamp(new_value, min_value, max_value)
+                    if new_value > hi then new_value = 2 * hi - new_value
+                    elseif new_value < lo then new_value = 2 * lo - new_value end
+                    new_value = util.clamp(new_value, lo, hi)
                 end
 
-                -- Update state
-                random_walk_states[state_key].current_value = new_value
+                random_states[state_key].current_value = new_value
+                local hist = random_states[state_key].history
+                table.insert(hist, new_value)
+                if #hist > random_states[state_key].history_max then table.remove(hist, 1) end
 
                 -- Calculate slew time in milliseconds
                 local interval_beats = EurorackUtils.interval_to_beats(clock_interval)
@@ -174,9 +177,9 @@ function TxoCvOutput.update_txo_cv(output_num)
                 local beats = interval_beats * modifier_value
                 local beat_sec = clock.get_beat_sec()
                 local total_sec = beats * beat_sec
-                local slew_ms = total_sec * slew * 1000
+                local slew_pct = params:get("txo_cv_" .. output_num .. "_random_slew") / 100
+                local slew_ms = total_sec * slew_pct * 1000
 
-                -- Set slew time and target voltage
                 if slew_ms > 0 then
                     crow.ii.txo.cv_slew(output_num, slew_ms)
                     crow.ii.txo.cv(output_num, new_value)
@@ -184,18 +187,16 @@ function TxoCvOutput.update_txo_cv(output_num)
                     crow.ii.txo.cv_set(output_num, new_value)
                 end
 
-                -- Wait for next step with offset
                 local offset_value = tonumber(clock_offset) or 0
                 clock.sync(beats, offset_value)
             end
         end
 
-        -- Start the clock
-        active_clocks["txo_cv_" .. output_num] = clock.run(random_walk_function)
+        active_clocks["txo_cv_" .. output_num] = clock.run(random_function)
         return
     end
 
-    -- Handle Envelope type using TXO's native envelope generator
+    -- Handle Envelope type via software-driven slew (TXO has no native ASL)
     if type == "Envelope" then
         local timing = get_clock_timing(clock_interval, clock_modifier, clock_offset)
         if not timing then
@@ -204,85 +205,57 @@ function TxoCvOutput.update_txo_cv(output_num)
             return
         end
 
-        local mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
-        local max_voltage = params:get("txo_cv_" .. output_num .. "_envelope_voltage")
-        local duration_percent = params:get("txo_cv_" .. output_num .. "_envelope_duration")
-        local attack_percent = params:get("txo_cv_" .. output_num .. "_envelope_attack")
-        local decay_percent = params:get("txo_cv_" .. output_num .. "_envelope_decay")
-        local sustain_level = params:get("txo_cv_" .. output_num .. "_envelope_sustain") / 100
-        local release_percent = params:get("txo_cv_" .. output_num .. "_envelope_release")
+        local peak = params:get("txo_cv_" .. output_num .. "_envelope_peak")
+        local sustain_v = params:get("txo_cv_" .. output_num .. "_envelope_sustain")
 
-        -- Calculate envelope timing
-        local envelope_time = timing.total_sec * (duration_percent / 100)
-
-        -- Initialize CV output
         crow.ii.txo.cv_init(output_num)
 
-        -- Set envelope amplitude via CV depth
-        crow.ii.txo.cv(output_num, max_voltage)
+        local clock_fn = function()
+            while true do
+                -- Re-read params each cycle so arc changes take effect
+                local cycle_sec = timing.beats * clock.get_beat_sec()
+                local t = compute_envelope_times(output_num, cycle_sec)
+                local pk = params:get("txo_cv_" .. output_num .. "_envelope_peak")
+                local sv = params:get("txo_cv_" .. output_num .. "_envelope_sustain")
 
-        local clock_fn
-        if mode == "ADSR" then
-            -- ADSR uses attack/decay/sustain/release phases
-            local total_percent = attack_percent + decay_percent + release_percent
-            local sustain_percent = math.max(0, 100 - total_percent)
+                cv_cycle_starts[output_num] = util.time()
 
-            local attack_ms = envelope_time * (attack_percent / 100) * 1000
-            local decay_ms = envelope_time * (decay_percent / 100) * 1000
-            local sustain_ms = envelope_time * (sustain_percent / 100) * 1000
-            local release_ms = envelope_time * (release_percent / 100) * 1000
+                if t.mode == "ADSR" then
+                    -- Attack: 0 -> peak
+                    crow.ii.txo.cv_slew(output_num, t.a * 1000)
+                    crow.ii.txo.cv(output_num, pk)
+                    clock.sleep(t.a)
 
-            clock_fn = function()
-                while true do
-                    cv_cycle_starts[output_num] = util.time()
+                    -- Decay: peak -> sustain
+                    crow.ii.txo.cv_slew(output_num, t.d * 1000)
+                    crow.ii.txo.cv(output_num, sv)
+                    clock.sleep(t.d)
 
-                    -- Attack phase: 0 -> max
-                    crow.ii.txo.cv_slew(output_num, attack_ms)
-                    crow.ii.txo.cv(output_num, max_voltage)
-                    clock.sleep(attack_ms / 1000)
+                    -- Sustain: hold at sustain voltage
+                    clock.sleep(t.s)
 
-                    -- Decay phase: max -> sustain
-                    crow.ii.txo.cv_slew(output_num, decay_ms)
-                    crow.ii.txo.cv(output_num, max_voltage * sustain_level)
-                    clock.sleep(decay_ms / 1000)
-
-                    -- Sustain phase: hold
-                    clock.sleep(sustain_ms / 1000)
-
-                    -- Release phase: sustain -> 0
-                    crow.ii.txo.cv_slew(output_num, release_ms)
+                    -- Release: sustain -> 0
+                    crow.ii.txo.cv_slew(output_num, t.r * 1000)
                     crow.ii.txo.cv(output_num, 0)
-                    clock.sleep(release_ms / 1000)
+                    clock.sleep(t.r)
+                else
+                    -- Attack: 0 -> peak
+                    crow.ii.txo.cv_slew(output_num, t.a * 1000)
+                    crow.ii.txo.cv(output_num, pk)
+                    clock.sleep(t.a)
 
-                    -- Wait for next cycle
-                    clock.sync(timing.beats, timing.offset)
-                end
-            end
-        else
-            -- AR mode: attack/release only
-            local total_percent = attack_percent + release_percent
-            local scale_factor = 100 / total_percent
-
-            local attack_ms = envelope_time * ((attack_percent * scale_factor) / 100) * 1000
-            local release_ms = envelope_time * ((release_percent * scale_factor) / 100) * 1000
-
-            clock_fn = function()
-                while true do
-                    cv_cycle_starts[output_num] = util.time()
-
-                    -- Attack phase: 0 -> max
-                    crow.ii.txo.cv_slew(output_num, attack_ms)
-                    crow.ii.txo.cv(output_num, max_voltage)
-                    clock.sleep(attack_ms / 1000)
-
-                    -- Release phase: max -> 0
-                    crow.ii.txo.cv_slew(output_num, release_ms)
+                    -- Release: peak -> 0
+                    crow.ii.txo.cv_slew(output_num, t.r * 1000)
                     crow.ii.txo.cv(output_num, 0)
-                    clock.sleep(release_ms / 1000)
+                    clock.sleep(t.r)
 
-                    -- Wait for next cycle
-                    clock.sync(timing.beats, timing.offset)
+                    -- Wait for remaining cycle
+                    if t.wait > 0 then
+                        clock.sleep(t.wait)
+                    end
                 end
+
+                clock.sync(timing.beats, timing.offset)
             end
         end
 
@@ -407,6 +380,103 @@ function TxoCvOutput.update_txo_cv(output_num)
     active_clocks["txo_cv_" .. output_num] = clock.run(sync_lfo)
 end
 
+---------------------------------------------------------------
+-- Live view: single-output console with voltage bar + PageState chrome
+---------------------------------------------------------------
+local cv_page_state = nil
+local cv_update_arc  -- forward declaration
+
+local function cv_get_selected()
+  return { source = "txo_cv", num = params:get("eurorack_selected_number") }
+end
+
+local function cv_rebuild_page_state()
+  local pages = ArcPages.build_pages_for_output(cv_get_selected())
+  if cv_page_state then
+    cv_page_state:set_pages(pages)
+  else
+    cv_page_state = PageState.new({ pages = pages })
+  end
+end
+
+local function draw_cv_live()
+  local selected = cv_get_selected()
+  local has_pages = cv_page_state and #cv_page_state.pages > 0 and cv_page_state.pages[1].name ~= "---"
+
+  if not has_pages then
+    screen.level(8)
+    screen.rect(0, 52, 128, 12)
+    screen.fill()
+    screen.level(0)
+    screen.move(2, 60)
+    screen.text("TXO CV " .. selected.num)
+    return
+  end
+
+  -- Output label — dim when clock is off, with status hint
+  local states = TxoCvOutput.get_cv_states()
+  local state = states[selected.num]
+  local type_label = state and state.type or "---"
+  local active = state and state.active
+  screen.level(active and 12 or 4)
+  screen.move(2, 7)
+  screen.text("CV " .. selected.num .. " — " .. type_label)
+
+  -- Type-specific visualization (same area as Composer: 12-45)
+  local VIZ_TOP = 12
+  local VIZ_BOTTOM = 45
+
+  if state then
+    ArcPages.draw_output_viz(state, VIZ_TOP, VIZ_BOTTOM - VIZ_TOP)
+
+    if active and state.current then
+      screen.level(10)
+      screen.move(126, 7)
+      screen.text_right(string.format("%.1fv", state.current))
+    end
+  end
+
+  cv_page_state:draw_page_indicators()
+  cv_page_state:draw_page_flash()
+  cv_page_state:draw_footer()
+end
+
+cv_update_arc = function()
+  local dev = _seeker.arc
+  if not dev or not cv_page_state then return end
+  cv_page_state:update_arc(dev)
+  dev:refresh()
+end
+
+local function cv_handle_arc_delta(n, delta)
+  if not cv_page_state then return end
+
+  local page_def = cv_page_state.pages[cv_page_state.page]
+  if not page_def then return end
+  local slot = page_def.slots[n]
+  if not slot or not slot.param_id then return end
+
+  local selected = cv_get_selected()
+  local prefix = "txo_cv_" .. selected.num .. "_"
+  local is_type_change = (slot.param_id == prefix .. "type")
+
+  cv_page_state:handle_arc_delta(n, delta)
+
+  if is_type_change then
+    cv_rebuild_page_state()
+  end
+
+  cv_update_arc()
+  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+end
+
+local function cv_handle_arc_key(n, z)
+  if not cv_page_state then return end
+  cv_page_state:handle_arc_key(n, z)
+  cv_update_arc()
+  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+end
+
 -- Screen UI
 
 local function create_screen_ui()
@@ -414,12 +484,16 @@ local function create_screen_ui()
         id = "TXO_CV_OUTPUT",
         name = "TXO CV Output",
         description = Descriptions.TXO_CV_OUTPUT,
-        params = {}
+        params = {},
     })
+
+    norns_ui.needs_playback_refresh = true
+    norns_ui.live_view_enabled = true
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
         self:rebuild_params()  -- Rebuild params BEFORE entering (so arc.new_section gets valid params)
+        cv_rebuild_page_state()
         original_enter(self)
 
         -- Check for conflicts with lane TXO Osc and show warning
@@ -432,6 +506,35 @@ local function create_screen_ui()
                 _seeker.screen_ui.set_needs_redraw()
             end
         end
+    end
+
+    norns_ui.draw_live = function(self) draw_cv_live() end
+    norns_ui.update_arc = function(self) cv_update_arc() end
+    norns_ui.handle_arc_delta = function(self, n, delta) cv_handle_arc_delta(n, delta) end
+    norns_ui.handle_arc_key = function(self, n, z) cv_handle_arc_key(n, z) end
+
+    norns_ui.handle_live_enc = function(self, n, d)
+      if not cv_page_state then return end
+      cv_page_state:handle_enc(n, d)
+      cv_update_arc()
+      _seeker.screen_ui.set_needs_redraw()
+    end
+
+    norns_ui.handle_live_key = function(self, n, z)
+      if n == 3 and z == 1 and cv_page_state then
+        cv_page_state:next_page()
+        cv_update_arc()
+        _seeker.screen_ui.set_needs_redraw()
+      end
+    end
+
+    -- Advance to next arc page (used by grid re-tap)
+    norns_ui.cycle_page = function(self)
+      if cv_page_state then
+        cv_page_state:next_page()
+        cv_update_arc()
+        _seeker.screen_ui.set_needs_redraw()
+      end
     end
 
     norns_ui.rebuild_params = function(self)
@@ -463,44 +566,32 @@ local function create_screen_ui()
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_phase", arc_multi_float = {30, 10, 1} })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_rect" })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
-        elseif type == "Random Walk" then
-            table.insert(param_table, { separator = true, title = "Random Walk" })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_mode" })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_slew", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_min", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_max", arc_multi_float = {1.0, 0.1, 0.01} })
+        elseif type == "Random" then
+            table.insert(param_table, { separator = true, title = "Random" })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_mode" })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_center", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_depth", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_slew", arc_multi_float = {10, 5, 1} })
 
-            local mode = params:string("txo_cv_" .. output_num .. "_random_walk_mode")
+            local mode = params:string("txo_cv_" .. output_num .. "_random_mode")
             if mode == "Accumulate" then
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_step_size", arc_multi_float = {0.5, 0.1, 0.01} })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_walk_offset", arc_multi_float = {1.0, 0.1, 0.01} })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_random_step_size", arc_multi_float = {0.5, 0.1, 0.01} })
             end
 
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
         elseif type == "Envelope" then
             table.insert(param_table, { separator = true, title = "Envelope" })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_mode" })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_peak", arc_multi_float = {1.0, 0.1, 0.01} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_attack", arc_multi_float = {0.5, 0.1, 0.01} })
 
             local mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
-            -- Visual Edit only for ADSR mode (at top of section)
             if mode == "ADSR" then
-                table.insert(param_table, {
-                    id = "txo_cv_" .. output_num .. "_envelope_visual_edit",
-                    is_action = true,
-                    custom_name = "Visual Edit"
-                })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_decay", arc_multi_float = {0.5, 0.1, 0.01} })
+                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_sustain", arc_multi_float = {1.0, 0.1, 0.01} })
             end
 
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_duration", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_attack", arc_multi_float = {10, 5, 1} })
-
-            if mode == "ADSR" then
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_decay", arc_multi_float = {10, 5, 1} })
-                table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_sustain", arc_multi_float = {10, 5, 1} })
-            end
-
-            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_release", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_cv_" .. output_num .. "_envelope_release", arc_multi_float = {0.5, 0.1, 0.01} })
             table.insert(param_table, { id = "txo_cv_" .. output_num .. "_restart" })
         end
 
@@ -583,7 +674,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("txo_cv_output", "TXO CV OUTPUT", 100)
+    params:add_group("txo_cv_output", "TXO CV OUTPUT", 88)
 
     for i = 1, 4 do
         params:add_option("txo_cv_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -603,7 +694,7 @@ local function create_params()
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Random Walk", "Envelope"}, 1)
+        params:add_option("txo_cv_" .. i .. "_type", "Type", {"LFO", "Random", "Envelope"}, 1)
         params:set_action("txo_cv_" .. i .. "_type", function(value)
             TxoCvOutput.update_txo_cv(i)
             if _seeker and _seeker.eurorack and _seeker.eurorack.txo_cv_output then
@@ -642,9 +733,9 @@ local function create_params()
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        -- Random Walk parameters
-        params:add_option("txo_cv_" .. i .. "_random_walk_mode", "Mode", {"Jump", "Accumulate"}, 2)
-        params:set_action("txo_cv_" .. i .. "_random_walk_mode", function(value)
+        -- Random parameters (center/depth range)
+        params:add_option("txo_cv_" .. i .. "_random_mode", "Mode", {"Jump", "Accumulate"}, 2)
+        params:set_action("txo_cv_" .. i .. "_random_mode", function(value)
             TxoCvOutput.update_txo_cv(i)
             if _seeker and _seeker.eurorack and _seeker.eurorack.txo_cv_output then
                 _seeker.eurorack.txo_cv_output.screen:rebuild_params()
@@ -652,28 +743,23 @@ local function create_params()
             end
         end)
 
-        params:add_control("txo_cv_" .. i .. "_random_walk_slew", "Slew", controlspec.new(0, 100, 'lin', 1, 50), function(param) return params:get(param.id) .. "%" end)
-        params:set_action("txo_cv_" .. i .. "_random_walk_slew", function(value)
+        params:add_control("txo_cv_" .. i .. "_random_center", "Center", controlspec.new(-10, 10, 'lin', 0.01, 0), function(param) return string.format("%.2fv", params:get(param.id)) end)
+        params:set_action("txo_cv_" .. i .. "_random_center", function(value)
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_control("txo_cv_" .. i .. "_random_walk_min", "Min", controlspec.new(-10, 10, 'lin', 0.01, -5), function(param) return params:get(param.id) .. "v" end)
-        params:set_action("txo_cv_" .. i .. "_random_walk_min", function(value)
+        params:add_control("txo_cv_" .. i .. "_random_depth", "Depth", controlspec.new(0, 10, 'lin', 0.01, 5), function(param) return string.format("%.2fv", params:get(param.id)) end)
+        params:set_action("txo_cv_" .. i .. "_random_depth", function(value)
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_control("txo_cv_" .. i .. "_random_walk_max", "Max", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
-        params:set_action("txo_cv_" .. i .. "_random_walk_max", function(value)
+        params:add_control("txo_cv_" .. i .. "_random_slew", "Slew", controlspec.new(0, 100, 'lin', 1, 50), function(param) return params:get(param.id) .. "%" end)
+        params:set_action("txo_cv_" .. i .. "_random_slew", function(value)
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_control("txo_cv_" .. i .. "_random_walk_step_size", "Step Size", controlspec.new(0.01, 5, 'lin', 0.01, 0.5), function(param) return params:get(param.id) .. "v" end)
-        params:set_action("txo_cv_" .. i .. "_random_walk_step_size", function(value)
-            TxoCvOutput.update_txo_cv(i)
-        end)
-
-        params:add_control("txo_cv_" .. i .. "_random_walk_offset", "Offset", controlspec.new(-10, 10, 'lin', 0.01, 0), function(param) return params:get(param.id) .. "v" end)
-        params:set_action("txo_cv_" .. i .. "_random_walk_offset", function(value)
+        params:add_control("txo_cv_" .. i .. "_random_step_size", "Step Size", controlspec.new(0.01, 5, 'lin', 0.01, 0.5), function(param) return string.format("%.2fv", params:get(param.id)) end)
+        params:set_action("txo_cv_" .. i .. "_random_step_size", function(value)
             TxoCvOutput.update_txo_cv(i)
         end)
 
@@ -687,75 +773,36 @@ local function create_params()
             end
         end)
 
-        params:add_control("txo_cv_" .. i .. "_envelope_voltage", "Max Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
-        params:set_action("txo_cv_" .. i .. "_envelope_voltage", function(value)
+        params:add_control("txo_cv_" .. i .. "_envelope_peak", "Peak", controlspec.new(0, 10, 'lin', 0.01, 5), function(param) return string.format("%.2fv", params:get(param.id)) end)
+        params:set_action("txo_cv_" .. i .. "_envelope_peak", function(value)
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_number("txo_cv_" .. i .. "_envelope_duration", "Duration", 1, 100, 50, function(param) return param.value .. "%" end)
-        params:set_action("txo_cv_" .. i .. "_envelope_duration", function(value)
-            TxoCvOutput.update_txo_cv(i)
-        end)
-
-        params:add_number("txo_cv_" .. i .. "_envelope_attack", "Attack", 1, 100, 20, function(param) return param.value .. "%" end)
+        params:add_control("txo_cv_" .. i .. "_envelope_attack", "Attack", controlspec.new(0.01, 16, 'exp', 0.01, 0.25), function(param) return string.format("%.2f", params:get(param.id)) end)
         params:set_action("txo_cv_" .. i .. "_envelope_attack", function(value)
-            clamp_envelope_if_needed(i, "txo_cv_" .. i .. "_envelope_attack")
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_number("txo_cv_" .. i .. "_envelope_decay", "Decay", 1, 100, 20, function(param) return param.value .. "%" end)
+        params:add_control("txo_cv_" .. i .. "_envelope_decay", "Decay", controlspec.new(0.01, 16, 'exp', 0.01, 0.25), function(param) return string.format("%.2f", params:get(param.id)) end)
         params:set_action("txo_cv_" .. i .. "_envelope_decay", function(value)
-            clamp_envelope_if_needed(i, "txo_cv_" .. i .. "_envelope_decay")
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_number("txo_cv_" .. i .. "_envelope_sustain", "Sustain Level", 1, 100, 80, function(param) return param.value .. "%" end)
+        params:add_control("txo_cv_" .. i .. "_envelope_sustain", "Sustain", controlspec.new(0, 10, 'lin', 0.01, 3), function(param) return string.format("%.2fv", params:get(param.id)) end)
         params:set_action("txo_cv_" .. i .. "_envelope_sustain", function(value)
             TxoCvOutput.update_txo_cv(i)
         end)
 
-        params:add_number("txo_cv_" .. i .. "_envelope_release", "Release", 1, 100, 20, function(param) return param.value .. "%" end)
+        params:add_control("txo_cv_" .. i .. "_envelope_release", "Release", controlspec.new(0.01, 16, 'exp', 0.01, 0.5), function(param) return string.format("%.2f", params:get(param.id)) end)
         params:set_action("txo_cv_" .. i .. "_envelope_release", function(value)
-            clamp_envelope_if_needed(i, "txo_cv_" .. i .. "_envelope_release")
             TxoCvOutput.update_txo_cv(i)
         end)
 
         params:add_binary("txo_cv_" .. i .. "_restart", "Restart", "trigger", 0)
         params:set_action("txo_cv_" .. i .. "_restart", function(value)
-            -- Restart all TXO CV outputs
             for j = 1, 4 do
                 TxoCvOutput.update_txo_cv(j)
             end
-            print("Restarted all TXO CVs")
-        end)
-
-        -- ADSR visual editor trigger
-        local output_idx = i
-        params:add_binary("txo_cv_" .. i .. "_envelope_visual_edit", "Visual Edit", "trigger", 0)
-        params:set_action("txo_cv_" .. i .. "_envelope_visual_edit", function()
-            local Modal = get_modal()
-            if not Modal then return end
-
-            -- Values normalized to 0-1 for modal visualization
-            local function get_adsr_data()
-                return {
-                    a = params:get("txo_cv_" .. output_idx .. "_envelope_attack") / 100,
-                    d = params:get("txo_cv_" .. output_idx .. "_envelope_decay") / 100,
-                    s = params:get("txo_cv_" .. output_idx .. "_envelope_sustain") / 100,
-                    r = params:get("txo_cv_" .. output_idx .. "_envelope_release") / 100
-                }
-            end
-
-            Modal.show_adsr({
-                get_data = get_adsr_data,
-                param_ids = {
-                    "txo_cv_" .. output_idx .. "_envelope_attack",
-                    "txo_cv_" .. output_idx .. "_envelope_decay",
-                    "txo_cv_" .. output_idx .. "_envelope_sustain",
-                    "txo_cv_" .. output_idx .. "_envelope_release"
-                }
-            })
-            _seeker.screen_ui.set_needs_redraw()
         end)
     end
 end
@@ -796,7 +843,8 @@ local function estimate_lfo_voltage(output_num)
     return offset + depth * waveform_value(phase, shape)
 end
 
--- Estimate current TXO envelope voltage from elapsed time and ADSR params
+-- Estimate current TXO envelope voltage using proportionally scaled times.
+-- TXO envelopes are linear (no shape easing).
 local function estimate_envelope_voltage(output_num)
     local timing = get_clock_timing(
         params:string("txo_cv_" .. output_num .. "_clock_interval"),
@@ -805,58 +853,43 @@ local function estimate_envelope_voltage(output_num)
     )
     if not timing or timing.total_sec <= 0 then return 0 end
 
-    local max_v = params:get("txo_cv_" .. output_num .. "_envelope_voltage")
-    local duration_pct = params:get("txo_cv_" .. output_num .. "_envelope_duration") / 100
-    local attack_pct = params:get("txo_cv_" .. output_num .. "_envelope_attack") / 100
-    local decay_pct = params:get("txo_cv_" .. output_num .. "_envelope_decay") / 100
-    local sustain_level = params:get("txo_cv_" .. output_num .. "_envelope_sustain") / 100
-    local release_pct = params:get("txo_cv_" .. output_num .. "_envelope_release") / 100
-    local env_mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
+    local peak = params:get("txo_cv_" .. output_num .. "_envelope_peak")
+    local sustain_v = params:get("txo_cv_" .. output_num .. "_envelope_sustain")
 
-    local env_time = timing.total_sec * duration_pct
-    local elapsed = (util.time() - cv_cycle_starts[output_num])
-    -- Clamp to cycle time to avoid negative estimates during clock.sync wait
-    elapsed = elapsed % timing.total_sec
+    local cycle_sec = timing.total_sec
+    local t = compute_envelope_times(output_num, cycle_sec)
+    local elapsed = (util.time() - cv_cycle_starts[output_num]) % cycle_sec
 
-    if env_mode == "ADSR" then
-        local total_pct = attack_pct + decay_pct + release_pct
-        local sustain_pct = math.max(0, 1 - total_pct)
-        local a_time = env_time * attack_pct
-        local d_time = env_time * decay_pct
-        local s_time = env_time * sustain_pct
-        local r_time = env_time * release_pct
-
-        if elapsed < a_time then
-            return max_v * (elapsed / a_time)
-        elseif elapsed < a_time + d_time then
-            local t = (elapsed - a_time) / d_time
-            return max_v - (max_v - max_v * sustain_level) * t
-        elseif elapsed < a_time + d_time + s_time then
-            return max_v * sustain_level
-        elseif elapsed < a_time + d_time + s_time + r_time then
-            local t = (elapsed - a_time - d_time - s_time) / r_time
-            return max_v * sustain_level * (1 - t)
+    if t.mode == "ADSR" then
+        if elapsed < t.a then
+            return peak * (elapsed / t.a)
+        elseif elapsed < t.a + t.d then
+            local p = (elapsed - t.a) / t.d
+            return peak - (peak - sustain_v) * p
+        elseif elapsed < t.a + t.d + t.s then
+            return sustain_v
+        elseif elapsed < t.a + t.d + t.s + t.r then
+            local p = (elapsed - t.a - t.d - t.s) / t.r
+            return sustain_v * (1 - p)
         else
             return 0
         end
     else
-        local scale = 1 / (attack_pct + release_pct)
-        local a_time = env_time * attack_pct * scale
-        local r_time = env_time * release_pct * scale
-
-        if elapsed < a_time then
-            return max_v * (elapsed / a_time)
-        elseif elapsed < a_time + r_time then
-            return max_v * (1 - (elapsed - a_time) / r_time)
+        if elapsed < t.a then
+            return peak * (elapsed / t.a)
+        elseif elapsed < t.a + t.r then
+            local p = (elapsed - t.a) / t.r
+            return peak * (1 - p)
         else
             return 0
         end
     end
 end
 
--- Returns state table for each TXO CV output (1-4) for the CV monitor.
--- Always returns { active, type, current, min, max } so the UI can display
--- inactive outputs when selected.
+-- Returns state table for each TXO CV output (1-4).
+-- Base fields: { active, type, current, min, max }
+-- Type-specific: LFO adds phase/lfo_shape, Envelope adds env_times/peak/sustain/elapsed_frac,
+--                Random adds voltage_history
 function TxoCvOutput.get_cv_states()
     local states = {}
     for i = 1, 4 do
@@ -865,36 +898,65 @@ function TxoCvOutput.get_cv_states()
         local clock_interval = params:string("txo_cv_" .. i .. "_clock_interval")
         local is_active = clock_interval ~= "Off"
 
-        if cv_type == "Random Walk" then
+        if cv_type == "Random" then
             local state_key = "txo_cv_" .. i
-            local min_v = params:get("txo_cv_" .. i .. "_random_walk_min")
-            local max_v = params:get("txo_cv_" .. i .. "_random_walk_max")
+            local center = params:get("txo_cv_" .. i .. "_random_center")
+            local depth_v = params:get("txo_cv_" .. i .. "_random_depth")
             states[i] = {
                 active = is_active,
                 type = short,
-                current = is_active and random_walk_states[state_key].current_value or 0,
-                min = min_v,
-                max = max_v
+                current = is_active and random_states[state_key].current_value or 0,
+                min = util.clamp(center - depth_v, -10, 10),
+                max = util.clamp(center + depth_v, -10, 10),
+                voltage_history = random_states[state_key].history
             }
         elseif cv_type == "LFO" then
             local depth = params:get("txo_cv_" .. i .. "_depth")
             local offset = params:get("txo_cv_" .. i .. "_offset")
+            local shape = params:string("txo_cv_" .. i .. "_shape")
+            local timing = get_clock_timing(
+                clock_interval,
+                params:string("txo_cv_" .. i .. "_clock_modifier"),
+                params:string("txo_cv_" .. i .. "_clock_offset")
+            )
+            local phase = 0
+            if timing and timing.total_sec > 0 then
+                local elapsed = util.time() - cv_cycle_starts[i]
+                phase = (elapsed % timing.total_sec) / timing.total_sec
+            end
             states[i] = {
                 active = is_active,
                 type = short,
                 current = is_active and estimate_lfo_voltage(i) or 0,
                 min = offset - depth,
-                max = offset + depth
+                max = offset + depth,
+                phase = phase, lfo_shape = shape
             }
         elseif cv_type == "Envelope" then
-            local max_voltage = params:get("txo_cv_" .. i .. "_envelope_voltage")
+            local peak = params:get("txo_cv_" .. i .. "_envelope_peak")
+            local sustain_v = params:get("txo_cv_" .. i .. "_envelope_sustain")
+            local timing = get_clock_timing(
+                clock_interval,
+                params:string("txo_cv_" .. i .. "_clock_modifier"),
+                params:string("txo_cv_" .. i .. "_clock_offset")
+            )
+            local env_times, elapsed_frac = nil, 0
+            if timing and timing.total_sec > 0 then
+                env_times = compute_envelope_times(i, timing.total_sec)
+                elapsed_frac = ((util.time() - cv_cycle_starts[i]) % timing.total_sec) / timing.total_sec
+            end
             states[i] = {
                 active = is_active,
                 type = short,
                 current = is_active and estimate_envelope_voltage(i) or 0,
                 min = 0,
-                max = max_voltage
+                max = peak,
+                env_times = env_times, peak = peak, sustain = sustain_v, elapsed_frac = elapsed_frac
             }
+        end
+        if states[i] then
+            states[i]._source = "txo_cv"
+            states[i]._num = i
         end
     end
     return states

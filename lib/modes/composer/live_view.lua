@@ -45,6 +45,16 @@ local function build_live_pages(Composer)
             local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
             return Composer.DEGREE_NAMES[degree_overrides[stage_idx] or default_degree]
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_degree_overrides or {}
+            local start = params:get("rc_composer_start")
+            local movement = Composer.movement_value(params:get("rc_composer_movement"))
+            local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
+            local current = overrides[stage_idx] or default_degree
+            PageState.draw_arc_segments(dev, ring, current, #Composer.DEGREE_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
         },
         {
           label = "Len",
@@ -60,6 +70,16 @@ local function build_live_pages(Composer)
             local overrides = lane.composer_chord_len_overrides or {}
             return overrides[stage_idx] or params:string("rc_composer_chord_len")
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_chord_len_overrides or {}
+            local idx = params:get("rc_composer_chord_len")
+            if overrides[stage_idx] then
+              idx = Composer.CHORD_LEN_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.CHORD_LEN_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
         },
         {
           label = "Voice",
@@ -74,6 +94,16 @@ local function build_live_pages(Composer)
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_voicing_overrides or {}
             return overrides[stage_idx] or params:string("rc_composer_voicing")
+          end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_voicing_overrides or {}
+            local idx = params:get("rc_composer_voicing")
+            if overrides[stage_idx] then
+              idx = Composer.VOICING_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.VOICING_NAMES, overrides[stage_idx] and 14 or 10)
           end,
         },
         {
@@ -94,13 +124,31 @@ local function build_live_pages(Composer)
             end
             return tostring(rot_idx - 6)
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_rotation_overrides or {}
+            local idx = params:get("rc_composer_rotation")
+            if overrides[stage_idx] then
+              idx = Composer.ROTATION_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.ROTATION_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
         },
       },
     },
     {
       name = "articulation",
       slots = {
-        { label = "Sprd", param_id = "rc_composer_spread", threshold = PageState.THRESH_RANGE },
+        {
+          label = "Sprd",
+          param_id = "rc_composer_spread",
+          threshold = PageState.THRESH_RANGE,
+          arc_draw = function(dev, ring)
+            local spec = params:lookup_param("rc_composer_spread").controlspec
+            PageState.draw_arc_fill(dev, ring, params:get("rc_composer_spread"), spec)
+          end,
+        },
         false,  -- ring 2 dark
         {
           label = "Strum",
@@ -116,6 +164,16 @@ local function build_live_pages(Composer)
             local overrides = lane.composer_strum_overrides or {}
             return overrides[stage_idx] or params:string("rc_composer_strum_order")
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_strum_overrides or {}
+            local idx = params:get("rc_composer_strum_order")
+            if overrides[stage_idx] then
+              idx = Composer.STRUM_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.STRUM_ORDER_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
         },
         {
           label = "Loops",
@@ -130,6 +188,14 @@ local function build_live_pages(Composer)
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_loops_overrides or {}
             return tostring(overrides[stage_idx] or params:get("rc_composer_loops"))
+          end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_loops_overrides or {}
+            local stage_loops = overrides[stage_idx] or params:get("rc_composer_loops")
+            local loops_obj = params:lookup_param("rc_composer_loops")
+            PageState.draw_arc_position(dev, ring, stage_loops, loops_obj.min, loops_obj.max)
           end,
         },
       },
@@ -151,6 +217,13 @@ local function build_live_pages(Composer)
             local overrides = lane.composer_vel_min_overrides or {}
             return tostring(overrides[stage_idx] or params:get("rc_composer_vel_min"))
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_min_overrides or {}
+            local val = overrides[stage_idx] or params:get("rc_composer_vel_min")
+            PageState.draw_arc_position(dev, ring, val, 1, 127)
+          end,
         },
         {
           label = "Loud",
@@ -165,6 +238,13 @@ local function build_live_pages(Composer)
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_vel_max_overrides or {}
             return tostring(overrides[stage_idx] or params:get("rc_composer_vel_max"))
+          end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_max_overrides or {}
+            local val = overrides[stage_idx] or params:get("rc_composer_vel_max")
+            PageState.draw_arc_position(dev, ring, val, 1, 127)
           end,
         },
         {
@@ -181,6 +261,16 @@ local function build_live_pages(Composer)
             local overrides = lane.composer_vel_stage_overrides or {}
             return overrides[stage_idx] or params:string("rc_composer_vel_stage")
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_stage_overrides or {}
+            local idx = params:get("rc_composer_vel_stage")
+            if overrides[stage_idx] then
+              idx = Composer.VEL_STAGE_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.VEL_STAGE_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
         },
         {
           label = "Touch",
@@ -196,6 +286,16 @@ local function build_live_pages(Composer)
             local overrides = lane.composer_vel_tone_overrides or {}
             return overrides[stage_idx] or params:string("rc_composer_vel_tone")
           end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_vel_tone_overrides or {}
+            local idx = params:get("rc_composer_vel_tone")
+            if overrides[stage_idx] then
+              idx = Composer.VEL_TONE_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.VEL_TONE_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
         },
       },
     },
@@ -203,131 +303,12 @@ local function build_live_pages(Composer)
 end
 
 ---------------------------------------------------------------
--- Arc display helpers
----------------------------------------------------------------
-local function draw_arc_option_segments(dev, ring, current_idx, num_options, is_overridden)
-  for i = 1, 64 do dev:led(ring, i, 2) end
-  local segment = math.floor(64 / num_options)
-  local start = (current_idx - 1) * segment + 1
-  local brightness = is_overridden and 14 or 10
-  for i = start, math.min(64, start + segment - 1) do
-    dev:led(ring, i, brightness)
-  end
-end
-
-local function draw_arc_position(dev, ring, value, min_val, max_val)
-  for i = 1, 64 do dev:led(ring, i, 2) end
-  local norm = (value - min_val) / (max_val - min_val)
-  local pos = math.floor(norm * 63) + 1
-  dev:led(ring, pos, 12)
-  if pos > 1 then dev:led(ring, pos - 1, 6) end
-  if pos < 64 then dev:led(ring, pos + 1, 6) end
-end
-
-local function draw_arc_fill(dev, ring, value, spec)
-  for i = 1, 64 do dev:led(ring, i, 2) end
-  local norm = (value - spec.minval) / (spec.maxval - spec.minval)
-  local fill_end = math.floor(norm * 64)
-  for i = 1, fill_end do dev:led(ring, i, 10) end
-end
-
----------------------------------------------------------------
--- Arc display: update LED rings based on page
+-- Arc display
 ---------------------------------------------------------------
 update_live_arc = function(Composer)
   local dev = _seeker.arc
-  if not dev then return end
-  if not params.lookup["rc_composer_start"] then return end
-
-  if page_state.page == 1 then
-    -- Harmony page: per-stage overrides with segment displays
-    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-    local stage_idx = edit_stage or lane.current_stage_index or 1
-    local degree_overrides = lane.composer_degree_overrides or {}
-    local voicing_overrides = lane.composer_voicing_overrides or {}
-    local rotation_overrides = lane.composer_rotation_overrides or {}
-    local chord_len_overrides = lane.composer_chord_len_overrides or {}
-
-    -- Ring 1: degree
-    local start = params:get("rc_composer_start")
-    local movement = params:get("rc_composer_movement") - 7
-    local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
-    local current_degree = degree_overrides[stage_idx] or default_degree
-    draw_arc_option_segments(dev, 1, current_degree, #Composer.DEGREE_NAMES, degree_overrides[stage_idx])
-
-    -- Ring 2: chord length
-    local chord_len_idx = params:get("rc_composer_chord_len")
-    if chord_len_overrides[stage_idx] then
-      chord_len_idx = Composer.CHORD_LEN_INDEX[chord_len_overrides[stage_idx]] or chord_len_idx
-    end
-    draw_arc_option_segments(dev, 2, chord_len_idx, #Composer.CHORD_LEN_NAMES, chord_len_overrides[stage_idx])
-
-    -- Ring 3: voicing
-    local voicing_idx = params:get("rc_composer_voicing")
-    if voicing_overrides[stage_idx] then
-      voicing_idx = Composer.VOICING_INDEX[voicing_overrides[stage_idx]] or voicing_idx
-    end
-    draw_arc_option_segments(dev, 3, voicing_idx, #Composer.VOICING_NAMES, voicing_overrides[stage_idx])
-
-    -- Ring 4: rotation
-    local rot_idx = params:get("rc_composer_rotation")
-    if rotation_overrides[stage_idx] then
-      rot_idx = Composer.ROTATION_INDEX[rotation_overrides[stage_idx]] or rot_idx
-    end
-    draw_arc_option_segments(dev, 4, rot_idx, #Composer.ROTATION_NAMES, rotation_overrides[stage_idx])
-
-  elseif page_state.page == 2 then
-    -- Articulation page: spread (ring 1), ring 2 dark, strum per-stage, loops
-    local spread_spec = params:lookup_param("rc_composer_spread").controlspec
-    draw_arc_fill(dev, 1, params:get("rc_composer_spread"), spread_spec)
-    for i = 1, 64 do dev:led(2, i, 0) end
-
-    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-    local stage_idx = edit_stage or lane.current_stage_index or 1
-    local strum_overrides = lane.composer_strum_overrides or {}
-    local strum_idx = params:get("rc_composer_strum_order")
-    if strum_overrides[stage_idx] then
-      strum_idx = Composer.STRUM_INDEX[strum_overrides[stage_idx]] or strum_idx
-    end
-    draw_arc_option_segments(dev, 3, strum_idx, #Composer.STRUM_ORDER_NAMES, strum_overrides[stage_idx])
-
-    local loops_overrides = lane.composer_loops_overrides or {}
-    local stage_loops = loops_overrides[stage_idx] or params:get("rc_composer_loops")
-    local loops_obj = params:lookup_param("rc_composer_loops")
-    draw_arc_position(dev, 4, stage_loops, loops_obj.min, loops_obj.max)
-
-  elseif page_state.page == 3 then
-    -- Dynamics page: per-stage velocity overrides
-    local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-    local stage_idx = edit_stage or lane.current_stage_index or 1
-    local vel_min_overrides = lane.composer_vel_min_overrides or {}
-    local vel_max_overrides = lane.composer_vel_max_overrides or {}
-    local vel_stage_overrides = lane.composer_vel_stage_overrides or {}
-    local vel_tone_overrides = lane.composer_vel_tone_overrides or {}
-
-    -- Ring 1: vel_min (numeric position)
-    local stage_vel_min = vel_min_overrides[stage_idx] or params:get("rc_composer_vel_min")
-    draw_arc_position(dev, 1, stage_vel_min, 1, 127)
-
-    -- Ring 2: vel_max (numeric position)
-    local stage_vel_max = vel_max_overrides[stage_idx] or params:get("rc_composer_vel_max")
-    draw_arc_position(dev, 2, stage_vel_max, 1, 127)
-
-    -- Ring 3: vel_stage (option segments)
-    local vel_stage_idx = params:get("rc_composer_vel_stage")
-    if vel_stage_overrides[stage_idx] then
-      vel_stage_idx = Composer.VEL_STAGE_INDEX[vel_stage_overrides[stage_idx]] or vel_stage_idx
-    end
-    draw_arc_option_segments(dev, 3, vel_stage_idx, #Composer.VEL_STAGE_NAMES, vel_stage_overrides[stage_idx])
-
-    -- Ring 4: vel_tone (option segments)
-    local vel_tone_idx = params:get("rc_composer_vel_tone")
-    if vel_tone_overrides[stage_idx] then
-      vel_tone_idx = Composer.VEL_TONE_INDEX[vel_tone_overrides[stage_idx]] or vel_tone_idx
-    end
-    draw_arc_option_segments(dev, 4, vel_tone_idx, #Composer.VEL_TONE_NAMES, vel_tone_overrides[stage_idx])
-  end
-
+  if not dev or not params.lookup["rc_composer_start"] then return end
+  page_state:update_arc(dev)
   dev:refresh()
 end
 
@@ -348,8 +329,26 @@ local function build_progression_pages()
     {
       name = "spread",
       slots = {
-        { label = "Sprd",  param_id = "rc_composer_spread", threshold = 30, step = 5 },
-        { label = "Sprd~", param_id = "rc_composer_spread", threshold = 80, step = 1 },
+        {
+          label = "Sprd",
+          param_id = "rc_composer_spread",
+          threshold = 30,
+          step = 5,
+          arc_draw = function(dev, ring)
+            local spec = params:lookup_param("rc_composer_spread").controlspec
+            PageState.draw_arc_fill(dev, ring, params:get("rc_composer_spread"), spec)
+          end,
+        },
+        {
+          label = "Sprd~",
+          param_id = "rc_composer_spread",
+          threshold = 80,
+          step = 1,
+          arc_draw = function(dev, ring)
+            local spec = params:lookup_param("rc_composer_spread").controlspec
+            PageState.draw_arc_fill(dev, ring, params:get("rc_composer_spread"), spec)
+          end,
+        },
         { label = "Strum", param_id = "rc_composer_strum_order", threshold = 56 },
       },
     },
@@ -366,40 +365,12 @@ local function build_progression_pages()
 end
 
 ---------------------------------------------------------------
--- Arc display for COMPOSER_PROGRESSION: structure (beats/loops/chord_len/gate), spread (spread/strum), dynamics (shape/touch/range)
+-- Arc display for COMPOSER_PROGRESSION
 ---------------------------------------------------------------
 update_progression_arc = function(Composer)
   local dev = _seeker.arc
-  if not dev then return end
-  if not params.lookup["rc_composer_beats"] then return end
-
-  if progression_page_state.page == 1 then
-    -- Structure: beats, loops, chord length, gate
-    local beats_obj = params:lookup_param("rc_composer_beats")
-    draw_arc_position(dev, 1, params:get("rc_composer_beats"), beats_obj.min, beats_obj.max)
-
-    local loops_obj = params:lookup_param("rc_composer_loops")
-    draw_arc_position(dev, 2, params:get("rc_composer_loops"), loops_obj.min, loops_obj.max)
-
-    draw_arc_option_segments(dev, 3, params:get("rc_composer_chord_len"), #Composer.CHORD_LEN_NAMES, false)
-    draw_arc_option_segments(dev, 4, params:get("rc_composer_gate"), #Composer.GATE_NAMES, false)
-
-  elseif progression_page_state.page == 2 then
-    -- Spread: spread coarse, spread fine, strum, ring 4 dark
-    local spread_spec = params:lookup_param("rc_composer_spread").controlspec
-    draw_arc_fill(dev, 1, params:get("rc_composer_spread"), spread_spec)
-    draw_arc_fill(dev, 2, params:get("rc_composer_spread"), spread_spec)
-    draw_arc_option_segments(dev, 3, params:get("rc_composer_strum_order"), #Composer.STRUM_ORDER_NAMES, false)
-    for i = 1, 64 do dev:led(4, i, 0) end
-
-  elseif progression_page_state.page == 3 then
-    -- Dynamics: shape, touch, soft, loud
-    draw_arc_option_segments(dev, 1, params:get("rc_composer_vel_stage"), #Composer.VEL_STAGE_NAMES, false)
-    draw_arc_option_segments(dev, 2, params:get("rc_composer_vel_tone"), #Composer.VEL_TONE_NAMES, false)
-    draw_arc_position(dev, 3, params:get("rc_composer_vel_min"), 1, 127)
-    draw_arc_position(dev, 4, params:get("rc_composer_vel_max"), 1, 127)
-  end
-
+  if not dev or not params.lookup["rc_composer_beats"] then return end
+  progression_page_state:update_arc(dev)
   dev:refresh()
 end
 
@@ -520,34 +491,8 @@ local function draw_live(norns_ui, Composer)
   -- COMPOSER_LIVE and COMPOSER_PROGRESSION share this draw function; pick the matching PageState
   local active_page_state = (_seeker.ui_state.get_current_section() == "COMPOSER_PROGRESSION") and progression_page_state or page_state
 
-  -- Page indicator: vertical lines top-right, thick for active page
-  local num_pages = #active_page_state.pages
-  if num_pages > 1 then
-    for p = 1, num_pages do
-      local px = 125 - (num_pages - p) * 4
-      screen.level(p == active_page_state.page and 12 or 4)
-      screen.rect(px, 2, p == active_page_state.page and 2 or 1, 4)
-      screen.fill()
-    end
-  end
-
-  -- Page name flash: centered over score on page change, black backing for readability
-  if active_page_state.page_flash then
-    local flash = active_page_state.page_flash
-    local elapsed = util.time() - flash.time
-    if elapsed < flash.duration then
-      local fade = math.max(0, 1 - elapsed / flash.duration)
-      local text_w = screen.text_extents(flash.name)
-      screen.level(0)
-      screen.rect(64 - text_w / 2 - 3, 22, text_w + 6, 12)
-      screen.fill()
-      screen.level(math.floor(12 * fade))
-      screen.move(64, 31)
-      screen.text_center(flash.name)
-    else
-      active_page_state.page_flash = nil
-    end
-  end
+  active_page_state:draw_page_indicators()
+  active_page_state:draw_page_flash()
 
   -- Degree labels above each column
   for i = 1, num_stages do

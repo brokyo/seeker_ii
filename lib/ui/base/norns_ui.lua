@@ -18,7 +18,7 @@ function NornsUI.new(config)
   norns_ui.params = config.params
   norns_ui.active_params = {}
   norns_ui.description = config.description or "No description available"
-  
+
   -- State properties for UI management
   norns_ui.state = {
     selected_index = 1,

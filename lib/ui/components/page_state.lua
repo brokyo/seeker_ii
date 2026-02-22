@@ -127,7 +127,6 @@ function PageState:handle_enc(n, d)
     elseif slot.param_id and params.lookup[slot.param_id] then
       _seeker.arc.step_param(slot.param_id, direction, slot.step)
     end
-    self:_show_slot_overlay(slot)
   end
 end
 
@@ -158,8 +157,6 @@ function PageState:handle_arc_delta(n, d)
   elseif slot.param_id and params.lookup[slot.param_id] then
     _seeker.arc.step_param(slot.param_id, direction, slot.step)
   end
-
-  self:_show_slot_overlay(slot)
 end
 
 -- Arc button cycles page
@@ -204,6 +201,118 @@ function PageState:_show_slot_overlay(slot)
     val = "?"
   end
   self:show_overlay(slot.label, tostring(val))
+end
+
+---------------------------------------------------------------
+-- Chrome: page indicator bars and page-change flash
+---------------------------------------------------------------
+
+-- Vertical bars top-right. Thick for active page, thin for inactive.
+function PageState:draw_page_indicators()
+  local num_pages = #self.pages
+  if num_pages <= 1 then return end
+  for p = 1, num_pages do
+    local px = 125 - (num_pages - p) * 4
+    screen.level(p == self.page and 12 or 4)
+    screen.rect(px, 2, p == self.page and 2 or 1, 4)
+    screen.fill()
+  end
+end
+
+-- Centered black-backed text fading over flash duration. Call after content, before footer.
+function PageState:draw_page_flash()
+  if not self.page_flash then return end
+  local flash = self.page_flash
+  local elapsed = util.time() - flash.time
+  if elapsed >= flash.duration then
+    self.page_flash = nil
+    return
+  end
+  local fade = math.max(0, 1 - elapsed / flash.duration)
+  local text_w = screen.text_extents(flash.name)
+  screen.level(0)
+  screen.rect(64 - text_w / 2 - 3, 22, text_w + 6, 12)
+  screen.fill()
+  screen.level(math.floor(12 * fade))
+  screen.move(64, 31)
+  screen.text_center(flash.name)
+end
+
+---------------------------------------------------------------
+-- Arc primitives: reusable LED patterns for arc rings
+---------------------------------------------------------------
+
+-- Segment display for discrete options. Lights one segment of `count` total.
+function PageState.draw_arc_segments(dev, ring, idx, count, brightness)
+  brightness = brightness or 12
+  for i = 1, 64 do dev:led(ring, i, 2) end
+  local segment = math.floor(64 / count)
+  local start = (idx - 1) * segment + 1
+  for i = start, math.min(64, start + segment - 1) do
+    dev:led(ring, i, brightness)
+  end
+end
+
+-- Position needle with dimmer neighbors for continuous values.
+function PageState.draw_arc_position(dev, ring, value, min_val, max_val, brightness)
+  brightness = brightness or 12
+  for i = 1, 64 do dev:led(ring, i, 2) end
+  local norm = (value - min_val) / (max_val - min_val)
+  local pos = math.floor(norm * 63) + 1
+  dev:led(ring, pos, brightness)
+  local dim = math.floor(brightness / 2)
+  if pos > 1 then dev:led(ring, pos - 1, dim) end
+  if pos < 64 then dev:led(ring, pos + 1, dim) end
+end
+
+-- Fill bar from left edge proportional to value within controlspec range.
+function PageState.draw_arc_fill(dev, ring, value, spec, brightness)
+  brightness = brightness or 10
+  for i = 1, 64 do dev:led(ring, i, 2) end
+  local norm = (value - spec.minval) / (spec.maxval - spec.minval)
+  local fill_end = math.floor(norm * 64)
+  for i = 1, fill_end do dev:led(ring, i, brightness) end
+end
+
+-- Auto-detect param type and render appropriate arc pattern.
+function PageState.draw_param_ring(dev, ring, param_id, brightness)
+  brightness = brightness or 12
+  if not params.lookup[param_id] then
+    for i = 1, 64 do dev:led(ring, i, 1) end
+    return
+  end
+  local param_obj = params:lookup_param(param_id)
+  local current = params:get(param_id)
+  if param_obj.t == params.tOPTION then
+    PageState.draw_arc_segments(dev, ring, current, #param_obj.options, brightness)
+  elseif param_obj.controlspec then
+    PageState.draw_arc_position(dev, ring, current, param_obj.controlspec.minval, param_obj.controlspec.maxval, brightness)
+  elseif param_obj.min and param_obj.max then
+    PageState.draw_arc_position(dev, ring, current, param_obj.min, param_obj.max, brightness)
+  else
+    for i = 1, 64 do dev:led(ring, i, 1) end
+  end
+end
+
+---------------------------------------------------------------
+-- Arc dispatch: iterate slots, call arc_draw or auto-render.
+-- Does NOT call dev:refresh() -- caller owns that.
+---------------------------------------------------------------
+function PageState:update_arc(dev)
+  local page_def = self.pages[self.page]
+  if not page_def then return end
+  for ring = 1, 4 do
+    local slot = page_def.slots[ring]
+    if not slot then
+      for i = 1, 64 do dev:led(ring, i, 0) end
+    elseif slot.arc_draw then
+      slot.arc_draw(dev, ring)
+    elseif slot.param_id then
+      PageState.draw_param_ring(dev, ring, slot.param_id)
+    else
+      for i = 1, 64 do dev:led(ring, i, 1) end
+    end
+  end
 end
 
 return PageState

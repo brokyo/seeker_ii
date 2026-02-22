@@ -13,8 +13,8 @@ local modules = {
 }
 
 -- Map module names to section IDs.
--- cv_monitor replaces config as the EURORACK_CONFIG section screen,
--- while config still creates its params and sync function.
+-- cv_monitor owns the EURORACK_CONFIG screen.
+-- eurorack_config creates params and sync only (no screen).
 local SECTION_IDS = {
     cv_monitor = "EURORACK_CONFIG",
     crow_output = "CROW_OUTPUT",
@@ -45,6 +45,9 @@ function Eurorack.init()
 
     -- Expose sync method from config
     instance.sync_all_clocks = instance.config.sync_all_clocks
+
+    -- Exposed on the eurorack instance so screen_saver.lua can dispatch via MODE_SEEKER_KEYS
+    instance.draw_screensaver = modules.cv_monitor.draw_screensaver
 
     return instance
 end

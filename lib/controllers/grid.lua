@@ -141,16 +141,36 @@ function GridUI.key(x, y, z)
               end
             end
           else
-            -- Tap: select output, or cycle page if already selected
-            if _seeker.eurorack.cv_monitor then
-              local sel = _seeker.eurorack.cv_monitor.get_selected()
-              if sel and sel.source == source and sel.num == output_num and current_section == "EURORACK_CONFIG" then
-                _seeker.eurorack.cv_monitor.cycle_page()
-              else
+            -- Tap: navigate to dedicated output section, re-tap cycles arc page
+            local section_map = {
+              crow = "CROW_OUTPUT",
+              txo_tr = "TXO_TR_OUTPUT",
+              txo_cv = "TXO_CV_OUTPUT",
+            }
+            local target = section_map[source]
+            if target then
+              -- Keep cv_monitor selection in sync
+              if _seeker.eurorack.cv_monitor then
                 _seeker.eurorack.cv_monitor.select_output(source, output_num)
-                if current_section ~= "EURORACK_CONFIG" then
-                  _seeker.ui_state.set_current_section("EURORACK_CONFIG")
+              end
+
+              local sel = _seeker.eurorack.cv_monitor and _seeker.eurorack.cv_monitor.get_selected()
+              local is_focused = sel and sel.source == source and sel.num == output_num
+                  and current_section == target
+
+              if is_focused then
+                -- Re-tap: cycle arc page within the dedicated section
+                local component_map = {
+                  crow = _seeker.eurorack.crow_output,
+                  txo_tr = _seeker.eurorack.txo_tr_output,
+                  txo_cv = _seeker.eurorack.txo_cv_output,
+                }
+                local component = component_map[source]
+                if component and component.screen and component.screen.cycle_page then
+                  component.screen:cycle_page()
                 end
+              else
+                _seeker.ui_state.set_current_section(target)
               end
             end
           end
