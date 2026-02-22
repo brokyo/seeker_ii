@@ -4,6 +4,9 @@
 local i2c = include("lib/modes/motif/infrastructure/voices/disting_nt/i2c")
 local algorithms = include("lib/modes/motif/infrastructure/voices/disting_nt/algorithms")
 local chains = include("lib/modes/motif/infrastructure/voices/disting_nt/chains")
+-- Optional user-generated DX7 patch name lookup (not distributed, see .gitignore)
+local ok, patch_names = pcall(include, "lib/modes/motif/infrastructure/voices/disting_nt/patch_names")
+if not ok then patch_names = {} end
 
 local params_module = {}
 
@@ -89,6 +92,18 @@ local function create_param(lane_idx, algo_def, param_def)
     local formatter = nil
     if param_def.formatter == "midi_note" then
       formatter = function(p) return algorithms.midi_to_note_name(p:get()) end
+    elseif param_def.formatter == "patch_name" then
+      -- Show DX7 patch name from bank+voice lookup
+      local bank_param_id = prefix .. "bank"
+      formatter = function(p)
+        local voice = p:get()
+        local bank = params:get(bank_param_id)
+        local bank_patches = patch_names[bank]
+        if bank_patches and bank_patches[voice] then
+          return bank_patches[voice]
+        end
+        return tostring(voice)
+      end
     end
     params:add_number(param_id, param_def.name, param_def.min, param_def.max, param_def.default, formatter)
     params:set_action(param_id, function(value)

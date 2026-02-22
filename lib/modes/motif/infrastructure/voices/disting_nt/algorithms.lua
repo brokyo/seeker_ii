@@ -98,8 +98,8 @@ algorithms.DEFINITIONS = {
       -- Voice
       { id = "sustain_mode", name = "Sustain Mode", type = "option", options = "SUSTAIN_MODES", default = 2, param_num = 8, hidden = true },
       { id = "sustain", name = "Sustain", type = "option", options = {"Off", "On"}, default = 1, param_num = 50 },
-      { id = "bank", name = "Bank", type = "number", min = 1, max = 21, default = 1, param_num = 10 },
-      { id = "voice", name = "Voice", type = "number", min = 1, max = 32, default = 1, param_num = 11 },
+      { id = "bank", name = "Bank", type = "number", min = 1, max = 53, default = 1, param_num = 10 },
+      { id = "voice", name = "Voice", type = "number", min = 1, max = 32, default = 1, param_num = 11, formatter = "patch_name" },
       -- Sound
       { id = "brightness", name = "Brightness", type = "control", min = -100, max = 100, default = 0, unit = "%", param_num = 28, scale = 10 },
       { id = "envelope_scale", name = "Envelope Scale", type = "control", min = -100, max = 100, default = 0, unit = "%", param_num = 29, scale = 10 },
