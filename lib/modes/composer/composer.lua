@@ -466,33 +466,86 @@ end
 ---------------------------------------------------------------
 -- Randomize all params and start playback
 ---------------------------------------------------------------
-function Composer.randomize()
+-- Randomization styles: constrained param ranges that produce a coherent character.
+-- "journey": implied melody via Out>In convergence, negative rotation, wide voicings.
+--   Extended drift degree pool (I, ii, iii, IV, vi) — no dominant pull, no diminished tension.
+--   Fixed chord length per roll — consistent strum density across all stages.
+local RANDOM_STYLES = {
+  journey = {
+    stages = {2, 3},
+    beats = {4, 5, 6, 8},
+    chord_len = {5, 7},          -- 6-8 notes: enough to phrase, few enough to sing
+    voicing = {2, 5},           -- Open, Spread
+    rotation = {3, 5},          -- -3 to -1
+    spread = {50, 60, 70, 80},
+    strum_order = {3, 3},       -- Out>In (fixed)
+    gate = {2, 3},              -- Normal, Legato
+    movement = {5, 6, 8, 9},   -- 3rds Dn, Steps Dn, Steps Up, 3rds Up
+    vel_tone = {4, 4},          -- Pluck (fixed)
+    vel_range = {70, 110},
+    degree_pool = {1, 2, 3, 4, 6},  -- I, ii, iii, IV, vi (extended drift)
+  },
+}
+
+local function pick(t)
+  return t[math.random(1, #t)]
+end
+
+local function rand_range(lo, hi)
+  return math.random(lo, hi)
+end
+
+function Composer.randomize(style)
+  local s = RANDOM_STYLES[style]
+
   snapshot_loading = true
   params:set("rc_composer_start", math.random(1, #DEGREE_NAMES))
-  params:set("rc_composer_movement", math.random(1, #MOVEMENT_NAMES))
-  params:set("rc_composer_stages", math.random(2, 5))
-  local beat_options = {2, 3, 4, 5, 6, 8, 10, 12}
-  params:set("rc_composer_beats", beat_options[math.random(1, #beat_options)])
-  params:set("rc_composer_chord_len", math.random(1, #CHORD_LEN_NAMES))
-  params:set("rc_composer_voicing", math.random(1, #VOICING_NAMES))
-  params:set("rc_composer_rotation", math.random(1, #ROTATION_NAMES))
-  local spread_options = {0, 10, 20, 30, 50, 70, 100}
-  params:set("rc_composer_spread", spread_options[math.random(1, #spread_options)])
-  params:set("rc_composer_strum_order", math.random(1, #STRUM_ORDER_NAMES))
-  params:set("rc_composer_gate", math.random(1, #GATE_NAMES))
+  if s then
+    params:set("rc_composer_movement", pick(s.movement))
+    params:set("rc_composer_stages", rand_range(s.stages[1], s.stages[2]))
+    params:set("rc_composer_beats", pick(s.beats))
+    params:set("rc_composer_chord_len", rand_range(s.chord_len[1], s.chord_len[2]))
+    params:set("rc_composer_voicing", pick(s.voicing))
+    params:set("rc_composer_rotation", rand_range(s.rotation[1], s.rotation[2]))
+    params:set("rc_composer_spread", pick(s.spread))
+    params:set("rc_composer_strum_order", rand_range(s.strum_order[1], s.strum_order[2]))
+    params:set("rc_composer_gate", rand_range(s.gate[1], s.gate[2]))
+    params:set("rc_composer_vel_tone", rand_range(s.vel_tone[1], s.vel_tone[2]))
+    local va, vb = rand_range(s.vel_range[1], s.vel_range[2]), rand_range(s.vel_range[1], s.vel_range[2])
+    params:set("rc_composer_vel_min", math.min(va, vb))
+    params:set("rc_composer_vel_max", math.max(va, vb))
+  else
+    -- No style: full uniform random (original behavior)
+    params:set("rc_composer_movement", math.random(1, #MOVEMENT_NAMES))
+    params:set("rc_composer_stages", math.random(2, 5))
+    local beat_options = {2, 3, 4, 5, 6, 8, 10, 12}
+    params:set("rc_composer_beats", beat_options[math.random(1, #beat_options)])
+    params:set("rc_composer_chord_len", math.random(1, #CHORD_LEN_NAMES))
+    params:set("rc_composer_voicing", math.random(1, #VOICING_NAMES))
+    params:set("rc_composer_rotation", math.random(1, #ROTATION_NAMES))
+    local spread_options = {0, 10, 20, 30, 50, 70, 100}
+    params:set("rc_composer_spread", spread_options[math.random(1, #spread_options)])
+    params:set("rc_composer_strum_order", math.random(1, #STRUM_ORDER_NAMES))
+    params:set("rc_composer_gate", math.random(1, #GATE_NAMES))
+    params:set("rc_composer_vel_tone", math.random(1, #VEL_TONE_NAMES))
+    local vel_a, vel_b = math.random(50, 127), math.random(50, 127)
+    params:set("rc_composer_vel_min", math.min(vel_a, vel_b))
+    params:set("rc_composer_vel_max", math.max(vel_a, vel_b))
+  end
   params:set("rc_composer_loops", math.random(1, 4))
   params:set("rc_composer_vel_stage", math.random(1, #VEL_STAGE_NAMES))
-  params:set("rc_composer_vel_tone", math.random(1, #VEL_TONE_NAMES))
-  local vel_a, vel_b = math.random(50, 127), math.random(50, 127)
-  params:set("rc_composer_vel_min", math.min(vel_a, vel_b))
-  params:set("rc_composer_vel_max", math.max(vel_a, vel_b))
   snapshot_loading = false
 
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   local num_stages = params:get("rc_composer_stages")
+  local degree_pool = s and s.degree_pool
   lane.composer_degree_overrides = {}
   for i = 1, num_stages do
-    lane.composer_degree_overrides[i] = math.random(1, 7)
+    if degree_pool then
+      lane.composer_degree_overrides[i] = pick(degree_pool)
+    else
+      lane.composer_degree_overrides[i] = math.random(1, 7)
+    end
   end
   lane.composer_voicing_overrides = {}
   lane.composer_chord_len_overrides = {}
