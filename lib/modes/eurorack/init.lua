@@ -28,8 +28,12 @@ function Eurorack.init()
         grids = {}
     }
 
-    -- Initialize each module and collect screens/grids
+    -- Config must init first (creates eurorack_selected_* params used by output modules)
+    instance.config = modules.config.init()
+
+    -- Initialize remaining modules and collect screens/grids
     for name, module in pairs(modules) do
+        if name == "config" then goto continue end
         instance[name] = module.init()
 
         -- Register screen section if available
@@ -41,6 +45,7 @@ function Eurorack.init()
         if instance[name].grid then
             instance.grids[name] = instance[name].grid
         end
+    ::continue::
     end
 
     -- Expose sync method from config

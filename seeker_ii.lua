@@ -117,7 +117,7 @@ function init()
   _seeker.wtape = WTape.init()
   _seeker.eurorack = Eurorack.init()
   _seeker.osc = Osc.init()
-  
+
   -- UI Setup
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
