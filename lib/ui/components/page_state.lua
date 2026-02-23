@@ -111,12 +111,23 @@ function PageState:draw_footer()
   end
 end
 
--- E2 moves cursor, E3 adjusts slot value
+-- E1 cycles page, E2 moves cursor, E3 adjusts slot value
 function PageState:handle_enc(n, d)
   local page_def = self.pages[self.page]
   if not page_def then return end
 
-  if n == 2 then
+  if n == 1 then
+    if #self.pages > 1 then
+      if d > 0 then
+        self.page = (self.page % #self.pages) + 1
+      else
+        self.page = ((self.page - 2) % #self.pages) + 1
+      end
+      self.cursor = 1
+      self.arc_accum = {0, 0, 0, 0}
+      self.page_flash = { name = self.pages[self.page].name, time = util.time(), duration = 0.8 }
+    end
+  elseif n == 2 then
     local new_cursor = util.clamp(self.cursor + d, 1, #page_def.slots)
     self.cursor = new_cursor
   elseif n == 3 then
