@@ -17,7 +17,6 @@ CvMonitor.__index = CvMonitor
 ---------------------------------------------------------------
 local cv_selected = { source = "crow", num = 1 }
 local page_state = nil   -- PageState instance, rebuilt on output change
-local update_arc  -- forward declaration
 
 -- Rebuild PageState pages for current output (called on output change or type change)
 local function rebuild_page_state()
@@ -94,16 +93,8 @@ function CvMonitor.select_output(source, num)
     params:set("eurorack_selected_number", num, true)
   end
   rebuild_page_state()
-  if update_arc then update_arc() end
-end
-
--- Advance to the next arc page for the current output
-function CvMonitor.cycle_page()
-  if page_state then
-    page_state:next_page()
-    if update_arc then update_arc() end
-    if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-  end
+  local dev = _seeker.arc
+  if dev then page_state:update_arc(dev); dev:refresh() end
 end
 
 -- Get current selection (for grid to detect re-tap)
@@ -275,50 +266,6 @@ function CvMonitor.draw_screensaver()
 end
 
 ---------------------------------------------------------------
--- Arc display
----------------------------------------------------------------
-update_arc = function()
-  local dev = _seeker.arc
-  if not dev or not page_state then return end
-  page_state:update_arc(dev)
-  dev:refresh()
-end
-
----------------------------------------------------------------
--- Arc delta/key handlers (delegate to PageState, with type-change clamping)
----------------------------------------------------------------
-local function handle_arc_delta(n, delta)
-  if not page_state then return end
-
-  local page_def = page_state.pages[page_state.page]
-  if not page_def then return end
-  local slot = page_def.slots[n]
-  if not slot or not slot.param_id then return end
-
-  -- Check if this param is a type/mode selector that could change page count
-  local prefix = cv_selected.source .. "_" .. cv_selected.num .. "_"
-  local is_type_change = (slot.param_id == prefix .. "type")
-
-  -- Use PageState's accumulator
-  page_state:handle_arc_delta(n, delta)
-
-  -- After a type/mode change, rebuild pages since the output type may have changed
-  if is_type_change then
-    rebuild_page_state()
-  end
-
-  update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-end
-
-local function handle_arc_key(n, z)
-  if not page_state then return end
-  page_state:handle_arc_key(n, z)
-  update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-end
-
----------------------------------------------------------------
 -- NornsUI: dual-mode screen
 ---------------------------------------------------------------
 local function create_screen_ui()
@@ -359,27 +306,21 @@ local function create_screen_ui()
   end
 
   norns_ui.draw_live = function(self) draw_live() end
-  norns_ui.update_arc = function(self) update_arc() end
-  norns_ui.handle_arc_delta = function(self, n, delta) handle_arc_delta(n, delta) end
-  norns_ui.handle_arc_key = function(self, n, z) handle_arc_key(n, z) end
   norns_ui.on_enter = function(self) auto_select() end
 
-  -- E2/E3 in live view: PageState handles cursor + param adjustment
-  norns_ui.handle_live_enc = function(self, n, d)
-    if not page_state then return end
-    page_state:handle_enc(n, d)
-    update_arc()
-    _seeker.screen_ui.set_needs_redraw()
-  end
-
-  -- K3 in live view: cycle page
-  norns_ui.handle_live_key = function(self, n, z)
-    if n == 3 and z == 1 and page_state then
-      page_state:next_page()
-      update_arc()
-      _seeker.screen_ui.set_needs_redraw()
-    end
-  end
+  -- Wire arc/enc/key routing via PageState
+  page_state:wire(norns_ui, {
+    after_delta = function(n)
+      local page_def = page_state.pages[page_state.page]
+      if not page_def then return end
+      local slot = page_def.slots[n]
+      if not slot or not slot.param_id then return end
+      local prefix = cv_selected.source .. "_" .. cv_selected.num .. "_"
+      if slot.param_id == prefix .. "type" then
+        rebuild_page_state()
+      end
+    end,
+  })
 
   return norns_ui
 end

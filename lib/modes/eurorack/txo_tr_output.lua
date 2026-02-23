@@ -27,6 +27,9 @@ local pattern_states = {}
 -- Track gate states for CV monitor display (0 = low, 1 = high)
 local gate_states = {0, 0, 0, 0}
 
+-- Track which burst tick is currently firing (0 = between bursts)
+local burst_states = {0, 0, 0, 0}
+
 -- Map full type names to short codes for display
 local TYPE_SHORT_CODES = {
   Rhythm = "RTH", Burst = "BST"
@@ -112,6 +115,7 @@ function TxoTrOutput.update_txo_tr(output_num)
                 local intervals = get_burst_intervals(burst_count, burst_time, burst_shape)
 
                 for i = 1, burst_count do
+                    burst_states[output_num] = i
                     crow.ii.txo.tr(output_num, 1)
                     gate_states[output_num] = 1
                     clock.sleep(intervals[i] / 2)
@@ -119,6 +123,7 @@ function TxoTrOutput.update_txo_tr(output_num)
                     gate_states[output_num] = 0
                     clock.sleep(intervals[i] / 2)
                 end
+                burst_states[output_num] = 0
             else
                 -- Rhythm type: pattern-based gate with distribution
                 if not pattern_states["txo_" .. output_num] or not pattern_states["txo_" .. output_num].pattern then
@@ -154,10 +159,9 @@ function TxoTrOutput.update_txo_tr(output_num)
 end
 
 ---------------------------------------------------------------
--- Live view: single-output console with voltage bar + PageState chrome
+-- Live view: single-output console with PageState frame
 ---------------------------------------------------------------
 local tr_page_state = nil
-local tr_update_arc  -- forward declaration
 
 local function tr_get_selected()
   return { source = "txo_tr", num = params:get("eurorack_selected_number") }
@@ -174,80 +178,25 @@ end
 
 local function draw_tr_live()
   local selected = tr_get_selected()
-  local has_pages = tr_page_state and #tr_page_state.pages > 0 and tr_page_state.pages[1].name ~= "---"
-
-  if not has_pages then
-    screen.level(8)
-    screen.rect(0, 52, 128, 12)
-    screen.fill()
-    screen.level(0)
-    screen.move(2, 60)
-    screen.text("TXO TR " .. selected.num)
-    return
-  end
-
-  -- Output label — dim when clock is off, with status hint
   local states = TxoTrOutput.get_cv_states()
   local state = states[selected.num]
-  local type_label = state and state.type or "---"
-  local active = state and state.active
-  screen.level(active and 12 or 4)
-  screen.move(2, 7)
-  screen.text("TR " .. selected.num .. " — " .. type_label)
 
-  -- Type-specific visualization (same area as Composer: 12-45)
-  local VIZ_TOP = 12
-  local VIZ_BOTTOM = 45
-
-  if state then
-    ArcPages.draw_output_viz(state, VIZ_TOP, VIZ_BOTTOM - VIZ_TOP)
-
-    if active then
-      screen.level(10)
-      screen.move(126, 7)
-      screen.text_right(state.current and state.current > 0 and "HIGH" or "LOW")
-    end
-  end
-
-  tr_page_state:draw_page_indicators()
-  tr_page_state:draw_page_flash()
-  tr_page_state:draw_footer()
-end
-
-tr_update_arc = function()
-  local dev = _seeker.arc
-  if not dev or not tr_page_state then return end
-  tr_page_state:update_arc(dev)
-  dev:refresh()
-end
-
-local function tr_handle_arc_delta(n, delta)
-  if not tr_page_state then return end
-
-  local page_def = tr_page_state.pages[tr_page_state.page]
-  if not page_def then return end
-  local slot = page_def.slots[n]
-  if not slot or not slot.param_id then return end
-
-  local selected = tr_get_selected()
-  local prefix = "txo_tr_" .. selected.num .. "_"
-  local is_type_change = (slot.param_id == prefix .. "type")
-
-  tr_page_state:handle_arc_delta(n, delta)
-
-  if is_type_change then
-    tr_rebuild_page_state()
-  end
-
-  tr_update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-end
-
-local function tr_handle_arc_key(n, z)
-  if not tr_page_state then return end
-  tr_page_state:handle_arc_key(n, z)
-  tr_update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+  tr_page_state:draw_frame({
+    draw_fallback = function()
+      screen.level(8); screen.rect(0, 52, 128, 12); screen.fill()
+      screen.level(0); screen.move(2, 60); screen.text("TXO TR " .. selected.num)
+    end,
+    draw_header = function()
+      local type_label = state and state.type or "---"
+      local active = state and state.active
+      screen.level(active and 12 or 4)
+      screen.move(2, 7)
+      screen.text("TR " .. selected.num .. " — " .. type_label)
+    end,
+    draw_content = function(top, height)
+      if state then ArcPages.draw_output_viz(state, top, height) end
+    end,
+  })
 end
 
 -- Screen UI
@@ -265,39 +214,27 @@ local function create_screen_ui()
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
-        self:rebuild_params()  -- Rebuild params BEFORE entering (so arc.new_section gets valid params)
+        self:rebuild_params()
         tr_rebuild_page_state()
         original_enter(self)
     end
 
     norns_ui.draw_live = function(self) draw_tr_live() end
-    norns_ui.update_arc = function(self) tr_update_arc() end
-    norns_ui.handle_arc_delta = function(self, n, delta) tr_handle_arc_delta(n, delta) end
-    norns_ui.handle_arc_key = function(self, n, z) tr_handle_arc_key(n, z) end
 
-    norns_ui.handle_live_enc = function(self, n, d)
-      if not tr_page_state then return end
-      tr_page_state:handle_enc(n, d)
-      tr_update_arc()
-      _seeker.screen_ui.set_needs_redraw()
-    end
-
-    norns_ui.handle_live_key = function(self, n, z)
-      if n == 3 and z == 1 and tr_page_state then
-        tr_page_state:next_page()
-        tr_update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end
-
-    -- Advance to next arc page (used by grid re-tap)
-    norns_ui.cycle_page = function(self)
-      if tr_page_state then
-        tr_page_state:next_page()
-        tr_update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end
+    -- Initialize page state and wire arc/enc/key routing
+    tr_rebuild_page_state()
+    tr_page_state:wire(norns_ui, {
+      after_delta = function(n)
+        local page_def = tr_page_state.pages[tr_page_state.page]
+        if not page_def then return end
+        local slot = page_def.slots[n]
+        if not slot or not slot.param_id then return end
+        local selected = tr_get_selected()
+        if slot.param_id == "txo_tr_" .. selected.num .. "_type" then
+          tr_rebuild_page_state()
+        end
+      end,
+    })
 
     norns_ui.rebuild_params = function(self)
         local selected_number = params:get("eurorack_selected_number")
@@ -507,6 +444,7 @@ function TxoTrOutput.get_cv_states()
       state.burst_count = params:get("txo_tr_" .. i .. "_burst_count")
       state.burst_shape = params:string("txo_tr_" .. i .. "_burst_shape")
       state.burst_time = params:get("txo_tr_" .. i .. "_burst_time")
+      state.burst_current_tick = burst_states[i]
     end
     state._source = "txo_tr"
     state._num = i

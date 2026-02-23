@@ -18,12 +18,12 @@ local CrowOutput = {}
 CrowOutput.__index = CrowOutput
 
 -- Available output types for crow outputs
-local CROW_TYPES = {"Rhythm", "Burst", "LFO", "Envelope", "Knob Recorder", "Random"}
+local CROW_TYPES = {"Rhythm", "Burst", "LFO", "Envelope", "Knob Rec", "Random"}
 
 -- Short codes for CV monitor display
 local TYPE_SHORT_CODES = {
     Rhythm = "RTH", Burst = "BST",
-    LFO = "LFO", ["Knob Recorder"] = "KR", Envelope = "ENV",
+    LFO = "LFO", ["Knob Rec"] = "KR", Envelope = "ENV",
     Random = "RND"
 }
 
@@ -33,7 +33,7 @@ local TYPE_DESCRIPTIONS = {
   Burst = "Rapid burst of triggers.\n\nWINDOW sets burst duration as percentage of clock period.\n\nSHAPE controls timing between triggers.",
   LFO = "Clock-synced LFO.",
   Envelope = "Clock-synced envelope.\n\nDURATION sets envelope time as percentage of clock period.",
-  ["Knob Recorder"] = "Record E3 knob movements as CV.\n\nK3 opens preview, K3 starts recording, K3 stops.\nK2 cancels.\n\nCROSSFADE smooths the loop point.",
+  ["Knob Rec"] = "Record E3 knob movements as CV.\n\nK3 opens preview, K3 starts recording, K3 stops.\nK2 cancels.\n\nCROSSFADE smooths the loop point.",
   Random = "Random voltage generator.\n\nSOURCE: Clock for timed steps, Trigger for external input.\nSTEP: Jump picks new values, Accumulate drifts by STEP SIZE.\nSTEPS > 1 creates a looping sequence, LOOPS controls regeneration (0 = infinite)."
 }
 
@@ -51,16 +51,19 @@ local envelope_states = {}
 -- Store pattern states globally for rhythmic patterns
 local pattern_states = {}
 
+-- Track which burst tick is currently firing (0 = between bursts)
+local burst_states = {0, 0, 0, 0}
+
 -- Store random walk states globally
 local random_states = {}
 
 -- Store knob recording state for each output
 local recording_states = {}
 
--- Reduces the changed envelope parameter if A+D+R total exceeds 100%
--- Scale envelope stage times proportionally if they exceed the clock cycle.
--- Returns {a_sec, d_sec, s_sec, r_sec, wait_sec} for ADSR,
--- or {a_sec, r_sec, wait_sec} for AR. All in seconds.
+-- Compute envelope stage times in seconds from beat params.
+-- Attack, decay, and release are independent of cycle length; if their total exceeds one
+-- cycle, the envelope is retriggered mid-flight at the next clock boundary.
+-- Returns {mode, a, d, s, r, wait, cycle} for ADSR, or {mode, a, r, wait, cycle} for AR.
 local function compute_envelope_times(output_num, cycle_sec)
     local env_mode = params:string("crow_" .. output_num .. "_envelope_mode")
     local beat_sec = clock.get_beat_sec()
@@ -69,37 +72,16 @@ local function compute_envelope_times(output_num, cycle_sec)
 
     if env_mode == "ADSR" then
         local d_beats = params:get("crow_" .. output_num .. "_envelope_decay")
-        local total_beats = a_beats + d_beats + r_beats
-        local total_sec = total_beats * beat_sec
-
         local a_sec = a_beats * beat_sec
         local d_sec = d_beats * beat_sec
         local r_sec = r_beats * beat_sec
-
-        -- Scale proportionally if stages exceed cycle
-        if total_sec > cycle_sec then
-            local scale = cycle_sec / total_sec
-            a_sec = a_sec * scale
-            d_sec = d_sec * scale
-            r_sec = r_sec * scale
-            total_sec = cycle_sec
-        end
-
         local s_sec = math.max(0, cycle_sec - a_sec - d_sec - r_sec)
-        return { mode = "ADSR", a = a_sec, d = d_sec, s = s_sec, r = r_sec, wait = 0 }
+        return { mode = "ADSR", a = a_sec, d = d_sec, s = s_sec, r = r_sec, wait = 0, cycle = cycle_sec }
     else
-        local total_sec = (a_beats + r_beats) * beat_sec
         local a_sec = a_beats * beat_sec
         local r_sec = r_beats * beat_sec
-
-        if total_sec > cycle_sec then
-            local scale = cycle_sec / total_sec
-            a_sec = a_sec * scale
-            r_sec = r_sec * scale
-        end
-
         local wait = math.max(0, cycle_sec - a_sec - r_sec)
-        return { mode = "AR", a = a_sec, r = r_sec, wait = wait }
+        return { mode = "AR", a = a_sec, r = r_sec, wait = wait, cycle = cycle_sec }
     end
 end
 
@@ -239,7 +221,7 @@ function CrowOutput.reroll_pattern(output_num)
     _seeker.screen_ui.set_needs_redraw()
 end
 
--- Knob Recorder functions
+-- Knob Rec functions
 -- Stage 0: idle, Stage 1: preview (modal open), Stage 2: recording
 
 -- Returns data for the recording modal visualization
@@ -467,6 +449,9 @@ function CrowOutput.stop_recording_knob(output_num)
             end
         end
 
+        -- Store crossfaded data back so live view viz can read it
+        recording_states[output_num].data = data
+
         -- Start playback immediately
         active_clocks["knob_playback_" .. output_num] = clock.run(function()
             local step = 1
@@ -495,11 +480,14 @@ function CrowOutput.stop_recording_knob(output_num)
         end)
     end
 
-    -- Dismiss modal and clean up after pause (keeps visualization during pause)
+    -- Dismiss modal and clean up after pause.
+    -- Reset modal-related fields only — preserve data and playback_step for live view viz.
     clock.run(function()
         clock.sleep(2.0)
         if Modal then Modal.dismiss() end
-        reset_recording_state(output_num)
+        recording_states[output_num].stage = 0
+        recording_states[output_num].voltage = 0
+        recording_states[output_num].capture_clock = nil
         _seeker.ui_state.state.knob_recording_active = false
         if _seeker.arc and _seeker.arc.clear_display then _seeker.arc.clear_display() end
         _seeker.screen_ui.set_needs_redraw()
@@ -580,6 +568,7 @@ local function update_burst(output_num, prefix)
             local intervals = get_burst_intervals(burst_count, burst_time, burst_shape)
 
             for i = 1, burst_count do
+                burst_states[output_num] = i
                 crow.output[output_num].volts = burst_voltage
                 cv_voltages[output_num] = burst_voltage
                 clock.sleep(intervals[i] / 2)
@@ -587,6 +576,7 @@ local function update_burst(output_num, prefix)
                 cv_voltages[output_num] = 0
                 clock.sleep(intervals[i] / 2)
             end
+            burst_states[output_num] = 0
 
             clock.sync(timing.beats, timing.offset)
         end
@@ -634,38 +624,45 @@ local function update_envelope(output_num, prefix)
         return
     end
 
-    local peak = params:get(prefix .. "envelope_peak")
-    local sustain_v = params:get(prefix .. "envelope_sustain")
-    local attack_shape = params:string(prefix .. "envelope_attack_shape")
-    local release_shape = params:string(prefix .. "envelope_release_shape")
+    envelope_states[output_num] = { active = true }
 
-    envelope_states[output_num] = { active = false, clock = nil }
+    -- Clock-synced retrigger: fire a one-shot ASL each cycle.
+    -- If stages exceed cycle time, crow is mid-envelope when retriggered.
+    local clock_fn = function()
+        while true do
+            local peak = params:get(prefix .. "envelope_peak")
+            local sustain_v = params:get(prefix .. "envelope_sustain")
+            local attack_shape = params:string(prefix .. "envelope_attack_shape")
+            local release_shape = params:string(prefix .. "envelope_release_shape")
 
-    local function generate_envelope_asl()
-        local cycle_sec = timing.beats * clock.get_beat_sec()
-        local t = compute_envelope_times(output_num, cycle_sec)
-        local stages = {}
+            local cycle_sec = timing.beats * clock.get_beat_sec()
+            local t = compute_envelope_times(output_num, cycle_sec)
+            local stages = {}
 
-        if t.mode == "ADSR" then
-            table.insert(stages, asl_to(peak, t.a, attack_shape))
-            table.insert(stages, asl_to(sustain_v, t.d, release_shape))
-            table.insert(stages, asl_to(sustain_v, t.s, "now"))
-            table.insert(stages, asl_to(0, t.r, release_shape))
-        else
-            table.insert(stages, asl_to(peak, t.a, attack_shape))
-            table.insert(stages, asl_to(0, t.r, release_shape))
-            if t.wait > 0 then
-                table.insert(stages, asl_to(0, t.wait, "now"))
+            if t.mode == "ADSR" then
+                table.insert(stages, asl_to(peak, t.a, attack_shape))
+                table.insert(stages, asl_to(sustain_v, t.d, release_shape))
+                if t.s > 0 then
+                    table.insert(stages, asl_to(sustain_v, t.s, "now"))
+                end
+                table.insert(stages, asl_to(0, t.r, release_shape))
+            else
+                table.insert(stages, asl_to(peak, t.a, attack_shape))
+                table.insert(stages, asl_to(0, t.r, release_shape))
+                if t.wait > 0 then
+                    table.insert(stages, asl_to(0, t.wait, "now"))
+                end
             end
-        end
 
-        return asl_loop(stages)
+            crow.output[output_num].action = asl_once(stages)
+            crow.output[output_num]()
+            cv_cycle_starts[output_num] = util.time()
+
+            clock.sync(timing.beats, timing.offset)
+        end
     end
 
-    crow.output[output_num].action = generate_envelope_asl()
-    crow.output[output_num]()
-    cv_cycle_starts[output_num] = util.time()
-    envelope_states[output_num].active = true
+    setup_clock("crow_" .. output_num, clock_fn)
 end
 
 local function update_knob_recorder(output_num, prefix)
@@ -792,7 +789,7 @@ local update_handlers = {
     Burst              = update_burst,
     LFO                = update_lfo,
     Envelope           = update_envelope,
-    ["Knob Recorder"]  = update_knob_recorder,
+    ["Knob Rec"]  = update_knob_recorder,
     Random             = update_random,
 }
 
@@ -818,10 +815,9 @@ function CrowOutput.update_crow(output_num)
 end
 
 ---------------------------------------------------------------
--- Live view: single-output console with voltage bar + PageState chrome
+-- Live view: single-output console with PageState frame
 ---------------------------------------------------------------
 local crow_page_state = nil
-local crow_update_arc  -- forward declaration
 
 local function crow_get_selected()
   return { source = "crow", num = params:get("eurorack_selected_number") }
@@ -838,80 +834,25 @@ end
 
 local function draw_crow_live()
   local selected = crow_get_selected()
-  local has_pages = crow_page_state and #crow_page_state.pages > 0 and crow_page_state.pages[1].name ~= "---"
-
-  if not has_pages then
-    screen.level(8)
-    screen.rect(0, 52, 128, 12)
-    screen.fill()
-    screen.level(0)
-    screen.move(2, 60)
-    screen.text("Crow " .. selected.num)
-    return
-  end
-
-  -- Output label — dim when clock is off, with status hint
   local states = CrowOutput.get_cv_states()
   local state = states[selected.num]
-  local type_label = state and state.type or "---"
-  local active = state and state.active
-  screen.level(active and 12 or 4)
-  screen.move(2, 7)
-  screen.text("Crow " .. selected.num .. " — " .. type_label)
 
-  -- Type-specific visualization (same area as Composer: 12-45)
-  local VIZ_TOP = 12
-  local VIZ_BOTTOM = 45
-
-  if state then
-    ArcPages.draw_output_viz(state, VIZ_TOP, VIZ_BOTTOM - VIZ_TOP)
-
-    if active and state.current then
-      screen.level(10)
-      screen.move(126, 7)
-      screen.text_right(string.format("%.1fv", state.current))
-    end
-  end
-
-  crow_page_state:draw_page_indicators()
-  crow_page_state:draw_page_flash()
-  crow_page_state:draw_footer()
-end
-
-crow_update_arc = function()
-  local dev = _seeker.arc
-  if not dev or not crow_page_state then return end
-  crow_page_state:update_arc(dev)
-  dev:refresh()
-end
-
-local function crow_handle_arc_delta(n, delta)
-  if not crow_page_state then return end
-
-  local page_def = crow_page_state.pages[crow_page_state.page]
-  if not page_def then return end
-  local slot = page_def.slots[n]
-  if not slot or not slot.param_id then return end
-
-  local selected = crow_get_selected()
-  local prefix = "crow_" .. selected.num .. "_"
-  local is_type_change = (slot.param_id == prefix .. "type")
-
-  crow_page_state:handle_arc_delta(n, delta)
-
-  if is_type_change then
-    crow_rebuild_page_state()
-  end
-
-  crow_update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-end
-
-local function crow_handle_arc_key(n, z)
-  if not crow_page_state then return end
-  crow_page_state:handle_arc_key(n, z)
-  crow_update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+  crow_page_state:draw_frame({
+    draw_fallback = function()
+      screen.level(8); screen.rect(0, 52, 128, 12); screen.fill()
+      screen.level(0); screen.move(2, 60); screen.text("Crow " .. selected.num)
+    end,
+    draw_header = function()
+      local type_label = state and state.type or "---"
+      local active = state and state.active
+      screen.level(active and 12 or 4)
+      screen.move(2, 7)
+      screen.text("Crow " .. selected.num .. " — " .. type_label)
+    end,
+    draw_content = function(top, height)
+      if state then ArcPages.draw_output_viz(state, top, height) end
+    end,
+  })
 end
 
 -- Screen UI
@@ -929,38 +870,39 @@ local function create_screen_ui()
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
-        self:rebuild_params()  -- Rebuild params BEFORE entering (so arc.new_section gets valid params)
+        self:rebuild_params()
         crow_rebuild_page_state()
         original_enter(self)
     end
 
     norns_ui.draw_live = function(self) draw_crow_live() end
-    norns_ui.update_arc = function(self) crow_update_arc() end
-    norns_ui.handle_arc_delta = function(self, n, delta) crow_handle_arc_delta(n, delta) end
-    norns_ui.handle_arc_key = function(self, n, z) crow_handle_arc_key(n, z) end
 
-    norns_ui.handle_live_enc = function(self, n, d)
-      if not crow_page_state then return end
-      crow_page_state:handle_enc(n, d)
-      crow_update_arc()
-      _seeker.screen_ui.set_needs_redraw()
-    end
+    -- Initialize page state and wire arc/enc/key routing
+    crow_rebuild_page_state()
+    crow_page_state:wire(norns_ui, {
+      after_delta = function(n)
+        local page_def = crow_page_state.pages[crow_page_state.page]
+        if not page_def then return end
+        local slot = page_def.slots[n]
+        if not slot or not slot.param_id then return end
+        local selected = crow_get_selected()
+        if slot.param_id == "crow_" .. selected.num .. "_type" then
+          crow_rebuild_page_state()
+        end
+      end,
+    })
 
-    norns_ui.handle_live_key = function(self, n, z)
-      if n == 3 and z == 1 and crow_page_state then
-        crow_page_state:next_page()
-        crow_update_arc()
-        _seeker.screen_ui.set_needs_redraw()
+    -- K3 starts knob recording when output type is Knob Rec
+    local wired_handle_live_key = norns_ui.handle_live_key
+    norns_ui.handle_live_key = function(self_ui, n, z)
+      if n == 3 and z == 1 then
+        local selected = crow_get_selected()
+        if get_output_type(selected.num) == "Knob Rec" then
+          CrowOutput.toggle_knob_recording(selected.num)
+          return
+        end
       end
-    end
-
-    -- Advance to next arc page (used by grid re-tap)
-    norns_ui.cycle_page = function(self)
-      if crow_page_state then
-        crow_page_state:next_page()
-        crow_update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
+      wired_handle_live_key(self_ui, n, z)
     end
 
     norns_ui.rebuild_params = function(self)
@@ -978,8 +920,8 @@ local function create_screen_ui()
         table.insert(param_table, { separator = true, title = "Crow " .. output_num })
         table.insert(param_table, { id = "crow_" .. output_num .. "_type" })
 
-        -- Timing section (all types except Knob Recorder and trigger-sourced Random)
-        local show_timing = crow_type ~= "Knob Recorder"
+        -- Timing section (all types except Knob Rec and trigger-sourced Random)
+        local show_timing = crow_type ~= "Knob Rec"
         if crow_type == "Random" then
             local source = params:string("crow_" .. output_num .. "_random_source")
             if source ~= "Clock" then show_timing = false end
@@ -1031,8 +973,8 @@ local function create_screen_ui()
 
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_steps" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_random_loop_count" })
-        elseif crow_type == "Knob Recorder" then
-            table.insert(param_table, { separator = true, title = "Knob Recorder" })
+        elseif crow_type == "Knob Rec" then
+            table.insert(param_table, { separator = true, title = "Knob Rec" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_sensitivity", arc_multi_float = {0.1, 0.05, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_crossfade", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_knob_start_recording", is_action = true })
@@ -1090,7 +1032,7 @@ local function create_grid_ui()
       if output_mode == "Random" then
         local source = params:string("crow_" .. output_num .. "_random_source")
         is_enabled = source ~= "Clock" or params:string("crow_" .. output_num .. "_clock_interval") ~= "Off"
-      elseif output_mode ~= "Knob Recorder" then
+      elseif output_mode ~= "Knob Rec" then
         is_enabled = params:string("crow_" .. output_num .. "_clock_interval") ~= "Off"
       end
 
@@ -1294,7 +1236,7 @@ local function create_params()
             CrowOutput.update_crow(i)
         end)
 
-        -- Knob Recorder parameters
+        -- Knob Rec parameters
         params:add_control("crow_" .. i .. "_knob_sensitivity", "Sensitivity", controlspec.new(0.01, 1.0, 'lin', 0.01, 0.1))
         params:set_action("crow_" .. i .. "_knob_sensitivity", function(value)
             recording_states[i].sensitivity = value
@@ -1425,7 +1367,7 @@ local function estimate_lfo_voltage(output_num)
 end
 
 -- Estimate current envelope voltage from elapsed time since cycle start.
--- Uses compute_envelope_times() for proportional scaling, and per-stage shapes.
+-- Uses compute_envelope_times() for stage durations. Applies per-stage ASL curves.
 local function estimate_envelope_voltage(output_num)
     local timing = get_clock_timing(
         params:string("crow_" .. output_num .. "_clock_interval"),
@@ -1484,7 +1426,7 @@ function CrowOutput.get_cv_states()
         local short = TYPE_SHORT_CODES[mode] or mode
         local clock_interval = params:string("crow_" .. i .. "_clock_interval")
 
-        if mode == "Knob Recorder" then
+        if mode == "Knob Rec" then
             local is_playing = active_clocks["knob_playback_" .. i] ~= nil
             local rec = recording_states[i]
             local pos = 0
@@ -1513,6 +1455,7 @@ function CrowOutput.get_cv_states()
                 burst_count = params:get("crow_" .. i .. "_burst_count"),
                 burst_shape = params:string("crow_" .. i .. "_burst_shape"),
                 burst_time = params:get("crow_" .. i .. "_burst_time"),
+                burst_current_tick = burst_states[i],
             }
 
         elseif clock_interval == "Off" and mode ~= "Random" then

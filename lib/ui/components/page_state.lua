@@ -91,7 +91,7 @@ function PageState:draw_footer()
     end
   end
 
-  -- Values
+  -- Values (strip unit suffixes for compact footer display)
   for i = 1, 4 do
     local slot = slots[i]
     if slot then
@@ -103,9 +103,10 @@ function PageState:draw_footer()
       else
         val = "-"
       end
+      val = tostring(val):gsub(" beats$", ""):gsub("v$", ""):gsub("%%$", "")
       screen.level(i == self.cursor and 15 or 12)
       screen.move(cols[i], 63)
-      screen.text_center(tostring(val))
+      screen.text_center(val)
     end
   end
 end
@@ -201,6 +202,49 @@ function PageState:_show_slot_overlay(slot)
     val = "?"
   end
   self:show_overlay(slot.label, tostring(val))
+end
+
+---------------------------------------------------------------
+-- wire(): connect PageState to a NornsUI instance for arc/enc/key routing
+---------------------------------------------------------------
+
+function PageState:wire(norns_ui, opts)
+  opts = opts or {}
+  local refresh = opts.refresh or function()
+    local dev = _seeker.arc
+    if dev then self:update_arc(dev); dev:refresh() end
+    if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+  end
+
+  norns_ui.update_arc      = function(_) refresh() end
+  norns_ui.handle_arc_key  = function(_, n, z) self:handle_arc_key(n, z); refresh() end
+  norns_ui.handle_live_enc = function(_, n, d) self:handle_enc(n, d); refresh() end
+  norns_ui.handle_live_key = function(_, n, z) self:handle_key(n, z); refresh() end
+  norns_ui.cycle_page      = function(_) self:next_page(); refresh() end
+
+  norns_ui.handle_arc_delta = function(_, n, delta)
+    self:handle_arc_delta(n, delta)
+    if opts.after_delta then opts.after_delta(n) end
+    refresh()
+  end
+end
+
+---------------------------------------------------------------
+-- draw_frame(): own the full live view frame, call content via callbacks
+---------------------------------------------------------------
+
+function PageState:draw_frame(opts)
+  if #self.pages <= 0 or (self.pages[1] and self.pages[1].name == "---") then
+    if opts.draw_fallback then opts.draw_fallback() end
+    return
+  end
+
+  if opts.draw_header then opts.draw_header() end
+  if opts.draw_content then opts.draw_content(12, 33) end
+
+  self:draw_page_indicators()
+  self:draw_page_flash()
+  self:draw_footer()
 end
 
 ---------------------------------------------------------------

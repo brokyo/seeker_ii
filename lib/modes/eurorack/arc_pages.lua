@@ -238,12 +238,13 @@ local function draw_viz_burst(state, y_top, h)
   -- burst_time (0-1) controls how much of the 128px width the cluster spans
   local burst_width_px = math.max(math.floor(124 * burst_time), 20)
   local active = state.active
-  local is_high = active and state.current and state.current > 0
+  local firing_tick = state.burst_current_tick or 0
 
   for i = 1, count do
     local frac = burst_time > 0 and (positions[i] / burst_time) or 0
     local tick_x = 2 + math.floor(frac * burst_width_px)
-    screen.level(is_high and 15 or (active and 6 or 3))
+    local is_firing = active and (firing_tick == i)
+    screen.level(is_firing and 15 or (active and 7 or 2))
     screen.move(tick_x, y_top + 2)
     screen.line(tick_x, y_top + h - 2)
     screen.stroke()
@@ -265,10 +266,12 @@ local function draw_viz_lfo(state, y_top, h)
   local max_v = state.max or 5
   local current = state.current or 0
 
-  -- Map voltage to y pixel. Reference: full ±10V output range.
-  local ref_range = 20
+  -- Map voltage to y pixel. Default ±5V reference, extends if LFO range exceeds ±5V.
+  local ref_min = math.min(-5, min_v)
+  local ref_max = math.max(5, max_v)
+  local ref_range = ref_max - ref_min
   local function v_to_y(v)
-    local norm = util.clamp((v + 10) / ref_range, 0, 1)
+    local norm = util.clamp((v - ref_min) / ref_range, 0, 1)
     return y_top + h - 1 - math.floor(norm * (h - 2))
   end
 
@@ -366,9 +369,20 @@ local function draw_viz_envelope(state, y_top, h)
   end
   screen.stroke()
 
-  -- Playhead
+  -- Retrigger boundary marker when envelope overflows cycle
+  local cycle = env.cycle
+  if cycle and total > cycle then
+    local boundary_x = math.floor((cycle / total) * 127)
+    screen.level(2)
+    screen.move(boundary_x, y_top + 2)
+    screen.line(boundary_x, y_top + h - 2)
+    screen.stroke()
+  end
+
+  -- Playhead (scaled to cycle proportion when envelope overflows)
   if active then
-    local px = math.floor(elapsed_frac * 127)
+    local cycle_ratio = (cycle and total > cycle) and (cycle / total) or 1
+    local px = math.floor(elapsed_frac * cycle_ratio * 127)
     screen.level(15)
     screen.move(px, y_top + 1)
     screen.line(px, y_top + h - 1)
@@ -422,7 +436,7 @@ local function draw_viz_kr(state, y_top, h)
   if not data or #data == 0 then
     screen.level(3)
     screen.move(64, y_top + math.floor(h / 2) + 2)
-    screen.text_center("Waiting...")
+    screen.text_center("K3 to record")
     return
   end
 

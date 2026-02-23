@@ -44,8 +44,10 @@ end
 -- Track cycle start times for voltage estimation in CV monitor
 local cv_cycle_starts = {0, 0, 0, 0}
 
--- Scale envelope stage times proportionally if they exceed the clock cycle.
--- Returns {a_sec, d_sec, s_sec, r_sec} for ADSR, or {a_sec, r_sec, wait_sec} for AR.
+-- Compute envelope stage times in seconds from beat params.
+-- Attack, decay, and release are independent of cycle length; if their total exceeds one
+-- cycle, the envelope is retriggered mid-flight at the next clock boundary.
+-- Returns {mode, a, d, s, r, wait, cycle} for ADSR, or {mode, a, r, wait, cycle} for AR.
 local function compute_envelope_times(output_num, cycle_sec)
     local env_mode = params:string("txo_cv_" .. output_num .. "_envelope_mode")
     local beat_sec = clock.get_beat_sec()
@@ -54,34 +56,16 @@ local function compute_envelope_times(output_num, cycle_sec)
 
     if env_mode == "ADSR" then
         local d_beats = params:get("txo_cv_" .. output_num .. "_envelope_decay")
-        local total_sec = (a_beats + d_beats + r_beats) * beat_sec
-
         local a_sec = a_beats * beat_sec
         local d_sec = d_beats * beat_sec
         local r_sec = r_beats * beat_sec
-
-        if total_sec > cycle_sec then
-            local scale = cycle_sec / total_sec
-            a_sec = a_sec * scale
-            d_sec = d_sec * scale
-            r_sec = r_sec * scale
-        end
-
         local s_sec = math.max(0, cycle_sec - a_sec - d_sec - r_sec)
-        return { mode = "ADSR", a = a_sec, d = d_sec, s = s_sec, r = r_sec, wait = 0 }
+        return { mode = "ADSR", a = a_sec, d = d_sec, s = s_sec, r = r_sec, wait = 0, cycle = cycle_sec }
     else
-        local total_sec = (a_beats + r_beats) * beat_sec
         local a_sec = a_beats * beat_sec
         local r_sec = r_beats * beat_sec
-
-        if total_sec > cycle_sec then
-            local scale = cycle_sec / total_sec
-            a_sec = a_sec * scale
-            r_sec = r_sec * scale
-        end
-
         local wait = math.max(0, cycle_sec - a_sec - r_sec)
-        return { mode = "AR", a = a_sec, r = r_sec, wait = wait }
+        return { mode = "AR", a = a_sec, r = r_sec, wait = wait, cycle = cycle_sec }
     end
 end
 
@@ -381,10 +365,9 @@ function TxoCvOutput.update_txo_cv(output_num)
 end
 
 ---------------------------------------------------------------
--- Live view: single-output console with voltage bar + PageState chrome
+-- Live view: single-output console with PageState frame
 ---------------------------------------------------------------
 local cv_page_state = nil
-local cv_update_arc  -- forward declaration
 
 local function cv_get_selected()
   return { source = "txo_cv", num = params:get("eurorack_selected_number") }
@@ -401,80 +384,25 @@ end
 
 local function draw_cv_live()
   local selected = cv_get_selected()
-  local has_pages = cv_page_state and #cv_page_state.pages > 0 and cv_page_state.pages[1].name ~= "---"
-
-  if not has_pages then
-    screen.level(8)
-    screen.rect(0, 52, 128, 12)
-    screen.fill()
-    screen.level(0)
-    screen.move(2, 60)
-    screen.text("TXO CV " .. selected.num)
-    return
-  end
-
-  -- Output label — dim when clock is off, with status hint
   local states = TxoCvOutput.get_cv_states()
   local state = states[selected.num]
-  local type_label = state and state.type or "---"
-  local active = state and state.active
-  screen.level(active and 12 or 4)
-  screen.move(2, 7)
-  screen.text("CV " .. selected.num .. " — " .. type_label)
 
-  -- Type-specific visualization (same area as Composer: 12-45)
-  local VIZ_TOP = 12
-  local VIZ_BOTTOM = 45
-
-  if state then
-    ArcPages.draw_output_viz(state, VIZ_TOP, VIZ_BOTTOM - VIZ_TOP)
-
-    if active and state.current then
-      screen.level(10)
-      screen.move(126, 7)
-      screen.text_right(string.format("%.1fv", state.current))
-    end
-  end
-
-  cv_page_state:draw_page_indicators()
-  cv_page_state:draw_page_flash()
-  cv_page_state:draw_footer()
-end
-
-cv_update_arc = function()
-  local dev = _seeker.arc
-  if not dev or not cv_page_state then return end
-  cv_page_state:update_arc(dev)
-  dev:refresh()
-end
-
-local function cv_handle_arc_delta(n, delta)
-  if not cv_page_state then return end
-
-  local page_def = cv_page_state.pages[cv_page_state.page]
-  if not page_def then return end
-  local slot = page_def.slots[n]
-  if not slot or not slot.param_id then return end
-
-  local selected = cv_get_selected()
-  local prefix = "txo_cv_" .. selected.num .. "_"
-  local is_type_change = (slot.param_id == prefix .. "type")
-
-  cv_page_state:handle_arc_delta(n, delta)
-
-  if is_type_change then
-    cv_rebuild_page_state()
-  end
-
-  cv_update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-end
-
-local function cv_handle_arc_key(n, z)
-  if not cv_page_state then return end
-  cv_page_state:handle_arc_key(n, z)
-  cv_update_arc()
-  if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+  cv_page_state:draw_frame({
+    draw_fallback = function()
+      screen.level(8); screen.rect(0, 52, 128, 12); screen.fill()
+      screen.level(0); screen.move(2, 60); screen.text("TXO CV " .. selected.num)
+    end,
+    draw_header = function()
+      local type_label = state and state.type or "---"
+      local active = state and state.active
+      screen.level(active and 12 or 4)
+      screen.move(2, 7)
+      screen.text("CV " .. selected.num .. " — " .. type_label)
+    end,
+    draw_content = function(top, height)
+      if state then ArcPages.draw_output_viz(state, top, height) end
+    end,
+  })
 end
 
 -- Screen UI
@@ -492,7 +420,7 @@ local function create_screen_ui()
 
     local original_enter = norns_ui.enter
     norns_ui.enter = function(self)
-        self:rebuild_params()  -- Rebuild params BEFORE entering (so arc.new_section gets valid params)
+        self:rebuild_params()
         cv_rebuild_page_state()
         original_enter(self)
 
@@ -509,33 +437,21 @@ local function create_screen_ui()
     end
 
     norns_ui.draw_live = function(self) draw_cv_live() end
-    norns_ui.update_arc = function(self) cv_update_arc() end
-    norns_ui.handle_arc_delta = function(self, n, delta) cv_handle_arc_delta(n, delta) end
-    norns_ui.handle_arc_key = function(self, n, z) cv_handle_arc_key(n, z) end
 
-    norns_ui.handle_live_enc = function(self, n, d)
-      if not cv_page_state then return end
-      cv_page_state:handle_enc(n, d)
-      cv_update_arc()
-      _seeker.screen_ui.set_needs_redraw()
-    end
-
-    norns_ui.handle_live_key = function(self, n, z)
-      if n == 3 and z == 1 and cv_page_state then
-        cv_page_state:next_page()
-        cv_update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end
-
-    -- Advance to next arc page (used by grid re-tap)
-    norns_ui.cycle_page = function(self)
-      if cv_page_state then
-        cv_page_state:next_page()
-        cv_update_arc()
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end
+    -- Initialize page state and wire arc/enc/key routing
+    cv_rebuild_page_state()
+    cv_page_state:wire(norns_ui, {
+      after_delta = function(n)
+        local page_def = cv_page_state.pages[cv_page_state.page]
+        if not page_def then return end
+        local slot = page_def.slots[n]
+        if not slot or not slot.param_id then return end
+        local selected = cv_get_selected()
+        if slot.param_id == "txo_cv_" .. selected.num .. "_type" then
+          cv_rebuild_page_state()
+        end
+      end,
+    })
 
     norns_ui.rebuild_params = function(self)
         local selected_number = params:get("eurorack_selected_number")
@@ -843,7 +759,7 @@ local function estimate_lfo_voltage(output_num)
     return offset + depth * waveform_value(phase, shape)
 end
 
--- Estimate current TXO envelope voltage using proportionally scaled times.
+-- Estimate current TXO envelope voltage from elapsed time since cycle start.
 -- TXO envelopes are linear (no shape easing).
 local function estimate_envelope_voltage(output_num)
     local timing = get_clock_timing(

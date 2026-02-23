@@ -16,7 +16,7 @@ local page_state = nil              -- PageState for live stage view (harmony, a
 local progression_page_state = nil  -- PageState for global progression view (structure/spread/dynamics pages)
 local last_lane_section = "COMPOSER_VOICE"  -- remembers last section navigated via lane button
 
--- Forward declaration
+-- Forward declarations
 local update_live_arc
 local update_progression_arc
 
@@ -552,33 +552,14 @@ local function create_screen_ui(Composer)
   end
 
   norns_ui.draw_live = function(self) draw_live(self, Composer) end
-  norns_ui.update_arc = function(self) update_live_arc(Composer) end
-  norns_ui.handle_arc_delta = function(self, n, delta)
-    page_state:handle_arc_delta(n, delta)
-    update_live_arc(Composer)
-    _seeker.screen_ui.set_needs_redraw()
-  end
-  norns_ui.handle_arc_key = function(self, n, z)
-    page_state:handle_arc_key(n, z)
-    update_live_arc(Composer)
-    _seeker.screen_ui.set_needs_redraw()
-  end
 
-  -- E2/E3 in live view: page_state handles cursor + param adjustment
-  norns_ui.handle_live_enc = function(self, n, d)
-    page_state:handle_enc(n, d)
-    update_live_arc(Composer)
-    _seeker.screen_ui.set_needs_redraw()
-  end
-
-  -- K3 in live view: cycle page
-  norns_ui.handle_live_key = function(self, n, z)
-    if n == 3 and z == 1 then
-      page_state:next_page()
+  -- Wire arc/enc/key routing via PageState with Composer-specific arc refresh
+  page_state:wire(norns_ui, {
+    refresh = function()
       update_live_arc(Composer)
-      _seeker.screen_ui.set_needs_redraw()
-    end
-  end
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    end,
+  })
 
   return norns_ui
 end
@@ -614,32 +595,14 @@ local function create_progression_screen_ui(Composer)
   end
 
   norns_ui.draw_live = function(self) draw_live(self, Composer) end
-  norns_ui.update_arc = function(self) update_progression_arc(Composer) end
-  norns_ui.handle_arc_delta = function(self, n, delta)
-    progression_page_state:handle_arc_delta(n, delta)
-    update_progression_arc(Composer)
-    _seeker.screen_ui.set_needs_redraw()
-  end
-  norns_ui.handle_arc_key = function(self, n, z)
-    progression_page_state:handle_arc_key(n, z)
-    update_progression_arc(Composer)
-    _seeker.screen_ui.set_needs_redraw()
-  end
 
-  -- E2/E3 in live view: progression_page_state handles cursor + param adjustment
-  norns_ui.handle_live_enc = function(self, n, d)
-    progression_page_state:handle_enc(n, d)
-    update_progression_arc(Composer)
-    _seeker.screen_ui.set_needs_redraw()
-  end
-
-  norns_ui.handle_live_key = function(self, n, z)
-    if n == 3 and z == 1 then
-      progression_page_state:next_page()
+  -- Wire arc/enc/key routing via PageState with Composer-specific arc refresh
+  progression_page_state:wire(norns_ui, {
+    refresh = function()
       update_progression_arc(Composer)
-      _seeker.screen_ui.set_needs_redraw()
-    end
-  end
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    end,
+  })
 
   return norns_ui
 end
