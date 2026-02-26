@@ -137,7 +137,11 @@ function PageState:handle_enc(n, d)
     if slot.on_delta then
       slot.on_delta(direction)
     elseif slot.param_id and params.lookup[slot.param_id] then
-      _seeker.arc.step_param(slot.param_id, direction, slot.step)
+      if _seeker.arc then
+        _seeker.arc.step_param(slot.param_id, direction, slot.step)
+      else
+        params:delta(slot.param_id, direction * (slot.step or 1))
+      end
     end
   end
 end

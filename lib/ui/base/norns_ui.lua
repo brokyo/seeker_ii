@@ -370,7 +370,21 @@ function NornsUI:handle_enc_default(n, d)
     return
   end
 
-  if n == 2 then
+  if n == 1 then
+    -- E1 cycles Composer sections, but only when already in one (K2+K3 combo is the entry gate)
+    local SECTION_CYCLE = {"COMPOSER_LIVE", "COMPOSER_PLAYBACK", "COMPOSER_VOICE"}
+    local current = _seeker.ui_state.get_current_section()
+    local idx = nil
+    for i, s in ipairs(SECTION_CYCLE) do
+      if current == s then idx = i; break end
+    end
+    if not idx then return end  -- not in a composer section, E1 does nothing
+    local direction = d > 0 and 1 or -1
+    idx = ((idx - 1 + direction) % #SECTION_CYCLE) + 1
+    _seeker.ui_state.set_current_section(SECTION_CYCLE[idx])
+    return
+
+  elseif n == 2 then
     -- Filter active params first
     self:filter_active_params()
 
@@ -466,6 +480,25 @@ function NornsUI:handle_enc(n, d)
 end
 
 function NornsUI:handle_key(n, z)
+  -- Track held state for K2+K3 combo detection
+  if n == 2 then self._k2_held = (z == 1)
+  elseif n == 3 then self._k3_held = (z == 1) end
+
+  -- K2+K3 simultaneous press: jump to Composer live view
+  if z == 1 and ((n == 2 and self._k3_held) or (n == 3 and self._k2_held)) then
+    self._combo_used = true
+    _seeker.ui_state.set_current_section("COMPOSER_LIVE")
+    if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    return
+  end
+  if z == 0 and self._combo_used then
+    -- Suppress release actions until both keys are up
+    if not self._k2_held and not self._k3_held then
+      self._combo_used = false
+    end
+    return
+  end
+
   local Modal = get_modal()
 
   -- Modal handles input first when active

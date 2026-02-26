@@ -11,7 +11,7 @@ local PageState = include("lib/ui/components/page_state")
 local LiveView = {}
 
 -- Module-level state shared between screen and grid
-local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
+local edit_stage = 1          -- 1-8; grid taps override. Defaults to 1 for encoder-only use.
 local page_state = nil              -- PageState for live stage view (harmony, articulation, dynamics pages)
 local progression_page_state = nil  -- PageState for global progression view (structure/spread/dynamics pages)
 local last_lane_section = "COMPOSER_VOICE"  -- remembers last section navigated via lane button
@@ -560,6 +560,122 @@ local function create_screen_ui(Composer)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end,
   })
+
+  -- Encoder-only live view: E1 selects stage (or adjusts stage count with K2 held),
+  -- E2/E3 pass through to PageState for slot cursor and value adjustment.
+  local k2_held = false
+  local k2_e1_used = false
+  local k2_press_time = 0
+  local k3_randomized = false
+
+  local wired_handle_live_enc = norns_ui.handle_live_enc
+  norns_ui.handle_live_enc = function(self, n, d)
+    if n == 1 then
+      local num_stages = params:get("rc_composer_stages")
+      if k2_held then
+        -- K2 held + E1: adjust stage count
+        params:delta("rc_composer_stages", d > 0 and 1 or -1)
+        k2_e1_used = true
+      else
+        -- E1: select edit stage, wrapping
+        local dir = d > 0 and 1 or -1
+        edit_stage = ((edit_stage - 1 + dir) % num_stages) + 1
+      end
+      update_live_arc(Composer)
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    else
+      -- E2/E3: delegate to PageState wired handler
+      wired_handle_live_enc(self, n, d)
+    end
+  end
+
+  -- K2/K3 overrides for live view. NornsUI:handle_key intercepts K2 before
+  -- handle_live_key runs, so we override handle_key itself.
+  local base_handle_key = NornsUI.handle_key
+  norns_ui.handle_key = function(self, n, z)
+    -- Track held state for K2+K3 combo detection
+    if n == 2 then self._k2_held = (z == 1)
+    elseif n == 3 then self._k3_held = (z == 1) end
+
+    -- K2+K3 combo: ensure live view is active (already on COMPOSER_LIVE)
+    if z == 1 and ((n == 2 and self._k3_held) or (n == 3 and self._k2_held)) then
+      self._combo_used = true
+      if not self.state.live_view then
+        self.state.live_view = true
+        if _seeker.arc and self.update_arc then
+          _seeker.arc.set_display(function() self:update_arc() end)
+        end
+      end
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+      return
+    end
+    if z == 0 and self._combo_used then
+      if not self._k2_held and not self._k3_held then
+        self._combo_used = false
+      end
+      return
+    end
+
+    -- Only intercept in live view
+    if not (self.live_view_enabled and self.state.live_view) then
+      return base_handle_key(self, n, z)
+    end
+
+    if n == 2 then
+      if z == 1 then
+        k2_held = true
+        k2_e1_used = false
+        k2_press_time = util.time()
+      else
+        k2_held = false
+        if k2_e1_used then
+          -- Stage count was adjusted via K2+E1; suppress other actions
+        elseif (util.time() - k2_press_time) > 0.5 then
+          -- Long press: play/stop toggle on focused lane
+          local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+          if lane.playing then
+            lane:stop()
+          else
+            lane:play({quantize = true})
+          end
+        else
+          -- Short tap: toggle back to param view
+          self:toggle_live_view()
+        end
+        if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+      end
+      return
+    end
+
+    if n == 3 then
+      if z == 1 then
+        -- K3 hold: randomize (journey style) via hold_confirm
+        k3_randomized = false
+        _seeker.hold_confirm.start({
+          text = "randomize",
+          threshold = 1.2,
+          on_confirm = function()
+            k3_randomized = true
+            Composer.randomize("journey")
+            update_live_arc(Composer)
+            if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+          end
+        })
+      else
+        -- K3 release: if hold_confirm didn't fire, cycle page
+        if not k3_randomized then
+          page_state:next_page()
+        end
+        _seeker.hold_confirm.cancel()
+        update_live_arc(Composer)
+        if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+      end
+      return
+    end
+
+    -- Other keys: fall through to base
+    base_handle_key(self, n, z)
+  end
 
   return norns_ui
 end
