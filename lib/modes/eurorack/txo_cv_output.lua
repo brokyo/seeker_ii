@@ -135,9 +135,10 @@ function TxoCvOutput.update_txo_cv(output_num)
                 local depth = params:get("txo_cv_" .. output_num .. "_random_depth")
                 local lo = util.clamp(center - depth, -10, 10)
                 local hi = util.clamp(center + depth, -10, 10)
+                local current_mode = params:string("txo_cv_" .. output_num .. "_random_mode")
                 local new_value
 
-                if mode == "Jump" then
+                if current_mode == "Jump" then
                     new_value = lo + math.random() * (hi - lo)
                 else
                     local step_size = params:get("txo_cv_" .. output_num .. "_random_step_size")
@@ -328,8 +329,7 @@ function TxoCvOutput.update_txo_cv(output_num)
         local current_cycle_time = current_beat_sec * beats * 1000
         crow.ii.txo.osc_cyc(output_num, current_cycle_time)
 
-        -- Start at phase 0
-        crow.ii.txo.osc_phase(output_num, 0)
+        crow.ii.txo.osc_phase(output_num, math.floor((phase / 360) * 16384))
         cv_cycle_starts[output_num] = util.time()
 
         while true do

@@ -565,7 +565,7 @@ local function update_burst(output_num, prefix)
             local burst_time = params:get(prefix .. "burst_time")
             local burst_shape = params:string(prefix .. "burst_shape")
 
-            local intervals = get_burst_intervals(burst_count, burst_time, burst_shape)
+            local intervals = get_burst_intervals(burst_count, burst_time * timing.total_sec, burst_shape)
 
             for i = 1, burst_count do
                 burst_states[output_num] = i
