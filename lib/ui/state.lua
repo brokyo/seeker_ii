@@ -132,8 +132,12 @@ function UIState.set_focused_lane(lane_idx)
     _seeker.last_focused[sub_mode] = lane_idx
   end
 
-  -- Notify composer of lane change (save outgoing snapshot, load incoming)
-  if _seeker.composer_mode and _seeker.composer_mode.composer and _seeker.composer_mode.composer.on_lane_change then
+  -- Notify composer of lane change only when switching between composer lanes
+  local old_sub = LaneMap.from_flat(old_lane_id)
+  local new_sub = LaneMap.from_flat(lane_idx)
+  if (old_sub == "composer" or new_sub == "composer")
+     and _seeker.composer_mode and _seeker.composer_mode.composer
+     and _seeker.composer_mode.composer.on_lane_change then
     _seeker.composer_mode.composer.on_lane_change(old_lane_id, lane_idx)
   end
 

@@ -51,7 +51,6 @@ _seeker = {
   skeys = nil,
   conductor = conductor,
   lanes = {},
-  active_lane = 1,
   num_lanes = LaneMap.ACTIVE_LANES,
   lane_map = LaneMap,
   last_focused = { tape = 1, composer = 5, sampler = 9 },

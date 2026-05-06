@@ -16,7 +16,7 @@ local function print_separator()
 end
 
 -- Motif type index to name
-local MOTIF_TYPES = { "Tape", "Composer", "Sampler" }
+local MOTIF_TYPES = { [1] = "Tape", [3] = "Sampler", [4] = "Composer" }
 
 local function motif_type_name(lane_id)
   local idx = params:get("lane_" .. lane_id .. "_motif_type")
