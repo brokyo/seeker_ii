@@ -65,9 +65,9 @@ function ModeSwitcher.handle_key(x, y, z)
       local config = GridModeRegistry.get_mode(mode_id)
 
       if sub_mode_id then
-        -- Sub-mode button: switch to parent mode + sub-mode
+        -- Sub-mode button: switch to parent mode, restore sub-mode's last focused lane
         _seeker.current_mode = mode_id
-        _seeker.current_sub_mode = sub_mode_id
+        _seeker.ui_state.switch_sub_mode(sub_mode_id)
         _seeker.ui_state.set_current_section(config.sub_modes[sub_mode_id].default_section)
       else
         -- Parent mode button: navigate to parent default section

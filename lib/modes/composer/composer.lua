@@ -250,11 +250,6 @@ function Composer.rebuild(lane_id)
     })
   end
 
-  -- Ensure lane is using Composer handlers
-  if params:get("lane_" .. lane_id .. "_motif_type") ~= 4 then
-    params:set("lane_" .. lane_id .. "_motif_type", 4)
-  end
-
   if lane.playing then
     -- Lane is mid-cycle: update stage data without resetting playback position.
     for i, entry in ipairs(stages) do
@@ -567,7 +562,6 @@ function Composer.randomize(style)
   snapshot_loading = false
 
   local lane_id = _seeker.ui_state.get_focused_lane()
-  params:set("lane_" .. lane_id .. "_motif_type", 4)
   local lane = _seeker.lanes[lane_id]
   local num_stages = params:get("rc_composer_stages")
   local degree_pool = s and s.degree_pool

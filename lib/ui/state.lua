@@ -1,5 +1,6 @@
 -- state.lua
 local GridModeRegistry = include("lib/grid/mode_registry")
+local LaneMap = include("lib/lanes/lane_map")
 
 local UIState = {}
 
@@ -125,13 +126,19 @@ function UIState.set_focused_lane(lane_idx)
 
   UIState.state.focused_lane = lane_idx
 
+  -- Remember this lane as the last-focused for its sub-mode
+  local sub_mode = LaneMap.from_flat(lane_idx)
+  if _seeker.last_focused then
+    _seeker.last_focused[sub_mode] = lane_idx
+  end
+
   -- Notify composer of lane change (save outgoing snapshot, load incoming)
   if _seeker.composer_mode and _seeker.composer_mode.composer and _seeker.composer_mode.composer.on_lane_change then
     _seeker.composer_mode.composer.on_lane_change(old_lane_id, lane_idx)
   end
-  
+
   -- Update UI
-  if _seeker.screen_ui.sections.LANE_CONFIG and _seeker.screen_ui.sections.LANE_CONFIG.rebuild_params then
+  if _seeker.screen_ui and _seeker.screen_ui.sections.LANE_CONFIG and _seeker.screen_ui.sections.LANE_CONFIG.rebuild_params then
     _seeker.screen_ui.sections.LANE_CONFIG:rebuild_params()
   end
 
@@ -139,11 +146,21 @@ function UIState.set_focused_lane(lane_idx)
   if _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
     _seeker.tape.create.screen:rebuild_params()
   end
-  
-  _seeker.screen_ui.set_needs_redraw()
-  
+
+  if _seeker.screen_ui then
+    _seeker.screen_ui.set_needs_redraw()
+  end
+
   -- Update grid
-  _seeker.grid_ui.redraw()
+  if _seeker.grid_ui then
+    _seeker.grid_ui.redraw()
+  end
+end
+
+function UIState.switch_sub_mode(sub_mode)
+  _seeker.current_sub_mode = sub_mode
+  local target_lane = _seeker.last_focused[sub_mode] or LaneMap.to_flat(sub_mode, 1)
+  UIState.set_focused_lane(target_lane)
 end
 
 function UIState.set_focused_stage(stage_idx)

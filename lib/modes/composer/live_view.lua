@@ -7,6 +7,7 @@ local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local Descriptions = include("lib/ui/component_descriptions")
 local PageState = include("lib/ui/components/page_state")
+local LaneMap = include("lib/lanes/lane_map")
 
 local LiveView = {}
 
@@ -616,11 +617,12 @@ local HOLD_THRESHOLD_STAGE = 1.0
 local HOLD_THRESHOLD_RANDOMIZE = 1.5
 
 -- Get stage count for a lane (global params if focused, snapshot otherwise)
-local function get_lane_stages(lane_idx)
-  if lane_idx == _seeker.ui_state.get_focused_lane() then
+-- lane_id is a flat lane ID (5-8 for composer lanes)
+local function get_lane_stages(lane_id)
+  if lane_id == _seeker.ui_state.get_focused_lane() then
     return params:get("rc_composer_stages")
   end
-  local lane = _seeker.lanes[lane_idx]
+  local lane = _seeker.lanes[lane_id]
   if lane.composer_param_snapshot then
     return lane.composer_param_snapshot.rc_composer_stages or 1
   end
@@ -651,9 +653,10 @@ local function create_grid_ui(Composer)
 
     for i = 1, NUM_COMPOSER_LANES do
       local row = FIRST_ROW + i - 1
-      local lane = _seeker.lanes[i]
-      local is_focused = i == focused_lane
-      local num_stages = get_lane_stages(i)
+      local lane_id = LaneMap.to_flat("composer", i)
+      local lane = _seeker.lanes[lane_id]
+      local is_focused = lane_id == focused_lane
+      local num_stages = get_lane_stages(lane_id)
       local current_stage = lane.current_stage_index or 1
 
       -- Col 1: lane button
@@ -727,15 +730,16 @@ local function create_grid_ui(Composer)
   local LANE_SECTION_CYCLE = {"COMPOSER_VOICE", "COMPOSER_PLAYBACK", "COMPOSER_PROGRESSION"}
 
   grid_ui.handle_key = function(self, x, y, z)
-    local lane_idx = y - FIRST_ROW + 1
-    if lane_idx < 1 or lane_idx > NUM_COMPOSER_LANES then return end
+    local local_idx = y - FIRST_ROW + 1
+    if local_idx < 1 or local_idx > NUM_COMPOSER_LANES then return end
+    local lane_id = LaneMap.to_flat("composer", local_idx)
 
     local old_lane = _seeker.ui_state.get_focused_lane()
     local switched_lane = false
 
     if z == 1 then
-      if lane_idx ~= old_lane then
-        _seeker.ui_state.set_focused_lane(lane_idx)
+      if lane_id ~= old_lane then
+        _seeker.ui_state.set_focused_lane(lane_id)
         switched_lane = true
       end
     end
@@ -818,7 +822,7 @@ local function create_grid_ui(Composer)
           threshold = HOLD_THRESHOLD_STAGE,
           on_confirm = function()
             params:set("rc_composer_stages", stage)
-            local lane = _seeker.lanes[lane_idx]
+            local lane = _seeker.lanes[lane_id]
             if not lane.playing then
               lane:play({quantize = true})
             end

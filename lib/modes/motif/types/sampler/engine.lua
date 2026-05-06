@@ -121,7 +121,8 @@ function SamplerEngine.init()
   end
 
   -- Initialize per-lane storage
-  for lane = 1, 8 do
+  local LaneMap = include("lib/lanes/lane_map")
+  for _, lane in ipairs(LaneMap.lanes_for_mode("sampler")) do
     SamplerEngine.lane_durations[lane] = 0
   end
 

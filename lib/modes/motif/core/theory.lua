@@ -170,7 +170,8 @@ end
 function theory.update_chord_root_options()
     local chord_roots = get_scale_chord_roots()
 
-    for i = 1, 8 do
+    local LaneMap = include("lib/lanes/lane_map")
+    for _, i in ipairs(LaneMap.lanes_for_mode("composer")) do
         local param_id = "lane_" .. i .. "_composer_chord_root"
         local param = params:lookup_param(param_id)
         if param then

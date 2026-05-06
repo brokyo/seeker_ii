@@ -15,7 +15,8 @@ local function create_params()
     params:add_group("tape_create_group", "TAPE CREATE", 9)
 
     -- Per-lane duration parameter for tape mode (0 = free record)
-    for i = 1, 8 do
+    local LaneMap = include("lib/lanes/lane_map")
+    for _, i in ipairs(LaneMap.lanes_for_mode("tape")) do
         params:add_control("lane_" .. i .. "_tape_duration", "Lane " .. i .. " Duration",
             controlspec.new(0, 128, 'lin', 0.125, 0, "beats", 0.125 / 128))
         params:set_action("lane_" .. i .. "_tape_duration", function(value)

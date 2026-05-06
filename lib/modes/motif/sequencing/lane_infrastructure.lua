@@ -14,12 +14,16 @@
 local theory = include('lib/modes/motif/core/theory')
 local transforms = include('lib/modes/motif/core/transforms')
 local fileselect = require("fileselect")
+local LaneMap = include("lib/lanes/lane_map")
 local lane_infrastructure = {}
 
 -- Create stage-related parameters that lane.lua needs for sequencing
 local function create_stage_params(i)
+    local sub_mode = LaneMap.from_flat(i)
+    local local_index = i - LaneMap.OFFSETS[sub_mode]
+    local label = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
 
-    params:add_group("lane_" .. i .. "_stage_setup", "LANE " .. i .. " STAGE SETUP", 48)
+    params:add_group("lane_" .. i .. "_stage_setup", label .. " STAGE SETUP", 48)
     for stage_idx = 1, 8 do
         -- Stage volume (used by all motif types)
         params:add_control("lane_" .. i .. "_stage_" .. stage_idx .. "_volume", "Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
@@ -29,8 +33,9 @@ local function create_stage_params(i)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        -- Stage 1 defaults active, stages 2-4 default inactive
-        local active_default = (stage_idx == 1) and 2 or 1
+        -- Composer: all stages active. Tape/Sampler: only stage 1.
+        local all_active = (sub_mode == "composer")
+        local active_default = (all_active or stage_idx == 1) and 2 or 1
         params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, active_default)
         params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_active", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
@@ -62,7 +67,10 @@ end
 -- Create motif playback parameters that lane.lua uses
 -- TODO: These should be moved to @play_motif.lua when that component is refactored
 local function create_motif_playback_params(i)
-    params:add_group("lane_" .. i .. "_motif_playback", "LANE " .. i .. " PLAYBACK", 5)
+    local sub_mode = LaneMap.from_flat(i)
+    local local_index = i - LaneMap.OFFSETS[sub_mode]
+    local label = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
+    params:add_group("lane_" .. i .. "_motif_playback", label .. " PLAYBACK", 5)
     -- Octave offset for playback transposition
     params:add_number("lane_" .. i .. "_octave_offset", "Octave Offset", -8, 8, 0)
 
@@ -89,68 +97,15 @@ end
 
 -- Create basic lane parameters that lane.lua needs
 local function create_basic_lane_params(i)
+    local sub_mode = LaneMap.from_flat(i)
+    local local_index = i - LaneMap.OFFSETS[sub_mode]
+    local label = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
+
     -- Core lane parameters
-    params:add_group("lane_" .. i .. "_infrastructure", "LANE " .. i .. " CORE", 7)
+    params:add_group("lane_" .. i .. "_infrastructure", label .. " CORE", 7)
 
-    -- Per-lane motif creation type
+    -- Motif type is fixed per lane based on sub-mode assignment
     params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Composer", "Sampler", "Form"}, 1)
-    params:set_action("lane_" .. i .. "_motif_type", function(value)
-        -- Sampler mode limited to 2 simultaneous lanes (softcut has 2 mono buffers)
-        -- Prevent switching to sampler if buffers are full
-        if value == 3 and _seeker and _seeker.sampler then
-            local has_buffer = _seeker.sampler.get_buffer_for_lane(i) ~= nil
-            if not has_buffer then
-                -- Check if we can allocate a new buffer
-                local available = false
-                for buffer_id = 1, 2 do
-                    if not _seeker.sampler.buffer_occupied[buffer_id] then
-                        available = true
-                        break
-                    end
-                end
-
-                if not available then
-                    -- Revert to previous value (Tape)
-                    params:set("lane_" .. i .. "_motif_type", 1, true)
-                    return
-                end
-            end
-        end
-
-        -- Stop playback when switching modes
-        if _seeker and _seeker.lanes and _seeker.lanes[i] then
-            _seeker.lanes[i]:stop()
-            -- Stop any playing sampler voices for this lane
-            if _seeker.sampler then
-                for pad = 1, 16 do
-                    _seeker.sampler.stop_pad(i, pad)
-                end
-            end
-        end
-
-        -- Set stage defaults based on motif type
-        -- Composer: enable all 8 stages (form manages active count)
-        -- Tape/Sampler: enable only stage 1 (additional stages inactive by default)
-        local all_stages_active = (value == 2 or value == 4)  -- Composer or Form
-        for stage_idx = 1, 8 do
-            if all_stages_active then
-                params:set("lane_" .. i .. "_stage_" .. stage_idx .. "_active", 2, true)
-            else
-                params:set("lane_" .. i .. "_stage_" .. stage_idx .. "_active", (stage_idx == 1) and 2 or 1, true)
-            end
-        end
-
-        -- Rebuild screens (motif type affects tape_create params and Lane Config voice routing)
-        if _seeker and _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
-            _seeker.tape.create.screen:rebuild_params()
-        end
-        if _seeker and _seeker.lane_config and _seeker.lane_config.screen then
-            _seeker.lane_config.screen:rebuild_params()
-        end
-        if _seeker and _seeker.screen_ui then
-            _seeker.screen_ui.set_needs_redraw()
-        end
-    end)
 
     -- File selector for loading audio samples into softcut buffers
     params:add_binary("lane_" .. i .. "_load_sample", "Load Sample", "trigger", 0)
@@ -221,9 +176,7 @@ end
 
 -- Initialize all lane infrastructure parameters
 function lane_infrastructure.init()
-    -- Create infrastructure parameters for all 8 lanes
-    -- NB: Ideally we would also want to create the params in @stage_config and @lane_config here so they stay grouped in the PARAMS UI. Long list thing.
-    for i = 1, 8 do
+    for i = 1, LaneMap.ACTIVE_LANES do
         create_stage_params(i)
         create_basic_lane_params(i)
         create_motif_playback_params(i)

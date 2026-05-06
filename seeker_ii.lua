@@ -44,6 +44,7 @@ local ComposerMode = include("lib/modes/composer/init")
 -- Remote Control
 local RemoteControl = include("lib/remote_control/init")
 local rc_overlay = include("lib/remote_control/rc_overlay")
+local LaneMap = include("lib/lanes/lane_map")
 
 -- Global state
 _seeker = {
@@ -51,7 +52,9 @@ _seeker = {
   conductor = conductor,
   lanes = {},
   active_lane = 1,
-  num_lanes = 8,
+  num_lanes = LaneMap.ACTIVE_LANES,
+  lane_map = LaneMap,
+  last_focused = { tape = 1, composer = 5, sampler = 9 },
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
@@ -155,13 +158,18 @@ function init()
     end
   end)
   
-  -- Initialize lanes with default configurations
+  -- Initialize lanes: each sub-mode owns its own 4 lanes
   for i = 1, _seeker.num_lanes do
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
+    local sub_mode = LaneMap.from_flat(i)
+    local motif_type = LaneMap.motif_type_for_mode(sub_mode)
+    if motif_type then
+      params:set("lane_" .. i .. "_motif_type", motif_type, true)
+    end
   end
 
-  -- Lane 1 defaults: MX Samples epiano
+  -- Tape lane 1 defaults: MX Samples epiano
   params:set("lane_1_mx_samples_active", 1)
   local instruments = mx_samples.get_instrument_list()
   for idx, name in ipairs(instruments) do
@@ -177,6 +185,7 @@ function init()
   _seeker.rc_overlay = rc_overlay
 
   _seeker.current_mode = "music"
+  _seeker.current_sub_mode = "tape"
   _seeker.ui_state.set_current_section("MOTIF")
 
   -- Start grid redraw clock LAST after everything is initialized

@@ -29,7 +29,8 @@ function SamplerPerform.is_active(lane_id)
 end
 
 local function create_params()
-  for i = 1, 8 do
+  local LaneMap = include("lib/lanes/lane_map")
+  for _, i in ipairs(LaneMap.lanes_for_mode("sampler")) do
     local prefix = get_param_prefix(i)
     local rebuild_callback = function()
       if _seeker and _seeker.sampler_type and _seeker.sampler_type.perform and _seeker.sampler_type.perform.screen then

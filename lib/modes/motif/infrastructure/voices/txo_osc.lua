@@ -23,12 +23,13 @@ local osc_pools = {}
 local osc_morphs = {}
 -- Per-oscillator volume values: osc_volumes[lane_id][osc_num] = volume_value
 local osc_volumes = {}
-for i = 1, 8 do
+local LaneMap = include("lib/lanes/lane_map")
+for i = 1, LaneMap.ACTIVE_LANES do
     osc_pools[i] = {
-        next_index = 1  -- Position within lane's oscillator range (1 to count)
+        next_index = 1
     }
-    osc_morphs[i] = {0, 0, 0, 0}  -- Default morph for oscillators 1-4
-    osc_volumes[i] = {1, 1, 1, 1}  -- Default volume for oscillators 1-4
+    osc_morphs[i] = {0, 0, 0, 0}
+    osc_volumes[i] = {1, 1, 1, 1}
 end
 
 -- Get stored morph value for a specific oscillator

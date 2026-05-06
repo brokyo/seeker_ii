@@ -32,23 +32,31 @@ GridModeRegistry.MODES = {
     default_section = "MOTIF",
     sub_modes = {
       tape = {
-        button = { x = 15, y = 3 },
+        button = { x = 14, y = 3 },
         default_section = "TAPE_HOME",
         path = "lib/grid/layouts/keyboard_mode",
       },
       composer = {
-        button = { x = 16, y = 3 },
+        button = { x = 15, y = 3 },
         default_section = "COMPOSER_HOME",
         path = "lib/grid/layouts/composer_mode",
+      },
+      sampler = {
+        button = { x = 16, y = 3 },
+        default_section = "TAPE_HOME",
+        path = "lib/grid/layouts/keyboard_mode",
       },
     },
     sections = {
       -- Voice config (parent)
       "MOTIF",
+      -- Shared
+      "LANE", "STAGE", "LANE_CONFIG",
       -- Tape sub-mode
-      "TAPE_HOME", "LANE", "STAGE", "LANE_CONFIG",
+      "TAPE_HOME",
       "TAPE_VELOCITY", "TAPE_STAGE_NAV", "TAPE_PLAYBACK", "TAPE_CREATE",
       "TAPE_CLEAR", "TAPE_PERFORM", "TAPE_STAGE_CONFIG",
+      -- Sampler sub-mode
       "SAMPLER_CHOP_CONFIG", "SAMPLER_CREATE", "SAMPLER_STAGE_CONFIG",
       "SAMPLER_PLAYBACK", "SAMPLER_CLEAR", "SAMPLER_VELOCITY", "SAMPLER_PERFORM",
       -- Composer sub-mode
@@ -69,21 +77,15 @@ GridModeRegistry.MODES = {
 local _section_to_sub_mode = {}
 for mode_id, config in pairs(GridModeRegistry.MODES) do
   if config.sub_modes then
-    for sub_id, sub_config in pairs(config.sub_modes) do
-      for _, section in ipairs(config.sections) do
-        -- Composer sections start with COMPOSER_, motif owns LANE/STAGE/TAPE_*/SAMPLER_*
-        if sub_id == "composer" then
-          if section:sub(1, 9) == "COMPOSER_" then
-            _section_to_sub_mode[section] = { mode = mode_id, sub_mode = sub_id }
-          end
-        elseif sub_id == "tape" then
-          -- Motif owns LANE, STAGE, LANE_CONFIG, TAPE_*, SAMPLER_*
-          if section == "LANE" or section == "STAGE" or section == "LANE_CONFIG"
-             or section:sub(1, 5) == "TAPE_" or section:sub(1, 8) == "SAMPLER_" then
-            _section_to_sub_mode[section] = { mode = mode_id, sub_mode = sub_id }
-          end
-        end
+    for _, section in ipairs(config.sections) do
+      if section:sub(1, 9) == "COMPOSER_" then
+        _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "composer" }
+      elseif section:sub(1, 8) == "SAMPLER_" then
+        _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "sampler" }
+      elseif section:sub(1, 5) == "TAPE_" then
+        _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "tape" }
       end
+      -- LANE, STAGE, LANE_CONFIG are shared across sub-modes — no sub-mode forced
     end
   end
 end
