@@ -34,6 +34,7 @@ end
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
+local MOTIF_TYPE_DRUMS = 2
 local MOTIF_TYPE_SAMPLER = 3
 local MOTIF_TYPE_COMPOSER = 4
 
@@ -301,6 +302,8 @@ local function create_screen_ui()
             self.description = base .. "\n\nTape: Record and loop live performances with overdub layering."
         elseif motif_type == MOTIF_TYPE_COMPOSER then
             self.description = base .. "\n\nComposer: Generate chord progressions with algorithmic patterns."
+        elseif motif_type == MOTIF_TYPE_DRUMS then
+            self.description = base .. "\n\nDrums: Trigger step sequencer with configurable pattern length."
         elseif motif_type == MOTIF_TYPE_SAMPLER then
             self.description = base .. "\n\nSampler: Chop and sequence audio samples across 16 pads."
         else

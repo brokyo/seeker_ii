@@ -34,6 +34,7 @@ local mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
 -- Motif Types
 local Tape = include("lib/modes/motif/types/tape/init")
 local Sampler = include("lib/modes/motif/types/sampler/init")
+local Drums = include("lib/modes/motif/types/drums/init")
 
 -- Mode Types
 local WTape = include("lib/modes/wtape/init")
@@ -53,7 +54,7 @@ _seeker = {
   lanes = {},
   num_lanes = LaneMap.ACTIVE_LANES,
   lane_map = LaneMap,
-  last_focused = { tape = 1, composer = 5, sampler = 9 },
+  last_focused = { tape = 1, composer = 5, sampler = 9, drums = 13 },
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
@@ -113,6 +114,7 @@ function init()
   -- Motif Types
   _seeker.tape = Tape.init()
   _seeker.sampler_type = Sampler.init()
+  _seeker.drums_type = Drums.init()
 
   -- Mode Types
   _seeker.composer_mode = ComposerMode.init()

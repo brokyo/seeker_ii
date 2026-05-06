@@ -5,7 +5,7 @@
 local LaneMap = {}
 
 LaneMap.LANES_PER_MODE = 4
-LaneMap.ACTIVE_LANES = 12
+LaneMap.ACTIVE_LANES = 16
 
 LaneMap.OFFSETS = {
   tape     = 0,
@@ -16,8 +16,9 @@ LaneMap.OFFSETS = {
 
 LaneMap.MOTIF_TYPES = {
   tape     = 1,
-  composer = 4,
+  drums    = 2,
   sampler  = 3,
+  composer = 4,
 }
 
 function LaneMap.to_flat(sub_mode, local_index)

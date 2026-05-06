@@ -32,18 +32,23 @@ GridModeRegistry.MODES = {
     default_section = "MOTIF",
     sub_modes = {
       tape = {
-        button = { x = 14, y = 3 },
+        button = { x = 13, y = 3 },
         default_section = "TAPE_HOME",
         path = "lib/grid/layouts/keyboard_mode",
       },
       composer = {
-        button = { x = 15, y = 3 },
+        button = { x = 14, y = 3 },
         default_section = "COMPOSER_HOME",
         path = "lib/grid/layouts/composer_mode",
       },
       sampler = {
-        button = { x = 16, y = 3 },
+        button = { x = 15, y = 3 },
         default_section = "TAPE_HOME",
+        path = "lib/grid/layouts/keyboard_mode",
+      },
+      drums = {
+        button = { x = 16, y = 3 },
+        default_section = "DRUMS_HOME",
         path = "lib/grid/layouts/keyboard_mode",
       },
     },
@@ -61,6 +66,8 @@ GridModeRegistry.MODES = {
       "SAMPLER_PLAYBACK", "SAMPLER_CLEAR", "SAMPLER_VELOCITY", "SAMPLER_PERFORM",
       -- Composer sub-mode
       "COMPOSER_HOME", "COMPOSER_LIVE", "COMPOSER_PROGRESSION", "COMPOSER_PLAYBACK", "COMPOSER_VOICE", "COMPOSER_PARAMS",
+      -- Drums sub-mode
+      "DRUMS_HOME", "DRUMS_PLAYBACK", "DRUMS_CLEAR", "DRUMS_PERFORM",
     },
   },
 
@@ -82,6 +89,8 @@ for mode_id, config in pairs(GridModeRegistry.MODES) do
         _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "composer" }
       elseif section:sub(1, 8) == "SAMPLER_" then
         _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "sampler" }
+      elseif section:sub(1, 6) == "DRUMS_" then
+        _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "drums" }
       elseif section:sub(1, 5) == "TAPE_" then
         _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "tape" }
       end
