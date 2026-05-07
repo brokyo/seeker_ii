@@ -310,8 +310,12 @@ local function generate_motif(lane_id, stage_id)
     return {events = {}, duration = num_steps * step_length}
   end
 
-  -- Get composer keyboard to read step states
-  local composer_keyboard = _seeker.composer.keyboard.grid
+  -- Get composer keyboard to read step states (old type-2 composer, may not exist)
+  local composer_keyboard = _seeker.composer_mode and _seeker.composer_mode.keyboard
+    and _seeker.composer_mode.keyboard.grid
+  if not composer_keyboard then
+    return {events = {}, duration = num_steps * step_length}
+  end
 
   -- Collect active steps
   local active_steps = {}

@@ -1,5 +1,5 @@
 -- type_registry.lua
--- Registry for motif types (Tape, Composer, Sampler)
+-- Registry for motif types (Tape, Sampler)
 -- Provides unified access to current type's draw/handle functions
 
 local type_registry = {}
@@ -11,8 +11,8 @@ local function get_type(motif_type)
   if not types[motif_type] then
     local type_paths = {
       [1] = "lib/modes/motif/types/tape/type",      -- TAPE
-      [2] = "lib/modes/motif/types/composer/type",  -- COMPOSER
-      [3] = "lib/modes/motif/types/sampler/type"    -- SAMPLER
+      [2] = "lib/modes/motif/types/drums/type",     -- DRUMS
+      [3] = "lib/modes/motif/types/sampler/type",   -- SAMPLER
     }
 
     if type_paths[motif_type] then

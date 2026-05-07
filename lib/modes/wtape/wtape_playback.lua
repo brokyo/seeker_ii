@@ -27,7 +27,6 @@ local function create_screen_ui()
             return
         end
 
-        screen.clear()
         self:draw_params(0)
 
         local is_playing = params:get("wtape_toggle_playing") == 1
@@ -39,7 +38,6 @@ local function create_screen_ui()
         screen.text(status_text)
 
         self:draw_footer()
-        screen.update()
     end
 
     return screen_ui

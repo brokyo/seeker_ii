@@ -121,7 +121,8 @@ function SamplerEngine.init()
   end
 
   -- Initialize per-lane storage
-  for lane = 1, 8 do
+  local LaneMap = include("lib/lanes/lane_map")
+  for _, lane in ipairs(LaneMap.lanes_for_mode("sampler")) do
     SamplerEngine.lane_durations[lane] = 0
   end
 
@@ -555,15 +556,6 @@ function SamplerEngine.load_file(lane, filepath)
     return false
   end
 
-  -- Show loading modal
-  SamplerEngine.loading_state = "loading"
-  if _seeker and _seeker.modal then
-    _seeker.modal.show_status({ body = "LOADING" })
-  end
-  if _seeker and _seeker.screen_ui then
-    _seeker.screen_ui.set_needs_redraw()
-  end
-
   -- Clear existing sample data for this lane (stops voices, resets chops)
   SamplerEngine.clear_lane(lane)
 
@@ -588,30 +580,22 @@ function SamplerEngine.load_file(lane, filepath)
     -- Auto-chop into fixed chops
     SamplerEngine.set_fixed_chops(lane, duration)
 
-    -- Clear loading modal after brief delay (buffer_read_mono has no completion callback)
-    clock.run(function()
-      clock.sleep(1.0)
-      SamplerEngine.loading_state = nil
-      if _seeker and _seeker.modal then
-        _seeker.modal.dismiss()
-      end
-      if _seeker and _seeker.screen_ui then
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end)
+    -- Toast auto-dismisses after brief display
+    SamplerEngine.loading_state = nil
+    if _seeker and _seeker.modal then
+      _seeker.modal.show_toast({ body = "LOADED", duration = 1.0 })
+    end
 
     return true
   else
     print("≋ Sampler: Failed to load file")
     -- Free the buffer since load failed
     SamplerEngine.free_buffer(lane)
-    SamplerEngine.loading_state = nil
+
     if _seeker and _seeker.modal then
-      _seeker.modal.dismiss()
+      _seeker.modal.show_toast({ body = "LOAD FAILED", duration = 1.0 })
     end
-    if _seeker and _seeker.screen_ui then
-      _seeker.screen_ui.set_needs_redraw()
-    end
+
     return false
   end
 end

@@ -19,13 +19,15 @@ function ScreenUI.init()
     CONFIG = _seeker.config.screen,
 
     -- Motif Mode
-    MOTIF_CONFIG = _seeker.motif_config.screen,
+    MOTIF = _seeker.motif_config.screen,
+    TAPE_HOME = _seeker.motif_config.tape_home_screen,
     LANE_CONFIG = _seeker.lane_config.screen,
   }
 
   -- Auto-register sections from mode modules (each provides a .sections table)
   local mode_modules = {
-    _seeker.tape, _seeker.sampler_type, _seeker.composer,
+    _seeker.tape, _seeker.sampler_type, _seeker.drums_type,
+    _seeker.composer_mode,
     _seeker.wtape, _seeker.eurorack, _seeker.osc
   }
   for _, mode_module in ipairs(mode_modules) do
@@ -35,6 +37,7 @@ function ScreenUI.init()
   end
   
   ScreenSaver.init()
+  _seeker.screen_saver = ScreenSaver
 
   clock.run(function()
     local was_screensaver_active = false
@@ -56,7 +59,9 @@ function ScreenUI.init()
         local section = ScreenUI.sections[current_section]
         if _seeker.motif_recorder.is_recording or
            (section and section.needs_playback_refresh) or
-           (_seeker.modal and _seeker.modal.is_active()) then
+           (_seeker.modal and _seeker.modal.is_active()) or
+           (_seeker.modal and _seeker.modal.is_toast_active()) or
+           (_seeker.hold_confirm and _seeker.hold_confirm.is_active()) then
           ScreenUI.set_needs_redraw()
         end
 
@@ -98,18 +103,27 @@ function ScreenUI.set_needs_redraw()
   ScreenUI.state.needs_redraw = true
 end
 
+-- Router owns screen lifecycle: clear before drawing, update after
 function ScreenUI.redraw()
+  screen.clear()
   if ScreenSaver.check_timeout() then
-    -- Screensaver appears on top of everything, including modals
     ScreenSaver.draw()
+  elseif _seeker.modal and _seeker.modal.is_active() then
+    _seeker.modal.draw()
+  elseif _seeker.hold_confirm and _seeker.hold_confirm.is_active() then
+    _seeker.hold_confirm.draw()
   else
     local section = ScreenUI.get_active_section()
-    if section.state.is_active then
+    if section and section.state.is_active then
       section:draw()
     end
-
-    ScreenUI.state.needs_redraw = false
+    -- Toast draws on top of the active section (non-intrusive bottom text)
+    if _seeker.modal then
+      _seeker.modal.draw_toast()
+    end
   end
+  screen.update()
+  ScreenUI.state.needs_redraw = false
 end
 
 return ScreenUI 

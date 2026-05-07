@@ -20,6 +20,7 @@ local MidiInput = include("lib/controllers/midi")
 local Arc = include("lib/controllers/arc")
 local SamplerEngine = include("lib/modes/motif/types/sampler/engine")
 local Modal = include("lib/ui/components/modal")
+local HoldConfirm = include("lib/ui/components/hold_confirm")
 
 -- Global Config Mode
 local Config = include("lib/modes/config/init")
@@ -28,24 +29,32 @@ local lane_infrastructure = include("lib/modes/motif/sequencing/lane_infrastruct
 -- Motif Infrastructure
 local MotifConfig = include("lib/modes/motif/infrastructure/motif_config")
 local LaneConfig = include("lib/modes/motif/infrastructure/lane_config")
+local mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
 
 -- Motif Types
 local Tape = include("lib/modes/motif/types/tape/init")
 local Sampler = include("lib/modes/motif/types/sampler/init")
-local Composer = include("lib/modes/motif/types/composer/init")
+local Drums = include("lib/modes/motif/types/drums/init")
 
 -- Mode Types
 local WTape = include("lib/modes/wtape/init")
 local Eurorack = include("lib/modes/eurorack/init")
 local Osc = include("lib/modes/osc/init")
+local ComposerMode = include("lib/modes/composer/init")
+
+-- Remote Control
+local RemoteControl = include("lib/remote_control/init")
+local rc_overlay = include("lib/remote_control/rc_overlay")
+local LaneMap = include("lib/lanes/lane_map")
 
 -- Global state
 _seeker = {
   skeys = nil,
   conductor = conductor,
   lanes = {},
-  active_lane = 1,
-  num_lanes = 8,
+  num_lanes = LaneMap.ACTIVE_LANES,
+  lane_map = LaneMap,
+  last_focused = { tape = 1, composer = 5, sampler = 9, drums = 13 },
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
@@ -54,8 +63,13 @@ _seeker = {
   arc = nil,
   sampler = nil,
   modal = Modal,  -- Single shared Modal instance
+  hold_confirm = HoldConfirm,
 
   current_mode = nil,
+  current_sub_mode = nil,
+
+  -- Remote Control
+  rc = nil,
 
   -- Components
   config = nil,
@@ -64,7 +78,7 @@ _seeker = {
   -- Mode Types (initialized via init.lua)
   tape = nil,
   sampler_type = nil,
-  composer = nil,
+  composer_mode = nil,
   wtape = nil,
   eurorack = nil,
   osc = nil,
@@ -100,13 +114,14 @@ function init()
   -- Motif Types
   _seeker.tape = Tape.init()
   _seeker.sampler_type = Sampler.init()
-  _seeker.composer = Composer.init()
+  _seeker.drums_type = Drums.init()
 
   -- Mode Types
+  _seeker.composer_mode = ComposerMode.init()
   _seeker.wtape = WTape.init()
   _seeker.eurorack = Eurorack.init()
   _seeker.osc = Osc.init()
-  
+
   -- UI Setup
   _seeker.screen_ui = screen_ui.init()
   _seeker.grid_ui = grid.init()
@@ -144,14 +159,35 @@ function init()
     end
   end)
   
-  -- Initialize lanes with default configurations
+  -- Initialize lanes: each sub-mode owns its own 4 lanes
   for i = 1, _seeker.num_lanes do
     _seeker.lanes[i] = Lane.new({ id = i })
     _seeker.lanes[i].midi_out_device = midi.connect(1)
+    local sub_mode = LaneMap.from_flat(i)
+    local motif_type = LaneMap.motif_type_for_mode(sub_mode)
+    if motif_type then
+      params:set("lane_" .. i .. "_motif_type", motif_type, true)
+    end
   end
 
-  _seeker.current_mode = "motif"
-  _seeker.ui_state.set_current_section("LANE_CONFIG")
+  -- Tape lane 1 defaults: MX Samples epiano
+  params:set("lane_1_mx_samples_active", 1)
+  local instruments = mx_samples.get_instrument_list()
+  for idx, name in ipairs(instruments) do
+    if name:lower():find("epiano") or name:lower():find("e.piano") or name:lower():find("electric_piano") then
+      params:set("lane_1_instrument", idx)
+      break
+    end
+  end
+
+  -- Remote control interface
+  _seeker.rc = RemoteControl
+  _seeker.rc.init()
+  _seeker.rc_overlay = rc_overlay
+
+  _seeker.current_mode = "music"
+  _seeker.current_sub_mode = "tape"
+  _seeker.ui_state.set_current_section("MOTIF")
 
   -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()

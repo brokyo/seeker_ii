@@ -6,6 +6,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local Descriptions = include("lib/ui/component_descriptions")
+local LaneMap = include("lib/lanes/lane_map")
 
 -- Use global Modal singleton
 local function get_modal()
@@ -33,8 +34,9 @@ end
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
-local MOTIF_TYPE_COMPOSER = 2
+local MOTIF_TYPE_DRUMS = 2
 local MOTIF_TYPE_SAMPLER = 3
+local MOTIF_TYPE_COMPOSER = 4
 
 local LaneConfig = {}
 LaneConfig.__index = LaneConfig
@@ -50,13 +52,20 @@ local function create_params()
     end)
 
     -- Create parameters for all lanes
-    for i = 1, 8 do
-        params:add_group("lane_" .. i, "LANE " .. i .. " VOICES", 294)
+    for i = 1, LaneMap.ACTIVE_LANES do
+        local sub_mode = LaneMap.from_flat(i)
+        local local_index = i - LaneMap.OFFSETS[sub_mode]
+        local label = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
+        params:add_group("lane_" .. i, label .. " VOICES", 294)
 
         -- Voice selector (uses registry-built names)
         params:add_option("lane_" .. i .. "_visible_voice", "Voice", VOICE_NAMES)
         params:set_action("lane_" .. i .. "_visible_voice", function(value)
             _seeker.lane_config.screen:rebuild_params()
+            -- Rebuild Form voice section if it exists (shows voice-specific params)
+            if _seeker.screen_ui and _seeker.screen_ui.sections.COMPOSER_VOICE and _seeker.screen_ui.sections.COMPOSER_VOICE.rebuild_params then
+              _seeker.screen_ui.sections.COMPOSER_VOICE:rebuild_params()
+            end
             _seeker.screen_ui.set_needs_redraw()
         end)
 
@@ -282,8 +291,10 @@ local function create_screen_ui()
         local motif_type = params:get("lane_" .. lane_idx .. "_motif_type")
         local visible_voice = params:get("lane_" .. lane_idx .. "_visible_voice")
 
-        -- Update section name with current lane
-        self.name = string.format("Lane %d", lane_idx)
+        -- Update section name with sub-mode-aware label
+        local sub_mode = LaneMap.from_flat(lane_idx)
+        local local_index = lane_idx - LaneMap.OFFSETS[sub_mode]
+        self.name = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
 
         -- Update description based on motif type
         local base = Descriptions.LANE_CONFIG
@@ -291,17 +302,17 @@ local function create_screen_ui()
             self.description = base .. "\n\nTape: Record and loop live performances with overdub layering."
         elseif motif_type == MOTIF_TYPE_COMPOSER then
             self.description = base .. "\n\nComposer: Generate chord progressions with algorithmic patterns."
+        elseif motif_type == MOTIF_TYPE_DRUMS then
+            self.description = base .. "\n\nDrums: Trigger step sequencer with configurable pattern length."
         elseif motif_type == MOTIF_TYPE_SAMPLER then
             self.description = base .. "\n\nSampler: Chop and sequence audio samples across 16 pads."
         else
             self.description = base
         end
 
-        -- Start with volume and motif type (always visible)
         local param_table = {
             { separator = true, title = "Config" },
             { id = "lane_" .. lane_idx .. "_volume", arc_multi_float = {0.1, 0.05, 0.01} },
-            { id = "lane_" .. lane_idx .. "_motif_type" }
         }
 
         -- Sampler parameters: audio source, recording, filter
@@ -364,6 +375,11 @@ local function create_screen_ui()
         -- Update the UI with the new parameter table
         self.params = param_table
         self:filter_active_params()
+
+        -- Also rebuild Form voice section if it exists (voice toggles trigger this)
+        if _seeker.screen_ui and _seeker.screen_ui.sections.COMPOSER_VOICE then
+          _seeker.screen_ui.sections.COMPOSER_VOICE:rebuild_params()
+        end
     end
 
 
@@ -375,87 +391,72 @@ local function create_grid_ui()
         id = "LANE_CONFIG",
         layout = {
             x = 13,
-            y = 6,
+            y = 7,
             width = 4,
-            height = 2
+            height = 1
         }
     })
-    
-    -- Flash state for visual feedback
+
     grid_ui.flash_state = {
         flash_until = nil
     }
-    
-    -- Override draw method to handle lane display and flash feedback
+
     function grid_ui:draw(layers)
         local is_lane_section = _seeker.ui_state.get_current_section() == "LANE_CONFIG"
-        
+        local sub_mode = _seeker.current_sub_mode or "tape"
+        local lane_ids = LaneMap.lanes_for_mode(sub_mode)
+
         -- Draw keyboard outline during lane switch flash
         if self.flash_state.flash_until and util.time() < self.flash_state.flash_until then
-            -- Top and bottom rows
             for x = 0, 5 do
                 layers.response[6 + x][2] = GridConstants.BRIGHTNESS.HIGH
                 layers.response[6 + x][7] = GridConstants.BRIGHTNESS.HIGH
             end
-            -- Left and right columns
             for y = 0, 5 do
                 layers.response[6][2 + y] = GridConstants.BRIGHTNESS.HIGH
                 layers.response[11][2 + y] = GridConstants.BRIGHTNESS.HIGH
             end
         end
-        
-        -- Draw lane buttons
-        for row = 0, self.layout.height - 1 do
-            for i = 0, self.layout.width - 1 do
-                local lane_idx = (row * self.layout.width) + i + 1
-                local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
-                local lane = _seeker.lanes[lane_idx]
-                
-                local brightness
-                if is_focused then
-                    -- Focused lane uses full brightness regardless of playing state
-                    brightness = GridConstants.BRIGHTNESS.FULL
-                elseif lane.playing then
-                    -- Pulsing when playing but not focused
-                    brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
-                elseif is_lane_section then
-                    brightness = GridConstants.BRIGHTNESS.MEDIUM
-                else
-                    brightness = GridConstants.BRIGHTNESS.LOW
-                end
-                
-                layers.ui[self.layout.x + i][self.layout.y + row] = brightness
+
+        -- Draw 4 lane buttons for the active sub-mode
+        for i = 1, LaneMap.LANES_PER_MODE do
+            local lane_idx = lane_ids[i]
+            local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
+            local lane = _seeker.lanes[lane_idx]
+
+            local brightness
+            if is_focused then
+                brightness = GridConstants.BRIGHTNESS.FULL
+            elseif lane.playing then
+                brightness = math.floor(math.sin(clock.get_beats() * 4) * 3 + GridConstants.BRIGHTNESS.FULL - 3)
+            elseif is_lane_section then
+                brightness = GridConstants.BRIGHTNESS.MEDIUM
+            else
+                brightness = GridConstants.BRIGHTNESS.LOW
             end
+
+            layers.ui[self.layout.x + (i - 1)][self.layout.y] = brightness
         end
     end
-    
-    -- Override handle_key to manage lane selection
+
     function grid_ui:handle_key(x, y, z)
         if not self:contains(x, y) then
             return false
         end
-        
-        local row = y - self.layout.y
-        local new_lane_idx = (row * self.layout.width) + (x - self.layout.x) + 1
+
+        local sub_mode = _seeker.current_sub_mode or "tape"
+        local local_index = (x - self.layout.x) + 1
+        local new_lane_idx = LaneMap.to_flat(sub_mode, local_index)
         local key_id = string.format("%d,%d", x, y)
-        
-        if z == 1 then -- Key pressed
-            -- Use GridUI base class key tracking for long press detection
+
+        if z == 1 then
             self:key_down(key_id)
-            
-            -- Always focus the lane on press
             _seeker.ui_state.set_focused_lane(new_lane_idx)
             _seeker.ui_state.set_current_section("LANE_CONFIG")
-            
-            -- Update screen UI to reflect new lane
             _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
-            
-            -- Start flash effect (0.15 seconds)
             self.flash_state.flash_until = util.time() + 0.15
-            
-        else -- Key released
-            -- Only toggle playback on long press
+        else
             if self:is_long_press(key_id) then
                 local lane = _seeker.lanes[new_lane_idx]
                 if lane.playing then
@@ -464,14 +465,12 @@ local function create_grid_ui()
                     lane:play()
                 end
             end
-            
-            -- Clean up key tracking
             self:key_release(key_id)
         end
-        
+
         return true
     end
-    
+
     return grid_ui
 end
 

@@ -6,7 +6,7 @@
 
 Seeker II is an interface for writing and procedurally manipulating music and visuals. I originally wrote it on New Year’s Day 2025 to make Discreet Music-style phasing simple on a Norns. I’ve since spent the past year using it almost daily, slowly adding features whenever I found gaps between what I wanted to do and what Seeker could do.
 
-Today it includes software instruments, a full sample chopping engine, a heavily parameterized tonal arpeggiator, a sequenceable motif transformation engine, extensive Eurorack control via I2C, a W/Tape Frippertronics effect, and TouchDesigner communication — all in cross-communication on a shared clock.
+Today it includes software instruments, a full sample chopping engine, an algorithmic chord progression builder, a sequenceable motif transformation engine, extensive Eurorack control via I2C, a W/Tape Frippertronics effect, and TouchDesigner communication — all in cross-communication on a shared clock.
 
 Seeker begins with eight musical lanes that run in parallel, each performing its own motif recorded on Grid. Those motifs can be procedurally transformed as the program loops, creating evolving music while maintaining structure and intentionality.
 
@@ -42,48 +42,59 @@ In Maiden:
 
 ## Quickstart
 
-When you first boot the app you will be on Lane 1 in Tape mode.
+When you first boot the app you'll see the Motif config screen with preset, root note, and scale. Press the Tape sub-mode button (15,3) to enter Tape mode on Lane 1.
 
 1. **Select a voice** — Open lane config (4A) to choose an output voice and configure its timbre. Click k3/the grid button on the Envelope param to edit visually.
 
-2. **Play notes** — The 6x6 square in the center is a scale keyboard (2A). It's meant to make it easy to put your hands down and play something. Bright keys are root notes, each vertical step is 4 scale degrees, each horizontal step is 1. These steps can be configured later.
+2. **Play notes** — The 6x6 square in the center is a scale keyboard (2A). It's meant to make it easy to put your hands down and play something. Bright keys are root notes, each vertical step is 4 scale degrees, each horizontal step is 1. These steps can be configured in the Tape sub-mode home screen.
 
 3. **Record a motif** — Hold the record button (5B). A metronome appears above the keyboard and a piano roll on the Norns UI. Play a phrase. Press the record button (5B) again to stop the recording. It will begin looping.
 
 4. **Overdub** — Hold the record button (5B) again while the motif plays to overlay new notes. If you don't like your additions head to the clear button (5C) to erase a single overdub or the whole motif.
 
-5. **Add a transform stage** — A phrase can be manipulated after an arbitrary number of loops across four stages. Click the second stage grid button (1A), turn the active param to 'on', and add transform to evolve the composition. The "Harmonize" transform is one of my favorite things in the app. Stack multiple stages. Compound changes to the motif or reset it in the "Config" section.
+5. **Add a transform stage** — A phrase can be manipulated after an arbitrary number of loops across four stages. Click the second stage grid button (1A), turn the active param to 'on', and add a transform to evolve the composition. The "Harmonize" transform is one of my favorite things in the app. Stack multiple stages. Compound changes to the motif or reset it in the "Config" section.
 
 6. **Try another lane** — Select a new lane (4A). Record a complementary motif on a different instrument. Let the two voices phase against each other or offset playback speed on the playback button (5A).
 
 ### Next Steps
 
-The above sets a base but seeker is about more than tape loops. Try these
+The above sets a base but Seeker is about more than tape loops. Try these:
 
-- **Composer mode** — In Lane config (4A) select the Composer type to build an evolving arpeggio over four stages. Each stage is a chord who pattern, voicing, and phasing can be manipulated (1A) and played across configurable strum and velocity curves (2A). Connected to Eurorack you can play some really unusual things. Think of it as expressive strumming rather than rigid note playing.
+- **Composer mode** — Press the Composer sub-mode button (16,3) to build algorithmic chord progressions. Click a lane on the left column to start. Each lane runs its own progression with per-stage control over degree, voicing, chord length, strum, rotation, and loop count. Arc pages give hands-on control over harmony and articulation. Think of it as expressive strumming rather than rigid note playing.
 
-- **Sampler mode** — Seeker's looping structure works well with audio clips, particularly for glitching otherwise placid sounds. Select the Sampler type in Lane config (4a) and load a file or record from input. The 4x4 pad in the center (2A) will be loaded with equally-sized chopped segments from your original audio. Each pad has configurable envelope and filter. Try the "Pan Spread" transformation for engaging foley.
+- **Sampler mode** — Seeker's looping structure works well with audio clips, particularly for glitching otherwise placid sounds. In Tape mode, select the Sampler type in Lane config (4A) and load a file or record from input. The 4x4 pad in the center (2A) will be loaded with equally-sized chopped segments from your original audio. Each pad has configurable envelope and filter. Try the "Pan Spread" transformation for engaging foley.
 
-- **Eurorack integration** — Seeker's precise clock and scheduled events lend themselves well to Eurorack effects. In Eurorack mode (3C) you can control Crow and TXO from audio-rate oscillation to 256 beat intervals. Made to send every kind of CV approach I could think of: standard stuff like LFOs, envelopes, noise, and clocks. But also more fun-to-write stuff like time-curved bursts, arc-recorded CV, looping random, or accumulative walks. I think you'll get totally new sounds out of things you think you know well.
+- **Eurorack integration** — Seeker's precise clock and scheduled events lend themselves well to Eurorack effects. In Eurorack mode (15,2) you can control Crow and TXO from audio-rate oscillation to 256 beat intervals. The CV monitor shows live voltage bars for active outputs. Tap an output to select it, hold to toggle it on/off. Made to send every kind of CV approach I could think of: standard stuff like LFOs, envelopes, noise, and clocks. But also more fun-to-write stuff like time-curved bursts, arc-recorded CV, looping random, or accumulative walks. I think you'll get totally new sounds out of things you think you know well.
 
 
-## Motif | Mode
+## Music | Mode
 
-The main performance space. Eight lanes run in parallel, each playing one of three motif types. Each type has its own keyboard and stage system.
+The main performance space. A parent mode with two sub-modes accessed via row 3 buttons:
 
-All motif types share these controls:
+```
+Row 2:  (13,2) WTAPE  (14,2) OSC  (15,2) EURORACK  (16,2) MOTIF (tuning)
+Row 3:                              (15,3) Tape      (16,3) Composer
+```
+
+- **(16,2) Motif** — Parent tuning screen: preset, root note, scale. No grid layout.
+- **(15,3) Tape** — Keyboard grid layout for recording and transforming motifs. Home screen configures grid note spacing.
+- **(16,3) Composer** — Algorithmic chord progression grid. Lane buttons on the left, stage buttons on top.
+
+Eight lanes run in parallel, each playing motifs created by either Tape or Composer. Lanes share a common stage system with configurable loop counts and transforms.
+
+**Shared controls (Tape sub-mode):**
 
 - **Lane Select** (4A) — Choose lane and configure voices. Multiple voices can be active per-lane.
 - **Play** (5A) — Control playback: offset pitch, change speed, quantize events, swing timing. Hold to play/stop.
-- **Create** (5B) — Hold to record/generate. Tape records keyboard, Sampler records pads, Composer generates from parameters.
+- **Create** (5B) — Hold to record/generate. Tape records keyboard, Sampler records pads.
 - **Clear** (5C) — Hold to erase the motif. If overdubbing you can select a specific generation to remove just that layer.
 - **Perform** (5D) — Hold-to-activate Mute, Accent, or Soft with configurable slew time.
 
-### Tape | Motif Type
+### Tape | Sub-Mode (15,3)
 
 ![Tape Layout](lib/etc/readme_layout_images/Tape%20Layout.png)
 
-Record motifs on a 6x6 scale keyboard (2A) the note velocity buttons (1B) can help add dynamics as can the voice settings (4A). After recording, motifs can be overdubbed by holding Create Motif (5B). Motifs play through a configurable number of loops  and then move to the next "Stage" (1A) where they can be algorithmically manipulated. Try setting reset motif in stage config (1A) to "no" to hear music compound. Scale and intervals can be set in Motif Config (3D).
+Record motifs on a 6x6 scale keyboard (2A) the note velocity buttons (1B) can help add dynamics as can the voice settings (4A). After recording, motifs can be overdubbed by holding Create Motif (5B). Motifs play through a configurable number of loops and then move to the next "Stage" (1A) where they can be algorithmically manipulated. Try setting reset motif in stage config (1A) to "no" to hear music compound. Scale and keyboard spacing can be configured from the Tape home screen.
 
 **Controls:**
 - **Stage Config** (1A) — Configure transforms and loop counts.
@@ -94,20 +105,32 @@ Record motifs on a 6x6 scale keyboard (2A) the note velocity buttons (1B) can he
 **Try:** Play one rhythmic pulse and keep recording for awhile. Overdub several generations of harmony onto the loop. Then set Overdub Filter in Stage Config (1A) to selectively add and remove those overdubs.
 
 
-### Composer | Motif Type
+### Composer | Sub-Mode (16,3)
 
 ![Composer Layout](lib/etc/readme_layout_images/Compose%20Layout.png)
 
-An algorithmic chord sequencer with a degree keyboard (2A) for visualization. Hold Create Motif (5B) to begin a sequence. The expression presets give a sense of possibilities but explore deeper by configuring their chordal content (1A) and play style (1B).
+An algorithmic chord progression builder. Click a lane on the left column to start — each lane runs its own progression with independent snapshots. Stages define chords that cycle with per-stage control over harmony and articulation.
 
-**Controls:**
-- **Create Motif** (5B) — Select expression preset and generate.
-- **Harmonic Config** (1A) — Per-stage chord root, type, length, inversion, octave.
-- **Expression Config** (1B) — Per-stage velocity curves, strum timing/shape, note duration, pattern filtering.
+**Grid layout:**
+- **Col 1, rows 1-8** — Lane selector. Tap to focus lane and load its snapshot. Hold to play/stop.
+- **Row 2, cols 2-9** — Stage buttons. Tap inactive to extend, tap active to pin/unpin for editing, hold active to truncate.
+- **(2,7)** — Randomize. Hold 1.0s to confirm.
 
-**Try:** Mismatch the number of steps (5B) with chord length and turn on phasing (1A). The chord will wrap differently every time adding even more variation. Try this with a Center Out shape (1B).
+**Per-stage overrides** (via arc or encoder):
+- **Degree** — Which scale degree the chord is built on (I-VII).
+- **Voicing** — How chord notes are arranged (close, drop2, spread, etc.).
+- **Chord Length** — How many notes from the chord to play.
+- **Strum Order** — Direction of the strum (up, down, center-out, random, etc.).
+- **Rotation** — Inversion offset applied to the chord.
+- **Loops** — How many times this stage repeats before advancing.
 
-### Sampler | Motif Type
+**Arc pages** (cycle with arc button):
+- **Page 1 (Harmony)** — Ring 1: Degree, Ring 2: Chord Len, Ring 3: Voicing, Ring 4: Rotation
+- **Page 2 (Articulation)** — Ring 1-2: Spread (coarse/fine), Ring 3: Strum Order, Ring 4: Loops
+
+**Try:** Set 3-4 stages with different degrees. Give each stage different loop counts (1, 2, 1, 3) so the cycle length is asymmetric. Add rotation overrides that mirror (rot, rot+1, rot-1, rot) for movement without arrival.
+
+### Sampler | Tape Type
 
 ![Sampler Layout](lib/etc/readme_layout_images/Sampler%20Layout.png)
 
@@ -119,9 +142,9 @@ Load a sample or record from the Norns input. The sample will be chopped and dis
 
 **Try:** Load short samples of birds. Add a stage with Scatter.
 
-### Motif Voice Types
+### Voice Types
 
-Tape and Composer can play the following voices. Each lane can output to multiple destinations simultaneously for interesting effects:
+Both Tape and Composer can play the following voices. Each lane can output to multiple destinations simultaneously for interesting effects:
 
 - MX Samples
 - MIDI
@@ -132,11 +155,18 @@ Tape and Composer can play the following voices. Each lane can output to multipl
 - TXO Oscillator (with polyphony)
 - OSC
 
-## Eurorack | Mode (3C)
+## Eurorack | Mode (15,2)
 
 ![Eurorack Layout](lib/etc/readme_layout_images/Eurorack%20Layout.png)
 
 I find Seeker most interesting when it's directly communicating with Eurorack rather than just being played through it. Seeker supports the classic voltage and gate patterns but also has a number of more unexpected things I've found useful. Clock has a huge range and has brought a new perspective to how I use modular effects.
+
+The default screen is a CV monitor showing live voltage bars for all active outputs. Tap an output on the grid to select it and see its params. Hold an output to toggle it on/off. K2 toggles between the live monitor and param editing.
+
+**Grid output layout (cols 13-16):**
+- **Row 5** — Crow outputs 1-4
+- **Row 6** — TXO TR outputs 1-4
+- **Row 7** — TXO CV outputs 1-4
 
 **Trigger Types:**
 - **Clock** — Tempo-synced triggers from 1/64 beat to 256 beats
@@ -152,7 +182,7 @@ I find Seeker most interesting when it's directly communicating with Eurorack ra
 - **Clocked Random** — New random value on each clock tick
 - **Random Walk** — Accumulative random steps with configurable range
 
-**Try:** Connect Looped Random to anything that takes CV that noticably affects sound. Pick eight steps and two loops. Quantize and set a small CV range. Voltage melodies.
+**Try:** Connect Looped Random to anything that takes CV that noticeably affects sound. Pick eight steps and two loops. Quantize and set a small CV range. Voltage melodies.
 
 ## OSC | Mode (3B)
 
@@ -178,21 +208,21 @@ All work on a Norns but are much better with an Arc.
 
 Transport control for the Whimsical Raps W/ module in tape mode with a particular focus on Frippertronics/buffer manipulation. Designed to act as a looper for foley or as a decaying delay.
 
-I think this is such a cool module (the W/Synth used in Motif mode is amazing) and I shimmed in a bunch of convenience methods so you can focus on sound design rather than config.
+I think this is such a cool module (the W/Synth used in Music mode is amazing) and I shimmed in a bunch of convenience methods so you can focus on sound design rather than config.
 
 **Quickstart:** Hold Frippertronics (2C) to mark loop start and begin recording. Perform, then press again to close the loop—playback engages automatically. Set Buffer Decay (2D) to control how quickly layers fade. Long-press Frippertronics to clear and start over.
 
 **Try:** Mult a piano for MX Samples. Send one out to W/'s in port and record for two seconds. Connec the W/ out to an effect. Recombine the clean signal with the frippertronic/effect chain. 
 
-## Settings | Mode (3D)
+## Settings | Mode (16,1)
 
-Global configuration: BPM, root note, scale, and MIDI clock settings. Tap tempo available. "Sync All" restarts all lanes and outputs simultaneously.
+Global configuration: BPM, MIDI clock settings, screensaver timeout, and Shield encoder fix. Tap tempo available. Root note and scale are configured in the Motif parent screen (16,2).
 
 ---
 
 ## Transform Reference
 
-Transforms modify motifs as they pass through four stages of a user-configurable number of loops. Each motif type has its own transform library. Set variations on a theme or change "reset motif" to off to compound the effects over time.
+Transforms modify motifs as they pass through stages with a user-configurable number of loops. Tape and Sampler each have their own transform library. Set variations on a theme or change "reset motif" to off to compound the effects over time.
 
 ### Tape Transforms
 
@@ -220,8 +250,6 @@ Transforms modify motifs as they pass through four stages of a user-configurable
 
 ### Composer Stages
 
-Composer uses harmonic and expression stages rather than transforms. Each stage defines a chord and how it's played.
+Composer stages define chords in a progression rather than transforms on a recorded motif. Each stage has per-stage overrides for degree, voicing, chord length, strum order, rotation, and loop count. Global params set defaults; per-stage overrides take precedence.
 
-**Harmonic Config** — Chord root, type, length, inversion, octave, and voicing style per stage. Check out Chord Phasing in particular.
-
-**Expression Config** — Velocity curves, strum timing and shape, note duration, and pattern filtering per stage. Shape creates very interesting effects with phasing.
+The progression cycles through stages, with each stage repeating for its configured loop count before advancing. Asymmetric loop counts across stages create evolving patterns that don't repeat predictably.

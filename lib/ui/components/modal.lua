@@ -60,35 +60,41 @@ function Modal.show_status(config)
   Status.show(state, config)
 end
 
--- Brief auto-dismissing status message (toast notification)
+-- Lightweight auto-fading text at screen bottom (non-intrusive, no input blocking)
 -- config.body: message text
--- config.duration: seconds before auto-dismiss (default 0.75)
+-- config.duration: seconds before fade completes (default 1.2)
+local toast_state = {
+  body = nil,
+  time = nil,
+  duration = nil,
+}
+
 function Modal.show_toast(config)
-  -- Cancel any existing toast timer
-  if state.toast_clock then
-    clock.cancel(state.toast_clock)
-    state.toast_clock = nil
+  toast_state.body = config.body or ""
+  toast_state.time = util.time()
+  toast_state.duration = config.duration or 1.2
+  if _seeker and _seeker.screen_ui then
+    _seeker.screen_ui.set_needs_redraw()
   end
+end
 
-  state.active = true
-  state.modal_type = Modal.TYPE.STATUS
-  state.on_key = nil
-  state.on_enc = nil
-  Status.show(state, config)
+-- Draw toast overlay if active. Call from screen_router after section draw.
+function Modal.draw_toast()
+  if not toast_state.body then return end
+  local elapsed = util.time() - toast_state.time
+  if elapsed >= toast_state.duration then
+    toast_state.body = nil
+    return
+  end
+  local fade = math.max(0, 1 - elapsed / toast_state.duration)
+  screen.level(math.floor(15 * fade))
+  screen.move(64, 59)
+  screen.text_center(toast_state.body)
+end
 
-  -- Auto-dismiss after duration
-  local duration = config.duration or 0.75
-  state.toast_clock = clock.run(function()
-    clock.sleep(duration)
-    -- Only dismiss if still showing this toast (not replaced by another modal)
-    if state.active and state.modal_type == Modal.TYPE.STATUS then
-      Modal.dismiss()
-      if _seeker and _seeker.screen_ui then
-        _seeker.screen_ui.set_needs_redraw()
-      end
-    end
-    state.toast_clock = nil
-  end)
+function Modal.is_toast_active()
+  if not toast_state.body then return false end
+  return (util.time() - toast_state.time) < toast_state.duration
 end
 
 function Modal.show_warning(config)

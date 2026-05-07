@@ -17,7 +17,6 @@ local function setup_device(device)
   end
 
   -- State tracking
-  device.index = {0, 0, 0, 0}
   device.movement_count = {0, 0, 0, 0}
   device.current_section_param_count = 0
 
@@ -47,7 +46,23 @@ local function setup_device(device)
     end
   end
 
-  -- Triggers on section navigation (comes from 'section:enter()' in section.lua)
+  -- Step a norns param by direction, handling option/control/number types
+  device.step_param = function(param_id, direction, delta_override)
+    local param_obj = params:lookup_param(param_id)
+    local current = params:get(param_id)
+    if param_obj.t == params.tOPTION then
+      params:set(param_id, util.clamp(current + direction, 1, #param_obj.options))
+    elseif param_obj.controlspec then
+      local step = delta_override or math.max(param_obj.controlspec.step, 0.1)
+      params:set(param_id, util.clamp(current + direction * step,
+        param_obj.controlspec.minval, param_obj.controlspec.maxval))
+    elseif param_obj.min and param_obj.max then
+      params:set(param_id, util.clamp(current + direction * (delta_override or 1),
+        param_obj.min, param_obj.max))
+    end
+  end
+
+  -- Called when a new section is entered; initializes LED display for that section's params
     device.new_section = function(params)
       -- Use custom display if a component has registered one
       if device.display_override then
@@ -129,7 +144,8 @@ local function setup_device(device)
         params:set(param.id, new_value)
     end
 
-    -- Set up delta handler slows down the Arc's response by only triggering every 8th movement.
+    -- Arc encoder handler. Live-view sections receive delta directly via handle_arc_delta.
+    -- Standard sections use an accumulator gate (threshold 32 for ring 1, 40 for rings 2-4).
     device.delta = function(n, delta)
       -- Block Arc input during fileselect - show hint overlay
       if _seeker.sampler and _seeker.sampler.file_select_active then
@@ -145,37 +161,38 @@ local function setup_device(device)
         return
       end
 
-      -- Register activity to wake screen/restart sleep timer
+      -- Register activity to reset idle timer
       _seeker.ui_state.register_activity()
 
-      -- offset counter on rotation (modulo 64 to stay aligned with the LED ring)
-      device.index[n] = device.index[n] + delta % 64
-
-      -- Determine movement direction based on last delta direction
-      local direction
-      if delta > 0 then
-        direction = 1
-      else
-        direction = -1
-      end
-
-      -- Handle encoder 1 (list scrolling) with consistent movement counter
-      if n == 1 then
-        device.movement_count[1] = device.movement_count[1] + 1
-
-        if device.movement_count[1] >= 12 then
-          device.movement_count[1] = 0  -- Reset for next trigger cycle
-
-          _seeker.ui_state.enc(2, direction)
-          device.sync_display()
-        end
+      -- Live view sections handle their own arc delta
+      local current_section = _seeker.ui_state.get_current_section()
+      local section = _seeker.screen_ui and _seeker.screen_ui.sections[current_section]
+      if section and section.state.live_view and section.handle_arc_delta then
+        section:handle_arc_delta(n, delta)
         return
       end
 
-      -- Handle encoders 2, 3, 4 with existing modulo approach
-      if device.index[n] % 8 == 0 then
-        -- Get current section and selected parameter
-        local current_section_id = _seeker.ui_state.get_current_section()
+      -- Accumulate rotation and act when threshold is reached
+      local direction = delta > 0 and 1 or -1
+      device.movement_count[n] = device.movement_count[n] + 1
+
+      -- Ring 1 (list scrolling) needs a slightly lower threshold
+      local threshold = (n == 1) and 32 or 40
+
+      if device.movement_count[n] < threshold then
+        return
+      end
+      device.movement_count[n] = 0
+
+      -- Ring 1: scroll params list
+      if n == 1 then
+          _seeker.ui_state.enc(2, direction)
+          device.sync_display()
+        return
+      end
+
+      -- Rings 2-4: param editing
+      local current_section_id = _seeker.ui_state.get_current_section()
 
         -- Check if dual keyboard is active and handle velocity encoders
         -- Dual keyboard takes over encoders 3/4 for velocity regardless of section
@@ -244,7 +261,6 @@ local function setup_device(device)
           _seeker.ui_state.enc(3, direction)
           device.sync_display()
         end
-      end
     end
 
     -- Add a trigger animation function
@@ -285,6 +301,16 @@ local function setup_device(device)
     end
 
     device.key = function(n, d)
+      _seeker.ui_state.register_activity()
+
+      -- Live view sections handle their own arc button
+      local current_section = _seeker.ui_state.get_current_section()
+      local section = _seeker.screen_ui and _seeker.screen_ui.sections[current_section]
+      if section and section.state.live_view and section.handle_arc_key then
+        section:handle_arc_key(n, d)
+        return
+      end
+
       if d == 1 then
         -- Block Arc input during fileselect - show hint overlay
         if _seeker.sampler and _seeker.sampler.file_select_active then

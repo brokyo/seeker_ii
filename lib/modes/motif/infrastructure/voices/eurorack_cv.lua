@@ -29,6 +29,14 @@ function eurorack_cv.create_params(i)
         {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo cv 1", "txo cv 2", "txo cv 3", "txo cv 4"}, 1)
     params:add_option("lane_" .. i .. "_loop_start_trigger", "Loop Start Out",
         {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"}, 1)
+
+    -- Envelope CV output — fires ADSR shape per note using event timing
+    params:add_option("lane_" .. i .. "_env_out", "Env CV Out",
+        {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo cv 1", "txo cv 2", "txo cv 3", "txo cv 4"}, 1)
+
+    -- Peak voltage for envelope (scaled by velocity)
+    params:add_control("lane_" .. i .. "_env_peak", "Env Peak",
+        controlspec.new(0, 10, 'lin', 0.1, 5, 'V'))
 end
 
 function eurorack_cv.get_ui_params(lane_idx)
@@ -41,6 +49,8 @@ function eurorack_cv.get_ui_params(lane_idx)
         table.insert(ui_params, { id = "lane_" .. lane_idx .. "_gate_out" })
         table.insert(ui_params, { id = "lane_" .. lane_idx .. "_cv_out" })
         table.insert(ui_params, { id = "lane_" .. lane_idx .. "_loop_start_trigger" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_env_out" })
+        table.insert(ui_params, { id = "lane_" .. lane_idx .. "_env_peak", arc_multi_float = {0.5, 0.1, 0.1} })
     end
 
     return ui_params

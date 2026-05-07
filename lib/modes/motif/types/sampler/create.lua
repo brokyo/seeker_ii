@@ -99,7 +99,6 @@ local function create_screen_ui()
 
     -- Custom draw with sampler visualization
     norns_ui.draw_default = function(self)
-        screen.clear()
         self:_draw_standard_ui()
 
         local focused_lane = _seeker.ui_state.get_focused_lane()
@@ -304,8 +303,6 @@ local function create_screen_ui()
             screen.move(64 - width_tooltip/2, 46)
             screen.text(tooltip)
         end
-
-        screen.update()
     end
 
     return norns_ui

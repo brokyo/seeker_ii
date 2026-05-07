@@ -8,7 +8,7 @@ return {
 
   -- Motif mode
   LANE_CONFIG = "Select motif type and configure voices. Multiple voices can run simultaneously.",
-  MOTIF_CONFIG = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout controls how notes map to the grid.",
+  MOTIF = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout controls how notes map to the grid.",
 
   -- Tape mode
   TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two scale keyboards with independent octaves. Arc rings 3/4 control velocity for each side.",
@@ -20,12 +20,11 @@ return {
   TAPE_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
 
   -- Composer mode
-  COMPOSER_CREATE = "Generate a motif from current parameters. Hold grid button to generate. Presets change rhythmic structure in realtime.",
-  COMPOSER_PLAYBACK = "Control playback timing and pitch offset.\n\nQuantize snaps notes to a rhythmic grid. Swing delays off-beat notes for groove.",
-  COMPOSER_CLEAR = "Hold to clear the currently stored motif.",
-  COMPOSER_EXPRESSION_STAGES = "Configure pattern and timing for each stage. Phasing is very cool if you have more unequal step (create) and length (harmonic).\n\nTRANSFORM MODE\nStages 2-4 show drift params that apply cumulative offsets from Stage 1. Duration, velocity, and strum drift compound per stage.",
-  COMPOSER_HARMONIC_STAGES = "Configure pitch and harmonic content for each stage.\n\nLength: Notes per chord (3=triad, 4=7th, etc).\nRotation: Shift voices up/down octaves. Negative = drop voicing.\nOctave: Base register offset.\n\nVOICING STYLES\nClose: Tight cluster, normal cycling.\nOpen: Alternating voices spread an octave.\nDrop 2/3: Jazz voicings, inner voice drops.\nSpread: Root low, upper voices high.\nRising: Each voice +1 octave (ascending).\nFalling: Each voice -1 octave (descending).\nScatter: Random octave displacement.\n\nTRANSFORM MODE\nStages 2-4 derive from Stage 1 via harmonic motion and drift. Set Stage Mode on Create screen.",
-  COMPOSER_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts volume, Soft reduces velocity.",
+  COMPOSER_LIVE = "Composer chord progression generator.\n\nSet Start degree and Movement to define the harmonic cycle. Arc page 1 (harmony) adjusts degree, chord length, voicing, and rotation per stage. Arc page 2 (articulation) controls spread, strum, and loops.\n\nE2 selects param, E3 adjusts, K3 cycles page. Changes land at the next loop boundary via regen.",
+  COMPOSER_PROGRESSION = "Global progression controls.\n\nArc controls beats, spread, and chord length for all stages at once. Tap a stage button to edit that stage in the per-stage view.",
+  COMPOSER_PLAYBACK = "Lane playback controls: volume, speed, octave offset, swing.",
+  COMPOSER_VOICE = "Voice routing: select output destination and configure voice parameters.",
+  COMPOSER_PARAMS = "Chord progression shape, texture, and structure.",
 
   -- Sampler mode
   SAMPLER_CREATE = "Record pad triggers as a looping motif. Hold to record, tap to stop, hold again to overdub.\n\nLoad samples in Lane Config first. The 4x4 pad grid triggers chops from the loaded sample.\n\nDuration can be adjusted after recording to trim or extend the loop.",

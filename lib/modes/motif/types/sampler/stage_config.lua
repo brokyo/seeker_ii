@@ -69,8 +69,8 @@ local config_state = {
 }
 
 local function create_params()
-    for lane_idx = 1, _seeker.num_lanes do
-        -- 1 config_stage + 4 stages * 12 params per stage = 49
+    local LaneMap = include("lib/lanes/lane_map")
+    for _, lane_idx in ipairs(LaneMap.lanes_for_mode("sampler")) do
         params:add_group("lane_" .. lane_idx .. "_sampler_transform_stage", "LANE " .. lane_idx .. " SAMPLER STAGE", 49)
         params:add_number("lane_" .. lane_idx .. "_sampler_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_sampler_config_stage", function(value)

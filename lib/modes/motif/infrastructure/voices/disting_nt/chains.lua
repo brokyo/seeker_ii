@@ -105,14 +105,19 @@ chains.DEFINITIONS = {
     },
   },
 
-  -- Future chain presets
-  -- {
-  --   id = "warm_pad",
-  --   name = "Chain: Warm Pad",
-  --   algorithms = {"poly_wavetable", "vcf_svf"},
-  --   slots = 2,
-  --   is_single = false,
-  -- },
+  {
+    id = "poly_fm_filter",
+    name = "Chain: Poly FM + Filter",
+    algorithms = {"poly_fm", "vcf_svf"},
+    slots = 2,
+    is_single = false,
+    -- Default routing: Poly FM → Aux 2 → VCF → Output 1
+    default_routing = {
+      { algo_index = 1, param_id = "left_output", value = 23 },    -- Poly FM left to Aux 2
+      { algo_index = 2, param_id = "input", value = 23 },          -- VCF input from Aux 2
+      { algo_index = 2, param_id = "blended_output", value = 14 }, -- VCF output to Output 1
+    },
+  },
 }
 
 ------------------------------------------------------------

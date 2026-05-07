@@ -1,5 +1,6 @@
 -- state.lua
 local GridModeRegistry = include("lib/grid/mode_registry")
+local LaneMap = include("lib/lanes/lane_map")
 
 local UIState = {}
 
@@ -113,6 +114,8 @@ end
 function UIState.set_focused_lane(lane_idx)
   if lane_idx == UIState.state.focused_lane then return end
 
+  local old_lane_id = UIState.state.focused_lane
+
   -- Dismiss description/adsr modals when switching focused lane
   if _seeker.modal and _seeker.modal.is_active() then
     local modal_type = _seeker.modal.get_type()
@@ -122,9 +125,24 @@ function UIState.set_focused_lane(lane_idx)
   end
 
   UIState.state.focused_lane = lane_idx
-  
+
+  -- Remember this lane as the last-focused for its sub-mode
+  local sub_mode = LaneMap.from_flat(lane_idx)
+  if _seeker.last_focused then
+    _seeker.last_focused[sub_mode] = lane_idx
+  end
+
+  -- Notify composer of lane change only when switching between composer lanes
+  local old_sub = LaneMap.from_flat(old_lane_id)
+  local new_sub = LaneMap.from_flat(lane_idx)
+  if (old_sub == "composer" or new_sub == "composer")
+     and _seeker.composer_mode and _seeker.composer_mode.composer
+     and _seeker.composer_mode.composer.on_lane_change then
+    _seeker.composer_mode.composer.on_lane_change(old_lane_id, lane_idx)
+  end
+
   -- Update UI
-  if _seeker.screen_ui.sections.LANE_CONFIG and _seeker.screen_ui.sections.LANE_CONFIG.rebuild_params then
+  if _seeker.screen_ui and _seeker.screen_ui.sections.LANE_CONFIG and _seeker.screen_ui.sections.LANE_CONFIG.rebuild_params then
     _seeker.screen_ui.sections.LANE_CONFIG:rebuild_params()
   end
 
@@ -132,11 +150,21 @@ function UIState.set_focused_lane(lane_idx)
   if _seeker.tape and _seeker.tape.create and _seeker.tape.create.screen then
     _seeker.tape.create.screen:rebuild_params()
   end
-  
-  _seeker.screen_ui.set_needs_redraw()
-  
+
+  if _seeker.screen_ui then
+    _seeker.screen_ui.set_needs_redraw()
+  end
+
   -- Update grid
-  _seeker.grid_ui.redraw()
+  if _seeker.grid_ui then
+    _seeker.grid_ui.redraw()
+  end
+end
+
+function UIState.switch_sub_mode(sub_mode)
+  _seeker.current_sub_mode = sub_mode
+  local target_lane = _seeker.last_focused[sub_mode] or LaneMap.to_flat(sub_mode, 1)
+  UIState.set_focused_lane(target_lane)
 end
 
 function UIState.set_focused_stage(stage_idx)
@@ -179,8 +207,14 @@ function UIState.set_current_section(section_id)
     if required_mode and required_mode ~= _seeker.current_mode then
       print("⚠ Auto-switching mode: " .. _seeker.current_mode .. " → " .. required_mode .. " (section: " .. section_id .. ")")
       _seeker.current_mode = required_mode
-    elseif not required_mode then
+    elseif not required_mode and not section_id:match("^RC_") then
       print("⚠ Warning: Section '" .. section_id .. "' not registered in any mode")
+    end
+
+    -- Auto-set sub-mode when navigating to a section within a sub-mode
+    local sub_mode = GridModeRegistry.get_sub_mode_for_section(section_id)
+    if sub_mode then
+      _seeker.current_sub_mode = sub_mode
     end
   end
 
@@ -192,7 +226,7 @@ function UIState.set_current_section(section_id)
 
   UIState.state.current_section = section_id
 
-  -- Enter new section
+  -- Enter new section (NornsUI lifecycle handles arc setup/teardown)
   local new_section = _seeker.screen_ui.sections[section_id]
   if new_section then
     new_section:enter()
@@ -224,6 +258,13 @@ function UIState.register_activity()
 end
 
 function UIState.key(n, z)
+  -- During screensaver: K2/K3 silently consumed, K1 wakes screen
+  if _seeker.screen_saver and _seeker.screen_saver.state.is_active then
+    if n == 2 or n == 3 then
+      return
+    end
+  end
+
   UIState.register_activity()
 
   -- Handle global controls first
@@ -242,6 +283,11 @@ function UIState.key(n, z)
 end
 
 function UIState.enc(n, d)
+  -- During screensaver, silently consume encoder input without waking
+  if _seeker.screen_saver and _seeker.screen_saver.state.is_active then
+    return
+  end
+
   UIState.register_activity()
 
   -- Filter encoder bounce on DIY norns

@@ -26,7 +26,6 @@ local function create_screen_ui()
             return
         end
 
-        screen.clear()
         self:draw_params(0)
 
         local recently_triggered = _seeker.ui_state.is_recently_triggered("wtape_rewind")
@@ -41,7 +40,6 @@ local function create_screen_ui()
         end
 
         self:draw_footer()
-        screen.update()
     end
 
     return screen_ui

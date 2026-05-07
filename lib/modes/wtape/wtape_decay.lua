@@ -26,7 +26,6 @@ local function create_screen_ui()
             return
         end
 
-        screen.clear()
         self:draw_params(0)
 
         -- Show decay character hint
@@ -48,7 +47,6 @@ local function create_screen_ui()
         screen.text(hint)
 
         self:draw_footer()
-        screen.update()
     end
 
     return screen_ui

@@ -15,7 +15,8 @@ local function create_params()
     params:add_group("tape_create_group", "TAPE CREATE", 9)
 
     -- Per-lane duration parameter for tape mode (0 = free record)
-    for i = 1, 8 do
+    local LaneMap = include("lib/lanes/lane_map")
+    for _, i in ipairs(LaneMap.lanes_for_mode("tape")) do
         params:add_control("lane_" .. i .. "_tape_duration", "Lane " .. i .. " Duration",
             controlspec.new(0, 128, 'lin', 0.125, 0, "beats", 0.125 / 128))
         params:set_action("lane_" .. i .. "_tape_duration", function(value)
@@ -144,7 +145,6 @@ local function create_screen_ui()
     norns_ui.needs_playback_refresh = true
 
     norns_ui.draw_default = function(self)
-        screen.clear()
         self:_draw_standard_ui()
 
         local tooltip
@@ -406,8 +406,6 @@ local function create_screen_ui()
             screen.move(64 - width_tooltip/2, 46)
             screen.text(tooltip)
         end
-
-        screen.update()
     end
 
     return norns_ui
