@@ -197,11 +197,10 @@ local function build_motif_events(lane_id, opts)
     -- Chord mode: generate full voicing for each degree
     local degrees = opts.degrees or {1}
     local chord_len = opts.chord_len or 4
-    local voicing = opts.voicing or "Close"
-    local rotation = opts.rotation or 0
+    local spread = opts.spread or 0
 
     for _, deg in ipairs(degrees) do
-      local chord_notes = chord_generator.generate_chord(deg, opts.chord, chord_len, rotation, voicing)
+      local chord_notes = chord_generator.generate_chord(deg, opts.chord, chord_len, spread)
       local midi_notes = {}
       for _, cn in ipairs(chord_notes) do
         table.insert(midi_notes, cn + ((octave + 1) * 12))
@@ -389,8 +388,6 @@ local function build_phrase_events(lane_id, opts)
 
   local octave = opts.octave or 4
   local chord_len = opts.chord_len or 3
-  local voicing = opts.voicing or "Close"
-  local rotation = opts.rotation or 0
   local gate = opts.gate or 0.8
   local strum = opts.strum or 0
   local strum_order = opts.strum_order or "Up"
@@ -422,8 +419,7 @@ local function build_phrase_events(lane_id, opts)
     local pan = default(chord_def.pan, def_pan)
 
     local c_len = chord_def.chord_len or chord_len
-    local c_voicing = chord_def.voicing or voicing
-    local c_rotation = chord_def.rotation or rotation
+    local c_spread = chord_def.spread or 0
 
     local chord_notes
     local notes_are_absolute = false
@@ -431,7 +427,7 @@ local function build_phrase_events(lane_id, opts)
       chord_notes = chord_def.notes
       notes_are_absolute = true
     else
-      chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing, chord_def.bass_drop)
+      chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_spread)
     end
     local timing = strum_timing(#chord_notes, strum_order)
 
