@@ -115,11 +115,11 @@ local function create_params_section()
       { id = "rc_composer_beats" },
       { separator = true, title = "Harmony" },
       { id = "rc_composer_chord_len" },
-      { id = "rc_composer_voicing" },
-      { id = "rc_composer_rotation" },
+      { id = "rc_composer_spread_voices" },
       { separator = true, title = "Articulation" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
+      { id = "rc_composer_gate" },
       { id = "rc_composer_loops" },
     }
   end

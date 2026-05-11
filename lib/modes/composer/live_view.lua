@@ -13,7 +13,7 @@ local LiveView = {}
 
 -- Module-level state shared between screen and grid
 local edit_stage = nil        -- nil = follow playback, 1-8 = explicit
-local page_state = nil              -- PageState for live stage view (harmony, articulation, dynamics pages)
+local page_state = nil              -- PageState for live stage view (harmony, perform, dynamics pages)
 local progression_page_state = nil  -- PageState for global progression view (structure/spread/dynamics pages)
 local last_lane_section = "COMPOSER_VOICE"  -- remembers last section navigated via lane button
 
@@ -70,29 +70,26 @@ local function build_live_pages(Composer)
           end,
         },
         {
-          label = "Lead",
-          threshold = 56,
+          label = "Sprd",
+          threshold = PageState.THRESH_RANGE,
           on_delta = function(dir)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
-            Composer.cycle_stage_lead(stage_idx, dir)
+            Composer.cycle_stage_spread_voices(stage_idx, dir)
           end,
           get_value = function()
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_lead_overrides or {}
+            local overrides = lane.composer_spread_voices_overrides or {}
             local val = overrides[stage_idx]
-            return val and ("·" .. val) or params:string("rc_composer_lead")
+            return val and ("·" .. tostring(val)) or tostring(params:get("rc_composer_spread_voices"))
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_lead_overrides or {}
-            local idx = params:get("rc_composer_lead")
-            if overrides[stage_idx] then
-              idx = Composer.LEAD_INDEX[overrides[stage_idx]] or idx
-            end
-            PageState.draw_arc_segments(dev, ring, idx, #Composer.LEAD_NAMES, overrides[stage_idx] and 14 or 10)
+            local overrides = lane.composer_spread_voices_overrides or {}
+            local val = overrides[stage_idx] or params:get("rc_composer_spread_voices")
+            PageState.draw_arc_position(dev, ring, val, 0, 100)
           end,
         },
         {
@@ -121,68 +118,11 @@ local function build_live_pages(Composer)
             PageState.draw_arc_segments(dev, ring, idx, #Composer.CHORD_LEN_NAMES, overrides[stage_idx] and 14 or 10)
           end,
         },
-        {
-          label = "Voice",
-          threshold = 56,
-          on_delta = function(dir)
-            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-            local stage_idx = edit_stage or lane.current_stage_index or 1
-            Composer.cycle_stage_voicing(stage_idx, dir)
-          end,
-          get_value = function()
-            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-            local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_voicing_overrides or {}
-            local val = overrides[stage_idx]
-            return val and ("·" .. val) or params:string("rc_composer_voicing")
-          end,
-          arc_draw = function(dev, ring)
-            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-            local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_voicing_overrides or {}
-            local idx = params:get("rc_composer_voicing")
-            if overrides[stage_idx] then
-              idx = Composer.VOICING_INDEX[overrides[stage_idx]] or idx
-            end
-            PageState.draw_arc_segments(dev, ring, idx, #Composer.VOICING_NAMES, overrides[stage_idx] and 14 or 10)
-          end,
-        },
       },
     },
     {
       name = "perform",
       slots = {
-        {
-          label = "Rot",
-          threshold = 56,
-          on_delta = function(dir)
-            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-            local stage_idx = edit_stage or lane.current_stage_index or 1
-            Composer.cycle_stage_rotation(stage_idx, dir)
-          end,
-          get_value = function()
-            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-            local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_rotation_overrides or {}
-            local rot_idx = params:get("rc_composer_rotation")
-            local has_override = overrides[stage_idx] ~= nil
-            if has_override then
-              rot_idx = Composer.ROTATION_INDEX[overrides[stage_idx]] or rot_idx
-            end
-            local val = tostring(rot_idx - 6)
-            return has_override and ("·" .. val) or val
-          end,
-          arc_draw = function(dev, ring)
-            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-            local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_rotation_overrides or {}
-            local idx = params:get("rc_composer_rotation")
-            if overrides[stage_idx] then
-              idx = Composer.ROTATION_INDEX[overrides[stage_idx]] or idx
-            end
-            PageState.draw_arc_segments(dev, ring, idx, #Composer.ROTATION_NAMES, overrides[stage_idx] and 14 or 10)
-          end,
-        },
         {
           label = "Strum",
           threshold = 56,
@@ -210,29 +150,26 @@ local function build_live_pages(Composer)
           end,
         },
         {
-          label = "Bass",
-          threshold = 56,
+          label = "Gate",
+          threshold = PageState.THRESH_RANGE,
           on_delta = function(dir)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
-            Composer.cycle_stage_bass_drop(stage_idx, dir)
+            Composer.cycle_stage_gate(stage_idx, dir)
           end,
           get_value = function()
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_bass_drop_overrides or {}
+            local overrides = lane.composer_gate_overrides or {}
             local val = overrides[stage_idx]
-            return val and ("·" .. val) or params:string("rc_composer_bass_drop")
+            return val and ("·" .. tostring(val) .. "%") or (tostring(params:get("rc_composer_gate")) .. "%")
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
-            local overrides = lane.composer_bass_drop_overrides or {}
-            local idx = params:get("rc_composer_bass_drop")
-            if overrides[stage_idx] then
-              idx = Composer.BASS_DROP_INDEX[overrides[stage_idx]] or idx
-            end
-            PageState.draw_arc_segments(dev, ring, idx, #Composer.BASS_DROP_NAMES, overrides[stage_idx] and 14 or 10)
+            local overrides = lane.composer_gate_overrides or {}
+            local val = overrides[stage_idx] or params:get("rc_composer_gate")
+            PageState.draw_arc_position(dev, ring, val, 0, 200)
           end,
         },
         {
@@ -415,6 +352,7 @@ local function build_progression_pages()
           end,
         },
         { label = "Strum", param_id = "rc_composer_strum_order", threshold = 56 },
+        { label = "VSprd", param_id = "rc_composer_spread_voices", threshold = 56 },
       },
     },
     {
@@ -595,11 +533,8 @@ local function create_screen_ui(Composer)
   norns_ui.rebuild_params = function(self)
     self.params = {
       { separator = true, title = "Harmony" },
-      { id = "rc_composer_lead" },
       { id = "rc_composer_chord_len" },
-      { id = "rc_composer_voicing" },
-      { id = "rc_composer_rotation" },
-      { id = "rc_composer_bass_drop" },
+      { id = "rc_composer_spread_voices" },
       { separator = true, title = "Perform" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
@@ -653,6 +588,7 @@ local function create_progression_screen_ui(Composer)
       { id = "rc_composer_gate" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
+      { id = "rc_composer_spread_voices" },
       { separator = true, title = "Dynamics" },
       { id = "rc_composer_vel_stage" },
       { id = "rc_composer_vel_tone" },

@@ -27,68 +27,36 @@ local CHORD_LEN_NAMES = {
   "2", "3", "4", "5", "6",
   "7", "8", "9", "10", "11", "12", "13", "14", "15"
 }
-local ROTATION_NAMES = {
-  "-5", "-4", "-3", "-2", "-1",
-  "Root", "1st Inv", "2nd Inv", "3rd Inv", "4th Inv", "5th Inv"
-}
-local VOICING_NAMES = {"Close", "Open", "Drop 2", "Drop 3", "Spread"}
 local STRUM_ORDER_NAMES = {"Up", "Down", "Out>In", "In>Out", "Random"}
-local GATE_NAMES = {"Staccato", "Normal", "Legato", "Drone"}
-local GATE_VALUES = {0.3, 0.6, 0.85, 1.0}
 local VEL_STAGE_NAMES = {"Flat", "Crescendo", "Decrescendo", "Arch", "Scoop", "Random"}
-local BASS_DROP_NAMES = {"0", "1", "2"}
-local LEAD_NAMES = {"None", "Nearest", "Parallel", "Contrary"}
 local VEL_TONE_NAMES = {"Flat", "Strum", "Swell", "Pluck", "Accent Root", "Random"}
 
 -- Name-to-index lookup tables (avoid linear search in hot paths)
-local VOICING_INDEX = {}
-for i, name in ipairs(VOICING_NAMES) do VOICING_INDEX[name] = i end
 local STRUM_INDEX = {}
 for i, name in ipairs(STRUM_ORDER_NAMES) do STRUM_INDEX[name] = i end
-local ROTATION_INDEX = {}
-for i, name in ipairs(ROTATION_NAMES) do ROTATION_INDEX[name] = i end
 local CHORD_LEN_INDEX = {}
 for i, name in ipairs(CHORD_LEN_NAMES) do CHORD_LEN_INDEX[name] = i end
-local GATE_INDEX = {}
-for i, name in ipairs(GATE_NAMES) do GATE_INDEX[name] = i end
 local VEL_STAGE_INDEX = {}
 for i, name in ipairs(VEL_STAGE_NAMES) do VEL_STAGE_INDEX[name] = i end
-local BASS_DROP_INDEX = {}
-for i, name in ipairs(BASS_DROP_NAMES) do BASS_DROP_INDEX[name] = i end
-local LEAD_INDEX = {}
-for i, name in ipairs(LEAD_NAMES) do LEAD_INDEX[name] = i end
 local VEL_TONE_INDEX = {}
 for i, name in ipairs(VEL_TONE_NAMES) do VEL_TONE_INDEX[name] = i end
 
 -- Export name arrays and index lookups for other modules
 Composer.DEGREE_NAMES = DEGREE_NAMES
-Composer.VOICING_NAMES = VOICING_NAMES
 Composer.STRUM_ORDER_NAMES = STRUM_ORDER_NAMES
-Composer.ROTATION_NAMES = ROTATION_NAMES
 Composer.CHORD_LEN_NAMES = CHORD_LEN_NAMES
-Composer.VOICING_INDEX = VOICING_INDEX
 Composer.STRUM_INDEX = STRUM_INDEX
-Composer.ROTATION_INDEX = ROTATION_INDEX
 Composer.CHORD_LEN_INDEX = CHORD_LEN_INDEX
-Composer.GATE_NAMES = GATE_NAMES
-Composer.GATE_VALUES = GATE_VALUES
-Composer.GATE_INDEX = GATE_INDEX
 Composer.VEL_STAGE_NAMES = VEL_STAGE_NAMES
 Composer.VEL_TONE_NAMES = VEL_TONE_NAMES
 Composer.VEL_STAGE_INDEX = VEL_STAGE_INDEX
-Composer.BASS_DROP_NAMES = BASS_DROP_NAMES
-Composer.BASS_DROP_INDEX = BASS_DROP_INDEX
-Composer.LEAD_NAMES = LEAD_NAMES
-Composer.LEAD_INDEX = LEAD_INDEX
 Composer.VEL_TONE_INDEX = VEL_TONE_INDEX
 
 -- Option index to actual value conversions
 local function movement_value(idx) return idx - 7 end   -- index 7 = Pedal (0)
-local function rotation_value(idx) return idx - 6 end   -- index 6 = Root (0)
 local function chord_len_value(idx) return idx + 1 end   -- index 1 = Dyad (2)
 
 Composer.movement_value = movement_value
-Composer.rotation_value = rotation_value
 Composer.chord_len_value = chord_len_value
 
 -- Stage velocity: shaped dynamics across progression stages
@@ -112,10 +80,9 @@ local COMPOSER_PARAMS = {
   {id = "rc_composer_start", default = 1},
   {id = "rc_composer_movement", default = 10},   -- 4th Up
   {id = "rc_composer_chord_len", default = 3},    -- Tetrad
-  {id = "rc_composer_voicing", default = 1},
   {id = "rc_composer_strum_order", default = 1},
-  {id = "rc_composer_rotation", default = 6},     -- Root
   {id = "rc_composer_spread", default = 10},
+  {id = "rc_composer_spread_voices", default = 0},
   {id = "rc_composer_stages", default = 1},
   {id = "rc_composer_loops", default = 2},
   {id = "rc_composer_beats", default = 4},
@@ -123,9 +90,7 @@ local COMPOSER_PARAMS = {
   {id = "rc_composer_vel_max", default = 110},
   {id = "rc_composer_vel_stage", default = 1},
   {id = "rc_composer_vel_tone", default = 1},
-  {id = "rc_composer_gate", default = 2},
-  {id = "rc_composer_lead", default = 1},
-  {id = "rc_composer_bass_drop", default = 1},
+  {id = "rc_composer_gate", default = 60},
 }
 
 Composer.COMPOSER_PARAMS = COMPOSER_PARAMS
@@ -190,9 +155,8 @@ function Composer.rebuild(lane_id)
   local start = get_param(snapshot, "rc_composer_start")
   local movement = movement_value(get_param(snapshot, "rc_composer_movement"))
   local chord_len = chord_len_value(get_param(snapshot, "rc_composer_chord_len"))
-  local voicing = VOICING_NAMES[get_param(snapshot, "rc_composer_voicing")]
-  local rotation = rotation_value(get_param(snapshot, "rc_composer_rotation"))
   local spread = get_param(snapshot, "rc_composer_spread")
+  local spread_voices = get_param(snapshot, "rc_composer_spread_voices")
   local base_strum_order = STRUM_ORDER_NAMES[get_param(snapshot, "rc_composer_strum_order")]
   local num_stages = get_param(snapshot, "rc_composer_stages")
   local loops = get_param(snapshot, "rc_composer_loops")
@@ -201,36 +165,26 @@ function Composer.rebuild(lane_id)
   local vel_max = get_param(snapshot, "rc_composer_vel_max")
   local vel_stage_curve = VEL_STAGE_NAMES[get_param(snapshot, "rc_composer_vel_stage")]
   local vel_tone = VEL_TONE_NAMES[get_param(snapshot, "rc_composer_vel_tone")]
+  local base_gate = get_param(snapshot, "rc_composer_gate")
+
   local lane = _seeker.lanes[lane_id]
   local strum_overrides = lane.composer_strum_overrides or {}
-  local voicing_overrides = lane.composer_voicing_overrides or {}
   local chord_len_overrides = lane.composer_chord_len_overrides or {}
-  local rotation_overrides = lane.composer_rotation_overrides or {}
   local loops_overrides = lane.composer_loops_overrides or {}
+  local spread_voices_overrides = lane.composer_spread_voices_overrides or {}
+  local gate_overrides = lane.composer_gate_overrides or {}
   local vel_min_overrides = lane.composer_vel_min_overrides or {}
   local vel_max_overrides = lane.composer_vel_max_overrides or {}
   local vel_stage_overrides = lane.composer_vel_stage_overrides or {}
   local vel_tone_overrides = lane.composer_vel_tone_overrides or {}
-  local base_lead = LEAD_NAMES[get_param(snapshot, "rc_composer_lead")]
-  local lead_overrides = lane.composer_lead_overrides or {}
-  local base_bass_drop = BASS_DROP_NAMES[get_param(snapshot, "rc_composer_bass_drop")]
-  local bass_drop_overrides = lane.composer_bass_drop_overrides or {}
+  local notes_overrides = lane.composer_notes_overrides or {}
 
   local stages = {}
-  local prev_stage_notes = nil
   for i = 1, num_stages do
     local degree_overrides = lane.composer_degree_overrides or {}
     local degree = degree_overrides[i] or ((start - 1 + movement * (i - 1)) % 7) + 1
     local stage_strum_order = strum_overrides[i] or base_strum_order
-    local stage_voicing = voicing_overrides[i] or voicing
-
-    -- Per-stage overrides store option names (not indices) so they survive reordering.
-    -- Convert to values before passing to RC.
-    local stage_rotation = rotation
-    if rotation_overrides[i] then
-      local idx = ROTATION_INDEX[rotation_overrides[i]]
-      if idx then stage_rotation = rotation_value(idx) end
-    end
+    local stage_spread_voices = spread_voices_overrides[i] or spread_voices
 
     local stage_chord_len = chord_len
     if chord_len_overrides[i] then
@@ -239,9 +193,10 @@ function Composer.rebuild(lane_id)
     end
 
     local strum_delay = (spread / 100) * beats / stage_chord_len
-    -- Gate shortens as spread increases to prevent strum note overlap
-    local base_gate = GATE_VALUES[get_param(snapshot, "rc_composer_gate")]
-    local stage_gate = base_gate * (1 - spread / 100 * (1 - 1 / stage_chord_len))
+
+    -- Gate is 0-200 (percentage). Shorten with strum spread to prevent overlap.
+    local stage_gate_raw = gate_overrides[i] or base_gate
+    local stage_gate = (stage_gate_raw / 100) * (1 - spread / 100 * (1 - 1 / stage_chord_len))
 
     -- Per-stage velocity overrides
     local stage_vel_min = vel_min_overrides[i] or vel_min
@@ -256,27 +211,13 @@ function Composer.rebuild(lane_id)
       dur = beats,
       gate = stage_gate,
       chord_len = stage_chord_len,
-      voicing = stage_voicing,
-      rotation = stage_rotation,
-      bass_drop = stage_bass_drop,
+      spread = stage_spread_voices,
       velocity = stage_vel,
       vel_tone = stage_vel_tone_name,
     }
 
-    -- Voice leading: pre-compute absolute MIDI notes for stages 2+ when enabled
-    local stage_lead = lead_overrides[i] or base_lead
-    local stage_bass_drop = tonumber(bass_drop_overrides[i] or base_bass_drop) or 0
-    local intervals = chord_generator.generate_chord(degree, "Diatonic", stage_chord_len, stage_rotation, stage_voicing, stage_bass_drop)
-    local abs_notes = {}
-    for j, cn in ipairs(intervals) do
-      abs_notes[j] = cn + ((3 + 1) * 12)
-    end
-
-    if stage_lead ~= "None" and prev_stage_notes and #prev_stage_notes > 0 then
-      chord_def.notes = chord_generator.apply_voice_leading(prev_stage_notes, abs_notes, stage_lead)
-      prev_stage_notes = chord_def.notes
-    else
-      prev_stage_notes = abs_notes
+    if notes_overrides[i] then
+      chord_def.notes = notes_overrides[i]
     end
 
     table.insert(stages, {
@@ -289,7 +230,6 @@ function Composer.rebuild(lane_id)
   end
 
   if lane.playing then
-    -- Lane is mid-cycle: update stage data without resetting playback position.
     for i, entry in ipairs(stages) do
       _seeker.rc.stage(lane_id, i, entry)
       params:set("lane_" .. lane_id .. "_stage_" .. i .. "_active", 2)
@@ -302,11 +242,9 @@ function Composer.rebuild(lane_id)
     lane:sync_all_stages_from_params()
     _seeker.rc.regen(lane_id)
   else
-    -- Prepare motif data without starting playback
     _seeker.rc.form(lane_id, stages)
   end
 
-  -- Only save params for the focused lane (snapshot is source of truth for remote lanes)
   if is_focused then
     Composer.save_params(lane_id)
   end
@@ -359,47 +297,11 @@ function Composer.cycle_stage_degree(stage_index, direction)
   return DEGREE_NAMES[next_degree]
 end
 
-function Composer.cycle_stage_rotation(stage_index, direction)
-  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.composer_rotation_overrides = lane.composer_rotation_overrides or {}
-  local base = ROTATION_NAMES[params:get("rc_composer_rotation")]
-  local result = advance_stage_override(ROTATION_NAMES, ROTATION_INDEX, lane.composer_rotation_overrides, stage_index, base, direction)
-  Composer.rebuild()
-  return result
-end
-
 function Composer.cycle_stage_strum(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   lane.composer_strum_overrides = lane.composer_strum_overrides or {}
   local base = STRUM_ORDER_NAMES[params:get("rc_composer_strum_order")]
   local result = advance_stage_override(STRUM_ORDER_NAMES, STRUM_INDEX, lane.composer_strum_overrides, stage_index, base, direction)
-  Composer.rebuild()
-  return result
-end
-
-function Composer.cycle_stage_voicing(stage_index, direction)
-  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.composer_voicing_overrides = lane.composer_voicing_overrides or {}
-  local base = VOICING_NAMES[params:get("rc_composer_voicing")]
-  local result = advance_stage_override(VOICING_NAMES, VOICING_INDEX, lane.composer_voicing_overrides, stage_index, base, direction)
-  Composer.rebuild()
-  return result
-end
-
-function Composer.cycle_stage_lead(stage_index, direction)
-  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.composer_lead_overrides = lane.composer_lead_overrides or {}
-  local base = LEAD_NAMES[params:get("rc_composer_lead")]
-  local result = advance_stage_override(LEAD_NAMES, LEAD_INDEX, lane.composer_lead_overrides, stage_index, base, direction)
-  Composer.rebuild()
-  return result
-end
-
-function Composer.cycle_stage_bass_drop(stage_index, direction)
-  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
-  lane.composer_bass_drop_overrides = lane.composer_bass_drop_overrides or {}
-  local base = BASS_DROP_NAMES[params:get("rc_composer_bass_drop")]
-  local result = advance_stage_override(BASS_DROP_NAMES, BASS_DROP_INDEX, lane.composer_bass_drop_overrides, stage_index, base, direction)
   Composer.rebuild()
   return result
 end
@@ -425,6 +327,38 @@ function Composer.cycle_stage_loops(stage_index, direction)
     next_val = (current % 8) + 1
   end
   lane.composer_loops_overrides[stage_index] = next_val
+  Composer.rebuild()
+  return next_val
+end
+
+function Composer.cycle_stage_spread_voices(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_spread_voices_overrides = lane.composer_spread_voices_overrides or {}
+  local base = params:get("rc_composer_spread_voices")
+  local current = lane.composer_spread_voices_overrides[stage_index] or base
+  local next_val
+  if direction then
+    next_val = util.clamp(current + direction, 0, 100)
+  else
+    next_val = util.clamp(current + 1, 0, 100)
+  end
+  lane.composer_spread_voices_overrides[stage_index] = next_val
+  Composer.rebuild()
+  return next_val
+end
+
+function Composer.cycle_stage_gate(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_gate_overrides = lane.composer_gate_overrides or {}
+  local base = params:get("rc_composer_gate")
+  local current = lane.composer_gate_overrides[stage_index] or base
+  local next_val
+  if direction then
+    next_val = util.clamp(current + direction, 0, 200)
+  else
+    next_val = util.clamp(current + 1, 0, 200)
+  end
+  lane.composer_gate_overrides[stage_index] = next_val
   Composer.rebuild()
   return next_val
 end
@@ -481,6 +415,54 @@ function Composer.cycle_stage_vel_tone(stage_index, direction)
 end
 
 ---------------------------------------------------------------
+-- Smooth voice leading: one-shot action that re-voices all stages
+-- for minimal movement, then stores results as per-stage notes overrides.
+---------------------------------------------------------------
+function Composer.smooth()
+  if not params_initialized then return end
+  if not _seeker or not _seeker.rc then return end
+
+  local lane_id = _seeker.ui_state.get_focused_lane()
+  local lane = _seeker.lanes[lane_id]
+  local num_stages = params:get("rc_composer_stages")
+  local start = params:get("rc_composer_start")
+  local movement = movement_value(params:get("rc_composer_movement"))
+  local chord_len = chord_len_value(params:get("rc_composer_chord_len"))
+  local spread_voices = params:get("rc_composer_spread_voices")
+
+  local degree_overrides = lane.composer_degree_overrides or {}
+  local chord_len_overrides = lane.composer_chord_len_overrides or {}
+  local spread_voices_overrides = lane.composer_spread_voices_overrides or {}
+
+  local stages_notes = {}
+  for i = 1, num_stages do
+    local degree = degree_overrides[i] or ((start - 1 + movement * (i - 1)) % 7) + 1
+    local stage_chord_len = chord_len
+    if chord_len_overrides[i] then
+      local idx = CHORD_LEN_INDEX[chord_len_overrides[i]]
+      if idx then stage_chord_len = chord_len_value(idx) end
+    end
+    local stage_spread = spread_voices_overrides[i] or spread_voices
+
+    local intervals = chord_generator.generate_chord(degree, "Diatonic", stage_chord_len, stage_spread)
+    local abs_notes = {}
+    for j, cn in ipairs(intervals) do
+      abs_notes[j] = cn + ((3 + 1) * 12)
+    end
+    table.insert(stages_notes, abs_notes)
+  end
+
+  local smoothed = chord_generator.smooth_voice_leading(stages_notes)
+
+  lane.composer_notes_overrides = {}
+  for i, notes in ipairs(smoothed) do
+    lane.composer_notes_overrides[i] = notes
+  end
+
+  Composer.rebuild()
+end
+
+---------------------------------------------------------------
 -- Save/load param snapshots per lane
 ---------------------------------------------------------------
 function Composer.save_params(lane_id)
@@ -490,17 +472,16 @@ function Composer.save_params(lane_id)
     snapshot[p.id] = params:get(p.id)
   end
   snapshot.strum_overrides = lane.composer_strum_overrides or {}
-  snapshot.voicing_overrides = lane.composer_voicing_overrides or {}
   snapshot.chord_len_overrides = lane.composer_chord_len_overrides or {}
   snapshot.degree_overrides = lane.composer_degree_overrides or {}
-  snapshot.rotation_overrides = lane.composer_rotation_overrides or {}
   snapshot.loops_overrides = lane.composer_loops_overrides or {}
+  snapshot.spread_voices_overrides = lane.composer_spread_voices_overrides or {}
+  snapshot.gate_overrides = lane.composer_gate_overrides or {}
+  snapshot.notes_overrides = lane.composer_notes_overrides or {}
   snapshot.vel_min_overrides = lane.composer_vel_min_overrides or {}
   snapshot.vel_max_overrides = lane.composer_vel_max_overrides or {}
   snapshot.vel_stage_overrides = lane.composer_vel_stage_overrides or {}
   snapshot.vel_tone_overrides = lane.composer_vel_tone_overrides or {}
-  snapshot.lead_overrides = lane.composer_lead_overrides or {}
-  snapshot.bass_drop_overrides = lane.composer_bass_drop_overrides or {}
   lane.composer_param_snapshot = snapshot
 end
 
@@ -512,33 +493,31 @@ function Composer.load_params(lane_id)
       params:set(p.id, lane.composer_param_snapshot[p.id] or p.default)
     end
     lane.composer_strum_overrides = lane.composer_param_snapshot.strum_overrides or {}
-    lane.composer_voicing_overrides = lane.composer_param_snapshot.voicing_overrides or {}
     lane.composer_chord_len_overrides = lane.composer_param_snapshot.chord_len_overrides or {}
     lane.composer_degree_overrides = lane.composer_param_snapshot.degree_overrides or {}
-    lane.composer_rotation_overrides = lane.composer_param_snapshot.rotation_overrides or {}
     lane.composer_loops_overrides = lane.composer_param_snapshot.loops_overrides or {}
+    lane.composer_spread_voices_overrides = lane.composer_param_snapshot.spread_voices_overrides or {}
+    lane.composer_gate_overrides = lane.composer_param_snapshot.gate_overrides or {}
+    lane.composer_notes_overrides = lane.composer_param_snapshot.notes_overrides or {}
     lane.composer_vel_min_overrides = lane.composer_param_snapshot.vel_min_overrides or {}
     lane.composer_vel_max_overrides = lane.composer_param_snapshot.vel_max_overrides or {}
     lane.composer_vel_stage_overrides = lane.composer_param_snapshot.vel_stage_overrides or {}
     lane.composer_vel_tone_overrides = lane.composer_param_snapshot.vel_tone_overrides or {}
-    lane.composer_lead_overrides = lane.composer_param_snapshot.lead_overrides or {}
-    lane.composer_bass_drop_overrides = lane.composer_param_snapshot.bass_drop_overrides or {}
   else
     for _, p in ipairs(COMPOSER_PARAMS) do
       params:set(p.id, p.default)
     end
     lane.composer_strum_overrides = {}
-    lane.composer_voicing_overrides = {}
     lane.composer_chord_len_overrides = {}
     lane.composer_degree_overrides = {}
-    lane.composer_rotation_overrides = {}
     lane.composer_loops_overrides = {}
+    lane.composer_spread_voices_overrides = {}
+    lane.composer_gate_overrides = {}
+    lane.composer_notes_overrides = {}
     lane.composer_vel_min_overrides = {}
     lane.composer_vel_max_overrides = {}
     lane.composer_vel_stage_overrides = {}
     lane.composer_vel_tone_overrides = {}
-    lane.composer_lead_overrides = {}
-    lane.composer_bass_drop_overrides = {}
   end
   snapshot_loading = false
 end
@@ -554,23 +533,22 @@ end
 -- Randomize all params and start playback
 ---------------------------------------------------------------
 -- Randomization styles: constrained param ranges that produce a coherent character.
--- "journey": implied melody via Out>In convergence, negative rotation, wide voicings.
+-- "journey": implied melody via Out>In convergence, wide spread, smoothed voices.
 --   Extended drift degree pool (I, ii, iii, IV, vi) — no dominant pull, no diminished tension.
 --   Fixed chord length per roll — consistent strum density across all stages.
 local RANDOM_STYLES = {
   journey = {
     stages = {2, 3},
     beats = {4, 5, 6, 8},
-    chord_len = {5, 7},          -- 6-8 notes: enough to phrase, few enough to sing
-    voicing = {2, 5},           -- Open, Spread
-    rotation = {3, 5},          -- -3 to -1
+    chord_len = {5, 7},
+    spread_voices = {30, 50, 70},
     spread = {50, 60, 70, 80},
     strum_order = {3, 3},       -- Out>In (fixed)
-    gate = {2, 3},              -- Normal, Legato
-    movement = {5, 6, 8, 9},   -- 3rds Dn, Steps Dn, Steps Up, 3rds Up
+    gate = {50, 70, 85},
+    movement = {5, 6, 8, 9},
     vel_tone = {4, 4},          -- Pluck (fixed)
     vel_range = {70, 110},
-    degree_pool = {1, 2, 3, 4, 6},  -- I, ii, iii, IV, vi (extended drift)
+    degree_pool = {1, 2, 3, 4, 6},
   },
 }
 
@@ -592,28 +570,25 @@ function Composer.randomize(style)
     params:set("rc_composer_stages", rand_range(s.stages[1], s.stages[2]))
     params:set("rc_composer_beats", pick(s.beats))
     params:set("rc_composer_chord_len", rand_range(s.chord_len[1], s.chord_len[2]))
-    params:set("rc_composer_voicing", pick(s.voicing))
-    params:set("rc_composer_rotation", rand_range(s.rotation[1], s.rotation[2]))
+    params:set("rc_composer_spread_voices", pick(s.spread_voices))
     params:set("rc_composer_spread", pick(s.spread))
     params:set("rc_composer_strum_order", rand_range(s.strum_order[1], s.strum_order[2]))
-    params:set("rc_composer_gate", rand_range(s.gate[1], s.gate[2]))
+    params:set("rc_composer_gate", pick(s.gate))
     params:set("rc_composer_vel_tone", rand_range(s.vel_tone[1], s.vel_tone[2]))
     local va, vb = rand_range(s.vel_range[1], s.vel_range[2]), rand_range(s.vel_range[1], s.vel_range[2])
     params:set("rc_composer_vel_min", math.min(va, vb))
     params:set("rc_composer_vel_max", math.max(va, vb))
   else
-    -- No style: full uniform random (original behavior)
     params:set("rc_composer_movement", math.random(1, #MOVEMENT_NAMES))
     params:set("rc_composer_stages", math.random(2, 5))
     local beat_options = {2, 3, 4, 5, 6, 8, 10, 12}
     params:set("rc_composer_beats", beat_options[math.random(1, #beat_options)])
     params:set("rc_composer_chord_len", math.random(1, #CHORD_LEN_NAMES))
-    params:set("rc_composer_voicing", math.random(1, #VOICING_NAMES))
-    params:set("rc_composer_rotation", math.random(1, #ROTATION_NAMES))
+    params:set("rc_composer_spread_voices", math.random(0, 100))
     local spread_options = {0, 10, 20, 30, 50, 70, 100}
     params:set("rc_composer_spread", spread_options[math.random(1, #spread_options)])
     params:set("rc_composer_strum_order", math.random(1, #STRUM_ORDER_NAMES))
-    params:set("rc_composer_gate", math.random(1, #GATE_NAMES))
+    params:set("rc_composer_gate", math.random(20, 150))
     params:set("rc_composer_vel_tone", math.random(1, #VEL_TONE_NAMES))
     local vel_a, vel_b = math.random(50, 127), math.random(50, 127)
     params:set("rc_composer_vel_min", math.min(vel_a, vel_b))
@@ -621,7 +596,6 @@ function Composer.randomize(style)
   end
   params:set("rc_composer_loops", math.random(1, 4))
   params:set("rc_composer_vel_stage", math.random(1, #VEL_STAGE_NAMES))
-  params:set("rc_composer_lead", math.random(1, #LEAD_NAMES))
   snapshot_loading = false
 
   local lane_id = _seeker.ui_state.get_focused_lane()
@@ -636,17 +610,16 @@ function Composer.randomize(style)
       lane.composer_degree_overrides[i] = math.random(1, 7)
     end
   end
-  lane.composer_voicing_overrides = {}
   lane.composer_chord_len_overrides = {}
   lane.composer_strum_overrides = {}
-  lane.composer_rotation_overrides = {}
   lane.composer_loops_overrides = {}
+  lane.composer_spread_voices_overrides = {}
+  lane.composer_gate_overrides = {}
+  lane.composer_notes_overrides = {}
   lane.composer_vel_min_overrides = {}
   lane.composer_vel_max_overrides = {}
   lane.composer_vel_stage_overrides = {}
   lane.composer_vel_tone_overrides = {}
-  lane.composer_lead_overrides = {}
-  lane.composer_bass_drop_overrides = {}
   for i = 1, num_stages do
     lane.composer_loops_overrides[i] = math.random(1, 4)
   end
@@ -674,46 +647,10 @@ local function get_lane_stages(lane_id)
 end
 
 ---------------------------------------------------------------
--- Meta-progression: automated rotation cycling on a clock
----------------------------------------------------------------
-
--- Cycle through rotation values on a lane, rebuilding at each step.
--- rotations: array of ROTATION_NAMES indices (e.g. {3,4,5,4} = -3,-2,-1,-2)
--- cycle_beats: clock.sync interval between rotation changes
-function Composer.meta_rotation(lane_id, rotations, cycle_beats)
-  if Composer._meta_clocks and Composer._meta_clocks[lane_id] then
-    clock.cancel(Composer._meta_clocks[lane_id])
-  end
-  Composer._meta_clocks = Composer._meta_clocks or {}
-  local idx = 0
-  Composer._meta_clocks[lane_id] = clock.run(function()
-    while true do
-      clock.sync(cycle_beats)
-      idx = (idx % #rotations) + 1
-      local lane = _seeker.lanes[lane_id]
-      lane.composer_rotation_overrides = lane.composer_rotation_overrides or {}
-      local rot_name = ROTATION_NAMES[rotations[idx]]
-      local num_stages = get_lane_stages(lane_id)
-      for s = 1, num_stages do
-        lane.composer_rotation_overrides[s] = rot_name
-      end
-      Composer.rebuild(lane_id)
-    end
-  end)
-end
-
-function Composer.stop_meta(lane_id)
-  if Composer._meta_clocks and Composer._meta_clocks[lane_id] then
-    clock.cancel(Composer._meta_clocks[lane_id])
-    Composer._meta_clocks[lane_id] = nil
-  end
-end
-
----------------------------------------------------------------
 -- Create params
 ---------------------------------------------------------------
 function Composer.create_params()
-  params:add_group("rc_composer_group", "COMPOSER", 17)
+  params:add_group("rc_composer_group", "COMPOSER", 14)
 
   params:add_option("rc_composer_start", "Start Degree", DEGREE_NAMES, 1)
   params:set_action("rc_composer_start", function() Composer.rebuild() end)
@@ -728,13 +665,6 @@ function Composer.create_params()
     Composer.rebuild()
   end)
 
-  params:add_option("rc_composer_voicing", "Voicing", VOICING_NAMES, 1)
-  params:set_action("rc_composer_voicing", function()
-    local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].composer_voicing_overrides = {}
-    Composer.rebuild()
-  end)
-
   params:add_option("rc_composer_strum_order", "Strum Order", STRUM_ORDER_NAMES, 1)
   params:set_action("rc_composer_strum_order", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
@@ -742,16 +672,16 @@ function Composer.create_params()
     Composer.rebuild()
   end)
 
-  params:add_option("rc_composer_rotation", "Rotation", ROTATION_NAMES, 6)
-  params:set_action("rc_composer_rotation", function()
-    local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].composer_rotation_overrides = {}
-    Composer.rebuild()
-  end)
-
-  params:add_control("rc_composer_spread", "Spread",
+  params:add_control("rc_composer_spread", "Strum Spread",
     controlspec.new(0, 100, "lin", 1, 10, "%"))
   params:set_action("rc_composer_spread", function() Composer.rebuild() end)
+
+  params:add_number("rc_composer_spread_voices", "Voice Spread", 0, 100, 0)
+  params:set_action("rc_composer_spread_voices", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_spread_voices_overrides = {}
+    Composer.rebuild()
+  end)
 
   params:add_number("rc_composer_stages", "Stages", 1, 8, 1)
   params:set_action("rc_composer_stages", function() Composer.rebuild() end)
@@ -762,8 +692,12 @@ function Composer.create_params()
   params:add_number("rc_composer_beats", "Beats", 1, 16, 4)
   params:set_action("rc_composer_beats", function() Composer.rebuild() end)
 
-  params:add_option("rc_composer_gate", "Gate", GATE_NAMES, 2)
-  params:set_action("rc_composer_gate", function() Composer.rebuild() end)
+  params:add_number("rc_composer_gate", "Gate", 0, 200, 60)
+  params:set_action("rc_composer_gate", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_gate_overrides = {}
+    Composer.rebuild()
+  end)
 
   params:add_number("rc_composer_vel_min", "Dyn Soft", 1, 127, 70)
   params:set_action("rc_composer_vel_min", function()
@@ -790,20 +724,6 @@ function Composer.create_params()
   params:set_action("rc_composer_vel_tone", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
     _seeker.lanes[lane_id].composer_vel_tone_overrides = {}
-    Composer.rebuild()
-  end)
-
-  params:add_option("rc_composer_lead", "Voice Lead", LEAD_NAMES, 1)
-  params:set_action("rc_composer_lead", function()
-    local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].composer_lead_overrides = {}
-    Composer.rebuild()
-  end)
-
-  params:add_option("rc_composer_bass_drop", "Bass Drop", BASS_DROP_NAMES, 1)
-  params:set_action("rc_composer_bass_drop", function()
-    local lane_id = _seeker.ui_state.get_focused_lane()
-    _seeker.lanes[lane_id].composer_bass_drop_overrides = {}
     Composer.rebuild()
   end)
 
