@@ -328,17 +328,23 @@ local function create_grid_ui()
   end
 
   -- Override handle_key to select output and switch to TXO_TR_OUTPUT section
+  -- First click selects output (preserves current page), second click cycles page
   grid_ui.handle_key = function(self, x, y, z)
     if z == 1 then
       local output_num = (x - self.layout.x) + 1
-      params:set("eurorack_selected_type", 2) -- 2 = TXO TR
-      params:set("eurorack_selected_number", output_num)
-      tr_rebuild_page_state()
+      local current = _seeker.ui_state.get_current_section()
+      local already_selected = current == "TXO_TR_OUTPUT" and
+        params:get("eurorack_selected_type") == 2 and
+        params:get("eurorack_selected_number") == output_num
 
-      -- Switch to TXO TR output section
-      _seeker.ui_state.set_current_section("TXO_TR_OUTPUT")
-
-      -- Trigger UI updates
+      if already_selected then
+        tr_page_state:next_page()
+      else
+        params:set("eurorack_selected_type", 2) -- 2 = TXO TR
+        params:set("eurorack_selected_number", output_num)
+        tr_rebuild_page_state()
+        _seeker.ui_state.set_current_section("TXO_TR_OUTPUT")
+      end
       _seeker.screen_ui.set_needs_redraw()
       _seeker.grid_ui.redraw()
     end

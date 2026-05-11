@@ -1063,13 +1063,23 @@ local function create_grid_ui()
   end
 
   -- Override handle_key to select output and switch to CROW_OUTPUT section
+  -- First click selects output (preserves current page), second click cycles page
   grid_ui.handle_key = function(self, x, y, z)
     if z == 1 then
       local output_num = (x - self.layout.x) + 1
-      params:set("eurorack_selected_type", 1) -- 1 = Crow
-      params:set("eurorack_selected_number", output_num)
-      crow_rebuild_page_state()
-      _seeker.ui_state.set_current_section("CROW_OUTPUT")
+      local current = _seeker.ui_state.get_current_section()
+      local already_selected = current == "CROW_OUTPUT" and
+        params:get("eurorack_selected_type") == 1 and
+        params:get("eurorack_selected_number") == output_num
+
+      if already_selected then
+        crow_page_state:next_page()
+      else
+        params:set("eurorack_selected_type", 1) -- 1 = Crow
+        params:set("eurorack_selected_number", output_num)
+        crow_rebuild_page_state()
+        _seeker.ui_state.set_current_section("CROW_OUTPUT")
+      end
       _seeker.screen_ui.set_needs_redraw()
       _seeker.grid_ui.redraw()
     end
