@@ -1122,6 +1122,10 @@ local function create_params()
         params:set_action("crow_" .. i .. "_rhythm_distribution", function(value)
             CrowOutput.generate_rhythm_pattern(i)
             CrowOutput.update_crow(i)
+            if _seeker and _seeker.eurorack and _seeker.eurorack.crow_output then
+                _seeker.eurorack.crow_output.screen:rebuild_params()
+                _seeker.screen_ui.set_needs_redraw()
+            end
         end)
         params:add_number("crow_" .. i .. "_rhythm_rotation", "Rotation", 0, 31, 0)
         params:set_action("crow_" .. i .. "_rhythm_rotation", function(value)
