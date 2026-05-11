@@ -167,7 +167,6 @@ function PageState:handle_arc_delta(n, d)
   if slot.on_delta then
     slot.on_delta(direction)
   elseif slot.param_id and params.lookup[slot.param_id] then
-    print("ARC_DELTA: stepping " .. slot.param_id)
     _seeker.arc.step_param(slot.param_id, direction, slot.step)
   end
 end

@@ -830,17 +830,11 @@ local function crow_get_selected()
 end
 
 local function crow_rebuild_page_state()
-  local selected = crow_get_selected()
-  local pages = ArcPages.build_pages_for_output(selected)
+  local pages = ArcPages.build_pages_for_output(crow_get_selected())
   if crow_page_state then
     crow_page_state:set_pages(pages)
   else
     crow_page_state = PageState.new({ pages = pages })
-  end
-  -- Debug: verify page state has correct param IDs after rebuild
-  local page = crow_page_state.pages[crow_page_state.page]
-  if page and page.slots and page.slots[1] then
-    print("CROW_PAGE_STATE: rebuilt for output " .. selected.num .. ", first param_id = " .. tostring(page.slots[1].param_id))
   end
 end
 
@@ -1078,14 +1072,11 @@ local function create_grid_ui()
         params:get("eurorack_selected_type") == 1 and
         params:get("eurorack_selected_number") == output_num
 
-      print("CROW_GRID: x=" .. x .. " output_num=" .. output_num .. " section=" .. tostring(current) .. " already=" .. tostring(already_selected))
-
       if already_selected then
         crow_page_state:next_page()
       else
         params:set("eurorack_selected_type", 1) -- 1 = Crow
         params:set("eurorack_selected_number", output_num)
-        print("CROW_GRID: selected_number now=" .. params:get("eurorack_selected_number"))
         crow_rebuild_page_state()
         _seeker.ui_state.set_current_section("CROW_OUTPUT")
       end
