@@ -325,6 +325,7 @@ local function create_grid_ui()
       local output_num = (x - self.layout.x) + 1
       params:set("eurorack_selected_type", 2) -- 2 = TXO TR
       params:set("eurorack_selected_number", output_num)
+      tr_rebuild_page_state()
 
       -- Switch to TXO TR output section
       _seeker.ui_state.set_current_section("TXO_TR_OUTPUT")

@@ -1060,6 +1060,7 @@ local function create_grid_ui()
       local output_num = (x - self.layout.x) + 1
       params:set("eurorack_selected_type", 1) -- 1 = Crow
       params:set("eurorack_selected_number", output_num)
+      crow_rebuild_page_state()
       _seeker.ui_state.set_current_section("CROW_OUTPUT")
       _seeker.screen_ui.set_needs_redraw()
       _seeker.grid_ui.redraw()

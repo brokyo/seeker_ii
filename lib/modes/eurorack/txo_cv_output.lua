@@ -565,6 +565,7 @@ local function create_grid_ui()
       local output_num = (x - self.layout.x) + 1
       params:set("eurorack_selected_type", 3) -- 3 = TXO CV
       params:set("eurorack_selected_number", output_num)
+      cv_rebuild_page_state()
 
       -- Switch to TXO CV output section
       _seeker.ui_state.set_current_section("TXO_CV_OUTPUT")
