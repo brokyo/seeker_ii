@@ -36,6 +36,7 @@ local STRUM_ORDER_NAMES = {"Up", "Down", "Out>In", "In>Out", "Random"}
 local GATE_NAMES = {"Staccato", "Normal", "Legato", "Drone"}
 local GATE_VALUES = {0.3, 0.6, 0.85, 1.0}
 local VEL_STAGE_NAMES = {"Flat", "Crescendo", "Decrescendo", "Arch", "Scoop", "Random"}
+local BASS_DROP_NAMES = {"0", "1", "2"}
 local LEAD_NAMES = {"None", "Nearest", "Parallel", "Contrary"}
 local VEL_TONE_NAMES = {"Flat", "Strum", "Swell", "Pluck", "Accent Root", "Random"}
 
@@ -52,6 +53,8 @@ local GATE_INDEX = {}
 for i, name in ipairs(GATE_NAMES) do GATE_INDEX[name] = i end
 local VEL_STAGE_INDEX = {}
 for i, name in ipairs(VEL_STAGE_NAMES) do VEL_STAGE_INDEX[name] = i end
+local BASS_DROP_INDEX = {}
+for i, name in ipairs(BASS_DROP_NAMES) do BASS_DROP_INDEX[name] = i end
 local LEAD_INDEX = {}
 for i, name in ipairs(LEAD_NAMES) do LEAD_INDEX[name] = i end
 local VEL_TONE_INDEX = {}
@@ -73,6 +76,8 @@ Composer.GATE_INDEX = GATE_INDEX
 Composer.VEL_STAGE_NAMES = VEL_STAGE_NAMES
 Composer.VEL_TONE_NAMES = VEL_TONE_NAMES
 Composer.VEL_STAGE_INDEX = VEL_STAGE_INDEX
+Composer.BASS_DROP_NAMES = BASS_DROP_NAMES
+Composer.BASS_DROP_INDEX = BASS_DROP_INDEX
 Composer.LEAD_NAMES = LEAD_NAMES
 Composer.LEAD_INDEX = LEAD_INDEX
 Composer.VEL_TONE_INDEX = VEL_TONE_INDEX
@@ -120,6 +125,7 @@ local COMPOSER_PARAMS = {
   {id = "rc_composer_vel_tone", default = 1},
   {id = "rc_composer_gate", default = 2},
   {id = "rc_composer_lead", default = 1},
+  {id = "rc_composer_bass_drop", default = 1},
 }
 
 Composer.COMPOSER_PARAMS = COMPOSER_PARAMS
@@ -207,6 +213,8 @@ function Composer.rebuild(lane_id)
   local vel_tone_overrides = lane.composer_vel_tone_overrides or {}
   local base_lead = LEAD_NAMES[get_param(snapshot, "rc_composer_lead")]
   local lead_overrides = lane.composer_lead_overrides or {}
+  local base_bass_drop = BASS_DROP_NAMES[get_param(snapshot, "rc_composer_bass_drop")]
+  local bass_drop_overrides = lane.composer_bass_drop_overrides or {}
 
   local stages = {}
   local prev_stage_notes = nil
@@ -250,13 +258,15 @@ function Composer.rebuild(lane_id)
       chord_len = stage_chord_len,
       voicing = stage_voicing,
       rotation = stage_rotation,
+      bass_drop = stage_bass_drop,
       velocity = stage_vel,
       vel_tone = stage_vel_tone_name,
     }
 
     -- Voice leading: pre-compute absolute MIDI notes for stages 2+ when enabled
     local stage_lead = lead_overrides[i] or base_lead
-    local intervals = chord_generator.generate_chord(degree, "Diatonic", stage_chord_len, stage_rotation, stage_voicing)
+    local stage_bass_drop = tonumber(bass_drop_overrides[i] or base_bass_drop) or 0
+    local intervals = chord_generator.generate_chord(degree, "Diatonic", stage_chord_len, stage_rotation, stage_voicing, stage_bass_drop)
     local abs_notes = {}
     for j, cn in ipairs(intervals) do
       abs_notes[j] = cn + ((3 + 1) * 12)
@@ -385,6 +395,15 @@ function Composer.cycle_stage_lead(stage_index, direction)
   return result
 end
 
+function Composer.cycle_stage_bass_drop(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_bass_drop_overrides = lane.composer_bass_drop_overrides or {}
+  local base = BASS_DROP_NAMES[params:get("rc_composer_bass_drop")]
+  local result = advance_stage_override(BASS_DROP_NAMES, BASS_DROP_INDEX, lane.composer_bass_drop_overrides, stage_index, base, direction)
+  Composer.rebuild()
+  return result
+end
+
 function Composer.cycle_stage_chord_len(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   lane.composer_chord_len_overrides = lane.composer_chord_len_overrides or {}
@@ -481,6 +500,7 @@ function Composer.save_params(lane_id)
   snapshot.vel_stage_overrides = lane.composer_vel_stage_overrides or {}
   snapshot.vel_tone_overrides = lane.composer_vel_tone_overrides or {}
   snapshot.lead_overrides = lane.composer_lead_overrides or {}
+  snapshot.bass_drop_overrides = lane.composer_bass_drop_overrides or {}
   lane.composer_param_snapshot = snapshot
 end
 
@@ -502,6 +522,7 @@ function Composer.load_params(lane_id)
     lane.composer_vel_stage_overrides = lane.composer_param_snapshot.vel_stage_overrides or {}
     lane.composer_vel_tone_overrides = lane.composer_param_snapshot.vel_tone_overrides or {}
     lane.composer_lead_overrides = lane.composer_param_snapshot.lead_overrides or {}
+    lane.composer_bass_drop_overrides = lane.composer_param_snapshot.bass_drop_overrides or {}
   else
     for _, p in ipairs(COMPOSER_PARAMS) do
       params:set(p.id, p.default)
@@ -517,6 +538,7 @@ function Composer.load_params(lane_id)
     lane.composer_vel_stage_overrides = {}
     lane.composer_vel_tone_overrides = {}
     lane.composer_lead_overrides = {}
+    lane.composer_bass_drop_overrides = {}
   end
   snapshot_loading = false
 end
@@ -624,6 +646,7 @@ function Composer.randomize(style)
   lane.composer_vel_stage_overrides = {}
   lane.composer_vel_tone_overrides = {}
   lane.composer_lead_overrides = {}
+  lane.composer_bass_drop_overrides = {}
   for i = 1, num_stages do
     lane.composer_loops_overrides[i] = math.random(1, 4)
   end
@@ -690,7 +713,7 @@ end
 -- Create params
 ---------------------------------------------------------------
 function Composer.create_params()
-  params:add_group("rc_composer_group", "COMPOSER", 16)
+  params:add_group("rc_composer_group", "COMPOSER", 17)
 
   params:add_option("rc_composer_start", "Start Degree", DEGREE_NAMES, 1)
   params:set_action("rc_composer_start", function() Composer.rebuild() end)
@@ -774,6 +797,13 @@ function Composer.create_params()
   params:set_action("rc_composer_lead", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
     _seeker.lanes[lane_id].composer_lead_overrides = {}
+    Composer.rebuild()
+  end)
+
+  params:add_option("rc_composer_bass_drop", "Bass Drop", BASS_DROP_NAMES, 1)
+  params:set_action("rc_composer_bass_drop", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_bass_drop_overrides = {}
     Composer.rebuild()
   end)
 

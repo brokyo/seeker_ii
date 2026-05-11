@@ -12,8 +12,9 @@ local ChordGenerator = {}
 -- @param chord_length: How many notes to generate (cycles through chord tones)
 -- @param voice_rotation: Rotates chord voicing. Negative drops top notes down, positive raises bottom notes up
 -- @param voicing_style: How to spread voices across octaves (Close, Open, Drop 2, etc.)
+-- @param bass_drop: Octaves to drop the lowest note (0-2, default 0)
 -- @return: Table of MIDI note numbers representing the chord
-function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_length, voice_rotation, voicing_style)
+function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_length, voice_rotation, voicing_style, bass_drop)
   -- Get global scale settings
   local root_note = params:get("root_note")
   local scale_type_index = params:get("scale_type")
@@ -138,6 +139,12 @@ function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_leng
 
     local note = chord_root_midi + interval + (octave_offset * 12)
     table.insert(chord_notes, note)
+  end
+
+  bass_drop = bass_drop or 0
+  if bass_drop > 0 and #chord_notes > 0 then
+    table.sort(chord_notes)
+    chord_notes[1] = chord_notes[1] - (bass_drop * 12)
   end
 
   return chord_notes

@@ -431,7 +431,7 @@ local function build_phrase_events(lane_id, opts)
       chord_notes = chord_def.notes
       notes_are_absolute = true
     else
-      chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing)
+      chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing, chord_def.bass_drop)
     end
     local timing = strum_timing(#chord_notes, strum_order)
 
