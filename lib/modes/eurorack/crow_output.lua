@@ -830,11 +830,17 @@ local function crow_get_selected()
 end
 
 local function crow_rebuild_page_state()
-  local pages = ArcPages.build_pages_for_output(crow_get_selected())
+  local selected = crow_get_selected()
+  local pages = ArcPages.build_pages_for_output(selected)
   if crow_page_state then
     crow_page_state:set_pages(pages)
   else
     crow_page_state = PageState.new({ pages = pages })
+  end
+  -- Debug: verify page state has correct param IDs after rebuild
+  local page = crow_page_state.pages[crow_page_state.page]
+  if page and page.slots and page.slots[1] then
+    print("CROW_PAGE_STATE: rebuilt for output " .. selected.num .. ", first param_id = " .. tostring(page.slots[1].param_id))
   end
 end
 
