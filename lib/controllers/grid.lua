@@ -174,7 +174,7 @@ function GridUI.key(x, y, z)
               else
                 -- Switch section (triggers enter if section changes)
                 _seeker.ui_state.set_current_section(target)
-                -- If section didn't change, enter() didn't fire — rebuild page state manually
+                -- If section didn't change, enter() didn't fire — rebuild manually
                 if current_section == target and component and component.screen then
                   component.screen:enter()
                 end
