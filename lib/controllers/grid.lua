@@ -149,28 +149,35 @@ function GridUI.key(x, y, z)
             }
             local target = section_map[source]
             if target then
-              -- Keep cv_monitor selection in sync
-              if _seeker.eurorack.cv_monitor then
-                _seeker.eurorack.cv_monitor.select_output(source, output_num)
-              end
-
+              -- Check if already focused BEFORE updating selection
               local sel = _seeker.eurorack.cv_monitor and _seeker.eurorack.cv_monitor.get_selected()
               local is_focused = sel and sel.source == source and sel.num == output_num
                   and current_section == target
 
+              -- Update cv_monitor and param selection
+              if _seeker.eurorack.cv_monitor then
+                _seeker.eurorack.cv_monitor.select_output(source, output_num)
+              end
+
+              local component_map = {
+                crow = _seeker.eurorack.crow_output,
+                txo_tr = _seeker.eurorack.txo_tr_output,
+                txo_cv = _seeker.eurorack.txo_cv_output,
+              }
+              local component = component_map[source]
+
               if is_focused then
                 -- Re-tap: cycle arc page within the dedicated section
-                local component_map = {
-                  crow = _seeker.eurorack.crow_output,
-                  txo_tr = _seeker.eurorack.txo_tr_output,
-                  txo_cv = _seeker.eurorack.txo_cv_output,
-                }
-                local component = component_map[source]
                 if component and component.screen and component.screen.cycle_page then
                   component.screen:cycle_page()
                 end
               else
+                -- Switch section (triggers enter if section changes)
                 _seeker.ui_state.set_current_section(target)
+                -- If section didn't change, enter() didn't fire — rebuild manually
+                if current_section == target and component and component.screen then
+                  component.screen:enter()
+                end
               end
             end
           end
