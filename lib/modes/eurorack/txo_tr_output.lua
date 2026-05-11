@@ -133,10 +133,16 @@ function TxoTrOutput.update_txo_tr(output_num)
                 local gate_length = params:get("txo_tr_" .. output_num .. "_rhythm_gate_length") / 100
                 local beat_sec = clock.get_beat_sec()
                 local gate_time = beat_sec * beats * gate_length
+                local swing_pct = params:get("txo_tr_" .. output_num .. "_rhythm_swing") / 100
+                local prob = params:get("txo_tr_" .. output_num .. "_rhythm_probability")
                 local pattern = pattern_states["txo_" .. output_num].pattern
                 local current_step = pattern_states["txo_" .. output_num].current_step
 
-                if pattern[current_step] then
+                if current_step % 2 == 0 and swing_pct > 0 then
+                    clock.sleep(swing_pct * beat_sec * beats * 0.5)
+                end
+
+                if pattern[current_step] and math.random(100) <= prob then
                     crow.ii.txo.tr(output_num, 1)
                     gate_states[output_num] = 1
                     clock.sleep(gate_time)
@@ -263,6 +269,8 @@ local function create_screen_ui()
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_rhythm_distribution" })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_rhythm_rotation" })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_rhythm_gate_length", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_rhythm_swing", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "txo_tr_" .. output_num .. "_rhythm_probability", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "txo_tr_" .. output_num .. "_rhythm_reroll", is_action = true })
         elseif type == "Burst" then
             table.insert(param_table, { separator = true, title = "Burst" })
@@ -342,7 +350,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("txo_tr_output", "TXO TR OUTPUT", 52)
+    params:add_group("txo_tr_output", "TXO TR OUTPUT", 60)
 
     for i = 1, 4 do
         params:add_option("txo_tr_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -395,6 +403,14 @@ local function create_params()
         end)
         params:add_number("txo_tr_" .. i .. "_rhythm_gate_length", "Gate Length", 1, 100, 50, function(param) return param.value .. "%" end)
         params:set_action("txo_tr_" .. i .. "_rhythm_gate_length", function(value)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+        params:add_number("txo_tr_" .. i .. "_rhythm_swing", "Swing", 0, 100, 0, function(param) return param.value .. "%" end)
+        params:set_action("txo_tr_" .. i .. "_rhythm_swing", function(value)
+            TxoTrOutput.update_txo_tr(i)
+        end)
+        params:add_number("txo_tr_" .. i .. "_rhythm_probability", "Probability", 0, 100, 100, function(param) return param.value .. "%" end)
+        params:set_action("txo_tr_" .. i .. "_rhythm_probability", function(value)
             TxoTrOutput.update_txo_tr(i)
         end)
         params:add_binary("txo_tr_" .. i .. "_rhythm_reroll", "Reroll", "trigger", 0)

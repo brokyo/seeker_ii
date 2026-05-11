@@ -526,10 +526,16 @@ local function update_rhythm(output_num, prefix)
             local gate_voltage = params:get(prefix .. "rhythm_voltage")
             local gate_pct = params:get(prefix .. "rhythm_gate_length") / 100
             local gate_time = timing.total_sec * gate_pct
+            local swing_pct = params:get(prefix .. "rhythm_swing") / 100
+            local prob = params:get(prefix .. "rhythm_probability")
             local pattern = pattern_states[output_num].pattern
             local step = pattern_states[output_num].current_step
 
-            if pattern[step] then
+            if step % 2 == 0 and swing_pct > 0 then
+                clock.sleep(swing_pct * timing.total_sec * 0.5)
+            end
+
+            if pattern[step] and math.random(100) <= prob then
                 crow.output[output_num].volts = gate_voltage
                 cv_voltages[output_num] = gate_voltage
                 clock.sleep(gate_time)
@@ -937,6 +943,8 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Rhythm" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_voltage", arc_multi_float = {1.0, 0.1, 0.01} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_gate_length", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_swing", arc_multi_float = {10, 5, 1} })
+            table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_probability", arc_multi_float = {10, 5, 1} })
             table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_length" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_hits" })
             table.insert(param_table, { id = "crow_" .. output_num .. "_rhythm_distribution" })
@@ -1073,7 +1081,7 @@ end
 -- Parameter creation
 
 local function create_params()
-    params:add_group("crow_output", "CROW OUTPUT", 160)
+    params:add_group("crow_output", "CROW OUTPUT", 168)
 
     for i = 1, 4 do
         params:add_option("crow_" .. i .. "_clock_interval", "Interval", EurorackUtils.interval_options, 1)
@@ -1138,6 +1146,14 @@ local function create_params()
         end)
         params:add_control("crow_" .. i .. "_rhythm_voltage", "Voltage", controlspec.new(-10, 10, 'lin', 0.01, 5), function(param) return params:get(param.id) .. "v" end)
         params:set_action("crow_" .. i .. "_rhythm_voltage", function(value)
+            CrowOutput.update_crow(i)
+        end)
+        params:add_number("crow_" .. i .. "_rhythm_swing", "Swing", 0, 100, 0, function(param) return param.value .. "%" end)
+        params:set_action("crow_" .. i .. "_rhythm_swing", function(value)
+            CrowOutput.update_crow(i)
+        end)
+        params:add_number("crow_" .. i .. "_rhythm_probability", "Probability", 0, 100, 100, function(param) return param.value .. "%" end)
+        params:set_action("crow_" .. i .. "_rhythm_probability", function(value)
             CrowOutput.update_crow(i)
         end)
         params:add_binary("crow_" .. i .. "_rhythm_reroll", "Reroll", "trigger", 0)

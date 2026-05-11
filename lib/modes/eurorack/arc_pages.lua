@@ -24,6 +24,8 @@ ArcPages.PARAM_SHORT_NAMES = {
   Length          = "Len",
   Hits           = "Hits",
   Rotation       = "Rot",
+  Swing          = "Swng",
+  Probability    = "Prob",
   -- Burst
   ["Burst Count"]  = "Count",
   ["Burst Shape"]  = "Shape",
@@ -65,7 +67,7 @@ ArcPages.ARC_PAGES = {
     RTH = {
       { label = "config",   r1 = "type", r2 = "clock_interval", r3 = "clock_modifier" },
       { label = "rhythm",   r1 = "rhythm_hits", r2 = "rhythm_length", r3 = "rhythm_distribution", r4 = "rhythm_rotation" },
-      { label = "gate",     r1 = "rhythm_voltage", r2 = "rhythm_gate_length" },
+      { label = "gate",     r1 = "rhythm_voltage", r2 = "rhythm_gate_length", r3 = "rhythm_swing", r4 = "rhythm_probability" },
     },
     BST = {
       { label = "config",   r1 = "type", r2 = "clock_interval", r3 = "clock_modifier" },
@@ -94,7 +96,7 @@ ArcPages.ARC_PAGES = {
     RTH = {
       { label = "config",   r1 = "type", r2 = "clock_interval", r3 = "clock_modifier" },
       { label = "rhythm",   r1 = "rhythm_hits", r2 = "rhythm_length", r3 = "rhythm_distribution", r4 = "rhythm_rotation" },
-      { label = "gate",     r1 = "rhythm_gate_length" },
+      { label = "gate",     r1 = "rhythm_gate_length", r2 = "rhythm_swing", r3 = "rhythm_probability" },
     },
     BST = {
       { label = "config",   r1 = "type", r2 = "clock_interval", r3 = "clock_modifier" },
