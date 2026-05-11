@@ -1078,11 +1078,14 @@ local function create_grid_ui()
         params:get("eurorack_selected_type") == 1 and
         params:get("eurorack_selected_number") == output_num
 
+      print("CROW_GRID: x=" .. x .. " output_num=" .. output_num .. " section=" .. tostring(current) .. " already=" .. tostring(already_selected))
+
       if already_selected then
         crow_page_state:next_page()
       else
         params:set("eurorack_selected_type", 1) -- 1 = Crow
         params:set("eurorack_selected_number", output_num)
+        print("CROW_GRID: selected_number now=" .. params:get("eurorack_selected_number"))
         crow_rebuild_page_state()
         _seeker.ui_state.set_current_section("CROW_OUTPUT")
       end
