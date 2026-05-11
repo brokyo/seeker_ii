@@ -26,7 +26,7 @@ local function update_live_page_names()
   if not page_state then return end
   local stage = edit_stage
   local prefix = stage and ("S" .. stage .. " ") or ""
-  local base_names = {"harmony", "articulation", "dynamics"}
+  local base_names = {"harmony", "perform", "dynamics"}
   for i, page in ipairs(page_state.pages) do
     page.name = prefix .. (base_names[i] or page.name)
   end
@@ -67,6 +67,32 @@ local function build_live_pages(Composer)
             local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
             local current = overrides[stage_idx] or default_degree
             PageState.draw_arc_segments(dev, ring, current, #Composer.DEGREE_NAMES, overrides[stage_idx] and 14 or 10)
+          end,
+        },
+        {
+          label = "Lead",
+          threshold = 56,
+          on_delta = function(dir)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            Composer.cycle_stage_lead(stage_idx, dir)
+          end,
+          get_value = function()
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_lead_overrides or {}
+            local val = overrides[stage_idx]
+            return val and ("·" .. val) or params:string("rc_composer_lead")
+          end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_lead_overrides or {}
+            local idx = params:get("rc_composer_lead")
+            if overrides[stage_idx] then
+              idx = Composer.LEAD_INDEX[overrides[stage_idx]] or idx
+            end
+            PageState.draw_arc_segments(dev, ring, idx, #Composer.LEAD_NAMES, overrides[stage_idx] and 14 or 10)
           end,
         },
         {
@@ -121,6 +147,11 @@ local function build_live_pages(Composer)
             PageState.draw_arc_segments(dev, ring, idx, #Composer.VOICING_NAMES, overrides[stage_idx] and 14 or 10)
           end,
         },
+      },
+    },
+    {
+      name = "perform",
+      slots = {
         {
           label = "Rot",
           threshold = 56,
@@ -152,21 +183,6 @@ local function build_live_pages(Composer)
             PageState.draw_arc_segments(dev, ring, idx, #Composer.ROTATION_NAMES, overrides[stage_idx] and 14 or 10)
           end,
         },
-      },
-    },
-    {
-      name = "articulation",
-      slots = {
-        {
-          label = "Sprd",
-          param_id = "rc_composer_spread",
-          threshold = PageState.THRESH_RANGE,
-          arc_draw = function(dev, ring)
-            local spec = params:lookup_param("rc_composer_spread").controlspec
-            PageState.draw_arc_fill(dev, ring, params:get("rc_composer_spread"), spec)
-          end,
-        },
-        false,  -- ring 2 dark
         {
           label = "Strum",
           threshold = 56,
@@ -553,10 +569,11 @@ local function create_screen_ui(Composer)
   norns_ui.rebuild_params = function(self)
     self.params = {
       { separator = true, title = "Harmony" },
+      { id = "rc_composer_lead" },
       { id = "rc_composer_chord_len" },
       { id = "rc_composer_voicing" },
       { id = "rc_composer_rotation" },
-      { separator = true, title = "Articulation" },
+      { separator = true, title = "Perform" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
       { id = "rc_composer_gate" },

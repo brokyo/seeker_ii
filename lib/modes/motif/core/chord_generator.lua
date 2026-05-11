@@ -143,4 +143,91 @@ function ChordGenerator.generate_chord(chord_root_degree, chord_type, chord_leng
   return chord_notes
 end
 
+--- Find the octave of pitch_class nearest to target_note
+local function nearest_octave(pitch_class, target_note)
+  local base = target_note - ((target_note - pitch_class) % 12)
+  if math.abs(base - target_note) <= math.abs(base + 12 - target_note) then
+    return base
+  else
+    return base + 12
+  end
+end
+
+--- Apply voice leading between consecutive chords.
+-- @param prev_notes: sorted array of absolute MIDI notes from previous chord
+-- @param new_notes: sorted array of absolute MIDI notes from current chord
+-- @param strategy: "None", "Nearest", "Parallel", "Contrary"
+-- @return: re-voiced array of absolute MIDI notes
+function ChordGenerator.apply_voice_leading(prev_notes, new_notes, strategy)
+  if not prev_notes or #prev_notes == 0 or strategy == "None" then
+    return new_notes
+  end
+
+  local result = {}
+  local n = #new_notes
+  local p = #prev_notes
+
+  if strategy == "Nearest" then
+    local new_pcs = {}
+    for i, note in ipairs(new_notes) do
+      new_pcs[i] = note % 12
+    end
+    for i = 1, n do
+      local ref = prev_notes[math.min(i, p)]
+      result[i] = nearest_octave(new_pcs[i], ref)
+    end
+    table.sort(result)
+
+  elseif strategy == "Parallel" then
+    local prev_root = prev_notes[1]
+    local new_root = new_notes[1]
+    local interval = (new_root % 12) - (prev_root % 12)
+    local new_pcs = {}
+    for i, note in ipairs(new_notes) do
+      new_pcs[i] = note % 12
+    end
+    for i = 1, n do
+      local transposed = prev_notes[math.min(i, p)] + interval
+      local best = new_pcs[1]
+      local best_dist = 999
+      for _, pc in ipairs(new_pcs) do
+        local placed = nearest_octave(pc, transposed)
+        if math.abs(placed - transposed) < best_dist then
+          best = placed
+          best_dist = math.abs(placed - transposed)
+        end
+      end
+      result[i] = best
+    end
+    table.sort(result)
+
+  elseif strategy == "Contrary" then
+    local new_pcs = {}
+    for i, note in ipairs(new_notes) do
+      new_pcs[i] = note % 12
+    end
+    -- Bass: nearest new root at or below previous bass
+    local bass_target = prev_notes[1]
+    local bass_placed = nearest_octave(new_pcs[1], bass_target)
+    if bass_placed > bass_target then bass_placed = bass_placed - 12 end
+    result[1] = bass_placed
+    -- Top: nearest new top pitch class at or above previous top
+    if n > 1 then
+      local top_target = prev_notes[p]
+      local top_pc = new_pcs[n]
+      local top_placed = nearest_octave(top_pc, top_target)
+      if top_placed < top_target then top_placed = top_placed + 12 end
+      result[n] = top_placed
+      -- Inner voices: nearest available pitch class
+      for i = 2, n - 1 do
+        local ref = prev_notes[math.min(i, p)]
+        result[i] = nearest_octave(new_pcs[i], ref)
+      end
+    end
+    table.sort(result)
+  end
+
+  return result
+end
+
 return ChordGenerator

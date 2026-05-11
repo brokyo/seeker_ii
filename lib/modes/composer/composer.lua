@@ -3,6 +3,8 @@
 -- No UI code — handles chord building, stage overrides, param snapshots, and randomization.
 -- The rebuild() function builds progressions from params and applies via RC.form() or RC.stage().
 
+local chord_generator = include("lib/modes/motif/core/chord_generator")
+
 local Composer = {}
 Composer.__index = Composer
 
@@ -34,6 +36,7 @@ local STRUM_ORDER_NAMES = {"Up", "Down", "Out>In", "In>Out", "Random"}
 local GATE_NAMES = {"Staccato", "Normal", "Legato", "Drone"}
 local GATE_VALUES = {0.3, 0.6, 0.85, 1.0}
 local VEL_STAGE_NAMES = {"Flat", "Crescendo", "Decrescendo", "Arch", "Scoop", "Random"}
+local LEAD_NAMES = {"None", "Nearest", "Parallel", "Contrary"}
 local VEL_TONE_NAMES = {"Flat", "Strum", "Swell", "Pluck", "Accent Root", "Random"}
 
 -- Name-to-index lookup tables (avoid linear search in hot paths)
@@ -49,6 +52,8 @@ local GATE_INDEX = {}
 for i, name in ipairs(GATE_NAMES) do GATE_INDEX[name] = i end
 local VEL_STAGE_INDEX = {}
 for i, name in ipairs(VEL_STAGE_NAMES) do VEL_STAGE_INDEX[name] = i end
+local LEAD_INDEX = {}
+for i, name in ipairs(LEAD_NAMES) do LEAD_INDEX[name] = i end
 local VEL_TONE_INDEX = {}
 for i, name in ipairs(VEL_TONE_NAMES) do VEL_TONE_INDEX[name] = i end
 
@@ -68,6 +73,8 @@ Composer.GATE_INDEX = GATE_INDEX
 Composer.VEL_STAGE_NAMES = VEL_STAGE_NAMES
 Composer.VEL_TONE_NAMES = VEL_TONE_NAMES
 Composer.VEL_STAGE_INDEX = VEL_STAGE_INDEX
+Composer.LEAD_NAMES = LEAD_NAMES
+Composer.LEAD_INDEX = LEAD_INDEX
 Composer.VEL_TONE_INDEX = VEL_TONE_INDEX
 
 -- Option index to actual value conversions
@@ -112,6 +119,7 @@ local COMPOSER_PARAMS = {
   {id = "rc_composer_vel_stage", default = 1},
   {id = "rc_composer_vel_tone", default = 1},
   {id = "rc_composer_gate", default = 2},
+  {id = "rc_composer_lead", default = 1},
 }
 
 Composer.COMPOSER_PARAMS = COMPOSER_PARAMS
@@ -197,8 +205,11 @@ function Composer.rebuild(lane_id)
   local vel_max_overrides = lane.composer_vel_max_overrides or {}
   local vel_stage_overrides = lane.composer_vel_stage_overrides or {}
   local vel_tone_overrides = lane.composer_vel_tone_overrides or {}
+  local base_lead = LEAD_NAMES[get_param(snapshot, "rc_composer_lead")]
+  local lead_overrides = lane.composer_lead_overrides or {}
 
   local stages = {}
+  local prev_stage_notes = nil
   for i = 1, num_stages do
     local degree_overrides = lane.composer_degree_overrides or {}
     local degree = degree_overrides[i] or ((start - 1 + movement * (i - 1)) % 7) + 1
@@ -231,18 +242,35 @@ function Composer.rebuild(lane_id)
     local stage_vel_tone_name = vel_tone_overrides[i] or vel_tone
     local stage_vel = Composer.calculate_stage_velocity(i, num_stages, stage_vel_curve, stage_vel_min, stage_vel_max)
 
+    local chord_def = {
+      degree = degree,
+      type = "Diatonic",
+      dur = beats,
+      gate = stage_gate,
+      chord_len = stage_chord_len,
+      voicing = stage_voicing,
+      rotation = stage_rotation,
+      velocity = stage_vel,
+      vel_tone = stage_vel_tone_name,
+    }
+
+    -- Voice leading: pre-compute absolute MIDI notes for stages 2+ when enabled
+    local stage_lead = lead_overrides[i] or base_lead
+    local intervals = chord_generator.generate_chord(degree, "Diatonic", stage_chord_len, stage_rotation, stage_voicing)
+    local abs_notes = {}
+    for j, cn in ipairs(intervals) do
+      abs_notes[j] = cn + ((3 + 1) * 12)
+    end
+
+    if stage_lead ~= "None" and prev_stage_notes and #prev_stage_notes > 0 then
+      chord_def.notes = chord_generator.apply_voice_leading(prev_stage_notes, abs_notes, stage_lead)
+      prev_stage_notes = chord_def.notes
+    else
+      prev_stage_notes = abs_notes
+    end
+
     table.insert(stages, {
-      chords = {{
-        degree = degree,
-        type = "Diatonic",
-        dur = beats,
-        gate = stage_gate,
-        chord_len = stage_chord_len,
-        voicing = stage_voicing,
-        rotation = stage_rotation,
-        velocity = stage_vel,
-        vel_tone = stage_vel_tone_name,
-      }},
+      chords = {chord_def},
       octave = 3,
       strum = strum_delay,
       strum_order = stage_strum_order,
@@ -348,6 +376,15 @@ function Composer.cycle_stage_voicing(stage_index, direction)
   return result
 end
 
+function Composer.cycle_stage_lead(stage_index, direction)
+  local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+  lane.composer_lead_overrides = lane.composer_lead_overrides or {}
+  local base = LEAD_NAMES[params:get("rc_composer_lead")]
+  local result = advance_stage_override(LEAD_NAMES, LEAD_INDEX, lane.composer_lead_overrides, stage_index, base, direction)
+  Composer.rebuild()
+  return result
+end
+
 function Composer.cycle_stage_chord_len(stage_index, direction)
   local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
   lane.composer_chord_len_overrides = lane.composer_chord_len_overrides or {}
@@ -443,6 +480,7 @@ function Composer.save_params(lane_id)
   snapshot.vel_max_overrides = lane.composer_vel_max_overrides or {}
   snapshot.vel_stage_overrides = lane.composer_vel_stage_overrides or {}
   snapshot.vel_tone_overrides = lane.composer_vel_tone_overrides or {}
+  snapshot.lead_overrides = lane.composer_lead_overrides or {}
   lane.composer_param_snapshot = snapshot
 end
 
@@ -463,6 +501,7 @@ function Composer.load_params(lane_id)
     lane.composer_vel_max_overrides = lane.composer_param_snapshot.vel_max_overrides or {}
     lane.composer_vel_stage_overrides = lane.composer_param_snapshot.vel_stage_overrides or {}
     lane.composer_vel_tone_overrides = lane.composer_param_snapshot.vel_tone_overrides or {}
+    lane.composer_lead_overrides = lane.composer_param_snapshot.lead_overrides or {}
   else
     for _, p in ipairs(COMPOSER_PARAMS) do
       params:set(p.id, p.default)
@@ -477,6 +516,7 @@ function Composer.load_params(lane_id)
     lane.composer_vel_max_overrides = {}
     lane.composer_vel_stage_overrides = {}
     lane.composer_vel_tone_overrides = {}
+    lane.composer_lead_overrides = {}
   end
   snapshot_loading = false
 end
@@ -648,7 +688,7 @@ end
 -- Create params
 ---------------------------------------------------------------
 function Composer.create_params()
-  params:add_group("rc_composer_group", "COMPOSER", 15)
+  params:add_group("rc_composer_group", "COMPOSER", 16)
 
   params:add_option("rc_composer_start", "Start Degree", DEGREE_NAMES, 1)
   params:set_action("rc_composer_start", function() Composer.rebuild() end)
@@ -725,6 +765,13 @@ function Composer.create_params()
   params:set_action("rc_composer_vel_tone", function()
     local lane_id = _seeker.ui_state.get_focused_lane()
     _seeker.lanes[lane_id].composer_vel_tone_overrides = {}
+    Composer.rebuild()
+  end)
+
+  params:add_option("rc_composer_lead", "Voice Lead", LEAD_NAMES, 1)
+  params:set_action("rc_composer_lead", function()
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    _seeker.lanes[lane_id].composer_lead_overrides = {}
     Composer.rebuild()
   end)
 

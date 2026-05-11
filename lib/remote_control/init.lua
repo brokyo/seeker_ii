@@ -425,11 +425,18 @@ local function build_phrase_events(lane_id, opts)
     local c_voicing = chord_def.voicing or voicing
     local c_rotation = chord_def.rotation or rotation
 
-    local chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing)
+    local chord_notes
+    local notes_are_absolute = false
+    if chord_def.notes then
+      chord_notes = chord_def.notes
+      notes_are_absolute = true
+    else
+      chord_notes = chord_generator.generate_chord(degree, chord_type, c_len, c_rotation, c_voicing)
+    end
     local timing = strum_timing(#chord_notes, strum_order)
 
     for j, cn in ipairs(chord_notes) do
-      local note = cn + ((octave + 1) * 12)
+      local note = notes_are_absolute and cn or (cn + ((octave + 1) * 12))
       local strum_offset = timing[j] * strum
 
       -- Apply tone velocity curve (per-note shaping within chord)
