@@ -21,6 +21,17 @@ local last_lane_section = "COMPOSER_VOICE"  -- remembers last section navigated 
 local update_live_arc
 local update_progression_arc
 
+-- Update COMPOSER_LIVE page names to reflect the active stage
+local function update_live_page_names()
+  if not page_state then return end
+  local stage = edit_stage
+  local prefix = stage and ("S" .. stage .. " ") or ""
+  local base_names = {"harmony", "articulation", "dynamics"}
+  for i, page in ipairs(page_state.pages) do
+    page.name = prefix .. (base_names[i] or page.name)
+  end
+end
+
 ---------------------------------------------------------------
 -- PageState page definitions (built with closures over Composer)
 ---------------------------------------------------------------
@@ -44,7 +55,8 @@ local function build_live_pages(Composer)
             local start = params:get("rc_composer_start")
             local movement = Composer.movement_value(params:get("rc_composer_movement"))
             local default_degree = ((start - 1 + movement * (stage_idx - 1)) % 7) + 1
-            return Composer.DEGREE_NAMES[degree_overrides[stage_idx] or default_degree]
+            local name = Composer.DEGREE_NAMES[degree_overrides[stage_idx] or default_degree]
+            return degree_overrides[stage_idx] and ("·" .. name) or name
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -69,7 +81,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_chord_len_overrides or {}
-            return overrides[stage_idx] or params:string("rc_composer_chord_len")
+            local val = overrides[stage_idx]
+            return val and ("·" .. val) or params:string("rc_composer_chord_len")
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -94,7 +107,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_voicing_overrides or {}
-            return overrides[stage_idx] or params:string("rc_composer_voicing")
+            local val = overrides[stage_idx]
+            return val and ("·" .. val) or params:string("rc_composer_voicing")
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -120,10 +134,12 @@ local function build_live_pages(Composer)
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_rotation_overrides or {}
             local rot_idx = params:get("rc_composer_rotation")
-            if overrides[stage_idx] then
+            local has_override = overrides[stage_idx] ~= nil
+            if has_override then
               rot_idx = Composer.ROTATION_INDEX[overrides[stage_idx]] or rot_idx
             end
-            return tostring(rot_idx - 6)
+            local val = tostring(rot_idx - 6)
+            return has_override and ("·" .. val) or val
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -163,7 +179,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_strum_overrides or {}
-            return overrides[stage_idx] or params:string("rc_composer_strum_order")
+            local val = overrides[stage_idx]
+            return val and ("·" .. val) or params:string("rc_composer_strum_order")
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -188,7 +205,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_loops_overrides or {}
-            return tostring(overrides[stage_idx] or params:get("rc_composer_loops"))
+            local val = overrides[stage_idx]
+            return val and ("·" .. tostring(val)) or tostring(params:get("rc_composer_loops"))
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -216,7 +234,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_vel_min_overrides or {}
-            return tostring(overrides[stage_idx] or params:get("rc_composer_vel_min"))
+            local val = overrides[stage_idx]
+            return val and ("·" .. tostring(val)) or tostring(params:get("rc_composer_vel_min"))
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -238,7 +257,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_vel_max_overrides or {}
-            return tostring(overrides[stage_idx] or params:get("rc_composer_vel_max"))
+            local val = overrides[stage_idx]
+            return val and ("·" .. tostring(val)) or tostring(params:get("rc_composer_vel_max"))
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -260,7 +280,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_vel_stage_overrides or {}
-            return overrides[stage_idx] or params:string("rc_composer_vel_stage")
+            local val = overrides[stage_idx]
+            return val and ("·" .. val) or params:string("rc_composer_vel_stage")
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -285,7 +306,8 @@ local function build_live_pages(Composer)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
             local stage_idx = edit_stage or lane.current_stage_index or 1
             local overrides = lane.composer_vel_tone_overrides or {}
-            return overrides[stage_idx] or params:string("rc_composer_vel_tone")
+            local val = overrides[stage_idx]
+            return val and ("·" .. val) or params:string("rc_composer_vel_tone")
           end,
           arc_draw = function(dev, ring)
             local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
@@ -319,7 +341,7 @@ end
 local function build_progression_pages()
   return {
     {
-      name = "structure",
+      name = "all: structure",
       slots = {
         { label = "Beats", param_id = "rc_composer_beats", threshold = 56 },
         { label = "Loops", param_id = "rc_composer_loops", threshold = 56 },
@@ -328,7 +350,7 @@ local function build_progression_pages()
       },
     },
     {
-      name = "spread",
+      name = "all: spread",
       slots = {
         {
           label = "Sprd",
@@ -354,7 +376,7 @@ local function build_progression_pages()
       },
     },
     {
-      name = "dynamics",
+      name = "all: dynamics",
       slots = {
         { label = "Shape", param_id = "rc_composer_vel_stage", threshold = 56 },
         { label = "Touch", param_id = "rc_composer_vel_tone", threshold = 56 },
@@ -806,6 +828,7 @@ local function create_grid_ui(Composer)
           -- First click: select stage, snap to live view
           _seeker.ui_state.set_current_section("COMPOSER_LIVE")
           edit_stage = stage
+          update_live_page_names()
           page_state.page_flash = {
             name = page_state.pages[page_state.page].name,
             time = util.time(),
@@ -859,7 +882,7 @@ function LiveView.init(Composer)
   LiveView.page_state = page_state
   LiveView.progression_page_state = progression_page_state
   LiveView.edit_stage = function() return edit_stage end
-  LiveView.set_edit_stage = function(val) edit_stage = val end
+  LiveView.set_edit_stage = function(val) edit_stage = val; update_live_page_names() end
   LiveView.update_live_arc = function() update_live_arc(Composer) end
 
   -- Refresh arc whenever rebuild fires (including automated meta-progression)
