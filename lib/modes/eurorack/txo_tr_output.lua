@@ -68,6 +68,13 @@ function TxoTrOutput.generate_rhythm_pattern(output_num)
         for i = 1, length do
             if not pattern[i] then pattern[i] = false end
         end
+        if rotation > 0 then
+            local rotated = {}
+            for i = 1, length do
+                rotated[i] = pattern[((i - 1 + rotation) % length) + 1]
+            end
+            pattern = rotated
+        end
     end
 
     pattern_states["txo_" .. output_num].pattern = pattern
@@ -111,8 +118,10 @@ function TxoTrOutput.update_txo_tr(output_num)
                 local burst_count = params:get("txo_tr_" .. output_num .. "_burst_count")
                 local burst_time = params:get("txo_tr_" .. output_num .. "_burst_time") / 100
                 local burst_shape = params:string("txo_tr_" .. output_num .. "_burst_shape")
+                local beat_sec = clock.get_beat_sec()
+                local step_sec = beat_sec * beats
 
-                local intervals = get_burst_intervals(burst_count, burst_time, burst_shape)
+                local intervals = get_burst_intervals(burst_count, burst_time * step_sec, burst_shape)
 
                 for i = 1, burst_count do
                     burst_states[output_num] = i

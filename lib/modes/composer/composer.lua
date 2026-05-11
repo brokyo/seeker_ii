@@ -599,6 +599,7 @@ function Composer.randomize(style)
   end
   params:set("rc_composer_loops", math.random(1, 4))
   params:set("rc_composer_vel_stage", math.random(1, #VEL_STAGE_NAMES))
+  params:set("rc_composer_lead", math.random(1, #LEAD_NAMES))
   snapshot_loading = false
 
   local lane_id = _seeker.ui_state.get_focused_lane()
@@ -622,6 +623,7 @@ function Composer.randomize(style)
   lane.composer_vel_max_overrides = {}
   lane.composer_vel_stage_overrides = {}
   lane.composer_vel_tone_overrides = {}
+  lane.composer_lead_overrides = {}
   for i = 1, num_stages do
     lane.composer_loops_overrides[i] = math.random(1, 4)
   end
