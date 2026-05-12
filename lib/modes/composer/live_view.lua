@@ -93,6 +93,31 @@ local function build_live_pages(Composer)
           end,
         },
         {
+          label = "Rot",
+          threshold = 56,
+          on_delta = function(dir)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            Composer.cycle_stage_rotation(stage_idx, dir)
+          end,
+          get_value = function()
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_rotation_overrides or {}
+            local val = overrides[stage_idx]
+            local base = params:get("rc_composer_rotation")
+            local display = val or base
+            return (val and "·" or "") .. tostring(display)
+          end,
+          arc_draw = function(dev, ring)
+            local lane = _seeker.lanes[_seeker.ui_state.get_focused_lane()]
+            local stage_idx = edit_stage or lane.current_stage_index or 1
+            local overrides = lane.composer_rotation_overrides or {}
+            local val = overrides[stage_idx] or params:get("rc_composer_rotation")
+            PageState.draw_arc_position(dev, ring, val, -5, 5)
+          end,
+        },
+        {
           label = "Len",
           threshold = 56,
           on_delta = function(dir)
@@ -535,6 +560,7 @@ local function create_screen_ui(Composer)
       { separator = true, title = "Harmony" },
       { id = "rc_composer_chord_len" },
       { id = "rc_composer_spread_voices" },
+      { id = "rc_composer_rotation" },
       { separator = true, title = "Perform" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
@@ -589,6 +615,7 @@ local function create_progression_screen_ui(Composer)
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
       { id = "rc_composer_spread_voices" },
+      { id = "rc_composer_rotation" },
       { separator = true, title = "Dynamics" },
       { id = "rc_composer_vel_stage" },
       { id = "rc_composer_vel_tone" },

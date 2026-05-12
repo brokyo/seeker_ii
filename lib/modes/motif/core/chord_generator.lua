@@ -111,4 +111,31 @@ function ChordGenerator.smooth_voice_leading(stages_notes)
   return result
 end
 
+--- Rotate a chord: fold bottom notes up (positive) or top notes down (negative).
+-- @param notes: sorted array of MIDI note numbers
+-- @param rotation: integer, positive = fold bottom up, negative = fold top down
+-- @return: new sorted array with rotation applied
+function ChordGenerator.rotate_chord(notes, rotation)
+  if not notes or #notes == 0 or rotation == 0 then return notes end
+
+  local result = {}
+  for _, n in ipairs(notes) do table.insert(result, n) end
+  table.sort(result)
+
+  local steps = math.min(math.abs(rotation), #result - 1)
+  if rotation > 0 then
+    for _ = 1, steps do
+      result[1] = result[1] + 12
+      table.sort(result)
+    end
+  else
+    for _ = 1, steps do
+      result[#result] = result[#result] - 12
+      table.sort(result)
+    end
+  end
+
+  return result
+end
+
 return ChordGenerator
