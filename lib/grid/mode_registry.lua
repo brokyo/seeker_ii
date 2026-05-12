@@ -38,12 +38,12 @@ GridModeRegistry.MODES = {
       },
       composer = {
         button = { x = 14, y = 3 },
-        default_section = "COMPOSER_HOME",
+        default_section = "COMPOSER_LIVE",
         path = "lib/grid/layouts/composer_mode",
       },
       sampler = {
         button = { x = 15, y = 3 },
-        default_section = "TAPE_HOME",
+        default_section = "LANE_CONFIG",
         path = "lib/grid/layouts/keyboard_mode",
       },
       drums = {
