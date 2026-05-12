@@ -543,11 +543,11 @@ local function update_rhythm(output_num, prefix)
                 cv_voltages[output_num] = 0
             end
 
-            step = step + 1
-            if step > #pattern then step = 1 end
-            pattern_states[output_num].current_step = step
-
             clock.sync(timing.beats, timing.offset)
+
+            local next_step = step + 1
+            if next_step > #pattern then next_step = 1 end
+            pattern_states[output_num].current_step = next_step
         end
     end
 

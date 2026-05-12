@@ -158,15 +158,17 @@ function TxoTrOutput.update_txo_tr(output_num)
                     crow.ii.txo.tr(output_num, 0)
                     gate_states[output_num] = 0
                 end
-
-                current_step = current_step + 1
-                if current_step > #pattern then
-                    current_step = 1
-                end
-                pattern_states["txo_" .. output_num].current_step = current_step
             end
 
             clock.sync(beats, tonumber(clock_offset) or 0)
+
+            if type == "Rhythm" then
+                local pattern = pattern_states["txo_" .. output_num].pattern
+                local current_step = pattern_states["txo_" .. output_num].current_step
+                local next_step = current_step + 1
+                if next_step > #pattern then next_step = 1 end
+                pattern_states["txo_" .. output_num].current_step = next_step
+            end
         end
     end
 
