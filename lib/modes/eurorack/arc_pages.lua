@@ -194,12 +194,13 @@ end
 -- State comes from get_cv_states() with type-specific fields.
 ---------------------------------------------------------------
 
--- Rhythm: row of filled/empty dots, current step highlighted
+-- Rhythm: row of filled/empty dots, current step illuminates with gate
 local function draw_viz_rhythm(state, y_top, h)
   local pattern = state.pattern
   local step = state.current_step
   if not pattern or #pattern == 0 then return end
   local active = state.active
+  local gate_open = active and (state.current or 0) > 0
 
   local n = #pattern
   local dot_spacing = 124 / n
@@ -209,13 +210,14 @@ local function draw_viz_rhythm(state, y_top, h)
   for i = 1, n do
     local cx = 2 + math.floor((i - 0.5) * dot_spacing)
     local is_current = active and (i == step)
+    local is_lit = is_current and gate_open
 
     if pattern[i] then
-      screen.level(is_current and 15 or (active and 8 or 4))
+      screen.level(is_lit and 15 or (is_current and 10 or (active and 6 or 3)))
       screen.circle(cx, mid_y, dot_r)
       screen.fill()
     else
-      screen.level(is_current and 10 or (active and 3 or 1))
+      screen.level(is_lit and 8 or (is_current and 5 or (active and 2 or 1)))
       screen.circle(cx, mid_y, dot_r)
       screen.stroke()
     end
