@@ -284,8 +284,10 @@ end
 --   Returns true if successful, false if transform failed
 ---------------------------------------------------------
 function Lane:prepare_stage(stage)
-  -- RC stage: load pre-built events directly, skip motif type handlers
-  if self.rc_stage_motifs[stage.id] then
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+
+  -- RC stage data: only composer lanes use pre-built stage events
+  if motif_type == 4 and self.rc_stage_motifs[stage.id] then
     local data = self.rc_stage_motifs[stage.id]
     self.motif.events = {}
     for _, evt in ipairs(data.events) do
@@ -295,7 +297,6 @@ function Lane:prepare_stage(stage)
     return true
   end
 
-  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   local handler = lane_handlers.get(motif_type)
 
   if handler and handler.prepare_stage then
@@ -1168,6 +1169,7 @@ end
 function Lane:clear()
   self:stop()
   self.motif:clear()
+  self.rc_stage_motifs = {}
 
   -- Reset playback params to defaults
   params:set("lane_" .. self.id .. "_octave_offset", 0)
