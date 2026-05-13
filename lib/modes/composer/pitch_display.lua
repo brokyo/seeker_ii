@@ -1,12 +1,11 @@
 -- pitch_display.lua
 -- Two-column voicing display at x=10-11, y=1-8.
--- 16 scale-degree slots: column 10 (bottom-up) = degrees 1-8,
--- column 11 (bottom-up) = degrees 9-16. Covers ~2 octaves of diatonic space.
--- Dim = note exists in chord. Full bright = note currently sounding.
+-- 16 slots spanning ~2.5 octaves from the key root at the composer's base octave.
+-- Each slot = 2 semitones. Shows chord shape: close voicing clusters,
+-- wide spread scatters. Notes light up full bright when sounding.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
-local musicutil = require("musicutil")
 
 local PitchDisplay = {}
 
@@ -14,6 +13,7 @@ local DISPLAY_X = 10
 local DISPLAY_Y = 1
 local DISPLAY_W = 2
 local DISPLAY_H = 8
+local SEMITONES_PER_SLOT = 2
 
 local function create_grid_ui()
   local grid_ui = GridUI.new({
@@ -35,10 +35,9 @@ local function create_grid_ui()
     local live_view = _seeker.composer_mode.live_view
     local edit_stage = live_view and live_view.edit_stage and live_view.edit_stage()
     local display_stage = edit_stage or (is_playing and lane.current_stage_index) or 1
-
     if display_stage > num_stages then display_stage = 1 end
 
-    -- Extract notes for the display stage from rc_stage_motifs
+    -- Extract notes for the display stage
     local chord_notes = {}
     local stage_motif = lane.rc_stage_motifs[display_stage]
     if stage_motif and stage_motif.events then
@@ -52,31 +51,11 @@ local function create_grid_ui()
     end
     table.sort(chord_notes)
 
-    if #chord_notes == 0 then return end
+    -- Fixed reference: root note at composer's base octave (octave 4 = +48)
+    local root_midi = (params:get("root_note") - 1) + 48
+    local range_start = root_midi
 
-    -- Build the scale for mapping MIDI notes to scale degree positions
-    local root_note = params:get("root_note") - 1
-    local scale_type = params:get("scale_type")
-    local scale = musicutil.generate_scale(root_note, musicutil.SCALES[scale_type].name, 128)
-
-    -- Build reverse lookup: MIDI note → scale position (0-indexed)
-    local note_to_scale_pos = {}
-    for i, sn in ipairs(scale) do
-      note_to_scale_pos[sn] = i - 1
-    end
-
-    -- Find the lowest chord note's scale position as the anchor
-    local anchor_pos = nil
-    for _, note in ipairs(chord_notes) do
-      local pos = note_to_scale_pos[note]
-      if pos then
-        anchor_pos = pos
-        break
-      end
-    end
-    if not anchor_pos then return end
-
-    -- Build set of currently sounding notes from active_notes
+    -- Build set of currently sounding notes
     local sounding = {}
     local active_notes = lane.active_notes or {}
     for _, note_data in pairs(active_notes) do
@@ -85,22 +64,21 @@ local function create_grid_ui()
       end
     end
 
-    -- Map each note to a slot (0-15) relative to anchor
-    -- Slot 0 = col 10 row 8 (bottom-left), slot 7 = col 10 row 1 (top-left)
-    -- Slot 8 = col 11 row 8 (bottom-right), slot 15 = col 11 row 1 (top-right)
+    -- Map notes to slots: each slot = 2 semitones from range_start
     local slot_state = {}
     for _, note in ipairs(chord_notes) do
-      local pos = note_to_scale_pos[note]
-      if pos then
-        local slot = pos - anchor_pos
-        if slot >= 0 and slot < 16 then
-          local is_sounding = sounding[note] == true
+      local semitones_above = note - range_start
+      local slot = math.floor(semitones_above / SEMITONES_PER_SLOT)
+      if slot >= 0 and slot < 16 then
+        local is_sounding = sounding[note] == true
+        if not slot_state[slot] or is_sounding then
           slot_state[slot] = is_sounding and "playing" or "present"
         end
       end
     end
 
     -- Draw the 16 cells
+    local has_notes = #chord_notes > 0
     for slot = 0, 15 do
       local col = slot < 8 and 0 or 1
       local row_from_bottom = slot % 8
@@ -113,8 +91,10 @@ local function create_grid_ui()
         brightness = GridConstants.BRIGHTNESS.FULL
       elseif state == "present" then
         brightness = GridConstants.BRIGHTNESS.MEDIUM
-      else
+      elseif has_notes then
         brightness = GridConstants.BRIGHTNESS.DIM
+      else
+        brightness = GridConstants.BRIGHTNESS.OFF
       end
 
       layers.ui[gx][gy] = brightness
@@ -122,7 +102,6 @@ local function create_grid_ui()
   end
 
   grid_ui.handle_key = function(self, x, y, z)
-    -- Read-only for now
   end
 
   return grid_ui
