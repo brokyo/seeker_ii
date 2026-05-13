@@ -253,7 +253,7 @@ function Composer.rebuild(lane_id)
       params:set("lane_" .. lane_id .. "_stage_" .. i .. "_active", 2)
       params:set("lane_" .. lane_id .. "_stage_" .. i .. "_loops", entry.loops or 2)
     end
-    for i = num_stages + 1, 8 do
+    for i = num_stages + 1, 6 do
       params:set("lane_" .. lane_id .. "_stage_" .. i .. "_active", 1)
       lane.rc_stage_motifs[i] = nil
     end
@@ -675,20 +675,6 @@ function Composer.randomize(style)
 
   Composer.rebuild()
   lane:play({quantize = true})
-end
-
----------------------------------------------------------------
--- Get stage count for a lane (live params if focused, snapshot otherwise)
----------------------------------------------------------------
-local function get_lane_stages(lane_id)
-  if lane_id == _seeker.ui_state.get_focused_lane() then
-    return params:get("rc_composer_stages")
-  end
-  local lane = _seeker.lanes[lane_id]
-  if lane.composer_param_snapshot then
-    return lane.composer_param_snapshot.rc_composer_stages or 1
-  end
-  return 1
 end
 
 ---------------------------------------------------------------

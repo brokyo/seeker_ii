@@ -127,7 +127,6 @@ local ComposerMode = {}
 function ComposerMode.init()
   local instance = {
     sections = {},
-    grids = {}
   }
 
   -- Create params first (needed before live_view builds PageState)
