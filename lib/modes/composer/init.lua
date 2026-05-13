@@ -110,6 +110,9 @@ local function create_params_section()
       { id = "rc_composer_strum_order" },
       { id = "rc_composer_gate" },
       { id = "rc_composer_loops" },
+      { separator = true, title = "Actions" },
+      { id = "rc_composer_randomize", is_action = true },
+      { id = "rc_composer_smooth", is_action = true },
     }
   end
 

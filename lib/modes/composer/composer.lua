@@ -690,7 +690,7 @@ end
 -- Create params
 ---------------------------------------------------------------
 function Composer.create_params()
-  params:add_group("rc_composer_group", "COMPOSER", 15)
+  params:add_group("rc_composer_group", "COMPOSER", 17)
 
   params:add_option("rc_composer_start", "Start Degree", DEGREE_NAMES, 1)
   params:set_action("rc_composer_start", function() Composer.rebuild() end)
@@ -772,6 +772,16 @@ function Composer.create_params()
     local lane_id = _seeker.ui_state.get_focused_lane()
     _seeker.lanes[lane_id].composer_vel_tone_overrides = {}
     Composer.rebuild()
+  end)
+
+  params:add_binary("rc_composer_randomize", "Randomize", "trigger", 0)
+  params:set_action("rc_composer_randomize", function()
+    Composer.randomize("journey")
+  end)
+
+  params:add_binary("rc_composer_smooth", "Smooth", "trigger", 0)
+  params:set_action("rc_composer_smooth", function()
+    Composer.smooth()
   end)
 
   params_initialized = true
