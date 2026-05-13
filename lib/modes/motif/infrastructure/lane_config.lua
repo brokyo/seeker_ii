@@ -406,15 +406,22 @@ local function create_grid_ui()
         local sub_mode = _seeker.current_sub_mode or "tape"
         local lane_ids = LaneMap.lanes_for_mode(sub_mode)
 
-        -- Draw keyboard outline during lane switch flash
+        -- Draw play area outline during lane switch flash
         if self.flash_state.flash_until and util.time() < self.flash_state.flash_until then
-            for x = 0, 5 do
-                layers.response[6 + x][2] = GridConstants.BRIGHTNESS.HIGH
-                layers.response[6 + x][7] = GridConstants.BRIGHTNESS.HIGH
+            local motif_type = params:get("lane_" .. lane_ids[1] .. "_motif_type")
+            local ox, oy, ow, oh
+            if motif_type == 4 then
+                ox, oy, ow, oh = 1, 2, 8, 6
+            else
+                ox, oy, ow, oh = 6, 2, 6, 6
             end
-            for y = 0, 5 do
-                layers.response[6][2 + y] = GridConstants.BRIGHTNESS.HIGH
-                layers.response[11][2 + y] = GridConstants.BRIGHTNESS.HIGH
+            for x = 0, ow - 1 do
+                layers.response[ox + x][oy] = GridConstants.BRIGHTNESS.HIGH
+                layers.response[ox + x][oy + oh - 1] = GridConstants.BRIGHTNESS.HIGH
+            end
+            for y = 0, oh - 1 do
+                layers.response[ox][oy + y] = GridConstants.BRIGHTNESS.HIGH
+                layers.response[ox + ow - 1][oy + y] = GridConstants.BRIGHTNESS.HIGH
             end
         end
 
