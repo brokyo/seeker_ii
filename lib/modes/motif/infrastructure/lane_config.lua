@@ -412,6 +412,8 @@ local function create_grid_ui()
             local ox, oy, ow, oh
             if motif_type == 4 then
                 ox, oy, ow, oh = 1, 2, 8, 6
+            elseif motif_type == 3 then
+                ox, oy, ow, oh = 7, 3, 4, 4
             else
                 ox, oy, ow, oh = 6, 2, 6, 6
             end
@@ -425,8 +427,9 @@ local function create_grid_ui()
             end
         end
 
-        -- Draw 4 lane buttons for the active sub-mode
-        for i = 1, LaneMap.LANES_PER_MODE do
+        -- Draw lane buttons for the active sub-mode
+        local active_count = LaneMap.active_lanes_for_mode(sub_mode)
+        for i = 1, active_count do
             local lane_idx = lane_ids[i]
             local is_focused = lane_idx == _seeker.ui_state.get_focused_lane()
             local lane = _seeker.lanes[lane_idx]
@@ -453,6 +456,8 @@ local function create_grid_ui()
 
         local sub_mode = _seeker.current_sub_mode or "tape"
         local local_index = (x - self.layout.x) + 1
+        local active_count = LaneMap.active_lanes_for_mode(sub_mode)
+        if local_index > active_count then return true end
         local new_lane_idx = LaneMap.to_flat(sub_mode, local_index)
         local key_id = string.format("%d,%d", x, y)
 

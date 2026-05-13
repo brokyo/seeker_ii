@@ -21,6 +21,17 @@ LaneMap.MOTIF_TYPES = {
   composer = 4,
 }
 
+LaneMap.ACTIVE_LANE_COUNT = {
+  tape     = 4,
+  composer = 4,
+  sampler  = 2,
+  drums    = 4,
+}
+
+function LaneMap.active_lanes_for_mode(sub_mode)
+  return LaneMap.ACTIVE_LANE_COUNT[sub_mode] or LaneMap.LANES_PER_MODE
+end
+
 function LaneMap.to_flat(sub_mode, local_index)
   return LaneMap.OFFSETS[sub_mode] + local_index
 end
