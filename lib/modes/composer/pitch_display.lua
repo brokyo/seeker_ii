@@ -55,13 +55,12 @@ local function create_grid_ui()
     local root_midi = (params:get("root_note") - 1) + 48
     local range_start = root_midi
 
-    -- Build set of currently sounding notes
+    -- Build set of currently sounding notes (use original_note to match motif data)
     local sounding = {}
     local active_notes = lane.active_notes or {}
     for _, note_data in pairs(active_notes) do
-      if note_data.note then
-        sounding[note_data.note] = true
-      end
+      local n = note_data.original_note or note_data.note
+      if n then sounding[n] = true end
     end
 
     -- Map notes to slots: each slot = 2 semitones from range_start
