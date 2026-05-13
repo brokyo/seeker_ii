@@ -406,8 +406,15 @@ local function create_grid_ui()
         local sub_mode = _seeker.current_sub_mode or "tape"
         local lane_ids = LaneMap.lanes_for_mode(sub_mode)
 
-        -- Draw play area outline during lane switch flash
+        -- Play area outline: flash on lane switch, hold during long press
+        local show_outline = false
         if self.flash_state.flash_until and util.time() < self.flash_state.flash_until then
+            show_outline = true
+        end
+        if self:is_holding_long_press() then
+            show_outline = true
+        end
+        if show_outline then
             local motif_type = params:get("lane_" .. lane_ids[1] .. "_motif_type")
             local ox, oy, ow, oh
             if motif_type == 4 then
