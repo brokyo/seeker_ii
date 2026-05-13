@@ -1,11 +1,12 @@
 -- pitch_display.lua
 -- Two-column voicing display at x=10-11, y=1-8.
--- 16 chromatic pitch slots: column 10 (bottom-up) = pitches 1-8,
--- column 11 (bottom-up) = pitches 9-16. Range anchored to chord root.
+-- 16 scale-degree slots: column 10 (bottom-up) = degrees 1-8,
+-- column 11 (bottom-up) = degrees 9-16. Covers ~2 octaves of diatonic space.
 -- Dim = note exists in chord. Full bright = note currently sounding.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
+local musicutil = require("musicutil")
 
 local PitchDisplay = {}
 
@@ -53,9 +54,27 @@ local function create_grid_ui()
 
     if #chord_notes == 0 then return end
 
-    -- Fixed reference: root note at octave 3 (composer's default octave)
-    local root = params:get("root_note") - 1
-    local range_start = root + (3 * 12)
+    -- Build the scale for mapping MIDI notes to scale degree positions
+    local root_note = params:get("root_note") - 1
+    local scale_type = params:get("scale_type")
+    local scale = musicutil.generate_scale(root_note, musicutil.SCALES[scale_type].name, 128)
+
+    -- Build reverse lookup: MIDI note → scale position (0-indexed)
+    local note_to_scale_pos = {}
+    for i, sn in ipairs(scale) do
+      note_to_scale_pos[sn] = i - 1
+    end
+
+    -- Find the lowest chord note's scale position as the anchor
+    local anchor_pos = nil
+    for _, note in ipairs(chord_notes) do
+      local pos = note_to_scale_pos[note]
+      if pos then
+        anchor_pos = pos
+        break
+      end
+    end
+    if not anchor_pos then return end
 
     -- Build set of currently sounding notes from active_notes
     local sounding = {}
@@ -66,15 +85,18 @@ local function create_grid_ui()
       end
     end
 
-    -- Map each note to a slot (0-15), then to column + row
+    -- Map each note to a slot (0-15) relative to anchor
     -- Slot 0 = col 10 row 8 (bottom-left), slot 7 = col 10 row 1 (top-left)
     -- Slot 8 = col 11 row 8 (bottom-right), slot 15 = col 11 row 1 (top-right)
     local slot_state = {}
     for _, note in ipairs(chord_notes) do
-      local slot = note - range_start
-      if slot >= 0 and slot < 16 then
-        local is_sounding = sounding[note] == true
-        slot_state[slot] = is_sounding and "playing" or "present"
+      local pos = note_to_scale_pos[note]
+      if pos then
+        local slot = pos - anchor_pos
+        if slot >= 0 and slot < 16 then
+          local is_sounding = sounding[note] == true
+          slot_state[slot] = is_sounding and "playing" or "present"
+        end
       end
     end
 
