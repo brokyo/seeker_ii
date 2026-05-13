@@ -1,7 +1,8 @@
 -- pitch_display.lua
--- Two-column live voicing display at x=10-11, y=1-8.
--- Shows the current chord's notes mapped to pitch space.
--- Updates as stages cycle during playback, or follows edit_stage selection.
+-- Two-column voicing display at x=10-11, y=1-8.
+-- 16 chromatic pitch slots: column 10 (bottom-up) = pitches 1-8,
+-- column 11 (bottom-up) = pitches 9-16. Range anchored to chord root.
+-- Dim = note exists in chord. Full bright = note currently sounding.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
@@ -12,12 +13,6 @@ local DISPLAY_X = 10
 local DISPLAY_Y = 1
 local DISPLAY_W = 2
 local DISPLAY_H = 8
-
--- Fixed pitch range: MIDI 36 (C2) to 84 (C6) = 48 semitones across 8 rows
-local PITCH_MIN = 36
-local PITCH_MAX = 84
-local ROWS = 8
-local SEMITONES_PER_ROW = (PITCH_MAX - PITCH_MIN) / ROWS
 
 local function create_grid_ui()
   local grid_ui = GridUI.new({
@@ -43,47 +38,55 @@ local function create_grid_ui()
     if display_stage > num_stages then display_stage = 1 end
 
     -- Extract notes for the display stage from rc_stage_motifs
-    local notes = {}
+    local chord_notes = {}
     local stage_motif = lane.rc_stage_motifs[display_stage]
     if stage_motif and stage_motif.events then
       local seen = {}
       for _, event in ipairs(stage_motif.events) do
         if event.type == "note_on" and not seen[event.note] then
           seen[event.note] = true
-          table.insert(notes, event.note)
+          table.insert(chord_notes, event.note)
         end
       end
     end
+    table.sort(chord_notes)
 
-    -- Map notes to row indices (row 8 = lowest pitch, row 1 = highest)
-    local row_hits = {}
-    for _, note in ipairs(notes) do
-      local clamped = math.max(PITCH_MIN, math.min(PITCH_MAX - 1, note))
-      local row_from_bottom = math.floor((clamped - PITCH_MIN) / SEMITONES_PER_ROW) + 1
-      local row = ROWS - row_from_bottom + 1
-      row = math.max(1, math.min(ROWS, row))
-      row_hits[row] = (row_hits[row] or 0) + 1
+    if #chord_notes == 0 then return end
+
+    -- Anchor range to the lowest note: 16 chromatic slots from there
+    local range_start = chord_notes[1]
+    local active_notes = lane.active_notes or {}
+
+    -- Map each note to a slot (0-15), then to column + row
+    -- Slot 0 = col 10 row 8 (bottom-left), slot 7 = col 10 row 1 (top-left)
+    -- Slot 8 = col 11 row 8 (bottom-right), slot 15 = col 11 row 1 (top-right)
+    local slot_state = {}
+    for _, note in ipairs(chord_notes) do
+      local slot = note - range_start
+      if slot >= 0 and slot < 16 then
+        local is_sounding = active_notes[note] ~= nil
+        slot_state[slot] = is_sounding and "playing" or "present"
+      end
     end
 
-    -- Draw both columns
-    local has_notes = #notes > 0
-    for row = 1, ROWS do
-      local gy = DISPLAY_Y + row - 1
-      local hit_count = row_hits[row] or 0
+    -- Draw the 16 cells
+    for slot = 0, 15 do
+      local col = slot < 8 and 0 or 1
+      local row_from_bottom = slot % 8
+      local gx = DISPLAY_X + col
+      local gy = DISPLAY_Y + (DISPLAY_H - 1 - row_from_bottom)
 
+      local state = slot_state[slot]
       local brightness
-      if hit_count > 1 then
+      if state == "playing" then
         brightness = GridConstants.BRIGHTNESS.FULL
-      elseif hit_count == 1 then
-        brightness = GridConstants.BRIGHTNESS.HIGH
-      elseif has_notes then
-        brightness = GridConstants.BRIGHTNESS.DIM
+      elseif state == "present" then
+        brightness = GridConstants.BRIGHTNESS.MEDIUM
       else
-        brightness = GridConstants.BRIGHTNESS.OFF
+        brightness = GridConstants.BRIGHTNESS.DIM
       end
 
-      layers.ui[DISPLAY_X][gy] = brightness
-      layers.ui[DISPLAY_X + 1][gy] = brightness
+      layers.ui[gx][gy] = brightness
     end
   end
 
