@@ -11,6 +11,9 @@ function ComposerType.draw(layers)
   if _seeker.composer_mode.degree_grid then
     _seeker.composer_mode.degree_grid.grid:draw(layers)
   end
+  if _seeker.composer_mode.pitch_display then
+    _seeker.composer_mode.pitch_display.grid:draw(layers)
+  end
 end
 
 function ComposerType.handle_key(x, y, z)

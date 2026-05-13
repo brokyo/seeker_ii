@@ -6,6 +6,7 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local Composer = include("lib/modes/composer/composer")
 local LiveView = include("lib/modes/composer/live_view")
 local DegreeGrid = include("lib/modes/composer/degree_grid")
+local PitchDisplay = include("lib/modes/composer/pitch_display")
 local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 local Descriptions = include("lib/ui/component_descriptions")
 
@@ -134,11 +135,13 @@ function ComposerMode.init()
 
   -- Initialize grid components
   local degree_grid = DegreeGrid.init()
+  local pitch_display = PitchDisplay.init()
 
   -- Store core references
   instance.composer = Composer
   instance.live_view = LiveView
   instance.degree_grid = degree_grid
+  instance.pitch_display = pitch_display
 
   -- Register screen sections
   instance.sections["COMPOSER_LIVE"] = LiveView.screen
