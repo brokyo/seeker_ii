@@ -1,13 +1,10 @@
 -- live_view.lua
--- Composer live view: voice leading graph, grid lane/stage buttons, and paged arc parameter display.
--- Arc button and K3 cycle pages. Grid stage: first tap selects, second tap on same stage cycles arc page.
+-- Composer live view: voice leading graph and paged arc parameter display.
+-- Arc button and K3 cycle pages. Stage selection driven by degree_grid taps.
 
 local NornsUI = include("lib/ui/base/norns_ui")
-local GridUI = include("lib/ui/base/grid_ui")
-local GridConstants = include("lib/grid/constants")
 local Descriptions = include("lib/ui/component_descriptions")
 local PageState = include("lib/ui/components/page_state")
-local LaneMap = include("lib/lanes/lane_map")
 
 local LiveView = {}
 
@@ -637,28 +634,33 @@ local function create_progression_screen_ui(Composer)
   return norns_ui
 end
 
----------------------------------------------------------------
--- Grid UI: 4 lane rows (rows 4-7), col 1 = lane button, cols 2-9 = stages
----------------------------------------------------------------
-local NUM_COMPOSER_LANES = 4
-local FIRST_ROW = 4
-local HOLD_THRESHOLD_STAGE = 1.0
-local HOLD_THRESHOLD_RANDOMIZE = 1.5
+-- (Grid UI removed — composer now uses keyboard_mode with degree_grid.lua)
 
--- Get stage count for a lane (global params if focused, snapshot otherwise)
--- lane_id is a flat lane ID (5-8 for composer lanes)
-local function get_lane_stages(lane_id)
-  if lane_id == _seeker.ui_state.get_focused_lane() then
-    return params:get("rc_composer_stages")
-  end
-  local lane = _seeker.lanes[lane_id]
-  if lane.composer_param_snapshot then
-    return lane.composer_param_snapshot.rc_composer_stages or 1
-  end
-  return 1
+---------------------------------------------------------------
+-- LiveView init: creates PageState and screen (no grid)
+---------------------------------------------------------------
+function LiveView.init(Composer)
+  page_state = PageState.new({ pages = build_live_pages(Composer) })
+  progression_page_state = PageState.new({ pages = build_progression_pages() })
+
+  LiveView.screen = create_screen_ui(Composer)
+  LiveView.progression_screen = create_progression_screen_ui(Composer)
+  LiveView.page_state = page_state
+  LiveView.progression_page_state = progression_page_state
+  LiveView.edit_stage = function() return edit_stage end
+  LiveView.set_edit_stage = function(val) edit_stage = val; update_live_page_names() end
+  LiveView.update_live_arc = function() update_live_arc(Composer) end
+
+  Composer.on_rebuild = function() update_live_arc(Composer) end
+
+  return LiveView
 end
 
-local function create_grid_ui(Composer)
+return LiveView
+
+--[[ OLD GRID UI (removed — replaced by degree_grid.lua)
+
+local function REMOVED_create_grid_ui(Composer)
   local grid_ui = GridUI.new({
     id = "COMPOSER_GRID",
     layout = {
@@ -875,27 +877,4 @@ local function create_grid_ui(Composer)
 
   return grid_ui
 end
-
----------------------------------------------------------------
--- LiveView init: creates PageState, screen, and grid
----------------------------------------------------------------
-function LiveView.init(Composer)
-  page_state = PageState.new({ pages = build_live_pages(Composer) })
-  progression_page_state = PageState.new({ pages = build_progression_pages() })
-
-  LiveView.screen = create_screen_ui(Composer)
-  LiveView.progression_screen = create_progression_screen_ui(Composer)
-  LiveView.grid = create_grid_ui(Composer)
-  LiveView.page_state = page_state
-  LiveView.progression_page_state = progression_page_state
-  LiveView.edit_stage = function() return edit_stage end
-  LiveView.set_edit_stage = function(val) edit_stage = val; update_live_page_names() end
-  LiveView.update_live_arc = function() update_live_arc(Composer) end
-
-  -- Refresh arc whenever rebuild fires (including automated meta-progression)
-  Composer.on_rebuild = function() update_live_arc(Composer) end
-
-  return LiveView
-end
-
-return LiveView
+--]]

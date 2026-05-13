@@ -39,7 +39,7 @@ GridModeRegistry.MODES = {
       composer = {
         button = { x = 14, y = 3 },
         default_section = "COMPOSER_LIVE",
-        path = "lib/grid/layouts/composer_mode",
+        path = "lib/grid/layouts/keyboard_mode",
       },
       sampler = {
         button = { x = 15, y = 3 },
@@ -65,7 +65,7 @@ GridModeRegistry.MODES = {
       "SAMPLER_CHOP_CONFIG", "SAMPLER_CREATE", "SAMPLER_STAGE_CONFIG",
       "SAMPLER_PLAYBACK", "SAMPLER_CLEAR", "SAMPLER_VELOCITY", "SAMPLER_PERFORM",
       -- Composer sub-mode
-      "COMPOSER_HOME", "COMPOSER_LIVE", "COMPOSER_PROGRESSION", "COMPOSER_PLAYBACK", "COMPOSER_VOICE", "COMPOSER_PARAMS",
+      "COMPOSER_LIVE", "COMPOSER_PROGRESSION", "COMPOSER_PLAYBACK", "COMPOSER_VOICE", "COMPOSER_PARAMS",
       -- Drums sub-mode
       "DRUMS_HOME", "DRUMS_PLAYBACK", "DRUMS_CLEAR", "DRUMS_PERFORM",
     },

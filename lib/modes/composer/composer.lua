@@ -730,7 +730,7 @@ function Composer.create_params()
     Composer.rebuild()
   end)
 
-  params:add_number("rc_composer_stages", "Stages", 1, 8, 1)
+  params:add_number("rc_composer_stages", "Stages", 1, 6, 1)
   params:set_action("rc_composer_stages", function() Composer.rebuild() end)
 
   params:add_number("rc_composer_loops", "Loops", 1, 8, 2)

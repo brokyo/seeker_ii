@@ -1,12 +1,14 @@
 -- Composer mode initialization
--- Top-level grid mode for algorithmic chord progressions.
--- Grid handles lane buttons + per-lane stages directly.
--- Lane button cycles through COMPOSER_LIVE, COMPOSER_PLAYBACK, COMPOSER_VOICE sections.
+-- Integrates with keyboard_mode via type_registry (motif_type 4).
+-- Degree grid replaces the keyboard area. Standard lane buttons at 13-16.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local Composer = include("lib/modes/composer/composer")
 local LiveView = include("lib/modes/composer/live_view")
+local DegreeGrid = include("lib/modes/composer/degree_grid")
+local GridControls = include("lib/modes/composer/grid_controls")
 local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
+local Descriptions = include("lib/ui/component_descriptions")
 
 -- Voice parameter modules (same registry as lane_config)
 local VOICES = {
@@ -20,20 +22,6 @@ local VOICES = {
     include("lib/modes/motif/infrastructure/voices/txo_osc"),
     include("lib/modes/motif/infrastructure/voices/wsyn"),
 }
-
----------------------------------------------------------------
--- COMPOSER_HOME: landing screen for composer sub-mode
----------------------------------------------------------------
-local function create_home_section()
-  local norns_ui = NornsUI.new({
-    id = "COMPOSER_HOME",
-    name = "Composer Config",
-    description = "Algorithmic chord progressions across lanes.",
-    params = {}
-  })
-
-  return norns_ui
-end
 
 ---------------------------------------------------------------
 -- COMPOSER_PLAYBACK: speed, volume, swing for the focused lane
@@ -142,26 +130,31 @@ function ComposerMode.init()
   -- Create params first (needed before live_view builds PageState)
   Composer.create_params()
 
-  -- Initialize live view (creates screen UI, grid UI, PageState)
+  -- Initialize live view (creates screen UI, PageState — no grid)
   LiveView.init(Composer)
 
-  -- Store core reference for RC and other modules
+  -- Initialize grid components
+  local degree_grid = DegreeGrid.init()
+  local controls = GridControls.init()
+
+  -- Store core references
   instance.composer = Composer
+  instance.live_view = LiveView
+  instance.degree_grid = degree_grid
+  instance.stage_nav = controls.stage_nav
+  instance.playback = controls.playback
+  instance.smooth = controls.smooth
+  instance.clear = controls.clear
+  instance.perform = controls.perform
 
   -- Register screen sections
-  instance.sections["COMPOSER_HOME"] = create_home_section()
   instance.sections["COMPOSER_LIVE"] = LiveView.screen
   instance.sections["COMPOSER_PROGRESSION"] = LiveView.progression_screen
   instance.sections["COMPOSER_PLAYBACK"] = create_playback_section()
   instance.sections["COMPOSER_VOICE"] = create_voice_section()
   instance.sections["COMPOSER_PARAMS"] = create_params_section()
 
-  -- Register grid
-  instance.grids.composer = LiveView.grid
-
   -- Register lane handler for Composer (motif_type 4)
-  -- Note: prepare_stage is a no-op because Composer writes to rc_stage_motifs,
-  -- which lane.lua loads directly before reaching the handler.
   lane_handlers.register(4, {
     prepare_stage = function(lane, stage) end,
 
