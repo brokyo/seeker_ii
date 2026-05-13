@@ -261,6 +261,11 @@ function Composer.rebuild(lane_id)
     _seeker.rc.regen(lane_id)
   else
     _seeker.rc.form(lane_id, stages)
+    -- Prime motif.events so Lane:play() doesn't bail on empty check
+    if lane.rc_stage_motifs[1] then
+      lane.motif.events = lane.rc_stage_motifs[1].events
+      lane.motif.duration = lane.rc_stage_motifs[1].duration
+    end
   end
 
   if is_focused then
