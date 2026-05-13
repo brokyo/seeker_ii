@@ -110,24 +110,42 @@ local function create_grid_ui()
       return
     end
 
-    -- Columns 1-7: set degree
+    -- Columns 1-7: set degree and/or cycle pages
     local num_stages = params:get("rc_composer_stages")
     if stage > num_stages then
       params:set("rc_composer_stages", stage)
     end
 
     local degree = col
-
     local live_view = _seeker.composer_mode.live_view
-    if live_view and live_view.set_edit_stage then
-      live_view.set_edit_stage(stage)
-    end
+    local current_edit = live_view and live_view.edit_stage and live_view.edit_stage()
+    local current_section = _seeker.ui_state.get_current_section()
+    local same_stage = (current_edit == stage)
 
     lane.composer_degree_overrides = lane.composer_degree_overrides or {}
-    lane.composer_degree_overrides[stage] = degree
-    Composer.rebuild()
 
-    _seeker.ui_state.set_current_section("COMPOSER_LIVE")
+    if same_stage and current_section == "COMPOSER_LIVE" then
+      local current_degree = lane.composer_degree_overrides[stage]
+      if current_degree == degree then
+        -- Same stage, same degree: cycle arc page
+        if live_view and live_view.page_state then
+          live_view.page_state:next_page()
+        end
+      else
+        -- Same stage, different degree: update degree
+        lane.composer_degree_overrides[stage] = degree
+        Composer.rebuild()
+      end
+    else
+      -- New stage: select it, set degree, snap to COMPOSER_LIVE
+      if live_view and live_view.set_edit_stage then
+        live_view.set_edit_stage(stage)
+      end
+      lane.composer_degree_overrides[stage] = degree
+      Composer.rebuild()
+      _seeker.ui_state.set_current_section("COMPOSER_LIVE")
+    end
+
     if _seeker.screen_ui then
       _seeker.screen_ui.set_needs_redraw()
     end
