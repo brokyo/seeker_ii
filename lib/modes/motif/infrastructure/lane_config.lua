@@ -452,7 +452,12 @@ local function create_grid_ui()
         if z == 1 then
             self:key_down(key_id)
             _seeker.ui_state.set_focused_lane(new_lane_idx)
-            _seeker.ui_state.set_current_section("LANE_CONFIG")
+            local motif_type = params:get("lane_" .. new_lane_idx .. "_motif_type")
+            if motif_type == 4 then
+              _seeker.ui_state.set_current_section("COMPOSER_LIVE")
+            else
+              _seeker.ui_state.set_current_section("LANE_CONFIG")
+            end
             _seeker.lane_config.screen:rebuild_params()
             _seeker.screen_ui.set_needs_redraw()
             self.flash_state.flash_until = util.time() + 0.15
@@ -462,7 +467,11 @@ local function create_grid_ui()
                 if lane.playing then
                     lane:stop()
                 else
-                    lane:play()
+                    local motif_type = params:get("lane_" .. new_lane_idx .. "_motif_type")
+                    if motif_type == 4 and _seeker.composer_mode then
+                        _seeker.composer_mode.composer.rebuild(new_lane_idx)
+                    end
+                    lane:play({ quantize = true })
                 end
             end
             self:key_release(key_id)

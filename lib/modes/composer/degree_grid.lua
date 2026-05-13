@@ -1,17 +1,19 @@
 -- degree_grid.lua
--- 7×6 grid for punching in chord degrees per stage.
--- Columns = scale degrees (I-vii), rows = stages (1-6).
--- Tap to set degree, tap active cell to cycle chord extension.
+-- 8×6 grid: 7 degree columns (I-vii) + 1 stage count column.
+-- Columns 1-7 = scale degrees, column 8 = stage enable bar.
+-- Tap degree to set, tap column 8 to set stage count.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
 local DegreeGrid = {}
 
-local GRID_X = 6
+local GRID_X = 1
 local GRID_Y = 2
-local GRID_W = 7
+local GRID_W = 8
 local GRID_H = 6
+local DEGREE_COLS = 7
+local STAGE_COL = 8
 
 local function create_grid_ui()
   local grid_ui = GridUI.new({
@@ -49,15 +51,14 @@ local function create_grid_ui()
         stage_degree = degree_overrides[stage] or ((start - 1 + movement * (stage - 1)) % 7) + 1
       end
 
-      for col = 1, GRID_W do
+      -- Degree columns (1-7)
+      for col = 1, DEGREE_COLS do
         local degree = col
         local gx = GRID_X + col - 1
         local gy = GRID_Y + row - 1
 
         local brightness
-        if not is_active_stage then
-          brightness = GridConstants.BRIGHTNESS.OFF
-        elseif degree == stage_degree then
+        if degree == stage_degree then
           if is_current then
             brightness = GridConstants.BRIGHTNESS.FULL
           elseif is_editing then
@@ -65,12 +66,27 @@ local function create_grid_ui()
           else
             brightness = GridConstants.BRIGHTNESS.MEDIUM
           end
-        else
+        elseif is_active_stage then
           brightness = GridConstants.BRIGHTNESS.LOW
+        else
+          brightness = GridConstants.BRIGHTNESS.DIM
         end
 
         layers.ui[gx][gy] = brightness
       end
+
+      -- Stage count column (8)
+      local stage_gx = GRID_X + STAGE_COL - 1
+      local stage_gy = GRID_Y + row - 1
+      local stage_brightness
+      if is_current then
+        stage_brightness = GridConstants.BRIGHTNESS.FULL
+      elseif is_active_stage then
+        stage_brightness = GridConstants.BRIGHTNESS.MEDIUM
+      else
+        stage_brightness = GridConstants.BRIGHTNESS.DIM
+      end
+      layers.ui[stage_gx][stage_gy] = stage_brightness
     end
   end
 
@@ -84,9 +100,18 @@ local function create_grid_ui()
     local Composer = _seeker.composer_mode.composer
     local lane_id = _seeker.ui_state.get_focused_lane()
     local lane = _seeker.lanes[lane_id]
-    local num_stages = params:get("rc_composer_stages")
     local stage = row
 
+    -- Column 8: set stage count
+    if col == STAGE_COL then
+      params:set("rc_composer_stages", stage)
+      Composer.rebuild()
+      _seeker.screen_ui.set_needs_redraw()
+      return
+    end
+
+    -- Columns 1-7: set degree
+    local num_stages = params:get("rc_composer_stages")
     if stage > num_stages then
       params:set("rc_composer_stages", stage)
     end
