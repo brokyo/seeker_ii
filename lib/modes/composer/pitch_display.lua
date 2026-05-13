@@ -53,9 +53,18 @@ local function create_grid_ui()
 
     if #chord_notes == 0 then return end
 
-    -- Anchor range to the lowest note: 16 chromatic slots from there
-    local range_start = chord_notes[1]
+    -- Fixed reference: root note at octave 3 (composer's default octave)
+    local root = params:get("root_note") - 1
+    local range_start = root + (3 * 12)
+
+    -- Build set of currently sounding notes from active_notes
+    local sounding = {}
     local active_notes = lane.active_notes or {}
+    for _, note_data in pairs(active_notes) do
+      if note_data.note then
+        sounding[note_data.note] = true
+      end
+    end
 
     -- Map each note to a slot (0-15), then to column + row
     -- Slot 0 = col 10 row 8 (bottom-left), slot 7 = col 10 row 1 (top-left)
@@ -64,7 +73,7 @@ local function create_grid_ui()
     for _, note in ipairs(chord_notes) do
       local slot = note - range_start
       if slot >= 0 and slot < 16 then
-        local is_sounding = active_notes[note] ~= nil
+        local is_sounding = sounding[note] == true
         slot_state[slot] = is_sounding and "playing" or "present"
       end
     end
