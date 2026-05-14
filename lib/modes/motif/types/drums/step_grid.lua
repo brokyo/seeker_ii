@@ -54,7 +54,7 @@ function StepGrid.get_step_state(lane_id)
   if not step_state[lane_id] then
     step_state[lane_id] = {}
     for i = 1, 32 do
-      step_state[lane_id][i] = { active = false, velocity = 100, ratchet = 1 }
+      step_state[lane_id][i] = { active = false, velocity = 100, ratchet = 1, note = nil }
     end
   end
   return step_state[lane_id]
@@ -89,7 +89,7 @@ function StepGrid.rebuild_motif(lane_id)
   local length = get_length(lane_id)
   local division = get_division(lane_id)
   local gate_pct = get_gate_pct(lane_id)
-  local note = get_voice_note(lane_id)
+  local lane_note = get_voice_note(lane_id)
   local swing = get_swing_pct(lane_id)
   local state = StepGrid.get_step_state(lane_id)
   local local_index = lane_id - LaneMap.OFFSETS.drums
@@ -99,6 +99,7 @@ function StepGrid.rebuild_motif(lane_id)
   for i = 1, length do
     local s = state[i]
     if s.active then
+      local note = s.note or lane_note
       local base_time = (i - 1) * division
 
       if i % 2 == 0 and swing > 0 then

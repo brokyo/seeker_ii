@@ -1,5 +1,5 @@
 -- home.lua
--- Drums per-step editor. Tap a step on the grid to edit its velocity and ratchet.
+-- Drums per-step editor. Tap a step on the grid to edit note, velocity, and ratchet.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local LaneMap = include("lib/lanes/lane_map")
@@ -25,7 +25,7 @@ local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "DRUMS_HOME",
     name = "Drums",
-    description = "Tap a step on the grid to edit velocity and ratchet.",
+    description = "Tap a step on the grid to edit note, velocity, and ratchet.",
     params = {}
   })
 
@@ -36,6 +36,8 @@ local function create_screen_ui()
     local s = StepGrid.get_step(lane_id, step)
     local step_label = "Step " .. step .. (s.active and " *" or " o")
 
+    local lane_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
+    params:set("drum_step_note", s.note or lane_note, true)
     params:set("drum_step_velocity", s.velocity, true)
     params:set("drum_step_ratchet", s.ratchet, true)
 
@@ -43,6 +45,7 @@ local function create_screen_ui()
     self.name = "D" .. local_idx .. " " .. step_label
 
     self.params = {
+      { id = "drum_step_note" },
       { id = "drum_step_velocity" },
       { id = "drum_step_ratchet" },
     }
@@ -58,7 +61,21 @@ local function create_screen_ui()
 end
 
 local function create_step_edit_params()
-  params:add_group("drum_step_edit", "DRUM STEP EDIT", 2)
+  params:add_group("drum_step_edit", "DRUM STEP EDIT", 3)
+
+  params:add_number("drum_step_note", "Step Note", 24, 96, 60)
+  params:set_action("drum_step_note", function(value)
+    local lane_id = _seeker.ui_state.get_focused_lane()
+    local sub_mode = LaneMap.from_flat(lane_id)
+    if sub_mode ~= "drums" then return end
+    local StepGrid = get_step_grid()
+    local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
+    if s then
+      local lane_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
+      s.note = (value == lane_note) and nil or value
+      StepGrid.rebuild_motif(lane_id)
+    end
+  end)
 
   params:add_number("drum_step_velocity", "Step Velocity", 1, 127, 100)
   params:set_action("drum_step_velocity", function(value)
