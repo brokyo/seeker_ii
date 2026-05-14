@@ -20,7 +20,6 @@ local modules = {
 }
 
 local SECTION_IDS = {
-  home = "DRUMS_HOME",
   playback = "DRUMS_PLAYBACK",
   clear = "DRUMS_CLEAR",
   perform = "DRUMS_PERFORM",
@@ -36,7 +35,12 @@ function Drums.init()
   for name, module in pairs(modules) do
     instance[name] = module.init()
 
-    if instance[name].screen and SECTION_IDS[name] then
+    -- Home returns multiple sections
+    if name == "home" and instance[name].sections then
+      for section_id, screen in pairs(instance[name].sections) do
+        instance.sections[section_id] = screen
+      end
+    elseif instance[name].screen and SECTION_IDS[name] then
       instance.sections[SECTION_IDS[name]] = instance[name].screen
     end
 

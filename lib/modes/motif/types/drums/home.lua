@@ -1,5 +1,6 @@
 -- home.lua
--- Drums per-step editor. Tap a step on the grid to edit note, velocity, and ratchet.
+-- Drums screen sections. Lane button cycles Pattern/Timing/Voice.
+-- Step tap goes to per-step editor (DRUMS_HOME).
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local LaneMap = include("lib/lanes/lane_map")
@@ -21,11 +22,80 @@ local function get_drums_lane()
   return LaneMap.to_flat("drums", 1)
 end
 
-local function create_screen_ui()
+local function lane_label(lane_id)
+  return "D" .. (lane_id - LaneMap.OFFSETS.drums)
+end
+
+---------------------------------------------------------------
+-- DRUMS_PATTERN: length, hits, distribution, rotation
+---------------------------------------------------------------
+local function create_pattern_screen()
+  local norns_ui = NornsUI.new({
+    id = "DRUMS_PATTERN",
+    name = "Pattern",
+    description = "Euclidean pattern shape: length, hits, distribution, rotation.",
+    params = {}
+  })
+
+  norns_ui.rebuild_params = function(self)
+    local lane_id = get_drums_lane()
+    self.name = lane_label(lane_id) .. " Pattern"
+    self.params = {
+      { id = "lane_" .. lane_id .. "_drum_length" },
+      { id = "lane_" .. lane_id .. "_drum_hits" },
+      { id = "lane_" .. lane_id .. "_drum_distribution" },
+      { id = "lane_" .. lane_id .. "_drum_rotation" },
+    }
+  end
+
+  local original_enter = norns_ui.enter
+  norns_ui.enter = function(self)
+    self:rebuild_params()
+    original_enter(self)
+  end
+
+  return norns_ui
+end
+
+---------------------------------------------------------------
+-- DRUMS_TIMING: division, gate, swing, probability
+---------------------------------------------------------------
+local function create_timing_screen()
+  local norns_ui = NornsUI.new({
+    id = "DRUMS_TIMING",
+    name = "Timing",
+    description = "Step timing: division, gate length, swing, probability.",
+    params = {}
+  })
+
+  norns_ui.rebuild_params = function(self)
+    local lane_id = get_drums_lane()
+    self.name = lane_label(lane_id) .. " Timing"
+    self.params = {
+      { id = "lane_" .. lane_id .. "_drum_division" },
+      { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
+    }
+  end
+
+  local original_enter = norns_ui.enter
+  norns_ui.enter = function(self)
+    self:rebuild_params()
+    original_enter(self)
+  end
+
+  return norns_ui
+end
+
+---------------------------------------------------------------
+-- DRUMS_HOME: per-step editor (note/voltage, velocity, ratchet)
+---------------------------------------------------------------
+local function create_step_screen()
   local norns_ui = NornsUI.new({
     id = "DRUMS_HOME",
-    name = "Drums",
-    description = "Tap a step on the grid to edit note, velocity, and ratchet.",
+    name = "Step",
+    description = "Per-step note, velocity, and ratchet.",
     params = {}
   })
 
@@ -42,8 +112,7 @@ local function create_screen_ui()
     params:set("drum_step_velocity", s.velocity, true)
     params:set("drum_step_ratchet", s.ratchet, true)
 
-    local local_idx = lane_id - LaneMap.OFFSETS.drums
-    self.name = "D" .. local_idx .. " " .. step_label
+    self.name = lane_label(lane_id) .. " " .. step_label
 
     if uses_cv then
       local default_voltage = (params:get("lane_" .. lane_id .. "_drum_voice_note") - 12) / 12
@@ -73,6 +142,9 @@ local function create_screen_ui()
   return norns_ui
 end
 
+---------------------------------------------------------------
+-- Virtual params for per-step editing
+---------------------------------------------------------------
 local function create_step_edit_params()
   params:add_group("drum_step_edit", "DRUM STEP EDIT", 4)
 
@@ -131,9 +203,26 @@ local function create_step_edit_params()
   end)
 end
 
+---------------------------------------------------------------
+-- Sections the lane button cycles through
+---------------------------------------------------------------
+DrumsHome.LANE_SECTIONS = {"DRUMS_PATTERN", "DRUMS_TIMING", "LANE_CONFIG"}
+
 function DrumsHome.init()
   create_step_edit_params()
-  return { screen = create_screen_ui() }
+
+  local pattern_screen = create_pattern_screen()
+  local timing_screen = create_timing_screen()
+  local step_screen = create_step_screen()
+
+  return {
+    screen = step_screen,
+    sections = {
+      DRUMS_HOME = step_screen,
+      DRUMS_PATTERN = pattern_screen,
+      DRUMS_TIMING = timing_screen,
+    }
+  }
 end
 
 return DrumsHome

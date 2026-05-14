@@ -67,7 +67,8 @@ GridModeRegistry.MODES = {
       -- Composer sub-mode
       "COMPOSER_LIVE", "COMPOSER_PLAYBACK", "COMPOSER_VOICE", "COMPOSER_PARAMS", "COMPOSER_RANDOMIZE",
       -- Drums sub-mode
-      "DRUMS_HOME", "DRUMS_PLAYBACK", "DRUMS_CLEAR", "DRUMS_PERFORM",
+      "DRUMS_HOME", "DRUMS_PATTERN", "DRUMS_TIMING",
+      "DRUMS_PLAYBACK", "DRUMS_CLEAR", "DRUMS_PERFORM",
     },
   },
 
