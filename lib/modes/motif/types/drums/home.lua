@@ -1,15 +1,10 @@
 -- home.lua
--- Drums rhythm monitor: all 4 lanes visible simultaneously.
--- Focused lane gets large dot pattern viz, 3 others get compact strips.
--- K2 toggles between live view and param editing. Arc pages via PageState.
+-- Drums per-step editor. Tap a step on the grid to edit its velocity and ratchet.
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local LaneMap = include("lib/lanes/lane_map")
-local PageState = include("lib/ui/components/page_state")
 
 local DrumsHome = {}
-
-local page_state = nil
 
 local function get_drums_lane()
   local focused = _seeker.ui_state.get_focused_lane()
@@ -18,121 +13,13 @@ local function get_drums_lane()
   return LaneMap.to_flat("drums", 1)
 end
 
-local function resolve_pages()
-  local lane_id = get_drums_lane()
-  return {
-    {
-      name = "pattern",
-      slots = {
-        { label = "Hits", param_id = "lane_" .. lane_id .. "_drum_hits", threshold = 56 },
-        { label = "Len",  param_id = "lane_" .. lane_id .. "_drum_length", threshold = 56 },
-        { label = "Dist", param_id = "lane_" .. lane_id .. "_drum_distribution", threshold = 56 },
-        { label = "Rot",  param_id = "lane_" .. lane_id .. "_drum_rotation", threshold = 56 },
-      },
-    },
-    {
-      name = "timing",
-      slots = {
-        { label = "Gate", param_id = "lane_" .. lane_id .. "_drum_gate_length", threshold = PageState.THRESH_RANGE },
-        { label = "Swng", param_id = "lane_" .. lane_id .. "_drum_swing", threshold = PageState.THRESH_RANGE },
-        { label = "Prob", param_id = "lane_" .. lane_id .. "_drum_probability", threshold = PageState.THRESH_RANGE },
-        { label = "Div",  param_id = "lane_" .. lane_id .. "_drum_division", threshold = 56 },
-      },
-    },
-  }
-end
-
-local function draw_lane_pattern(lane_id, y_top, h, is_focused)
-  local StepGrid = include("lib/modes/motif/types/drums/step_grid")
-  local length = StepGrid.get_length(lane_id)
-  local state = StepGrid.get_step_state(lane_id)
-  local lane = _seeker.lanes[lane_id]
-
-  local playing = lane and lane.playing
-  local current_step = nil
-  if playing and lane.motif and lane.motif.duration > 0 then
-    local division_idx = params:get("lane_" .. lane_id .. "_drum_division")
-    local division_values = {0.25, 1/3, 0.5, 2/3, 1, 1.5, 2, 3, 4}
-    local division = division_values[division_idx]
-    local beat_pos = lane.current_beat_position or 0
-    current_step = math.floor(beat_pos / division) + 1
-    if current_step > length then current_step = ((current_step - 1) % length) + 1 end
-  end
-
-  local dot_spacing = 124 / length
-  local mid_y = y_top + math.floor(h / 2)
-  local dot_r = is_focused and util.clamp(math.floor(dot_spacing / 3), 1, 4) or util.clamp(math.floor(dot_spacing / 4), 1, 2)
-
-  for i = 1, length do
-    local cx = 2 + math.floor((i - 0.5) * dot_spacing)
-    local is_current = playing and (i == current_step)
-
-    if state[i].active then
-      screen.level(is_current and 15 or (is_focused and 10 or 6))
-      screen.circle(cx, mid_y, dot_r)
-      screen.fill()
-    else
-      screen.level(is_current and 8 or (is_focused and 3 or 1))
-      screen.circle(cx, mid_y, dot_r)
-      screen.stroke()
-    end
-  end
-end
-
-local function draw_live()
-  local focused_lane = get_drums_lane()
-  local lane_ids = LaneMap.lanes_for_mode("drums")
-  local lane = _seeker.lanes[focused_lane]
-  local playing = lane and lane.playing
-  local focused_local = focused_lane - LaneMap.OFFSETS.drums
-  local length = params:get("lane_" .. focused_lane .. "_drum_length")
-  local hits = params:get("lane_" .. focused_lane .. "_drum_hits")
-
-  -- Header
-  screen.level(playing and 15 or 8)
-  screen.move(2, 7)
-  screen.text("D" .. focused_local .. " " .. hits .. "/" .. length)
-
-  -- Focused lane: large viz (y 10-24)
-  draw_lane_pattern(focused_lane, 10, 14, true)
-
-  -- Compact lanes: 3 rows stacked (y 26-44, each 6px)
-  local compact_y = 26
-  local compact_h = 6
-  for _, lid in ipairs(lane_ids) do
-    if lid ~= focused_lane then
-      local local_idx = lid - LaneMap.OFFSETS.drums
-      local l = _seeker.lanes[lid]
-      local l_playing = l and l.playing
-
-      screen.level(l_playing and 8 or 3)
-      screen.move(2, compact_y + compact_h - 1)
-      screen.text("D" .. local_idx)
-
-      draw_lane_pattern(lid, compact_y, compact_h, false)
-
-      compact_y = compact_y + compact_h + 1
-    end
-  end
-
-  -- PageState footer occupies y 46-64
-  if page_state then
-    page_state:draw_page_indicators()
-    page_state:draw_page_flash()
-    page_state:draw_footer()
-  end
-end
-
 local function create_screen_ui()
   local norns_ui = NornsUI.new({
     id = "DRUMS_HOME",
     name = "Drums",
-    description = "Polymetric drum sequencer. Toggle steps on the grid, configure pattern and timing here.",
+    description = "Tap a step on the grid to edit velocity and ratchet.",
     params = {}
   })
-
-  norns_ui.live_view_enabled = true
-  norns_ui.needs_playback_refresh = true
 
   norns_ui.rebuild_params = function(self)
     local lane_id = get_drums_lane()
@@ -153,14 +40,9 @@ local function create_screen_ui()
     }
   end
 
-  norns_ui.draw_live = function(self) draw_live() end
-
   local original_enter = norns_ui.enter
   norns_ui.enter = function(self)
     self:rebuild_params()
-    if page_state then
-      page_state:set_pages(resolve_pages())
-    end
     original_enter(self)
   end
 
@@ -199,22 +81,7 @@ end
 
 function DrumsHome.init()
   create_step_edit_params()
-
-  -- Init PageState with drums lane 1 (safe default regardless of focused lane at boot)
-  page_state = PageState.new({ pages = resolve_pages() })
-
-  local screen = create_screen_ui()
-
-  page_state:wire(screen, {
-    refresh = function()
-      page_state:set_pages(resolve_pages())
-      local dev = _seeker.arc
-      if dev then page_state:update_arc(dev); dev:refresh() end
-      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-    end,
-  })
-
-  return { screen = screen }
+  return { screen = create_screen_ui() }
 end
 
 return DrumsHome
