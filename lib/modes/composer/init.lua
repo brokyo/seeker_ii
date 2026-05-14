@@ -82,36 +82,56 @@ local function create_voice_section()
 end
 
 ---------------------------------------------------------------
--- COMPOSER_PARAMS: chord shape, texture, and structure
+-- COMPOSER_PARAMS: global sound shaping
 ---------------------------------------------------------------
 local function create_params_section()
   local norns_ui = NornsUI.new({
     id = "COMPOSER_PARAMS",
-    name = "Composer",
-    description = "Chord progression shape, texture, and structure.",
+    name = "Shape",
+    description = "Global chord shape and articulation.",
     params = {}
   })
 
   norns_ui.rebuild_params = function(self)
-    self.name = "Composer"
+    self.name = "Shape"
     self.params = {
-      { separator = true, title = "Structure" },
-      { id = "rc_composer_start" },
-      { id = "rc_composer_movement" },
-      { id = "rc_composer_stages" },
-      { id = "rc_composer_beats" },
       { separator = true, title = "Harmony" },
       { id = "rc_composer_chord_len" },
       { id = "rc_composer_spread_voices" },
       { id = "rc_composer_rotation" },
+      { id = "rc_composer_beats" },
       { separator = true, title = "Articulation" },
       { id = "rc_composer_spread", arc_multi_float = {5, 2, 0.5} },
       { id = "rc_composer_strum_order" },
       { id = "rc_composer_gate" },
       { id = "rc_composer_loops" },
       { separator = true, title = "Actions" },
-      { id = "rc_composer_randomize", is_action = true },
       { id = "rc_composer_smooth", is_action = true },
+    }
+  end
+
+  return norns_ui
+end
+
+---------------------------------------------------------------
+-- COMPOSER_RANDOMIZE: generation config + trigger
+---------------------------------------------------------------
+local function create_randomize_section()
+  local norns_ui = NornsUI.new({
+    id = "COMPOSER_RANDOMIZE",
+    name = "Randomize",
+    description = "Configure and trigger random progression generation.",
+    params = {}
+  })
+
+  norns_ui.rebuild_params = function(self)
+    self.name = "Randomize"
+    self.params = {
+      { id = "rc_composer_start" },
+      { id = "rc_composer_movement" },
+      { id = "rc_composer_stages" },
+      { separator = true, title = "" },
+      { id = "rc_composer_randomize", is_action = true },
     }
   end
 
@@ -149,6 +169,7 @@ function ComposerMode.init()
   instance.sections["COMPOSER_PLAYBACK"] = create_playback_section()
   instance.sections["COMPOSER_VOICE"] = create_voice_section()
   instance.sections["COMPOSER_PARAMS"] = create_params_section()
+  instance.sections["COMPOSER_RANDOMIZE"] = create_randomize_section()
 
   -- Register lane handler for Composer (motif_type 4)
   lane_handlers.register(4, {
