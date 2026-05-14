@@ -348,10 +348,15 @@ function Lane:schedule_stage(stage_index, start_time)
     if event.type == "note_on" then
       -- Only start notes that fall within the duration window
       if event_time <= base_duration then
+        -- Per-event probability: skip this note if random check fails
+        if event.probability and math.random(100) > event.probability then
+          goto continue
+        end
+
         -- Scale timing by playback speed
         local speed_adjusted_time = event_time / self.speed
         local absolute_time = start_time + speed_adjusted_time
-        
+
         if not stage.mute then
           -- Apply stage volume to velocity
           local stage_volume = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_volume")
@@ -428,8 +433,9 @@ function Lane:schedule_stage(stage_index, start_time)
         end
       end
     end
+    ::continue::
   end
-  
+
   -- Schedule the next loop or stage transition
   local end_time = start_time + speed_adjusted_duration
   

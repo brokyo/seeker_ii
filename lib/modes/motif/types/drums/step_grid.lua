@@ -88,6 +88,7 @@ function StepGrid.rebuild_motif(lane_id)
   local gate_pct = get_gate_pct(lane_id)
   local lane_note = get_voice_note(lane_id)
   local swing = get_swing_pct(lane_id)
+  local probability = params:get("lane_" .. lane_id .. "_drum_probability")
   local state = StepGrid.get_step_state(lane_id)
   local local_index = lane_id - LaneMap.OFFSETS.drums
   local row_start = lane_start_row(local_index)
@@ -117,6 +118,7 @@ function StepGrid.rebuild_motif(lane_id)
           note = note,
           voltage = s.voltage,
           velocity = s.velocity,
+          probability = probability < 100 and probability or nil,
           x = col,
           y = row,
           step = i,
@@ -313,7 +315,7 @@ end
 
 local function create_params()
   for _, i in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. i .. "_drum_step", "LANE " .. i .. " DRUM STEPS", 9)
+    params:add_group("lane_" .. i .. "_drum_step", "LANE " .. i .. " DRUM STEPS", 10)
 
     params:add_number("lane_" .. i .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. i .. "_drum_length", function(val)
@@ -370,6 +372,12 @@ local function create_params()
       function(param) return param:get() .. "%" end)
     params:set_action("lane_" .. i .. "_drum_probability", function()
       StepGrid.rebuild_motif(i)
+    end)
+
+    params:add_binary("lane_" .. i .. "_drum_reroll", "Reroll", "trigger", 0)
+    params:set_action("lane_" .. i .. "_drum_reroll", function()
+      StepGrid.apply_pattern(i)
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
   end
 end

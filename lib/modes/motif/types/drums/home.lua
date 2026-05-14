@@ -40,12 +40,16 @@ local function create_pattern_screen()
   norns_ui.rebuild_params = function(self)
     local lane_id = get_drums_lane()
     self.name = lane_label(lane_id) .. " Pattern"
+    local dist = params:string("lane_" .. lane_id .. "_drum_distribution")
     self.params = {
       { id = "lane_" .. lane_id .. "_drum_length" },
       { id = "lane_" .. lane_id .. "_drum_hits" },
       { id = "lane_" .. lane_id .. "_drum_distribution" },
       { id = "lane_" .. lane_id .. "_drum_rotation" },
     }
+    if dist == "Random" then
+      table.insert(self.params, { id = "lane_" .. lane_id .. "_drum_reroll", is_action = true })
+    end
   end
 
   local original_enter = norns_ui.enter
