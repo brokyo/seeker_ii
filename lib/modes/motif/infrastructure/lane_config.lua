@@ -358,29 +358,7 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Global Envelope" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_attack", arc_multi_float = {0.5, 0.1, 0.01} })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_release", arc_multi_float = {0.5, 0.1, 0.01} })
-        elseif motif_type == MOTIF_TYPE_DRUMS then
-            table.insert(param_table, { separator = true, title = "Pattern" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_length" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_hits" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_distribution" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_rotation" })
-            table.insert(param_table, { separator = true, title = "Timing" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_division" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_gate_length", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_swing", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_probability", arc_multi_float = {10, 5, 1} })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_drum_voice_note" })
-            table.insert(param_table, { separator = true, title = "Voice Routing" })
-            table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
-
-            local voice_module = VOICES[visible_voice]
-            if voice_module and voice_module.get_ui_params then
-                local voice_params = voice_module.get_ui_params(lane_idx)
-                for _, entry in ipairs(voice_params) do
-                    table.insert(param_table, entry)
-                end
-            end
-        else -- Tape/Composer parameters: voice routing configuration
+        else -- Tape/Composer/Drums: voice routing configuration
             table.insert(param_table, { separator = true, title = "Voice Routing" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
 
