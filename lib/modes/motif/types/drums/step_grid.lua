@@ -275,30 +275,36 @@ local function create_grid_ui()
 
     if z == 1 then
       self:key_down(key_id)
-
-      if step <= length then
-        local state = StepGrid.get_step_state(lane_id)
-        state[step].active = not state[step].active
-        StepGrid.rebuild_motif(lane_id)
-
-        _seeker.ui_state.set_focused_lane(lane_id)
-        StepGrid.selected_step = step
-        _seeker.ui_state.set_current_section("DRUMS_HOME")
-        if _seeker.drums_type and _seeker.drums_type.home and _seeker.drums_type.home.screen then
-          _seeker.drums_type.home.screen:rebuild_params()
-        end
-      end
-
       _seeker.ui_state.register_activity()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     else
-      if step > length and step <= MAX_STEPS and self:is_long_press(key_id) then
+      local was_long = self:is_long_press(key_id)
+      self:key_release(key_id)
+
+      if step <= length then
+        if was_long then
+          -- Long press: select step for editing (no toggle)
+          _seeker.ui_state.set_focused_lane(lane_id)
+          StepGrid.selected_step = step
+          _seeker.ui_state.set_current_section("DRUMS_HOME")
+          if _seeker.drums_type and _seeker.drums_type.home and _seeker.drums_type.home.screen then
+            _seeker.drums_type.home.screen:rebuild_params()
+          end
+        else
+          -- Short press: toggle step on/off
+          local state = StepGrid.get_step_state(lane_id)
+          state[step].active = not state[step].active
+          StepGrid.rebuild_motif(lane_id)
+          _seeker.ui_state.set_focused_lane(lane_id)
+        end
+      elseif step <= MAX_STEPS and was_long then
+        -- Long press beyond length: extend pattern
         params:set("lane_" .. lane_id .. "_drum_length", step)
         StepGrid.rebuild_motif(lane_id)
         _seeker.ui_state.set_focused_lane(lane_id)
-        if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
       end
-      self:key_release(key_id)
+
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end
   end
 
