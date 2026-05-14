@@ -11,72 +11,32 @@ local DrumsHome = {}
 
 local page_state = nil
 
-local function build_pages()
+local function get_drums_lane()
+  local focused = _seeker.ui_state.get_focused_lane()
+  local sub_mode = LaneMap.from_flat(focused)
+  if sub_mode == "drums" then return focused end
+  return LaneMap.to_flat("drums", 1)
+end
+
+local function resolve_pages()
+  local lane_id = get_drums_lane()
   return {
     {
       name = "pattern",
       slots = {
-        {
-          label = "Hits",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_hits"
-          end,
-          threshold = 56,
-        },
-        {
-          label = "Len",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_length"
-          end,
-          threshold = 56,
-        },
-        {
-          label = "Dist",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_distribution"
-          end,
-          threshold = 56,
-        },
-        {
-          label = "Rot",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_rotation"
-          end,
-          threshold = 56,
-        },
+        { label = "Hits", param_id = "lane_" .. lane_id .. "_drum_hits", threshold = 56 },
+        { label = "Len",  param_id = "lane_" .. lane_id .. "_drum_length", threshold = 56 },
+        { label = "Dist", param_id = "lane_" .. lane_id .. "_drum_distribution", threshold = 56 },
+        { label = "Rot",  param_id = "lane_" .. lane_id .. "_drum_rotation", threshold = 56 },
       },
     },
     {
       name = "timing",
       slots = {
-        {
-          label = "Gate",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_gate_length"
-          end,
-          threshold = PageState.THRESH_RANGE,
-        },
-        {
-          label = "Swng",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_swing"
-          end,
-          threshold = PageState.THRESH_RANGE,
-        },
-        {
-          label = "Prob",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_probability"
-          end,
-          threshold = PageState.THRESH_RANGE,
-        },
-        {
-          label = "Div",
-          param_id_fn = function()
-            return "lane_" .. _seeker.ui_state.get_focused_lane() .. "_drum_division"
-          end,
-          threshold = 56,
-        },
+        { label = "Gate", param_id = "lane_" .. lane_id .. "_drum_gate_length", threshold = PageState.THRESH_RANGE },
+        { label = "Swng", param_id = "lane_" .. lane_id .. "_drum_swing", threshold = PageState.THRESH_RANGE },
+        { label = "Prob", param_id = "lane_" .. lane_id .. "_drum_probability", threshold = PageState.THRESH_RANGE },
+        { label = "Div",  param_id = "lane_" .. lane_id .. "_drum_division", threshold = 56 },
       },
     },
   }
@@ -120,11 +80,10 @@ local function draw_lane_pattern(lane_id, y_top, h, is_focused)
 end
 
 local function draw_live()
-  local focused_lane = _seeker.ui_state.get_focused_lane()
+  local focused_lane = get_drums_lane()
   local lane_ids = LaneMap.lanes_for_mode("drums")
 
   local focused_local = focused_lane - LaneMap.OFFSETS.drums
-  local focused_label = "D" .. focused_local
   local length = params:get("lane_" .. focused_lane .. "_drum_length")
   local hits = params:get("lane_" .. focused_lane .. "_drum_hits")
   local lane = _seeker.lanes[focused_lane]
@@ -133,7 +92,7 @@ local function draw_live()
   -- Header
   screen.level(playing and 15 or 8)
   screen.move(2, 7)
-  screen.text(focused_label .. " " .. hits .. "/" .. length)
+  screen.text("D" .. focused_local .. " " .. hits .. "/" .. length)
 
   if playing then
     screen.level(4)
@@ -147,33 +106,22 @@ local function draw_live()
   -- Compact lanes: stacked below
   local compact_y = 33
   local compact_h = 8
-  local compact_count = 0
   for _, lid in ipairs(lane_ids) do
     if lid ~= focused_lane then
       local local_idx = lid - LaneMap.OFFSETS.drums
       local l = _seeker.lanes[lid]
       local l_playing = l and l.playing
-      local l_length = params:get("lane_" .. lid .. "_drum_length")
-      local l_hits = params:get("lane_" .. lid .. "_drum_hits")
 
-      -- Label
       screen.level(l_playing and 8 or 3)
       screen.move(2, compact_y + compact_h - 1)
       screen.text("D" .. local_idx)
 
-      -- Pattern dots offset to clear label
-      local save_state = screen.peek and nil -- norns doesn't have peek
-      local label_width = 12
-      screen.level(0)
-
       draw_lane_pattern(lid, compact_y, compact_h, false)
 
       compact_y = compact_y + compact_h + 1
-      compact_count = compact_count + 1
     end
   end
 
-  -- PageState footer and indicators
   if page_state then
     page_state:draw_page_indicators()
     page_state:draw_page_flash()
@@ -193,7 +141,7 @@ local function create_screen_ui()
   norns_ui.needs_playback_refresh = true
 
   norns_ui.rebuild_params = function(self)
-    local lane_id = _seeker.ui_state.get_focused_lane()
+    local lane_id = get_drums_lane()
     local StepGrid = include("lib/modes/motif/types/drums/step_grid")
     local step = StepGrid.selected_step
     local s = StepGrid.get_step(lane_id, step)
@@ -216,6 +164,9 @@ local function create_screen_ui()
   local original_enter = norns_ui.enter
   norns_ui.enter = function(self)
     self:rebuild_params()
+    if page_state then
+      page_state:set_pages(resolve_pages())
+    end
     original_enter(self)
   end
 
@@ -255,52 +206,14 @@ end
 function DrumsHome.init()
   create_step_edit_params()
 
-  -- Build PageState with param_id_fn-based pages
-  local pages_def = build_pages()
-  local resolved_pages = {}
-  for _, page in ipairs(pages_def) do
-    local resolved_slots = {}
-    for _, slot in ipairs(page.slots) do
-      if slot.param_id_fn then
-        local param_id = slot.param_id_fn()
-        table.insert(resolved_slots, {
-          label = slot.label,
-          param_id = param_id,
-          threshold = slot.threshold,
-        })
-      else
-        table.insert(resolved_slots, slot)
-      end
-    end
-    table.insert(resolved_pages, { name = page.name, slots = resolved_slots })
-  end
-  page_state = PageState.new({ pages = resolved_pages })
+  -- Init PageState with drums lane 1 (safe default regardless of focused lane at boot)
+  page_state = PageState.new({ pages = resolve_pages() })
 
   local screen = create_screen_ui()
 
-  -- Wire PageState for arc/enc/key routing
   page_state:wire(screen, {
     refresh = function()
-      -- Rebuild page slots with current focused lane's param IDs
-      local pages_def_refresh = build_pages()
-      local new_pages = {}
-      for _, page in ipairs(pages_def_refresh) do
-        local slots = {}
-        for _, slot in ipairs(page.slots) do
-          if slot.param_id_fn then
-            table.insert(slots, {
-              label = slot.label,
-              param_id = slot.param_id_fn(),
-              threshold = slot.threshold,
-            })
-          else
-            table.insert(slots, slot)
-          end
-        end
-        table.insert(new_pages, { name = page.name, slots = slots })
-      end
-      page_state:set_pages(new_pages)
-
+      page_state:set_pages(resolve_pages())
       local dev = _seeker.arc
       if dev then page_state:update_arc(dev); dev:refresh() end
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
