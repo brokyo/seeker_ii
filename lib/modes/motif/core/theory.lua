@@ -147,48 +147,6 @@ function theory.note_to_grid(note, octave)
   return #positions > 0 and positions or nil
 end
 
--- Generate scale-based chord root options
-local function get_scale_chord_roots()
-    local root_note = params:get("root_note") - 1  -- Convert to 0-based for musicutil
-    local scale_type = params:get("scale_type")
-    local scale_name = musicutil.SCALES[scale_type].name
-
-    -- Generate scale notes for just 1 octave
-    local scale_notes = musicutil.generate_scale(root_note, scale_name, 1)
-
-    -- Convert to note names
-    local note_names = {}
-    for _, note_num in ipairs(scale_notes) do
-        local note_name = musicutil.note_num_to_name(note_num, false) -- No octave
-        table.insert(note_names, note_name)
-    end
-
-    return note_names
-end
-
--- Update all composer chord root parameters with current scale
-function theory.update_chord_root_options()
-    local chord_roots = get_scale_chord_roots()
-
-    local LaneMap = include("lib/lanes/lane_map")
-    for _, i in ipairs(LaneMap.lanes_for_mode("composer")) do
-        local param_id = "lane_" .. i .. "_composer_chord_root"
-        local param = params:lookup_param(param_id)
-        if param then
-            -- Update parameter options directly
-            param.options = chord_roots
-            param.count = #chord_roots
-            -- Reset to first option
-            params:set(param_id, 1)
-        end
-    end
-end
-
--- Get scale-based chord root options (for initial parameter creation)
-function theory.get_scale_chord_roots()
-    return get_scale_chord_roots()
-end
-
 -- Get scale degrees as semitone offsets for two octaves (one below, one above root)
 -- Returns array of semitone values like {-12, -10, -8, -7, -5, -3, -1, 0, 2, 4, 5, 7, 9, 11, 12}
 function theory.get_pitch_offsets()

@@ -8,7 +8,6 @@ local LiveView = include("lib/modes/composer/live_view")
 local DegreeGrid = include("lib/modes/composer/degree_grid")
 local PitchDisplay = include("lib/modes/composer/pitch_display")
 local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
-local Descriptions = include("lib/ui/component_descriptions")
 
 -- Voice parameter modules (same registry as lane_config)
 local VOICES = {

@@ -3,4 +3,5 @@ CLAUDE.md
 seeker_ii.code-workspace
 tests/
 docs/
-lib/modes/motif/infrastructure/voices/disting_nt/patch_names.lua.DS_Store
+lib/modes/motif/infrastructure/voices/disting_nt/patch_names.lua
+.DS_Store

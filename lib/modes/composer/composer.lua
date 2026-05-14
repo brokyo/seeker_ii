@@ -6,7 +6,6 @@
 local chord_generator = include("lib/modes/motif/core/chord_generator")
 
 local Composer = {}
-Composer.__index = Composer
 
 -- Guard against set_action firing during param creation
 local params_initialized = false

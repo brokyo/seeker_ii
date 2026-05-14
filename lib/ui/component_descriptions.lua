@@ -20,8 +20,8 @@ return {
   TAPE_PERFORM = "Hold grid button to activate selected mode. Mute silences, Accent boosts, Soft reduces velocity.",
 
   -- Composer mode
-  COMPOSER_LIVE = "Composer chord progression generator.\n\nSet Start degree and Movement to define the harmonic cycle. Arc page 1 (harmony) adjusts degree, chord length, voicing, and rotation per stage. Arc page 2 (articulation) controls spread, strum, and loops.\n\nE2 selects param, E3 adjusts, K3 cycles page. Changes land at the next loop boundary via regen.",
-  COMPOSER_PROGRESSION = "Global progression controls.\n\nArc controls beats, spread, and chord length for all stages at once. Tap a stage button to edit that stage in the per-stage view.",
+  COMPOSER_LIVE = "Composer chord progression generator.\n\nTap degrees on the grid to build progressions. Arc pages: harmony (degree, spread, rotation, length), perform (strum, gate, loops), dynamics (velocity shape and tone).\n\nE2 selects param, E3 adjusts, K3 cycles page.",
+  COMPOSER_PROGRESSION = "Global progression controls.\n\nArc controls beats, spread, and chord length for all stages at once.",
   COMPOSER_PLAYBACK = "Lane playback controls: volume, speed, octave offset, swing.",
   COMPOSER_VOICE = "Voice routing: select output destination and configure voice parameters.",
   COMPOSER_PARAMS = "Chord progression shape, texture, and structure.",
