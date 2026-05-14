@@ -82,30 +82,23 @@ end
 local function draw_live()
   local focused_lane = get_drums_lane()
   local lane_ids = LaneMap.lanes_for_mode("drums")
-
+  local lane = _seeker.lanes[focused_lane]
+  local playing = lane and lane.playing
   local focused_local = focused_lane - LaneMap.OFFSETS.drums
   local length = params:get("lane_" .. focused_lane .. "_drum_length")
   local hits = params:get("lane_" .. focused_lane .. "_drum_hits")
-  local lane = _seeker.lanes[focused_lane]
-  local playing = lane and lane.playing
 
   -- Header
   screen.level(playing and 15 or 8)
   screen.move(2, 7)
   screen.text("D" .. focused_local .. " " .. hits .. "/" .. length)
 
-  if playing then
-    screen.level(4)
-    screen.move(126, 7)
-    screen.text_right("*")
-  end
+  -- Focused lane: large viz (y 10-24)
+  draw_lane_pattern(focused_lane, 10, 14, true)
 
-  -- Focused lane: large viz
-  draw_lane_pattern(focused_lane, 10, 20, true)
-
-  -- Compact lanes: stacked below
-  local compact_y = 33
-  local compact_h = 8
+  -- Compact lanes: 3 rows stacked (y 26-44, each 6px)
+  local compact_y = 26
+  local compact_h = 6
   for _, lid in ipairs(lane_ids) do
     if lid ~= focused_lane then
       local local_idx = lid - LaneMap.OFFSETS.drums
@@ -122,6 +115,7 @@ local function draw_live()
     end
   end
 
+  -- PageState footer occupies y 46-64
   if page_state then
     page_state:draw_page_indicators()
     page_state:draw_page_flash()
