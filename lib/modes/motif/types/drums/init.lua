@@ -9,9 +9,11 @@ local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 local DrumsPerform = include("lib/modes/motif/types/drums/perform")
 local LaneMap = include("lib/lanes/lane_map")
 
+local StepGrid = include("lib/modes/motif/types/drums/step_grid")
+
 local modules = {
   home = include("lib/modes/motif/types/drums/home"),
-  step_grid = include("lib/modes/motif/types/drums/step_grid"),
+  step_grid = StepGrid,
   perform = include("lib/modes/motif/types/drums/perform"),
 }
 
@@ -38,7 +40,12 @@ function Drums.init()
   end
 
   lane_handlers.register(2, {
-    prepare_stage = function(lane, stage) end,
+    prepare_stage = function(lane, stage)
+      local reseed = params:get("lane_" .. lane.id .. "_drum_reseed")
+      if reseed > 0 and stage.current_loop > 0 and stage.current_loop % reseed == 0 then
+        StepGrid.apply_pattern(lane.id)
+      end
+    end,
 
     is_muted = function(lane_id)
       return DrumsPerform.is_muted(lane_id)

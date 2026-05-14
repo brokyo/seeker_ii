@@ -50,6 +50,7 @@ local function create_pattern_screen()
     if dist == "Random" then
       table.insert(self.params, { id = "lane_" .. lane_id .. "_drum_reroll", is_action = true })
     end
+    table.insert(self.params, { id = "lane_" .. lane_id .. "_drum_reseed" })
   end
 
   local original_enter = norns_ui.enter

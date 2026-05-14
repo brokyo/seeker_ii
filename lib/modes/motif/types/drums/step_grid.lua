@@ -315,7 +315,7 @@ end
 
 local function create_params()
   for _, i in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. i .. "_drum_step", "LANE " .. i .. " DRUM STEPS", 10)
+    params:add_group("lane_" .. i .. "_drum_step", "LANE " .. i .. " DRUM STEPS", 11)
 
     params:add_number("lane_" .. i .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. i .. "_drum_length", function(val)
@@ -379,6 +379,12 @@ local function create_params()
       StepGrid.apply_pattern(i)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
+
+    params:add_number("lane_" .. i .. "_drum_reseed", "Reseed Every", 0, 32, 0,
+      function(param)
+        local v = param:get()
+        return v == 0 and "off" or (v .. " loops")
+      end)
   end
 end
 

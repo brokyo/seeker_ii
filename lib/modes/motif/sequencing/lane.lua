@@ -324,8 +324,8 @@ end
 function Lane:schedule_stage(stage_index, start_time)
   local stage = self.stages[stage_index]
 
-  -- Prepare the stage's motif FIRST (only on first loop or if reset_motif is true)
-  if stage.current_loop == 0 or stage.reset_motif then
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  if stage.current_loop == 0 or stage.reset_motif or motif_type == 2 then
     if not self:prepare_stage(stage) then
       return
     end
