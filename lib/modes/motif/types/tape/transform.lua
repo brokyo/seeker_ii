@@ -171,6 +171,29 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing"
     })
 
+  elseif transform_type == "Hosono" then
+    table.insert(param_table, { separator = true, title = "Hosono Config" })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_density",
+      arc_multi_float = {10, 5, 1}
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_range"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_vel_min"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_vel_max"
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_gate",
+      arc_multi_float = {10, 5, 1}
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_division"
+    })
+
   elseif transform_type == "Reverse" then
     -- No additional parameters
   end
@@ -179,6 +202,7 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
   table.insert(param_table, { separator = true, title = "Config" })
   table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_reset_motif" })
   table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops" })
+  table.insert(param_table, { id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_loops_max" })
 
   -- Update the UI with the new parameter table
   ui.params = param_table

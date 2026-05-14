@@ -23,44 +23,59 @@ local function create_stage_params(i)
     local local_index = i - LaneMap.OFFSETS[sub_mode]
     local label = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
 
-    params:add_group("lane_" .. i .. "_stage_setup", label .. " STAGE SETUP", 48)
+    params:add_group("lane_" .. i .. "_stage_setup", label .. " STAGE SETUP", 104)
     for stage_idx = 1, 8 do
-        -- Stage volume (used by all motif types)
-        params:add_control("lane_" .. i .. "_stage_" .. stage_idx .. "_volume", "Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
+        local prefix = "lane_" .. i .. "_stage_" .. stage_idx
 
-        params:add_number("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", "Loops", 1, 10, 2)
-        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_loops", function(value)
+        params:add_control(prefix .. "_volume", "Volume", controlspec.new(0, 1, "lin", 0.01, 1, ""))
+
+        params:add_number(prefix .. "_loops", "Loops", 1, 32, 2)
+        params:set_action(prefix .. "_loops", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        -- Composer: all stages active. Tape/Sampler: only stage 1.
+        params:add_number(prefix .. "_loops_max", "Loops Max", 1, 32, 2)
+        params:set_action(prefix .. "_loops_max", function(value)
+            _seeker.lanes[i]:sync_stage_from_params(stage_idx)
+        end)
+
         local all_active = (sub_mode == "composer")
         local active_default = (all_active or stage_idx == 1) and 2 or 1
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_active", "Active", {"No", "Yes"}, active_default)
-        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_active", function(value)
+        params:add_option(prefix .. "_active", "Active", {"No", "Yes"}, active_default)
+        params:set_action(prefix .. "_active", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_reset_motif", "Reset Motif", {"No", "Yes"}, 2)
-        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_reset_motif", function(value)
+        params:add_option(prefix .. "_reset_motif", "Reset Motif", {"No", "Yes"}, 2)
+        params:set_action(prefix .. "_reset_motif", function(value)
             _seeker.lanes[i]:sync_stage_from_params(stage_idx)
         end)
 
-        -- Loop trigger parameters
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_loop_trigger", "Loop Trigger", 
+        params:add_option(prefix .. "_loop_trigger", "Loop Trigger",
             {"none", "crow 1", "crow 2", "crow 3", "crow 4", "txo tr 1", "txo tr 2", "txo tr 3", "txo tr 4"}, 1)
 
-        -- Transform selection for lane.lua
         local transform_names = {}
         for name, _ in pairs(transforms.available) do
             table.insert(transform_names, name)
         end
         table.sort(transform_names)
 
-        params:add_option("lane_" .. i .. "_stage_" .. stage_idx .. "_transform", "Transform", transform_names, #transform_names)
-        params:set_action("lane_" .. i .. "_stage_" .. stage_idx .. "_transform", function(value)
+        params:add_option(prefix .. "_transform", "Transform", transform_names, #transform_names)
+        params:set_action(prefix .. "_transform", function(value)
             _seeker.lanes[i]:change_stage_transform(i, stage_idx, transform_names[value])
         end)
+
+        -- Hosono transform params
+        params:add_number(prefix .. "_hosono_density", "Density", 0, 100, 15,
+            function(param) return param:get() .. "%" end)
+        params:add_number(prefix .. "_hosono_range", "Range", 1, 4, 2,
+            function(param) return param:get() .. " oct" end)
+        params:add_number(prefix .. "_hosono_vel_min", "Vel Min", 1, 127, 30)
+        params:add_number(prefix .. "_hosono_vel_max", "Vel Max", 1, 127, 70)
+        params:add_number(prefix .. "_hosono_gate", "Gate", 1, 100, 25,
+            function(param) return param:get() .. "%" end)
+        params:add_option(prefix .. "_hosono_division", "Division",
+            {"1/16", "1/8", "1/4", "1/2", "1"}, 2)
     end
 end
 

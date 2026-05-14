@@ -707,10 +707,71 @@ transforms.available = {
     end
   },
 
+  hosono = {
+    name = "Hosono",
+    ui_name = "Hosono",
+    ui_order = 11,
+    description = "Generative gap material.\n\nDiscards the recorded motif and generates sparse, scale-locked notes from scratch. Different each time the stage plays.\n\nDensity: How many notes per beat.\nRange: Octave spread around the root.\nGate: Note length.\nVelocity: Dynamic range of generated notes.",
+    fn = function(events, lane_id, stage_id)
+      local prefix = "lane_" .. lane_id .. "_stage_" .. stage_id
+      local density = params:get(prefix .. "_hosono_density") / 100
+      local range_octaves = params:get(prefix .. "_hosono_range")
+      local vel_min = params:get(prefix .. "_hosono_vel_min")
+      local vel_max = params:get(prefix .. "_hosono_vel_max")
+      local gate_pct = params:get(prefix .. "_hosono_gate") / 100
+      local division_idx = params:get(prefix .. "_hosono_division")
+      local division_values = {0.0625, 0.125, 0.25, 0.5, 1}
+      local division = division_values[division_idx] or 0.125
+
+      local scale = theory.get_scale()
+      local root = params:get("root_note") - 1
+      local base_octave = 4
+      local center = root + (base_octave * 12)
+      local half_range = range_octaves * 12
+
+      local note_pool = {}
+      for _, n in ipairs(scale) do
+        if n >= center - half_range and n <= center + half_range then
+          table.insert(note_pool, n)
+        end
+      end
+      if #note_pool == 0 then return {} end
+
+      local lane = _seeker.lanes[lane_id]
+      local duration = lane and lane.motif and lane.motif:get_duration() or 4
+      local result = {}
+      local time = 0
+
+      while time < duration do
+        if math.random() < density then
+          local note = note_pool[math.random(#note_pool)]
+          local velocity = math.random(vel_min, vel_max)
+          local gate_time = division * gate_pct
+
+          table.insert(result, {
+            type = "note_on",
+            time = time,
+            note = note,
+            velocity = velocity,
+            is_playback = false,
+          })
+          table.insert(result, {
+            type = "note_off",
+            time = time + gate_time,
+            note = note,
+          })
+        end
+        time = time + division
+      end
+
+      return result
+    end
+  },
+
   ratchet = {
     name = "Ratchet",
     ui_name = "Ratchet",
-    ui_order = 11,
+    ui_order = 12,
     description = "Rapid-fire note repeats.\n\nChance: Probability each note ratchets.\nMax Repeats: Upper limit of repeats per note.\nTiming Window: Duration for all repeats.\n\nAdds rhythmic complexity and drive.",
     fn = function(events, lane_id, stage_id)
       local repeat_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_chance") / 100

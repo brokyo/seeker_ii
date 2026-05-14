@@ -79,6 +79,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = true,
       loops = 2,
+      loops_max = 2,
       transforms = {
         {
           name = "none",
@@ -100,6 +101,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {
         {
           name = "none",
@@ -121,6 +123,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {
         {
           name = "none",
@@ -142,6 +145,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {
         {
           name = "none",
@@ -163,6 +167,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
     },
     {
@@ -171,6 +176,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
     },
     {
@@ -179,6 +185,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
     },
     {
@@ -187,6 +194,7 @@ function Lane.new(config)
       mute = false,
       reset_motif = false,
       loops = 2,
+      loops_max = 2,
       transforms = {{name = "none", config = {}}, {name = "none", config = {}}, {name = "none", config = {}}}
     }
   }
@@ -324,6 +332,13 @@ end
 function Lane:schedule_stage(stage_index, start_time)
   local stage = self.stages[stage_index]
 
+  -- Variable loop count: pick randomly at stage start
+  if stage.current_loop == 0 and stage.loops_max and stage.loops_max > stage.loops then
+    stage.effective_loops = math.random(stage.loops, stage.loops_max)
+  elseif stage.current_loop == 0 then
+    stage.effective_loops = stage.loops
+  end
+
   local motif_type = params:get("lane_" .. self.id .. "_motif_type")
   if stage.current_loop == 0 or stage.reset_motif or motif_type == 2 then
     if not self:prepare_stage(stage) then
@@ -445,7 +460,7 @@ function Lane:schedule_stage(stage_index, start_time)
     callback = function()
       if not self.playing then return end
 
-      if stage.current_loop < (stage.loops - 1) then
+      if stage.current_loop < ((stage.effective_loops or stage.loops) - 1) then
         -- Continue to next loop of current stage
         stage.current_loop = stage.current_loop + 1
         -- Adjust timing if offset parameter changed since last loop
@@ -1217,6 +1232,7 @@ function Lane:sync_stage_from_params(stage_index)
     stage.active = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_active") == 2
     stage.reset_motif = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_reset_motif") == 2
     stage.loops = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loops")
+    stage.loops_max = params:get("lane_" .. self.id .. "_stage_" .. stage_index .. "_loops_max")
 end
 
 ---------------------------------------------------------
