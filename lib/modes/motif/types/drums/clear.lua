@@ -48,8 +48,12 @@ local function create_grid_ui()
           lane.motif.events = {}
           lane.motif.duration = 0
           local StepGrid = include("lib/modes/motif/types/drums/step_grid")
-          local step_data = StepGrid.get_steps(lane_id)
-          for i = 1, #step_data do step_data[i] = false end
+          local state = StepGrid.get_step_state(lane_id)
+          for i = 1, #state do
+            state[i].active = false
+            state[i].velocity = 100
+            state[i].ratchet = 1
+          end
           _seeker.screen_ui.set_needs_redraw()
         end
       end
