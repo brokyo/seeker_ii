@@ -146,7 +146,6 @@ function ComposerMode.init()
 
   -- Register screen sections
   instance.sections["COMPOSER_LIVE"] = LiveView.screen
-  instance.sections["COMPOSER_PROGRESSION"] = LiveView.progression_screen
   instance.sections["COMPOSER_PLAYBACK"] = create_playback_section()
   instance.sections["COMPOSER_VOICE"] = create_voice_section()
   instance.sections["COMPOSER_PARAMS"] = create_params_section()
