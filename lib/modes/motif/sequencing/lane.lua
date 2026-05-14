@@ -376,6 +376,8 @@ function Lane:schedule_stage(stage_index, start_time)
                 sustain = event.sustain,
                 release = event.release,
                 pan = event.pan,
+                -- Drums mode: raw CV voltage
+                voltage = event.voltage,
                 -- Sampler mode values
                 fade_time = event.fade_time,
                 rate = event.rate,
@@ -723,8 +725,7 @@ function Lane:on_note_on(event)
     local gate_out = params:get("lane_" .. self.id .. "_gate_out")
     local cv_out = params:get("lane_" .. self.id .. "_cv_out")
     
-    -- Calculate CV voltage (V/oct)
-    local cv_volts = (note - 12) / 12  -- Reference from C0 (MIDI note 12)
+    local cv_volts = event.voltage or ((note - 12) / 12)
       
     -- Handle CV output
     if cv_out > 1 then

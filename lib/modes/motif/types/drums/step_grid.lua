@@ -54,7 +54,7 @@ function StepGrid.get_step_state(lane_id)
   if not step_state[lane_id] then
     step_state[lane_id] = {}
     for i = 1, 32 do
-      step_state[lane_id][i] = { active = false, velocity = 100, ratchet = 1, note = nil }
+      step_state[lane_id][i] = { active = false, velocity = 100, ratchet = 1, note = nil, voltage = nil }
     end
   end
   return step_state[lane_id]
@@ -118,6 +118,7 @@ function StepGrid.rebuild_motif(lane_id)
           time = time,
           type = "note_on",
           note = note,
+          voltage = s.voltage,
           velocity = s.velocity,
           x = col,
           y = row,

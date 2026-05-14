@@ -62,6 +62,7 @@ local function create_grid_ui()
             state[i].velocity = 100
             state[i].ratchet = 1
             state[i].note = nil
+            state[i].voltage = nil
           end
           _seeker.screen_ui.set_needs_redraw()
         end
