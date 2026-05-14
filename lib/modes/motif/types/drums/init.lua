@@ -7,10 +7,13 @@ local Drums = {}
 local DrumsType = include("lib/modes/motif/types/drums/type")
 local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 local DrumsPerform = include("lib/modes/motif/types/drums/perform")
+local LaneMap = include("lib/lanes/lane_map")
+
+local StepGrid = include("lib/modes/motif/types/drums/step_grid")
 
 local modules = {
   home = include("lib/modes/motif/types/drums/home"),
-  step_grid = include("lib/modes/motif/types/drums/step_grid"),
+  step_grid = StepGrid,
   playback = include("lib/modes/motif/types/drums/playback"),
   clear = include("lib/modes/motif/types/drums/clear"),
   perform = include("lib/modes/motif/types/drums/perform"),
@@ -40,6 +43,11 @@ function Drums.init()
     if instance[name].grid then
       instance.grids[name] = instance[name].grid
     end
+  end
+
+  -- Initialize motifs so lanes have non-zero duration at boot
+  for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
+    StepGrid.rebuild_motif(lane_id)
   end
 
   lane_handlers.register(2, {
