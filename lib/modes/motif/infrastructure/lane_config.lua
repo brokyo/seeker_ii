@@ -470,10 +470,24 @@ local function create_grid_ui()
 
         if z == 1 then
             self:key_down(key_id)
+            local was_focused = new_lane_idx == _seeker.ui_state.get_focused_lane()
             _seeker.ui_state.set_focused_lane(new_lane_idx)
             local motif_type = params:get("lane_" .. new_lane_idx .. "_motif_type")
             if motif_type == 4 then
-              _seeker.ui_state.set_current_section("COMPOSER_LIVE")
+              if was_focused then
+                local COMPOSER_SECTIONS = {"COMPOSER_LIVE", "COMPOSER_VOICE", "COMPOSER_PLAYBACK", "COMPOSER_PARAMS", "COMPOSER_PROGRESSION"}
+                local current = _seeker.ui_state.get_current_section()
+                local next_section = COMPOSER_SECTIONS[1]
+                for i, s in ipairs(COMPOSER_SECTIONS) do
+                  if current == s then
+                    next_section = COMPOSER_SECTIONS[(i % #COMPOSER_SECTIONS) + 1]
+                    break
+                  end
+                end
+                _seeker.ui_state.set_current_section(next_section)
+              else
+                _seeker.ui_state.set_current_section("COMPOSER_LIVE")
+              end
             else
               _seeker.ui_state.set_current_section("LANE_CONFIG")
             end
