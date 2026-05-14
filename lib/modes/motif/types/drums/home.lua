@@ -6,6 +6,14 @@ local LaneMap = include("lib/lanes/lane_map")
 
 local DrumsHome = {}
 
+local _step_grid = nil
+local function get_step_grid()
+  if not _step_grid then
+    _step_grid = include("lib/modes/motif/types/drums/step_grid")
+  end
+  return _step_grid
+end
+
 local function get_drums_lane()
   local focused = _seeker.ui_state.get_focused_lane()
   local sub_mode = LaneMap.from_flat(focused)
@@ -23,7 +31,7 @@ local function create_screen_ui()
 
   norns_ui.rebuild_params = function(self)
     local lane_id = get_drums_lane()
-    local StepGrid = include("lib/modes/motif/types/drums/step_grid")
+    local StepGrid = get_step_grid()
     local step = StepGrid.selected_step
     local s = StepGrid.get_step(lane_id, step)
     local step_label = "Step " .. step .. (s.active and " *" or " o")
@@ -50,8 +58,6 @@ local function create_screen_ui()
 end
 
 local function create_step_edit_params()
-  local StepGrid = include("lib/modes/motif/types/drums/step_grid")
-
   params:add_group("drum_step_edit", "DRUM STEP EDIT", 2)
 
   params:add_number("drum_step_velocity", "Step Velocity", 1, 127, 100)
@@ -59,6 +65,7 @@ local function create_step_edit_params()
     local lane_id = _seeker.ui_state.get_focused_lane()
     local sub_mode = LaneMap.from_flat(lane_id)
     if sub_mode ~= "drums" then return end
+    local StepGrid = get_step_grid()
     local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
     if s then
       s.velocity = value
@@ -71,6 +78,7 @@ local function create_step_edit_params()
     local lane_id = _seeker.ui_state.get_focused_lane()
     local sub_mode = LaneMap.from_flat(lane_id)
     if sub_mode ~= "drums" then return end
+    local StepGrid = get_step_grid()
     local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
     if s then
       s.ratchet = value

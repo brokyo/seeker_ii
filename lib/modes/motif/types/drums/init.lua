@@ -45,11 +45,6 @@ function Drums.init()
     end
   end
 
-  -- Initialize motifs so lanes have non-zero duration at boot
-  for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    StepGrid.rebuild_motif(lane_id)
-  end
-
   lane_handlers.register(2, {
     prepare_stage = function(lane, stage) end,
 

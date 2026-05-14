@@ -5,6 +5,14 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 
+local _step_grid = nil
+local function get_step_grid()
+  if not _step_grid then
+    _step_grid = include("lib/modes/motif/types/drums/step_grid")
+  end
+  return _step_grid
+end
+
 local DrumsClear = {}
 
 local function create_screen_ui()
@@ -47,7 +55,7 @@ local function create_grid_ui()
           lane:stop()
           lane.motif.events = {}
           lane.motif.duration = 0
-          local StepGrid = include("lib/modes/motif/types/drums/step_grid")
+          local StepGrid = get_step_grid()
           local state = StepGrid.get_step_state(lane_id)
           for i = 1, #state do
             state[i].active = false
