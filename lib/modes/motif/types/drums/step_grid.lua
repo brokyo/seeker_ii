@@ -1,7 +1,7 @@
 -- step_grid.lua
 -- 4-lane step grid for polymetric drum sequencer.
 -- All lanes visible simultaneously: 2 rows per lane, 8 columns, 16 steps max.
--- Tapping a step toggles it and focuses that lane for screen/arc editing.
+-- Tap to toggle steps. Long-press beyond pattern length to extend it.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
@@ -12,6 +12,7 @@ local StepGrid = {}
 
 local MAX_COLS = 8
 local ROWS_PER_LANE = 2
+local MAX_STEPS = MAX_COLS * ROWS_PER_LANE
 
 local step_state = {}
 
@@ -90,7 +91,6 @@ function StepGrid.rebuild_motif(lane_id)
   local gate_pct = get_gate_pct(lane_id)
   local note = get_voice_note(lane_id)
   local swing = get_swing_pct(lane_id)
-  local probability = get_probability(lane_id)
   local state = StepGrid.get_step_state(lane_id)
   local local_index = lane_id - LaneMap.OFFSETS.drums
   local row_start = lane_start_row(local_index)
@@ -98,7 +98,7 @@ function StepGrid.rebuild_motif(lane_id)
   lane.motif.events = {}
   for i = 1, length do
     local s = state[i]
-    if s.active and math.random(100) <= probability then
+    if s.active then
       local base_time = (i - 1) * division
 
       if i % 2 == 0 and swing > 0 then
@@ -191,6 +191,18 @@ function StepGrid.get_pattern_table(lane_id)
   return pattern
 end
 
+local function xy_to_lane_step(x, y)
+  if x < 1 or x > MAX_COLS or y < 1 or y > 8 then return nil, nil end
+  local local_index = math.ceil(y / ROWS_PER_LANE)
+  if local_index < 1 or local_index > 4 then return nil, nil end
+  local lane_id = LaneMap.to_flat("drums", local_index)
+  local row_start = lane_start_row(local_index)
+  local row_offset = y - row_start
+  local step = row_offset * MAX_COLS + x
+  if step < 1 or step > MAX_STEPS then return nil, nil end
+  return lane_id, step
+end
+
 local function create_grid_ui()
   local grid_ui = GridUI.new({
     id = "DRUMS_STEP_GRID",
@@ -214,31 +226,34 @@ local function create_grid_ui()
       local current_step = get_current_step(lane_id)
       local is_focused = (lane_id == focused_lane)
 
-      for i = 1, length do
+      for i = 1, MAX_STEPS do
         local col = ((i - 1) % MAX_COLS) + 1
         local row = row_start + math.floor((i - 1) / MAX_COLS)
-        local s = state[i]
 
-        local brightness
-        if s.active then
-          if current_step == i then
-            brightness = GridConstants.BRIGHTNESS.FULL
-          elseif is_focused and i == StepGrid.selected_step then
-            brightness = GridConstants.BRIGHTNESS.HIGH
+        if i <= length then
+          local s = state[i]
+          local brightness
+          if s.active then
+            if current_step == i then
+              brightness = GridConstants.BRIGHTNESS.FULL
+            elseif is_focused and i == StepGrid.selected_step then
+              brightness = GridConstants.BRIGHTNESS.HIGH
+            else
+              brightness = s.ratchet > 1 and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.HIGH
+            end
           else
-            brightness = s.ratchet > 1 and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.HIGH
+            if current_step == i then
+              brightness = GridConstants.BRIGHTNESS.MEDIUM
+            elseif is_focused and i == StepGrid.selected_step then
+              brightness = GridConstants.BRIGHTNESS.LOW
+            else
+              brightness = GridConstants.BRIGHTNESS.DIM
+            end
           end
+          layers.ui[col][row] = brightness
         else
-          if current_step == i then
-            brightness = GridConstants.BRIGHTNESS.MEDIUM
-          elseif is_focused and i == StepGrid.selected_step then
-            brightness = GridConstants.BRIGHTNESS.LOW
-          else
-            brightness = GridConstants.BRIGHTNESS.DIM
-          end
+          layers.ui[col][row] = GridConstants.BRIGHTNESS.OFF
         end
-
-        layers.ui[col][row] = brightness
       end
     end
   end
@@ -246,46 +261,43 @@ local function create_grid_ui()
   grid_ui.contains = function(self, x, y)
     if x < 1 or x > MAX_COLS then return false end
     if y < 1 or y > 8 then return false end
-
-    local local_index = math.ceil(y / ROWS_PER_LANE)
-    if local_index < 1 or local_index > 4 then return false end
-
-    local lane_id = LaneMap.to_flat("drums", local_index)
-    local length = get_length(lane_id)
-    local row_start = lane_start_row(local_index)
-    local row_offset = y - row_start
-    local step = row_offset * MAX_COLS + x
-    return step >= 1 and step <= length
+    return true
   end
 
   grid_ui.handle_key = function(self, x, y, z)
-    if z ~= 1 then return end
-    if x < 1 or x > MAX_COLS or y < 1 or y > 8 then return end
+    local lane_id, step = xy_to_lane_step(x, y)
+    if not lane_id then return end
 
-    local local_index = math.ceil(y / ROWS_PER_LANE)
-    if local_index < 1 or local_index > 4 then return end
-
-    local lane_id = LaneMap.to_flat("drums", local_index)
-    local row_start = lane_start_row(local_index)
-    local row_offset = y - row_start
-    local step = row_offset * MAX_COLS + x
+    local key_id = string.format("%d,%d", x, y)
     local length = get_length(lane_id)
-    if step < 1 or step > length then return end
 
-    local state = StepGrid.get_step_state(lane_id)
-    state[step].active = not state[step].active
-    StepGrid.rebuild_motif(lane_id)
+    if z == 1 then
+      self:key_down(key_id)
 
-    -- Focus this lane and select this step
-    _seeker.ui_state.set_focused_lane(lane_id)
-    StepGrid.selected_step = step
-    if _seeker.drums_type and _seeker.drums_type.home and _seeker.drums_type.home.screen then
-      _seeker.ui_state.set_current_section("DRUMS_HOME")
-      _seeker.drums_type.home.screen:rebuild_params()
+      if step <= length then
+        local state = StepGrid.get_step_state(lane_id)
+        state[step].active = not state[step].active
+        StepGrid.rebuild_motif(lane_id)
+
+        _seeker.ui_state.set_focused_lane(lane_id)
+        StepGrid.selected_step = step
+        _seeker.ui_state.set_current_section("DRUMS_HOME")
+        if _seeker.drums_type and _seeker.drums_type.home and _seeker.drums_type.home.screen then
+          _seeker.drums_type.home.screen:rebuild_params()
+        end
+      end
+
+      _seeker.ui_state.register_activity()
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    else
+      if step > length and step <= MAX_STEPS and self:is_long_press(key_id) then
+        params:set("lane_" .. lane_id .. "_drum_length", step)
+        StepGrid.rebuild_motif(lane_id)
+        _seeker.ui_state.set_focused_lane(lane_id)
+        if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+      end
+      self:key_release(key_id)
     end
-
-    _seeker.ui_state.register_activity()
-    if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
   end
 
   return grid_ui
@@ -299,7 +311,7 @@ local function create_params()
     params:set_action("lane_" .. i .. "_drum_length", function(val)
       local hits = params:get("lane_" .. i .. "_drum_hits")
       if hits > val then params:set("lane_" .. i .. "_drum_hits", val) end
-      StepGrid.apply_pattern(i)
+      StepGrid.rebuild_motif(i)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 

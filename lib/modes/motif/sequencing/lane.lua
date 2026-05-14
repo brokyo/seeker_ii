@@ -227,7 +227,8 @@ end
 ---------------------------------------------------------
 function Lane:play(opts)
   opts = opts or {}
-  if #self.motif.events == 0 then
+  local motif_type = params:get("lane_" .. self.id .. "_motif_type")
+  if #self.motif.events == 0 and motif_type ~= 2 then
     print('∅ No events to play')
     return
   end
