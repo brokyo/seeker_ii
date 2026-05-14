@@ -203,21 +203,9 @@ local function create_screen_ui()
     params:set("drum_step_ratchet", s.ratchet, true)
 
     local local_idx = lane_id - LaneMap.OFFSETS.drums
-    self.name = "Drum " .. local_idx
+    self.name = "D" .. local_idx .. " " .. step_label
 
     self.params = {
-      { separator = true, title = "Pattern" },
-      { id = "lane_" .. lane_id .. "_drum_length" },
-      { id = "lane_" .. lane_id .. "_drum_hits" },
-      { id = "lane_" .. lane_id .. "_drum_distribution" },
-      { id = "lane_" .. lane_id .. "_drum_rotation" },
-      { separator = true, title = "Timing" },
-      { id = "lane_" .. lane_id .. "_drum_division" },
-      { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
-      { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
-      { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
-      { id = "lane_" .. lane_id .. "_drum_voice_note" },
-      { separator = true, title = step_label },
       { id = "drum_step_velocity" },
       { id = "drum_step_ratchet" },
     }
