@@ -283,12 +283,15 @@ local function create_grid_ui()
 
       if step <= length then
         if was_long then
-          -- Long press: select step for editing (no toggle)
           _seeker.ui_state.set_focused_lane(lane_id)
           StepGrid.selected_step = step
-          _seeker.ui_state.set_current_section("DRUMS_HOME")
-          if _seeker.drums_type and _seeker.drums_type.home and _seeker.drums_type.home.screen then
-            _seeker.drums_type.home.screen:rebuild_params()
+          if _seeker.ui_state.get_current_section() ~= "DRUMS_HOME" then
+            _seeker.ui_state.set_current_section("DRUMS_HOME")
+          end
+          local home = _seeker.drums_type and _seeker.drums_type.home
+          if home and home.screen then
+            home.screen:rebuild_params()
+            home.screen:filter_active_params()
           end
         else
           -- Short press: toggle step on/off
