@@ -1,6 +1,6 @@
 -- init.lua
 -- Drums type module entry point.
--- Step sequencer trigger lanes with per-voice routing.
+-- 4-lane polymetric step sequencer with per-step note/velocity/ratchet.
 
 local Drums = {}
 
@@ -9,44 +9,32 @@ local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 local DrumsPerform = include("lib/modes/motif/types/drums/perform")
 local LaneMap = include("lib/lanes/lane_map")
 
-local StepGrid = include("lib/modes/motif/types/drums/step_grid")
-
 local modules = {
   home = include("lib/modes/motif/types/drums/home"),
-  step_grid = StepGrid,
-  playback = include("lib/modes/motif/types/drums/playback"),
-  clear = include("lib/modes/motif/types/drums/clear"),
+  step_grid = include("lib/modes/motif/types/drums/step_grid"),
   perform = include("lib/modes/motif/types/drums/perform"),
-}
-
-local SECTION_IDS = {
-  playback = "DRUMS_PLAYBACK",
-  clear = "DRUMS_CLEAR",
-  perform = "DRUMS_PERFORM",
 }
 
 function Drums.init()
   local instance = {
     sections = {},
-    grids = {},
     type = DrumsType
   }
 
   for name, module in pairs(modules) do
     instance[name] = module.init()
 
-    -- Home returns multiple sections
     if name == "home" and instance[name].sections then
       for section_id, screen in pairs(instance[name].sections) do
         instance.sections[section_id] = screen
       end
-    elseif instance[name].screen and SECTION_IDS[name] then
-      instance.sections[SECTION_IDS[name]] = instance[name].screen
     end
+  end
 
-    if instance[name].grid then
-      instance.grids[name] = instance[name].grid
-    end
+  local ROWS_PER_LANE = 2
+  local function lane_start_row(lane_id)
+    local local_index = lane_id - LaneMap.OFFSETS.drums
+    return (local_index - 1) * ROWS_PER_LANE + 1
   end
 
   lane_handlers.register(2, {
@@ -61,10 +49,11 @@ function Drums.init()
     end,
 
     note_positions = function(lane, note, event)
-      if event.step then
-        return {{x = event.step, y = 3}}
+      if event.step and event.x and event.y then
+        return {{x = event.x, y = event.y}}
       end
-      return {{x = event.x or 1, y = event.y or 3}}
+      local row = lane_start_row(lane.id)
+      return {{x = 1, y = row}}
     end,
 
     get_active_positions = function(lane)

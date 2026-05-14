@@ -1,6 +1,6 @@
 -- home.lua
--- Drums screen sections. Lane button cycles Pattern/Timing/Voice.
--- Step tap goes to per-step editor (DRUMS_HOME).
+-- Drums screen sections. Lane button cycles Pattern/Timing/Config.
+-- Long-press a step to open per-step editor (DRUMS_HOME).
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local LaneMap = include("lib/lanes/lane_map")

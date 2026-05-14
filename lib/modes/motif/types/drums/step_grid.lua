@@ -46,9 +46,6 @@ local function get_swing_pct(lane_id)
   return params:get("lane_" .. lane_id .. "_drum_swing") / 100
 end
 
-local function get_probability(lane_id)
-  return params:get("lane_" .. lane_id .. "_drum_probability")
-end
 
 function StepGrid.get_step_state(lane_id)
   if not step_state[lane_id] then
