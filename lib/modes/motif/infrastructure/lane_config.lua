@@ -492,9 +492,8 @@ local function create_grid_ui()
               _seeker.ui_state.set_current_section("LANE_CONFIG")
             end
             _seeker.lane_config.screen:rebuild_params()
-            _seeker.ui_state.set_long_press_state(true, _seeker.ui_state.get_current_section())
             _seeker.screen_ui.set_needs_redraw()
-            self.flash_state.flash_until = util.time() + self.long_press_threshold + 0.1
+            self.flash_state.flash_until = util.time() + 0.15
         else
             if self:is_long_press(key_id) then
                 local lane = _seeker.lanes[new_lane_idx]
@@ -508,7 +507,6 @@ local function create_grid_ui()
                     lane:play({ quantize = true })
                 end
             end
-            _seeker.ui_state.set_long_press_state(false, nil)
             self:key_release(key_id)
             _seeker.screen_ui.set_needs_redraw()
         end
