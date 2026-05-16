@@ -15,7 +15,9 @@
 
 local lane_handlers = {}
 
-local handlers = {}
+_seeker = _seeker or {}
+_seeker.lane_handler_registry = _seeker.lane_handler_registry or {}
+local handlers = _seeker.lane_handler_registry
 
 function lane_handlers.register(motif_type, handler_table)
   handlers[motif_type] = handler_table

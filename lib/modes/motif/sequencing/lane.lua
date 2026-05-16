@@ -245,8 +245,10 @@ function Lane:play(opts)
     self.playing = true
     -- Sync stage config from params before starting
     self:sync_all_stages_from_params()
-    -- Reset motif and loop counters when starting playback
-    self:reset_motif()
+    -- Reset motif to genesis state (drums are parameter-driven, skip genesis reset)
+    if motif_type ~= 2 then
+      self:reset_motif()
+    end
     for _, stage in ipairs(self.stages) do
       stage.current_loop = 0
     end
@@ -329,7 +331,7 @@ end
 --   - speed_adjusted_duration: base_duration / speed
 --   - Events scheduled at: start_time + (event.time / speed)
 ---------------------------------------------------------
-function Lane:schedule_stage(stage_index, start_time)
+function Lane:schedule_stage(stage_index, start_time, resume_from)
   local stage = self.stages[stage_index]
 
   -- Variable loop count: pick randomly at stage start
@@ -371,6 +373,10 @@ function Lane:schedule_stage(stage_index, start_time)
         -- Scale timing by playback speed
         local speed_adjusted_time = event_time / self.speed
         local absolute_time = start_time + speed_adjusted_time
+
+        if resume_from and absolute_time < resume_from then
+          goto continue
+        end
 
         if not stage.mute then
           -- Apply stage volume to velocity

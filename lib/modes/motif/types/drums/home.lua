@@ -4,15 +4,33 @@
 
 local NornsUI = include("lib/ui/base/norns_ui")
 local LaneMap = include("lib/lanes/lane_map")
+local musicutil = require('musicutil')
+local theory = include("lib/modes/motif/core/theory")
 
 local DrumsHome = {}
 
-local _step_grid = nil
-local function get_step_grid()
-  if not _step_grid then
-    _step_grid = include("lib/modes/motif/types/drums/step_grid")
+local function midi_to_scale_position(midi)
+  local scale = theory.get_scale()
+  for i, n in ipairs(scale) do
+    if n == midi then return i end
+    if n > midi then return math.max(1, i - 1) end
   end
-  return _step_grid
+  return #scale
+end
+
+local function scale_position_to_midi(pos)
+  local scale = theory.get_scale()
+  return scale[math.max(1, math.min(pos, #scale))]
+end
+
+local _step_grid_ref = nil
+
+local function set_step_grid_ref(ref)
+  _step_grid_ref = ref
+end
+
+local function get_step_grid()
+  return _step_grid_ref
 end
 
 local function get_drums_lane()
@@ -107,7 +125,7 @@ local function create_step_screen()
   norns_ui.rebuild_params = function(self)
     local lane_id = get_drums_lane()
     local StepGrid = get_step_grid()
-    local step = StepGrid.selected_step
+    local step = StepGrid.get_selected_step(lane_id)
     local s = StepGrid.get_step(lane_id, step)
     local step_label = "Step " .. step .. (s.active and " *" or " o")
 
@@ -120,7 +138,9 @@ local function create_step_screen()
     self.name = lane_label(lane_id) .. " " .. step_label
 
     if uses_cv then
-      local default_voltage = (params:get("lane_" .. lane_id .. "_drum_voice_note") - 12) / 12
+      local voice_pos = params:get("lane_" .. lane_id .. "_drum_voice_note")
+      local voice_midi = scale_position_to_midi(voice_pos)
+      local default_voltage = (voice_midi - 12) / 12
       params:set("drum_step_voltage", s.voltage or default_voltage, true)
       self.params = {
         { id = "drum_step_voltage", arc_multi_float = {1.0, 0.1, 0.01} },
@@ -128,8 +148,9 @@ local function create_step_screen()
         { id = "drum_step_ratchet" },
       }
     else
-      local lane_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
-      params:set("drum_step_note", s.note or lane_note, true)
+      local voice_midi = scale_position_to_midi(params:get("lane_" .. lane_id .. "_drum_voice_note"))
+      local midi = s.note or voice_midi
+      params:set("drum_step_note", midi_to_scale_position(midi), true)
       self.params = {
         { id = "drum_step_note" },
         { id = "drum_step_velocity" },
@@ -160,23 +181,28 @@ local function create_step_edit_params()
     local sub_mode = LaneMap.from_flat(lane_id)
     if sub_mode ~= "drums" then return end
     local StepGrid = get_step_grid()
-    local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
+    local s = StepGrid.get_step(lane_id, StepGrid.get_selected_step(lane_id))
     if s then
       s.voltage = value
       StepGrid.rebuild_motif(lane_id)
     end
   end)
 
-  params:add_number("drum_step_note", "Step Note", 24, 96, 60)
+  params:add_number("drum_step_note", "Step Note", 1, 128, 36,
+    function(param)
+      local midi = scale_position_to_midi(param:get())
+      return midi and musicutil.note_num_to_name(midi, true) or "?"
+    end)
   params:set_action("drum_step_note", function(value)
     local lane_id = _seeker.ui_state.get_focused_lane()
     local sub_mode = LaneMap.from_flat(lane_id)
     if sub_mode ~= "drums" then return end
+    local midi = scale_position_to_midi(value)
     local StepGrid = get_step_grid()
-    local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
+    local s = StepGrid.get_step(lane_id, StepGrid.get_selected_step(lane_id))
     if s then
-      local lane_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
-      s.note = (value == lane_note) and nil or value
+      local voice_midi = scale_position_to_midi(params:get("lane_" .. lane_id .. "_drum_voice_note"))
+      s.note = (midi == voice_midi) and nil or midi
       StepGrid.rebuild_motif(lane_id)
     end
   end)
@@ -187,7 +213,7 @@ local function create_step_edit_params()
     local sub_mode = LaneMap.from_flat(lane_id)
     if sub_mode ~= "drums" then return end
     local StepGrid = get_step_grid()
-    local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
+    local s = StepGrid.get_step(lane_id, StepGrid.get_selected_step(lane_id))
     if s then
       s.velocity = value
       StepGrid.rebuild_motif(lane_id)
@@ -200,7 +226,7 @@ local function create_step_edit_params()
     local sub_mode = LaneMap.from_flat(lane_id)
     if sub_mode ~= "drums" then return end
     local StepGrid = get_step_grid()
-    local s = StepGrid.get_step(lane_id, StepGrid.selected_step)
+    local s = StepGrid.get_step(lane_id, StepGrid.get_selected_step(lane_id))
     if s then
       s.ratchet = value
       StepGrid.rebuild_motif(lane_id)
@@ -211,6 +237,8 @@ end
 ---------------------------------------------------------------
 -- Sections the lane button cycles through
 ---------------------------------------------------------------
+DrumsHome.set_step_grid_ref = set_step_grid_ref
+
 DrumsHome.LANE_SECTIONS = {"DRUMS_PATTERN", "DRUMS_TIMING", "LANE_CONFIG"}
 
 function DrumsHome.init()

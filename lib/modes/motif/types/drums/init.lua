@@ -23,6 +23,8 @@ function Drums.init()
     type = DrumsType
   }
 
+  modules.home.set_step_grid_ref(StepGrid)
+
   for name, module in pairs(modules) do
     instance[name] = module.init()
 

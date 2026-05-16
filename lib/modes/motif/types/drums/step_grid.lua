@@ -7,6 +7,8 @@ local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local LaneMap = include("lib/lanes/lane_map")
 local EurorackUtils = include("lib/modes/eurorack/eurorack_utils")
+local musicutil = require('musicutil')
+local theory = include("lib/modes/motif/core/theory")
 
 local StepGrid = {}
 
@@ -16,7 +18,11 @@ local MAX_STEPS = MAX_COLS * ROWS_PER_LANE
 
 local step_state = {}
 
-StepGrid.selected_step = 1
+StepGrid.selected_step = {}
+
+function StepGrid.get_selected_step(lane_id)
+  return StepGrid.selected_step[lane_id] or 1
+end
 
 local DIVISION_OPTIONS = {"1/4", "1/3", "1/2", "2/3", "1", "3/2", "2", "3", "4"}
 local DIVISION_VALUES = {0.25, 1/3, 0.5, 2/3, 1, 1.5, 2, 3, 4}
@@ -39,7 +45,9 @@ local function get_gate_pct(lane_id)
 end
 
 local function get_voice_note(lane_id)
-  return params:get("lane_" .. lane_id .. "_drum_voice_note")
+  local pos = params:get("lane_" .. lane_id .. "_drum_voice_note")
+  local scale = theory.get_scale()
+  return scale[math.max(1, math.min(pos, #scale))]
 end
 
 local function get_swing_pct(lane_id)
@@ -136,9 +144,12 @@ function StepGrid.rebuild_motif(lane_id)
   lane.motif.duration = length * division
 
   if lane.playing then
+    local stage = lane.stages[lane.current_stage_index]
+    local now = clock.get_beats()
+    local loop_start = stage.last_start_time or now
     lane:sync_all_stages_from_params()
     _seeker.conductor.clear_events_for_lane(lane_id)
-    lane:schedule_stage(lane.current_stage_index, clock.get_beats())
+    lane:schedule_stage(lane.current_stage_index, loop_start, now)
   end
 end
 
@@ -234,22 +245,12 @@ local function create_grid_ui()
         if i <= length then
           local s = state[i]
           local brightness
-          if s.active then
-            if current_step == i then
-              brightness = GridConstants.BRIGHTNESS.FULL
-            elseif is_focused and i == StepGrid.selected_step then
-              brightness = GridConstants.BRIGHTNESS.HIGH
-            else
-              brightness = s.ratchet > 1 and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.HIGH
-            end
+          if current_step == i then
+            brightness = s.active and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.MEDIUM
+          elseif s.active then
+            brightness = GridConstants.BRIGHTNESS.HIGH
           else
-            if current_step == i then
-              brightness = GridConstants.BRIGHTNESS.MEDIUM
-            elseif is_focused and i == StepGrid.selected_step then
-              brightness = GridConstants.BRIGHTNESS.LOW
-            else
-              brightness = GridConstants.BRIGHTNESS.DIM
-            end
+            brightness = GridConstants.BRIGHTNESS.LOW
           end
           layers.ui[col][row] = brightness
         else
@@ -283,7 +284,7 @@ local function create_grid_ui()
       if step <= length then
         if was_long then
           _seeker.ui_state.set_focused_lane(lane_id)
-          StepGrid.selected_step = step
+          StepGrid.selected_step[lane_id] = step
           if _seeker.ui_state.get_current_section() ~= "DRUMS_HOME" then
             _seeker.ui_state.set_current_section("DRUMS_HOME")
           end
@@ -351,7 +352,12 @@ local function create_params()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_number("lane_" .. i .. "_drum_voice_note", "Voice Note", 24, 96, 60)
+    params:add_number("lane_" .. i .. "_drum_voice_note", "Voice Note", 1, 128, 36,
+      function(param)
+        local s = theory.get_scale()
+        local midi = s[math.max(1, math.min(param:get(), #s))]
+        return midi and musicutil.note_num_to_name(midi, true) or "?"
+      end)
     params:set_action("lane_" .. i .. "_drum_voice_note", function()
       StepGrid.rebuild_motif(i)
     end)
