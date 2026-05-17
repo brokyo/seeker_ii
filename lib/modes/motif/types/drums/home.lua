@@ -245,8 +245,7 @@ local function create_call_screen()
     self.name = lane_label(lane_id) .. " Call"
     self.params = {
       { id = "lane_" .. lane_id .. "_drum_cr_active" },
-      { id = "lane_" .. lane_id .. "_drum_cr_call_loops" },
-      { id = "lane_" .. lane_id .. "_drum_cr_edit_call" },
+      { id = "lane_" .. lane_id .. "_stage_1_loops" },
     }
   end
 
@@ -283,8 +282,7 @@ local function create_response_screen()
     self.name = lane_label(lane_id) .. " Response (" .. strategy_name .. ")"
     self.params = {
       { id = "lane_" .. lane_id .. "_drum_cr_strategy" },
-      { id = "lane_" .. lane_id .. "_drum_cr_resp_loops" },
-      { id = "lane_" .. lane_id .. "_drum_cr_edit_resp" },
+      { id = "lane_" .. lane_id .. "_stage_2_loops" },
     }
   end
 

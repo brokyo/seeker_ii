@@ -1,6 +1,7 @@
 -- init.lua
 -- Drums type module entry point.
 -- Wires step state, mutation, grid, home, and perform modules.
+-- Call/response uses the lane stage system: stage 1 = call, stage 2 = response.
 
 local Drums = {}
 
@@ -15,9 +16,6 @@ local Mutation = include("lib/modes/motif/types/drums/mutation")
 local DrumsGrid = include("lib/modes/motif/types/drums/grid")
 local DrumsHome = include("lib/modes/motif/types/drums/home")
 local DrumsPerform = include("lib/modes/motif/types/drums/perform")
-
-local cr_loop_count = {}
-local cr_strategy_cache = {}
 
 function Drums.init()
   local instance = {
@@ -58,21 +56,10 @@ function Drums.init()
       local local_index = lane_id - LaneMap.OFFSETS.drums
       local row_start = (local_index - 1) * 2 + 1
 
-      -- Call/response alternation
-      local use_response = false
-      if StepState.is_cr_enabled(lane_id) then
-        if not cr_loop_count[lane_id] then cr_loop_count[lane_id] = 0 end
-        local call_loops = params:get("lane_" .. lane_id .. "_drum_cr_call_loops")
-        local resp_loops = params:get("lane_" .. lane_id .. "_drum_cr_resp_loops")
-        local cycle_length = call_loops + resp_loops
-        local pos = cr_loop_count[lane_id] % cycle_length
-        use_response = pos >= call_loops
-        cr_loop_count[lane_id] = cr_loop_count[lane_id] + 1
-      end
-
+      -- Stage 1 = call, stage 2 = response
+      local use_response = StepState.is_cr_enabled(lane_id) and stage.id == 2
       StepState.set_playing_response(lane_id, use_response)
 
-      -- Select source pattern
       local source_genesis
       local source_steps
       if use_response then
@@ -156,7 +143,7 @@ local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
 
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 16)
+    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 12)
 
     params:add_number("lane_" .. lane_id .. "_drum_base_octave", "Base Octave", 1, 7, 4)
     params:set_action("lane_" .. lane_id .. "_drum_base_octave", function()
@@ -196,38 +183,30 @@ function create_params()
 
     params:add_option("lane_" .. lane_id .. "_drum_cr_active", "Call/Response", {"Off", "On"}, 1)
     params:set_action("lane_" .. lane_id .. "_drum_cr_active", function(val)
-      local was_on = StepState.is_cr_enabled(lane_id)
       local now_on = val == 2
-      if was_on ~= now_on then
-        StepState.toggle_cr(lane_id)
-        StepState.apply_motif(lane_id)
+      local was_on = StepState.is_cr_enabled(lane_id)
+      if was_on == now_on then return end
+      StepState.toggle_cr(lane_id)
+      -- Activate/deactivate stage 2 via the lane stage system
+      local lane = _seeker.lanes[lane_id]
+      if lane then
+        lane.stages[2].active = now_on
+        if now_on then
+          lane.stages[2].reset_motif = true
+        end
+        lane:sync_all_stages_from_params()
       end
+      StepState.apply_motif(lane_id)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
     params:add_option("lane_" .. lane_id .. "_drum_cr_strategy", "Response", StepState.RESPONSE_STRATEGIES, 1)
     params:set_action("lane_" .. lane_id .. "_drum_cr_strategy", function(val)
-      cr_strategy_cache[lane_id] = val
       if StepState.is_cr_enabled(lane_id) then
         StepState.set_cr_strategy(lane_id, val)
         StepState.generate_response(lane_id)
         StepState.apply_motif(lane_id)
       end
-      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-    end)
-
-    params:add_number("lane_" .. lane_id .. "_drum_cr_call_loops", "Call Loops", 1, 16, 1)
-    params:add_number("lane_" .. lane_id .. "_drum_cr_resp_loops", "Resp Loops", 1, 16, 1)
-
-    params:add_option("lane_" .. lane_id .. "_drum_cr_edit_call", "Edit Call", {"Auto", "Locked"}, 1)
-    params:set_action("lane_" .. lane_id .. "_drum_cr_edit_call", function(val)
-      StepState.set_editing_call(lane_id, val == 2)
-      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-    end)
-
-    params:add_option("lane_" .. lane_id .. "_drum_cr_edit_resp", "Edit Response", {"Auto", "Locked"}, 1)
-    params:set_action("lane_" .. lane_id .. "_drum_cr_edit_resp", function(val)
-      StepState.set_editing_response(lane_id, val == 2)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
