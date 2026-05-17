@@ -55,9 +55,9 @@ function Drums.init()
       local density = params:get("lane_" .. lane_id .. "_drum_mutate_density")
       if displace == 0 and pitch == 0 and density == 0 then return end
 
-      StepGrid.increment_mutation_loop(lane_id)
       local loop_count = StepGrid.get_mutation_loop_count(lane_id)
       local depth = StepGrid.triangle_depth(loop_count, half_cycle)
+      StepGrid.increment_mutation_loop(lane_id)
       if depth == 0 then return end
 
       local gen = StepGrid.get_genesis(lane_id)

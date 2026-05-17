@@ -488,7 +488,7 @@ local function create_grid_ui()
                 _seeker.ui_state.set_current_section("COMPOSER_VOICE")
               end
             elseif motif_type == 2 then
-              local DRUMS_LANE_SECTIONS = {"DRUMS_TIMING", "LANE_CONFIG"}
+              local DRUMS_LANE_SECTIONS = {"DRUMS_TIMING", "DRUMS_MUTATION", "LANE_CONFIG"}
               if was_focused then
                 local current = _seeker.ui_state.get_current_section()
                 local next_section = DRUMS_LANE_SECTIONS[1]
@@ -501,13 +501,16 @@ local function create_grid_ui()
                 _seeker.ui_state.set_current_section(next_section)
               else
                 local current = _seeker.ui_state.get_current_section()
-                local is_drums_section = false
-                for _, s in ipairs(DRUMS_LANE_SECTIONS) do
-                  if current == s then is_drums_section = true; break end
-                end
-                if current == "DRUMS_HOME" then is_drums_section = true end
-                if not is_drums_section then
+                if current == "DRUMS_HOME" then
                   _seeker.ui_state.set_current_section("DRUMS_TIMING")
+                else
+                  local is_drums_section = false
+                  for _, s in ipairs(DRUMS_LANE_SECTIONS) do
+                    if current == s then is_drums_section = true; break end
+                  end
+                  if not is_drums_section then
+                    _seeker.ui_state.set_current_section("DRUMS_TIMING")
+                  end
                 end
               end
               local section = _seeker.ui_state.get_current_section()

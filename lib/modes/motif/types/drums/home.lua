@@ -120,11 +120,6 @@ local function create_timing_screen()
       { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
-      { separator = true, title = "Mutation" },
-      { id = "lane_" .. lane_id .. "_drum_reseed" },
-      { id = "lane_" .. lane_id .. "_drum_mutate_displace", arc_multi_float = {10, 5, 1} },
-      { id = "lane_" .. lane_id .. "_drum_mutate_pitch", arc_multi_float = {10, 5, 1} },
-      { id = "lane_" .. lane_id .. "_drum_mutate_density", arc_multi_float = {10, 5, 1} },
     }
   end
 
@@ -190,6 +185,44 @@ local function create_step_screen()
   local original_draw_step = norns_ui.draw
   norns_ui.draw = function(self)
     original_draw_step(self)
+    draw_hold_overlay()
+  end
+
+  return norns_ui
+end
+
+------------------------------------------------------------------------
+-- DRUMS_MUTATION: mutation cycle and intensities
+------------------------------------------------------------------------
+
+local function create_mutation_screen()
+  local norns_ui = NornsUI.new({
+    id = "DRUMS_MUTATION",
+    name = "Mutation",
+    description = "Shape-preserving pattern mutation. Cycle sets the journey length, intensities control what changes.",
+    params = {}
+  })
+
+  norns_ui.rebuild_params = function(self)
+    local lane_id = get_drums_lane()
+    self.name = lane_label(lane_id) .. " Mutation"
+    self.params = {
+      { id = "lane_" .. lane_id .. "_drum_reseed" },
+      { id = "lane_" .. lane_id .. "_drum_mutate_displace", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_mutate_pitch", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_mutate_density", arc_multi_float = {10, 5, 1} },
+    }
+  end
+
+  local original_enter = norns_ui.enter
+  norns_ui.enter = function(self)
+    self:rebuild_params()
+    original_enter(self)
+  end
+
+  local original_draw_mutation = norns_ui.draw
+  norns_ui.draw = function(self)
+    original_draw_mutation(self)
     draw_hold_overlay()
   end
 
@@ -263,19 +296,21 @@ end
 -- Section cycling and init
 ------------------------------------------------------------------------
 
-DrumsHome.LANE_SECTIONS = {"DRUMS_TIMING", "LANE_CONFIG"}
+DrumsHome.LANE_SECTIONS = {"DRUMS_TIMING", "DRUMS_MUTATION", "LANE_CONFIG"}
 
 function DrumsHome.init()
   create_step_edit_params()
 
   local timing_screen = create_timing_screen()
   local step_screen = create_step_screen()
+  local mutation_screen = create_mutation_screen()
 
   return {
     screen = step_screen,
     sections = {
       DRUMS_HOME = step_screen,
       DRUMS_TIMING = timing_screen,
+      DRUMS_MUTATION = mutation_screen,
     }
   }
 end
