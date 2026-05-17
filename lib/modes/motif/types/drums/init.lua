@@ -114,7 +114,7 @@ function Drums.init()
         gate_pct     = StepState.get_gate_pct(lane_id),
         swing        = params:get("lane_" .. lane_id .. "_drum_swing") / 100,
         probability  = params:get("lane_" .. lane_id .. "_drum_probability"),
-        default_note = StepState.get_voice_note(lane_id),
+        default_note = StepState.get_default_note(),
         row_start    = row_start,
       })
 
@@ -156,7 +156,7 @@ local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
 
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 16)
+    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 15)
 
     params:add_number("lane_" .. lane_id .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. lane_id .. "_drum_length", function()
@@ -169,16 +169,6 @@ function create_params()
     params:set_action("lane_" .. lane_id .. "_drum_division", function()
       StepState.apply_motif(lane_id)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-    end)
-
-    params:add_number("lane_" .. lane_id .. "_drum_voice_note", "Voice Note", 1, 128, 36,
-      function(param)
-        local s = theory.get_scale()
-        local midi = s[math.max(1, math.min(param:get(), #s))]
-        return midi and musicutil.note_num_to_name(midi, true) or "?"
-      end)
-    params:set_action("lane_" .. lane_id .. "_drum_voice_note", function()
-      StepState.apply_motif(lane_id)
     end)
 
     params:add_number("lane_" .. lane_id .. "_drum_gate_length", "Gate Length", 1, 100, 50,

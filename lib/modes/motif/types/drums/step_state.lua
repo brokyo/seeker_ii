@@ -174,12 +174,12 @@ end
 local function strategy_mirror(call, response, length, lane_id)
   local scale = theory.get_scale()
   local root = scale[1] or 60
-  local voice_note = StepState.get_voice_note(lane_id)
+  local default_note = StepState.get_default_note()
   for i = 1, length do
     response[i].active = call[i].active
     response[i].velocity = call[i].velocity
     response[i].ratchet = call[i].ratchet
-    local src_note = call[i].note or voice_note
+    local src_note = call[i].note or default_note
     local interval = src_note - root
     local mirrored = root - interval
     local best = scale[1]
@@ -196,7 +196,7 @@ local function strategy_resolve(call, response, length, lane_id)
   local scale = theory.get_scale()
   local root = scale[1] or 60
   -- Find root in the octave closest to the voice note
-  local voice = StepState.get_voice_note(lane_id)
+  local voice = StepState.get_default_note()
   local resolve_note = root
   for _, sn in ipairs(scale) do
     if sn % 12 == root % 12 and math.abs(sn - voice) < math.abs(resolve_note - voice) then
@@ -351,10 +351,9 @@ function StepState.get_gate_pct(lane_id)
   return params:get("lane_" .. lane_id .. "_drum_gate_length") / 100
 end
 
-function StepState.get_voice_note(lane_id)
-  local pos = params:get("lane_" .. lane_id .. "_drum_voice_note")
+function StepState.get_default_note()
   local scale = theory.get_scale()
-  return scale[math.max(1, math.min(pos, #scale))]
+  return scale[1] or 60
 end
 
 ------------------------------------------------------------------------
@@ -445,7 +444,7 @@ function StepState.apply_motif(lane_id)
     gate_pct     = StepState.get_gate_pct(lane_id),
     swing        = params:get("lane_" .. lane_id .. "_drum_swing") / 100,
     probability  = params:get("lane_" .. lane_id .. "_drum_probability"),
-    default_note = StepState.get_voice_note(lane_id),
+    default_note = StepState.get_default_note(),
     row_start    = row_start,
   })
 
