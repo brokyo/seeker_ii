@@ -225,6 +225,12 @@ function Lane.new(config)
   -- Track last-used offset to detect parameter changes between loop iterations
   lane.last_scheduled_offset = 0
 
+  -- Rest loop state
+  lane.rest_loops = 0
+  lane.resting = false
+  lane.rest_loops_remaining = 0
+  lane.last_motif_duration = nil
+
   print(string.format('⌸ LANE_%d Manifested', lane.id))
   return lane
 end
@@ -243,6 +249,8 @@ function Lane:play(opts)
 
   if not self.playing then
     self.playing = true
+    self.resting = false
+    self.rest_loops_remaining = 0
     -- Sync stage config from params before starting
     self:sync_all_stages_from_params()
     -- Reset motif to genesis state (dialogue is parameter-driven, skip genesis reset)
@@ -274,6 +282,8 @@ end
 ---------------------------------------------------------
 function Lane:stop()
   self.playing = false
+  self.resting = false
+  self.rest_loops_remaining = 0
   -- Reset loop counters
   for _, stage in ipairs(self.stages) do
     stage.current_loop = 0
@@ -352,8 +362,9 @@ function Lane:schedule_stage(stage_index, start_time, resume_from)
   local base_duration = self.motif:get_duration()
   local speed_adjusted_duration = base_duration / self.speed
 
-  -- Store the start time in the stage for visualization synchronization
+  -- Store timing for visualization and rest loop scheduling
   stage.last_start_time = start_time
+  self.last_motif_duration = speed_adjusted_duration
 
   -- Track which notes we've started playing to ensure proper note-off handling
   local active_notes = {}
@@ -551,31 +562,40 @@ function Lane:on_motif_end(stage_index, end_time)
   -- Find the next active stage
   local next_index = stage_index + 1
   local stages_checked = 0
-  
+
   -- Keep looking for the next active stage, wrapping around if needed
   while stages_checked < #self.stages do
     -- Wrap around to first stage if we've gone past the last stage
     if next_index > #self.stages then
       next_index = 1
     end
-    
+
     -- Check if this stage is active
     if self.stages[next_index].active then
       break
     end
-    
+
     -- This stage is inactive, try the next one
     next_index = next_index + 1
     stages_checked = stages_checked + 1
   end
-  
+
   -- If no active stages found, stop playback
   if stages_checked >= #self.stages then
     print(string.format('⚠ No active stages found for L_%d, stopping playback', self.id))
     self:stop()
     return
   end
-  
+
+  -- Detect cycle completion: next stage wraps to an earlier position
+  local cycle_complete = (next_index <= stage_index)
+
+  -- Enter rest if the cycle completed and rest_loops is configured
+  if cycle_complete and self.rest_loops > 0 then
+    self:enter_rest(end_time)
+    return
+  end
+
   self.current_stage_index = next_index
   -- Adjust timing if offset parameter changed since last stage
   local current_offset = params:get("lane_" .. self.id .. "_offset") or 0
@@ -583,6 +603,55 @@ function Lane:on_motif_end(stage_index, end_time)
   self.last_scheduled_offset = current_offset
   self:schedule_stage(next_index, end_time + offset_change)
   _seeker.ui_state.set_focused_stage(next_index)
+end
+
+---------------------------------------------------------
+-- enter_rest(start_time)
+--   Inserts N loops of silence after a stage cycle completes.
+--   Each rest loop is timed to the last motif's duration.
+--   After the countdown, restarts from the first active stage.
+---------------------------------------------------------
+function Lane:enter_rest(start_time)
+  self.resting = true
+  self.rest_loops_remaining = self.rest_loops
+
+  local rest_duration = self.last_motif_duration or 2
+  self:schedule_rest_loop(start_time, rest_duration)
+  print(string.format('◌ L_%d entering rest (%d loops, %.2f beats each)',
+    self.id, self.rest_loops, rest_duration))
+end
+
+function Lane:schedule_rest_loop(start_time, rest_duration)
+  _seeker.conductor.insert_event({
+    time = start_time + rest_duration,
+    lane_id = self.id,
+    callback = function()
+      if not self.playing or not self.resting then return end
+
+      self.rest_loops_remaining = self.rest_loops_remaining - 1
+
+      if self.rest_loops_remaining <= 0 then
+        self.resting = false
+        -- Find first active stage to restart from
+        local first_active = 1
+        for i, stage in ipairs(self.stages) do
+          if stage.active then
+            first_active = i
+            break
+          end
+        end
+        self.current_stage_index = first_active
+        local current_offset = params:get("lane_" .. self.id .. "_offset") or 0
+        local offset_change = current_offset - self.last_scheduled_offset
+        self.last_scheduled_offset = current_offset
+        self:schedule_stage(first_active, start_time + rest_duration + offset_change)
+        _seeker.ui_state.set_focused_stage(first_active)
+        print(string.format('● L_%d rest complete, resuming S_%d', self.id, first_active))
+      else
+        self:schedule_rest_loop(start_time + rest_duration, rest_duration)
+      end
+    end
+  })
 end
 
 ---------------------------------------------------------

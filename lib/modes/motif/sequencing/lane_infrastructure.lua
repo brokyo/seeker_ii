@@ -85,7 +85,7 @@ local function create_motif_playback_params(i)
     local sub_mode = LaneMap.from_flat(i)
     local local_index = i - LaneMap.OFFSETS[sub_mode]
     local label = sub_mode:sub(1,1):upper() .. sub_mode:sub(2) .. " " .. local_index
-    params:add_group("lane_" .. i .. "_motif_playback", label .. " PLAYBACK", 5)
+    params:add_group("lane_" .. i .. "_motif_playback", label .. " PLAYBACK", 6)
     -- Octave offset for playback transposition
     params:add_number("lane_" .. i .. "_octave_offset", "Octave Offset", -8, 8, 0)
 
@@ -108,6 +108,12 @@ local function create_motif_playback_params(i)
     -- Phase offset for loop alignment (in beats)
     params:add_control("lane_" .. i .. "_offset", "Offset",
         controlspec.new(-16, 16, 'lin', 0.01, 0, 'beats'))
+
+    -- Rest loops: silence after each stage cycle completes
+    params:add_number("lane_" .. i .. "_rest_loops", "Rest Loops", 0, 16, 0)
+    params:set_action("lane_" .. i .. "_rest_loops", function(value)
+        _seeker.lanes[i].rest_loops = value
+    end)
 end
 
 -- Create basic lane parameters that lane.lua needs

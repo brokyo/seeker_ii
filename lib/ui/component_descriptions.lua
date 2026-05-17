@@ -4,11 +4,11 @@
 
 return {
   -- Global
-  CONFIG = "Application-level settings. \n\nTry the scale presets, it's a very tonal instrument. \n\nShield Encoder Fix improves scrolling on my DIY Norns. \n\nMIDI controls Motif mode.",
+  CONFIG = "Application-level settings and tuning. \n\nTry the scale presets, it's a very tonal instrument. \n\nShield Encoder Fix improves scrolling on my DIY Norns. \n\nMIDI controls Motif mode.",
 
   -- Motif mode
   LANE_CONFIG = "Select motif type and configure voices. Multiple voices can run simultaneously.",
-  MOTIF = "Global tuning and keyboard layout.\n\nTuning applies to all motif types.\n\nLayout controls how notes map to the grid.",
+  MOTIF = "Arrangement view: all 16 lanes at a glance.\n\nBars show playback progress. Dim outlines show resting lanes.\n\nE2 selects lane. E3 adjusts rest loops. Arc controls the active group.",
 
   -- Tape mode
   TAPE_CREATE = "Record notes as a looping motif. Hold to record and again to overdub.\n\nOverdubs inherit envelope settings from Lane Config.\n\nDual keyboard splits the grid into two scale keyboards with independent octaves. Arc rings 3/4 control velocity for each side.",

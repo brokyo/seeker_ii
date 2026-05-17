@@ -1,8 +1,9 @@
 -- motif_config.lua
--- Global motif settings: tuning, scale, and keyboard layout
+-- Arrangement view (cross-lane overview) and global motif settings.
 
 local NornsUI = include("lib/ui/base/norns_ui")
-local GridUI = include("lib/ui/base/grid_ui")
+local PageState = include("lib/ui/components/page_state")
+local LaneMap = include("lib/lanes/lane_map")
 local Descriptions = include("lib/ui/component_descriptions")
 
 local MotifConfig = {}
@@ -91,29 +92,244 @@ local function create_params()
 
 end
 
--- Motif type constants
-local MOTIF_TYPE_TAPE = 1
+-- Arrangement view state
+local selected_lane = 1
+local GROUP_LABELS = {"T", "C", "S", "D"}
 
-local function create_screen_ui()
-    local norns_ui = NornsUI.new({
-        id = "MOTIF",
-        name = "Motif",
-        description = Descriptions.MOTIF,
-        params = {}
-    })
+local MARGIN_LEFT = 18
+local MARGIN_RIGHT = 4
+local ROW_TOP = 2
+local ROW_BOTTOM = 44
+local ROW_GAP = 2
+local BAR_WIDTH = 128 - MARGIN_LEFT - MARGIN_RIGHT
 
-    norns_ui.rebuild_params = function(self)
-        self.params = {
-            { id = "tuning_preset" },
-            { id = "root_note" },
-            { id = "scale_type" },
+local function get_active_lanes()
+    local active = {}
+    for i = 1, 16 do
+        local lane = _seeker.lanes[i]
+        if lane.playing then
+            table.insert(active, { id = i, lane = lane })
+        end
+    end
+    return active
+end
+
+local function get_lane_label(lane_id)
+    local sub_mode, local_idx = LaneMap.from_flat(lane_id)
+    return sub_mode:sub(1, 1):upper() .. local_idx
+end
+
+local function get_cycle_info(lane)
+    local motif_dur = lane.last_motif_duration
+    if not motif_dur or motif_dur <= 0 then
+        motif_dur = lane.motif:get_duration() / lane.speed
+    end
+    if motif_dur <= 0 then motif_dur = 1 end
+
+    local play_loops = 0
+    for _, stage in ipairs(lane.stages) do
+        if stage.active then
+            play_loops = play_loops + (stage.effective_loops or stage.loops)
+        end
+    end
+
+    local rest_loops = lane.rest_loops
+    local total_loops = play_loops + rest_loops
+    if total_loops == 0 then total_loops = 1 end
+
+    return play_loops, rest_loops, total_loops, motif_dur
+end
+
+local function get_cycle_position(lane)
+    local play_loops, rest_loops, total_loops, motif_dur = get_cycle_info(lane)
+    local cycle_dur = total_loops * motif_dur
+
+    if lane.resting then
+        local rest_done = lane.rest_loops - lane.rest_loops_remaining
+        local play_dur = play_loops * motif_dur
+        return (play_dur + rest_done * motif_dur) / cycle_dur
+    end
+
+    local stage = lane.stages[lane.current_stage_index]
+    if not stage or not stage.last_start_time then return 0 end
+
+    local loops_before = 0
+    for _, s in ipairs(lane.stages) do
+        if s.active then
+            if s.id == stage.id then break end
+            loops_before = loops_before + (s.effective_loops or s.loops)
+        end
+    end
+    loops_before = loops_before + stage.current_loop
+
+    local elapsed_in_loop = clock.get_beats() - stage.last_start_time
+    local loop_progress = math.max(0, math.min(1, elapsed_in_loop / motif_dur))
+    local total_progress = (loops_before + loop_progress) / total_loops
+    return math.max(0, math.min(1, total_progress))
+end
+
+local function draw_arrangement()
+    local active = get_active_lanes()
+
+    if #active == 0 then
+        screen.level(3)
+        screen.move(64, 24)
+        screen.text_center("no active lanes")
+        return
+    end
+
+    local available_height = ROW_BOTTOM - ROW_TOP
+    local row_height = math.floor((available_height - (ROW_GAP * (#active - 1))) / #active)
+    row_height = math.min(row_height, 12)
+
+    for idx, entry in ipairs(active) do
+        local lane = entry.lane
+        local lane_id = entry.id
+        local y = ROW_TOP + (idx - 1) * (row_height + ROW_GAP)
+        local is_selected = (lane_id == selected_lane)
+
+        -- Label
+        screen.level(is_selected and 15 or 5)
+        screen.move(2, y + row_height - 1)
+        screen.text(get_lane_label(lane_id))
+
+        -- Duty cycle bar
+        local play_loops, rest_loops, total_loops, _ = get_cycle_info(lane)
+        local play_frac = play_loops / total_loops
+        local play_w = math.floor(BAR_WIDTH * play_frac)
+        local rest_w = BAR_WIDTH - play_w
+
+        -- Play portion: filled
+        screen.level(is_selected and 8 or 4)
+        screen.rect(MARGIN_LEFT, y, play_w, row_height)
+        screen.fill()
+
+        -- Rest portion: outlined
+        if rest_w > 0 then
+            screen.level(is_selected and 4 or 2)
+            screen.rect(MARGIN_LEFT + play_w, y, rest_w, row_height)
+            screen.stroke()
+        end
+
+        -- Position marker
+        local pos = get_cycle_position(lane)
+        local marker_x = MARGIN_LEFT + math.floor(pos * BAR_WIDTH)
+        screen.level(15)
+        screen.move(marker_x, y)
+        screen.line(marker_x, y + row_height)
+        screen.stroke()
+
+        -- Selection bracket
+        if is_selected then
+            screen.level(15)
+            screen.rect(MARGIN_LEFT - 1, y - 1, BAR_WIDTH + 2, row_height + 2)
+            screen.stroke()
+        end
+    end
+end
+
+---------------------------------------------------------------
+-- PageState: 4 arc rings map to the 4 lanes in the selected group
+---------------------------------------------------------------
+local page_state = nil
+
+local function build_arrangement_page()
+    local group = math.ceil(selected_lane / 4)
+    local base = (group - 1) * 4
+
+    local slots = {}
+    for i = 1, 4 do
+        local lane_id = base + i
+        local sub_mode, local_idx = LaneMap.from_flat(lane_id)
+        local label = sub_mode:sub(1, 1):upper() .. local_idx
+        slots[i] = {
+            label = label,
+            threshold = PageState.THRESH_RANGE,
+            on_delta = function(dir)
+                local param_id = "lane_" .. lane_id .. "_rest_loops"
+                params:delta(param_id, dir)
+            end,
+            get_value = function()
+                return _seeker.lanes[lane_id].rest_loops
+            end,
+            arc_draw = function(dev, ring)
+                local val = _seeker.lanes[lane_id].rest_loops
+                PageState.draw_arc_position(dev, ring, val, 0, 16)
+            end,
         }
     end
 
-    local original_enter = norns_ui.enter
-    norns_ui.enter = function(self)
-        self:rebuild_params()
-        original_enter(self)
+    return {{ name = GROUP_LABELS[group] .. " rest", slots = slots }}
+end
+
+local function refresh_page_state()
+    if page_state then
+        page_state:set_pages(build_arrangement_page())
+    end
+end
+
+---------------------------------------------------------------
+-- NornsUI: arrangement view with live drawing
+---------------------------------------------------------------
+local function create_screen_ui()
+    page_state = PageState.new({ pages = build_arrangement_page() })
+
+    local norns_ui = NornsUI.new({
+        id = "MOTIF",
+        name = "Arrangement",
+        description = "Cross-lane arrangement view.\n\nShows all 16 lanes grouped by mode. Bars show playback progress, dim outlines show resting lanes.\n\nE2 selects lane. E3 adjusts rest loops. Arc rings control the 4 lanes in the selected group.",
+        params = {}
+    })
+
+    norns_ui.live_view_enabled = true
+    norns_ui.needs_playback_refresh = true
+
+    norns_ui.rebuild_params = function(self)
+        self.params = {
+            { separator = true, title = "Rest Loops" },
+        }
+        for i = 1, 16 do
+            table.insert(self.params, { id = "lane_" .. i .. "_rest_loops" })
+        end
+    end
+
+    norns_ui.draw_live = function(self)
+        draw_arrangement()
+        page_state:draw_footer()
+    end
+
+    page_state:wire(norns_ui, {
+        refresh = function()
+            local dev = _seeker.arc
+            if dev then page_state:update_arc(dev); dev:refresh() end
+            if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+        end,
+    })
+
+    -- Override E2/E3 for lane selection and rest_loops, preserve E1 for PageState
+    local wired_enc = norns_ui.handle_live_enc
+    norns_ui.handle_live_enc = function(self, n, d)
+        if n == 1 then
+            if wired_enc then wired_enc(self, n, d) end
+        elseif n == 2 then
+            -- Cycle through active lanes
+            local active = get_active_lanes()
+            if #active == 0 then return end
+            local current_idx = 1
+            for i, entry in ipairs(active) do
+                if entry.id == selected_lane then current_idx = i; break end
+            end
+            local new_idx = util.clamp(current_idx + d, 1, #active)
+            selected_lane = active[new_idx].id
+            refresh_page_state()
+            local dev = _seeker.arc
+            if dev then page_state:update_arc(dev); dev:refresh() end
+            if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+        elseif n == 3 then
+            local param_id = "lane_" .. selected_lane .. "_rest_loops"
+            params:delta(param_id, d)
+            if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+        end
     end
 
     return norns_ui
