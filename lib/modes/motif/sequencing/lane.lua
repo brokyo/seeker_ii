@@ -229,6 +229,7 @@ function Lane.new(config)
   lane.rest_loops = 0
   lane.resting = false
   lane.rest_loops_remaining = 0
+  lane.rest_loop_start_time = nil
   lane.last_motif_duration = nil
 
   print(string.format('⌸ LANE_%d Manifested', lane.id))
@@ -251,6 +252,7 @@ function Lane:play(opts)
     self.playing = true
     self.resting = false
     self.rest_loops_remaining = 0
+    self.rest_loop_start_time = nil
     -- Sync stage config from params before starting
     self:sync_all_stages_from_params()
     -- Reset motif to genesis state (dialogue is parameter-driven, skip genesis reset)
@@ -284,6 +286,7 @@ function Lane:stop()
   self.playing = false
   self.resting = false
   self.rest_loops_remaining = 0
+  self.rest_loop_start_time = nil
   -- Reset loop counters
   for _, stage in ipairs(self.stages) do
     stage.current_loop = 0
@@ -614,6 +617,7 @@ end
 function Lane:enter_rest(start_time)
   self.resting = true
   self.rest_loops_remaining = self.rest_loops
+  self.rest_loop_start_time = start_time
 
   local rest_duration = self.last_motif_duration or 2
   self:schedule_rest_loop(start_time, rest_duration)
@@ -648,6 +652,7 @@ function Lane:schedule_rest_loop(start_time, rest_duration)
         _seeker.ui_state.set_focused_stage(first_active)
         print(string.format('● L_%d rest complete, resuming S_%d', self.id, first_active))
       else
+        self.rest_loop_start_time = start_time + rest_duration
         self:schedule_rest_loop(start_time + rest_duration, rest_duration)
       end
     end
@@ -1270,6 +1275,7 @@ function Lane:clear()
   params:set("lane_" .. self.id .. "_rest_loops", 0)
   self.resting = false
   self.rest_loops_remaining = 0
+  self.rest_loop_start_time = nil
   self.last_motif_duration = nil
 end
 

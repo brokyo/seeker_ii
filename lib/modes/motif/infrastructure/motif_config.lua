@@ -142,12 +142,15 @@ end
 
 local function get_cycle_position(lane)
     local play_loops, rest_loops, total_loops, motif_dur = get_cycle_info(lane)
-    local cycle_dur = total_loops * motif_dur
 
     if lane.resting then
         local rest_done = lane.rest_loops - lane.rest_loops_remaining
-        local play_dur = play_loops * motif_dur
-        return (play_dur + rest_done * motif_dur) / cycle_dur
+        local rest_progress = 0
+        if lane.rest_loop_start_time then
+            local elapsed = clock.get_beats() - lane.rest_loop_start_time
+            rest_progress = math.max(0, math.min(1, elapsed / motif_dur))
+        end
+        return math.max(0, math.min(1, (play_loops + rest_done + rest_progress) / total_loops))
     end
 
     local stage = lane.stages[lane.current_stage_index]
@@ -164,8 +167,7 @@ local function get_cycle_position(lane)
 
     local elapsed_in_loop = clock.get_beats() - stage.last_start_time
     local loop_progress = math.max(0, math.min(1, elapsed_in_loop / motif_dur))
-    local total_progress = (loops_before + loop_progress) / total_loops
-    return math.max(0, math.min(1, total_progress))
+    return math.max(0, math.min(1, (loops_before + loop_progress) / total_loops))
 end
 
 local function draw_arrangement()
@@ -209,6 +211,45 @@ local function draw_arrangement()
             screen.level(is_selected and 4 or 2)
             screen.rect(MARGIN_LEFT + play_w, y, rest_w, row_height)
             screen.stroke()
+        end
+
+        -- Stage and loop tick marks within the play portion
+        local loops_accum = 0
+        for _, s in ipairs(lane.stages) do
+            if s.active then
+                local stage_loops = s.effective_loops or s.loops
+                -- Loop ticks (short, dim)
+                for lp = 1, stage_loops - 1 do
+                    local tick_frac = (loops_accum + lp) / total_loops
+                    local tick_x = MARGIN_LEFT + math.floor(tick_frac * BAR_WIDTH)
+                    screen.level(is_selected and 12 or 6)
+                    screen.move(tick_x, y + row_height - 2)
+                    screen.line(tick_x, y + row_height)
+                    screen.stroke()
+                end
+                loops_accum = loops_accum + stage_loops
+                -- Stage boundary (tall, brighter) — skip if at play/rest border
+                if loops_accum < play_loops then
+                    local stage_frac = loops_accum / total_loops
+                    local stage_x = MARGIN_LEFT + math.floor(stage_frac * BAR_WIDTH)
+                    screen.level(is_selected and 15 or 8)
+                    screen.move(stage_x, y)
+                    screen.line(stage_x, y + row_height)
+                    screen.stroke()
+                end
+            end
+        end
+
+        -- Rest loop ticks (short, dim, within rest portion)
+        if rest_loops > 1 then
+            for r = 1, rest_loops - 1 do
+                local tick_frac = (play_loops + r) / total_loops
+                local tick_x = MARGIN_LEFT + math.floor(tick_frac * BAR_WIDTH)
+                screen.level(is_selected and 6 or 3)
+                screen.move(tick_x, y + row_height - 2)
+                screen.line(tick_x, y + row_height)
+                screen.stroke()
+            end
         end
 
         -- Position marker
