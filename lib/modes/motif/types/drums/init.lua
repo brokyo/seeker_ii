@@ -16,17 +16,18 @@ local DrumsGrid = include("lib/modes/motif/types/drums/grid")
 local DrumsHome = include("lib/modes/motif/types/drums/home")
 local DrumsPerform = include("lib/modes/motif/types/drums/perform")
 
+-- Tracks which loop we're on within the call/response cycle per lane
+local cr_loop_count = {}
+
 function Drums.init()
   local instance = {
     sections = {},
     type = DrumsType,
   }
 
-  -- Pass refs to avoid include() double-instance bug
   DrumsGrid.set_step_state_ref(StepState)
   DrumsHome.set_step_state_ref(StepState)
 
-  -- Init all modules
   StepState.init()
   create_params()
 
@@ -35,7 +36,6 @@ function Drums.init()
   instance.perform = DrumsPerform.init()
   instance.step_state = StepState
 
-  -- Register screen sections
   if instance.home.sections then
     for section_id, screen in pairs(instance.home.sections) do
       instance.sections[section_id] = screen
@@ -46,7 +46,6 @@ function Drums.init()
     StepState.apply_motif(lane_id)
   end
 
-  -- Lane handler
   local function lane_start_row(lane_id)
     local local_index = lane_id - LaneMap.OFFSETS.drums
     return (local_index - 1) * 2 + 1
@@ -59,18 +58,29 @@ function Drums.init()
       local local_index = lane_id - LaneMap.OFFSETS.drums
       local row_start = (local_index - 1) * 2 + 1
 
-      -- Determine which pattern to play: call or response
+      -- Call/response alternation
       local use_response = false
       if StepState.is_cr_enabled(lane_id) then
-        local loop_count = StepState.get_mutation_loop_count(lane_id)
-        use_response = loop_count % 2 == 1
+        if not cr_loop_count[lane_id] then cr_loop_count[lane_id] = 0 end
+        local call_loops = params:get("lane_" .. lane_id .. "_drum_cr_call_loops")
+        local resp_loops = params:get("lane_" .. lane_id .. "_drum_cr_resp_loops")
+        local cycle_length = call_loops + resp_loops
+        local pos = cr_loop_count[lane_id] % cycle_length
+        use_response = pos >= call_loops
+        cr_loop_count[lane_id] = cr_loop_count[lane_id] + 1
       end
 
+      StepState.set_playing_response(lane_id, use_response)
+
+      -- Select source pattern
       local source_genesis
+      local source_steps
       if use_response then
         source_genesis = StepState.get_response_genesis(lane_id)
+        source_steps = StepState.get_response_steps(lane_id)
       else
         source_genesis = StepState.get_genesis(lane_id)
+        source_steps = StepState.get_steps(lane_id)
       end
 
       -- Apply mutation if configured
@@ -92,21 +102,10 @@ function Drums.init()
             displace = displace, pitch = pitch, density = density,
           }, lane_id, StepState.get_cycle_counter(lane_id), scale, length, StepState.deep_copy_steps)
         else
-          steps = StepState.deep_copy_steps(source_genesis)
-          StepState.increment_mutation_loop(lane_id)
+          steps = source_steps
         end
       else
-        -- No mutation: use source directly
-        if use_response then
-          steps = StepState.get_response_steps(lane_id)
-        else
-          steps = StepState.get_steps(lane_id)
-        end
-
-        -- Still need to track loop count for call/response alternation
-        if StepState.is_cr_enabled(lane_id) then
-          StepState.increment_mutation_loop(lane_id)
-        end
+        steps = source_steps
       end
 
       local events, duration = StepState.build_motif(steps, {
@@ -150,14 +149,14 @@ function Drums.init()
 end
 
 ------------------------------------------------------------------------
--- Params (lane-level, created once)
+-- Params
 ------------------------------------------------------------------------
 
 local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
 
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 10)
+    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 12)
 
     params:add_number("lane_" .. lane_id .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. lane_id .. "_drum_length", function()
@@ -199,6 +198,9 @@ function create_params()
     params:set_action("lane_" .. lane_id .. "_drum_probability", function()
       StepState.apply_motif(lane_id)
     end)
+
+    params:add_number("lane_" .. lane_id .. "_drum_cr_call_loops", "C/R: Call Loops", 1, 16, 1)
+    params:add_number("lane_" .. lane_id .. "_drum_cr_resp_loops", "C/R: Resp Loops", 1, 16, 1)
 
     params:add_number("lane_" .. lane_id .. "_drum_reseed", "Mutate Cycle", 0, 32, 0,
       function(param)

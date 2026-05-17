@@ -1,5 +1,6 @@
 -- grid.lua
--- Drum grid UI. Cols 1-8: step grid. Col 9: gap. Col 10-11: call/response toggles.
+-- Drum grid UI. Cols 1-8: step grid (follows playback). Col 9: gap.
+-- Col 10: call/response toggle. Col 11: response strategy cycle.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
@@ -74,11 +75,19 @@ local function create_grid_ui()
       local local_index = lane_id - LaneMap.OFFSETS.drums
       local row_start = (local_index - 1) * ROWS_PER_LANE + 1
       local length = _step_state.get_length(lane_id)
-      local steps = _step_state.get_active_steps(lane_id)
-      local current_step = _step_state.get_current_step(lane_id)
-      local is_viewing_resp = _step_state.is_viewing_response(lane_id)
+      local cr_on = _step_state.is_cr_enabled(lane_id)
+      local is_resp = cr_on and _step_state.is_playing_response(lane_id)
 
-      -- Cols 1-8: step grid (shows whichever layer is active)
+      -- Grid follows playback: show response steps when response is playing
+      local steps
+      if is_resp then
+        steps = _step_state.get_response_steps(lane_id)
+      else
+        steps = _step_state.get_steps(lane_id)
+      end
+      local current_step = _step_state.get_current_step(lane_id)
+
+      -- Cols 1-8: step grid
       for i = 1, MAX_STEPS do
         local col = ((i - 1) % MAX_COLS) + 1
         local row = row_start + math.floor((i - 1) / MAX_COLS)
@@ -90,7 +99,7 @@ local function create_grid_ui()
           if current_step == i then
             brightness = s.active and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.MEDIUM
           elseif s.active then
-            brightness = is_viewing_resp and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.HIGH
+            brightness = is_resp and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.HIGH
           else
             brightness = GridConstants.BRIGHTNESS.LOW
           end
@@ -112,23 +121,17 @@ local function create_grid_ui()
       layers.ui[9][row_start] = GridConstants.BRIGHTNESS.OFF
       layers.ui[9][row_start + 1] = GridConstants.BRIGHTNESS.OFF
 
-      -- Col 10: call/response toggle (top row), playback status (bottom row)
-      local cr_on = _step_state.is_cr_enabled(lane_id)
+      -- Col 10: call/response toggle
       layers.ui[10][row_start] = cr_on and GridConstants.BRIGHTNESS.HIGH or GridConstants.BRIGHTNESS.DIM
-      if cr_on then
-        local loop_count = _step_state.get_mutation_loop_count(lane_id)
-        local is_response_loop = loop_count % 2 == 1
-        layers.ui[10][row_start + 1] = is_response_loop and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.LOW
-      else
-        layers.ui[10][row_start + 1] = GridConstants.BRIGHTNESS.OFF
-      end
+      layers.ui[10][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.LOW) or GridConstants.BRIGHTNESS.OFF
 
-      -- Col 11: view toggle (top row), manual indicator (bottom row)
+      -- Col 11: response strategy indicator
       if cr_on then
-        local viewing_resp = _step_state.is_viewing_response(lane_id)
-        layers.ui[11][row_start] = viewing_resp and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.DIM
-        local is_manual = _step_state.is_cr_manual(lane_id)
-        layers.ui[11][row_start + 1] = is_manual and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.OFF
+        local strat = _step_state.get_cr_strategy(lane_id)
+        -- Brightness encodes strategy: DIM=1, LOW=2, MEDIUM=3, HIGH=4
+        local strat_brightness = ({GridConstants.BRIGHTNESS.DIM, GridConstants.BRIGHTNESS.LOW, GridConstants.BRIGHTNESS.MEDIUM, GridConstants.BRIGHTNESS.HIGH})[strat] or GridConstants.BRIGHTNESS.DIM
+        layers.ui[11][row_start] = strat_brightness
+        layers.ui[11][row_start + 1] = GridConstants.BRIGHTNESS.OFF
       else
         layers.ui[11][row_start] = GridConstants.BRIGHTNESS.OFF
         layers.ui[11][row_start + 1] = GridConstants.BRIGHTNESS.OFF
@@ -144,7 +147,7 @@ local function create_grid_ui()
   end
 
   grid_ui.handle_key = function(self, x, y, z)
-    -- Column 10-11: call/response toggles (press only, no hold)
+    -- Column 10-11: call/response controls (press only)
     if x == 10 or x == 11 then
       if z == 0 then return end
       local lane_id = y_to_lane_id(y)
@@ -154,22 +157,18 @@ local function create_grid_ui()
 
       if x == 10 and y == row_start then
         _step_state.toggle_cr(lane_id)
-        if not _step_state.is_cr_enabled(lane_id) then
-          if _step_state.is_viewing_response(lane_id) then
-            _step_state.toggle_viewing_response(lane_id)
-          end
-        end
         _step_state.apply_motif(lane_id)
       elseif x == 11 and y == row_start and _step_state.is_cr_enabled(lane_id) then
-        _step_state.toggle_viewing_response(lane_id)
-        rebuild_current_drums_screen()
+        _step_state.cycle_cr_strategy(lane_id)
+        _step_state.apply_motif(lane_id)
       end
 
+      _seeker.ui_state.set_focused_lane(lane_id)
+      rebuild_current_drums_screen()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
       return
     end
 
-    -- Column 9: gap, ignore
     if x == 9 then return end
 
     -- Columns 1-8: step grid
@@ -200,8 +199,12 @@ local function create_grid_ui()
         _seeker.ui_state.set_current_section("DRUMS_HOME")
         rebuild_current_drums_screen()
       else
-        _step_state.toggle_active_step(lane_id, step)
-        if not _step_state.is_viewing_response(lane_id) then
+        -- Toggle on whichever layer is currently showing (follows playback)
+        local is_resp = _step_state.is_cr_enabled(lane_id) and _step_state.is_playing_response(lane_id)
+        if is_resp then
+          _step_state.get_response_steps(lane_id)[step].active = not _step_state.get_response_steps(lane_id)[step].active
+        else
+          _step_state.toggle_step(lane_id, step)
           _step_state.snapshot_genesis(lane_id)
         end
         _step_state.apply_motif(lane_id)

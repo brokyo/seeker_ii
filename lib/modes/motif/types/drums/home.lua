@@ -119,6 +119,8 @@ local function create_timing_screen()
       { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_cr_call_loops" },
+      { id = "lane_" .. lane_id .. "_drum_cr_resp_loops" },
     }
   end
 

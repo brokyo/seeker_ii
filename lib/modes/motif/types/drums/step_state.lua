@@ -1,6 +1,6 @@
 -- step_state.lua
 -- Data layer for drum step sequencer.
--- Step state (call + response), genesis snapshots, and the pure motif builder.
+-- Call + response state, genesis snapshots, response strategies, and the pure motif builder.
 
 local LaneMap = include("lib/lanes/lane_map")
 local theory = include("lib/modes/motif/core/theory")
@@ -56,13 +56,16 @@ function StepState.set_step_field(lane_id, step_index, field, value)
 end
 
 ------------------------------------------------------------------------
--- Response State (density inversion or manually programmed)
+-- Response State
 ------------------------------------------------------------------------
 
 local response_state = {}
 local cr_enabled = {}
-local cr_manual = {}
-local viewing_response = {}
+local cr_strategy = {}
+local cr_playing_response = {}
+
+local RESPONSE_STRATEGIES = {"Invert", "Echo", "Mirror", "Resolve"}
+StepState.RESPONSE_STRATEGIES = RESPONSE_STRATEGIES
 
 local function init_response_steps(lane_id)
   response_state[lane_id] = {}
@@ -90,46 +93,129 @@ end
 
 function StepState.toggle_cr(lane_id)
   cr_enabled[lane_id] = not cr_enabled[lane_id]
-  if cr_enabled[lane_id] and not cr_manual[lane_id] then
+  if cr_enabled[lane_id] then
     StepState.generate_response(lane_id)
   end
 end
 
-function StepState.is_cr_manual(lane_id)
-  return cr_manual[lane_id] or false
+function StepState.get_cr_strategy(lane_id)
+  return cr_strategy[lane_id] or 1
 end
 
-function StepState.toggle_cr_manual(lane_id)
-  cr_manual[lane_id] = not cr_manual[lane_id]
-  if not cr_manual[lane_id] then
-    StepState.generate_response(lane_id)
-  end
+function StepState.get_cr_strategy_name(lane_id)
+  return RESPONSE_STRATEGIES[StepState.get_cr_strategy(lane_id)]
 end
 
-function StepState.is_viewing_response(lane_id)
-  return viewing_response[lane_id] or false
+function StepState.cycle_cr_strategy(lane_id)
+  local current = StepState.get_cr_strategy(lane_id)
+  cr_strategy[lane_id] = (current % #RESPONSE_STRATEGIES) + 1
+  StepState.generate_response(lane_id)
 end
 
-function StepState.toggle_viewing_response(lane_id)
-  viewing_response[lane_id] = not viewing_response[lane_id]
+function StepState.is_playing_response(lane_id)
+  return cr_playing_response[lane_id] or false
 end
 
-function StepState.generate_response(lane_id)
-  local call = ensure_state(lane_id)
-  local response = ensure_response(lane_id)
-  local length = StepState.get_length(lane_id)
+function StepState.set_playing_response(lane_id, value)
+  cr_playing_response[lane_id] = value
+end
+
+------------------------------------------------------------------------
+-- Response Strategies
+------------------------------------------------------------------------
+
+local function strategy_invert(call, response, length)
   for i = 1, length do
     response[i].active = not call[i].active
     response[i].note = call[i].note
     response[i].velocity = call[i].velocity
     response[i].ratchet = call[i].ratchet
   end
+end
+
+local function strategy_echo(call, response, length)
+  for i = 1, length do
+    local src = ((i - 2) % length) + 1
+    response[i].active = call[src].active
+    response[i].note = call[src].note
+    response[i].velocity = call[src].velocity
+    response[i].ratchet = call[src].ratchet
+  end
+end
+
+local function strategy_mirror(call, response, length, lane_id)
+  local scale = theory.get_scale()
+  local root = scale[1] or 60
+  for i = 1, length do
+    response[i].active = call[i].active
+    response[i].velocity = call[i].velocity
+    response[i].ratchet = call[i].ratchet
+    if call[i].note then
+      local interval = call[i].note - root
+      local mirrored = root - interval
+      -- Snap to nearest scale tone
+      local best = scale[1]
+      for _, sn in ipairs(scale) do
+        if math.abs(sn - mirrored) < math.abs(best - mirrored) then
+          best = sn
+        end
+      end
+      response[i].note = best
+    else
+      response[i].note = nil
+    end
+  end
+end
+
+local function strategy_resolve(call, response, length, lane_id)
+  local scale = theory.get_scale()
+  local root = scale[1] or 60
+  -- Find root in the octave closest to the voice note
+  local voice = StepState.get_voice_note(lane_id)
+  local resolve_note = root
+  for _, sn in ipairs(scale) do
+    if sn % 12 == root % 12 and math.abs(sn - voice) < math.abs(resolve_note - voice) then
+      resolve_note = sn
+    end
+  end
+
+  for i = 1, length do
+    response[i].active = call[i].active
+    response[i].velocity = call[i].velocity
+    response[i].ratchet = call[i].ratchet
+    if i == length then
+      response[i].note = resolve_note
+    else
+      response[i].note = call[i].note
+    end
+  end
+end
+
+function StepState.generate_response(lane_id)
+  local call = ensure_state(lane_id)
+  local response = ensure_response(lane_id)
+  local length = StepState.get_length(lane_id)
+  local strategy = StepState.get_cr_strategy(lane_id)
+
+  if strategy == 1 then
+    strategy_invert(call, response, length)
+  elseif strategy == 2 then
+    strategy_echo(call, response, length)
+  elseif strategy == 3 then
+    strategy_mirror(call, response, length, lane_id)
+  elseif strategy == 4 then
+    strategy_resolve(call, response, length, lane_id)
+  end
+
   StepState.snapshot_response_genesis(lane_id)
 end
 
--- Returns whichever layer is currently being viewed/edited
+------------------------------------------------------------------------
+-- Active Layer (what the grid shows — follows playback)
+------------------------------------------------------------------------
+
 function StepState.get_active_steps(lane_id)
-  if viewing_response[lane_id] then
+  if cr_playing_response[lane_id] then
     return ensure_response(lane_id)
   end
   return ensure_state(lane_id)
@@ -180,7 +266,7 @@ function StepState.snapshot_genesis(lane_id)
   genesis[lane_id] = StepState.deep_copy_steps(ensure_state(lane_id))
   mutation_loop_count[lane_id] = 0
   cycle_counter[lane_id] = 0
-  if cr_enabled[lane_id] and not cr_manual[lane_id] then
+  if cr_enabled[lane_id] then
     StepState.generate_response(lane_id)
   end
 end
