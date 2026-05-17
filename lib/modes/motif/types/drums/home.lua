@@ -120,6 +120,11 @@ local function create_timing_screen()
       { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
+      { separator = true, title = "Mutation" },
+      { id = "lane_" .. lane_id .. "_drum_reseed" },
+      { id = "lane_" .. lane_id .. "_drum_mutate_displace", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_mutate_pitch", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_mutate_density", arc_multi_float = {10, 5, 1} },
     }
   end
 
@@ -205,6 +210,7 @@ local function apply_note_change()
   local scale = theory.get_scale()
   local voice_midi = scale[math.max(1, math.min(voice_note, #scale))]
   s.note = (midi == voice_midi) and nil or midi
+  _step_grid.snapshot_genesis(lane_id)
   _step_grid.apply_motif(lane_id)
 end
 
@@ -235,6 +241,7 @@ local function create_step_edit_params()
     local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
     if s then
       s.velocity = value
+      _step_grid.snapshot_genesis(lane_id)
       _step_grid.apply_motif(lane_id)
     end
   end)
@@ -246,6 +253,7 @@ local function create_step_edit_params()
     local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
     if s then
       s.ratchet = value
+      _step_grid.snapshot_genesis(lane_id)
       _step_grid.apply_motif(lane_id)
     end
   end)
