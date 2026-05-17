@@ -6,26 +6,53 @@ local NornsUI = include("lib/ui/base/norns_ui")
 local LaneMap = include("lib/lanes/lane_map")
 local musicutil = require('musicutil')
 local theory = include("lib/modes/motif/core/theory")
-local StepGrid = include("lib/modes/motif/types/drums/step_grid")
 
 local DrumsHome = {}
+
+-- StepGrid ref is passed from init.lua to avoid the Norns include() double-instance bug.
+local _step_grid = nil
+
+function DrumsHome.set_step_grid_ref(ref)
+  _step_grid = ref
+end
 
 ------------------------------------------------------------------------
 -- Helpers
 ------------------------------------------------------------------------
 
-local function midi_to_scale_position(midi)
+local NOTE_NAMES = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
+
+local function get_scale_pitch_classes()
   local scale = theory.get_scale()
-  for i, n in ipairs(scale) do
-    if n == midi then return i end
-    if n > midi then return math.max(1, i - 1) end
+  local classes = {}
+  local seen = {}
+  for _, midi in ipairs(scale) do
+    local pc = midi % 12
+    if not seen[pc] then
+      seen[pc] = true
+      classes[#classes + 1] = pc
+    end
   end
-  return #scale
+  table.sort(classes)
+  return classes
 end
 
-local function scale_position_to_midi(pos)
-  local scale = theory.get_scale()
-  return scale[math.max(1, math.min(pos, #scale))]
+local function midi_to_note_and_octave(midi)
+  local pc = midi % 12
+  local octave = math.floor(midi / 12)
+  local classes = get_scale_pitch_classes()
+  local note_idx = 1
+  for i, c in ipairs(classes) do
+    if c == pc then note_idx = i; break end
+    if c > pc then note_idx = math.max(1, i - 1); break end
+  end
+  return note_idx, octave
+end
+
+local function note_and_octave_to_midi(note_idx, octave)
+  local classes = get_scale_pitch_classes()
+  local pc = classes[math.max(1, math.min(note_idx, #classes))]
+  return pc + octave * 12
 end
 
 local function get_drums_lane()
@@ -35,12 +62,19 @@ local function get_drums_lane()
   return LaneMap.to_flat("drums", 1)
 end
 
+local function get_focused_drums_lane()
+  local lane_id = _seeker.ui_state.get_focused_lane()
+  local sub_mode = LaneMap.from_flat(lane_id)
+  if sub_mode ~= "drums" then return nil end
+  return lane_id
+end
+
 local function lane_label(lane_id)
   return "D" .. (lane_id - LaneMap.OFFSETS.drums)
 end
 
 ------------------------------------------------------------------------
--- DRUMS_TIMING: division, gate length
+-- DRUMS_TIMING: length, division, voice note, gate length
 ------------------------------------------------------------------------
 
 local function create_timing_screen()
@@ -72,31 +106,37 @@ local function create_timing_screen()
 end
 
 ------------------------------------------------------------------------
--- DRUMS_HOME: per-step editor (note, velocity)
+-- DRUMS_HOME: per-step editor (note, octave, velocity)
 ------------------------------------------------------------------------
 
 local function create_step_screen()
   local norns_ui = NornsUI.new({
     id = "DRUMS_HOME",
     name = "Step",
-    description = "Per-step note and velocity.",
+    description = "Per-step note, octave, and velocity.",
     params = {}
   })
 
   norns_ui.rebuild_params = function(self)
     local lane_id = get_drums_lane()
-    local step = StepGrid.get_selected_step(lane_id)
-    local s = StepGrid.get_step(lane_id, step)
+    local step = _step_grid.get_selected_step(lane_id)
+    local s = _step_grid.get_step(lane_id, step)
     local step_label = "Step " .. step .. (s.active and " *" or " o")
 
-    local voice_midi = scale_position_to_midi(params:get("lane_" .. lane_id .. "_drum_voice_note"))
+    local voice_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
+    local scale = theory.get_scale()
+    local voice_midi = scale[math.max(1, math.min(voice_note, #scale))]
     local midi = s.note or voice_midi
-    params:set("drum_step_note", midi_to_scale_position(midi), true)
+    local note_idx, octave = midi_to_note_and_octave(midi)
+
+    params:set("drum_step_note", note_idx, true)
+    params:set("drum_step_octave", octave, true)
     params:set("drum_step_velocity", s.velocity, true)
 
     self.name = lane_label(lane_id) .. " " .. step_label
     self.params = {
       { id = "drum_step_note" },
+      { id = "drum_step_octave" },
       { id = "drum_step_velocity" },
     }
   end
@@ -114,41 +154,47 @@ end
 -- Virtual params for per-step editing
 ------------------------------------------------------------------------
 
-local function get_focused_drums_lane()
-  local lane_id = _seeker.ui_state.get_focused_lane()
-  local sub_mode = LaneMap.from_flat(lane_id)
-  if sub_mode ~= "drums" then return nil end
-  return lane_id
+local function apply_note_change()
+  local lane_id = get_focused_drums_lane()
+  if not lane_id then return end
+  local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
+  if not s then return end
+  local midi = note_and_octave_to_midi(params:get("drum_step_note"), params:get("drum_step_octave"))
+  local voice_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
+  local scale = theory.get_scale()
+  local voice_midi = scale[math.max(1, math.min(voice_note, #scale))]
+  s.note = (midi == voice_midi) and nil or midi
+  _step_grid.apply_motif(lane_id)
 end
 
 local function create_step_edit_params()
-  params:add_group("drum_step_edit", "DRUM STEP EDIT", 2)
+  params:add_group("drum_step_edit", "DRUM STEP EDIT", 3)
 
-  params:add_number("drum_step_note", "Step Note", 1, 128, 36,
+  params:add_number("drum_step_note", "Note", 1, 12, 1,
     function(param)
-      local midi = scale_position_to_midi(param:get())
-      return midi and musicutil.note_num_to_name(midi, true) or "?"
+      local classes = get_scale_pitch_classes()
+      local idx = math.max(1, math.min(param:get(), #classes))
+      return NOTE_NAMES[classes[idx] + 1]
     end)
   params:set_action("drum_step_note", function(value)
-    local lane_id = get_focused_drums_lane()
-    if not lane_id then return end
-    local midi = scale_position_to_midi(value)
-    local s = StepGrid.get_step(lane_id, StepGrid.get_selected_step(lane_id))
-    if s then
-      local voice_midi = scale_position_to_midi(params:get("lane_" .. lane_id .. "_drum_voice_note"))
-      s.note = (midi == voice_midi) and nil or midi
-      StepGrid.apply_motif(lane_id)
-    end
+    local classes = get_scale_pitch_classes()
+    if value > #classes then params:set("drum_step_note", #classes, true); return end
+    apply_note_change()
+  end)
+
+  params:add_number("drum_step_octave", "Octave", 0, 8, 4)
+  params:set_action("drum_step_octave", function()
+    apply_note_change()
   end)
 
   params:add_number("drum_step_velocity", "Step Velocity", 1, 127, 100)
   params:set_action("drum_step_velocity", function(value)
     local lane_id = get_focused_drums_lane()
     if not lane_id then return end
-    local s = StepGrid.get_step(lane_id, StepGrid.get_selected_step(lane_id))
+    local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
     if s then
       s.velocity = value
-      StepGrid.apply_motif(lane_id)
+      _step_grid.apply_motif(lane_id)
     end
   end)
 end

@@ -22,6 +22,8 @@ function Drums.init()
     type = DrumsType,
   }
 
+  modules.home.set_step_grid_ref(StepGrid)
+
   for name, module in pairs(modules) do
     instance[name] = module.init()
 
@@ -35,6 +37,10 @@ function Drums.init()
   local function lane_start_row(lane_id)
     local local_index = lane_id - LaneMap.OFFSETS.drums
     return (local_index - 1) * 2 + 1
+  end
+
+  instance.apply_motif = function(lane_id)
+    StepGrid.apply_motif(lane_id)
   end
 
   lane_handlers.register(2, {

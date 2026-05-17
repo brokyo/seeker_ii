@@ -186,6 +186,15 @@ local function xy_to_lane_step(x, y)
   return lane_id, step
 end
 
+local function rebuild_current_drums_screen()
+  local section = _seeker.ui_state.get_current_section()
+  local sections = _seeker.drums_type and _seeker.drums_type.sections
+  if sections and sections[section] and sections[section].rebuild_params then
+    sections[section]:rebuild_params()
+    sections[section]:filter_active_params()
+  end
+end
+
 ------------------------------------------------------------------------
 -- Grid UI
 ------------------------------------------------------------------------
@@ -282,6 +291,7 @@ local function create_grid_ui()
         StepGrid.toggle_step(lane_id, step)
         StepGrid.apply_motif(lane_id)
         _seeker.ui_state.set_focused_lane(lane_id)
+        rebuild_current_drums_screen()
       end
     end
 

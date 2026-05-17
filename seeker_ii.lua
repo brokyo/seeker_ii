@@ -171,9 +171,8 @@ function init()
   end
 
   -- Initialize drum motifs now that lanes exist (needs non-zero duration to play)
-  local DrumStepGrid = include("lib/modes/motif/types/drums/step_grid")
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    DrumStepGrid.apply_motif(lane_id)
+    _seeker.drums_type.apply_motif(lane_id)
   end
 
   -- Tape lane 1 defaults: MX Samples epiano
