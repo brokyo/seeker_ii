@@ -94,8 +94,6 @@ end
 
 -- Arrangement view state
 local selected_lane = 1
-local GROUP_LABELS = {"T", "C", "S", "D"}
-
 local MARGIN_LEFT = 18
 local MARGIN_RIGHT = 4
 local ROW_TOP = 2
@@ -293,42 +291,50 @@ local function draw_arrangement()
 end
 
 ---------------------------------------------------------------
--- PageState: 4 arc rings map to the 4 lanes in the selected group
+-- PageState: arc rings map to active lanes, 4 per page
 ---------------------------------------------------------------
 local page_state = nil
 
-local function build_arrangement_page()
-    local group = math.ceil(selected_lane / 4)
-    local base = (group - 1) * 4
-
-    local slots = {}
-    for i = 1, 4 do
-        local lane_id = base + i
-        local sub_mode, local_idx = LaneMap.from_flat(lane_id)
-        local label = sub_mode:sub(1, 1):upper() .. local_idx
-        slots[i] = {
-            label = label,
-            threshold = PageState.THRESH_RANGE,
-            on_delta = function(dir)
-                local param_id = "lane_" .. lane_id .. "_rest_loops"
-                params:delta(param_id, dir)
-            end,
-            get_value = function()
-                return _seeker.lanes[lane_id].rest_loops
-            end,
-            arc_draw = function(dev, ring)
-                local val = _seeker.lanes[lane_id].rest_loops
-                PageState.draw_arc_position(dev, ring, val, 0, 16)
-            end,
-        }
+local function build_arrangement_pages()
+    local active = get_active_lanes()
+    if #active == 0 then
+        return {{ name = "rest", slots = {} }}
     end
 
-    return {{ name = GROUP_LABELS[group] .. " rest", slots = slots }}
+    local pages = {}
+    for page_start = 1, #active, 4 do
+        local slots = {}
+        for i = 0, 3 do
+            local entry = active[page_start + i]
+            if not entry then break end
+            local lane_id = entry.id
+            local label = get_lane_label(lane_id)
+            slots[#slots + 1] = {
+                label = label,
+                threshold = PageState.THRESH_RANGE,
+                on_delta = function(dir)
+                    params:delta("lane_" .. lane_id .. "_rest_loops", dir)
+                end,
+                get_value = function()
+                    return _seeker.lanes[lane_id].rest_loops
+                end,
+                arc_draw = function(dev, ring)
+                    PageState.draw_arc_position(dev, ring, _seeker.lanes[lane_id].rest_loops, 0, 16)
+                end,
+            }
+        end
+        local first_label = get_lane_label(active[page_start].id)
+        local last_entry = active[math.min(page_start + 3, #active)]
+        local last_label = get_lane_label(last_entry.id)
+        table.insert(pages, { name = first_label .. "-" .. last_label, slots = slots })
+    end
+
+    return pages
 end
 
 local function refresh_page_state()
     if page_state then
-        page_state:set_pages(build_arrangement_page())
+        page_state:set_pages(build_arrangement_pages())
     end
 end
 
@@ -336,7 +342,7 @@ end
 -- NornsUI: arrangement view with live drawing
 ---------------------------------------------------------------
 local function create_screen_ui()
-    page_state = PageState.new({ pages = build_arrangement_page() })
+    page_state = PageState.new({ pages = build_arrangement_pages() })
 
     local norns_ui = NornsUI.new({
         id = "MOTIF",
@@ -395,9 +401,6 @@ local function create_screen_ui()
             end
             local new_idx = util.clamp(current_idx + d, 1, #active)
             selected_lane = active[new_idx].id
-            refresh_page_state()
-            local dev = _seeker.arc
-            if dev then page_state:update_arc(dev); dev:refresh() end
             if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
         elseif n == 3 then
             local param_id = "lane_" .. selected_lane .. "_rest_loops"
