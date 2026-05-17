@@ -357,6 +357,16 @@ local function create_screen_ui()
         end
     end
 
+    local original_enter = norns_ui.enter
+    norns_ui.enter = function(self)
+        local active = get_active_lanes()
+        if #active > 0 then
+            selected_lane = active[1].id
+        end
+        refresh_page_state()
+        original_enter(self)
+    end
+
     norns_ui.draw_live = function(self)
         draw_arrangement()
         page_state:draw_footer()
