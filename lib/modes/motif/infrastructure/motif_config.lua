@@ -195,6 +195,7 @@ local function draw_arrangement()
         }
     end
     if max_cycle_beats <= 0 then max_cycle_beats = 1 end
+    local window_beats = max_cycle_beats * 3
 
     local available_height = ROW_BOTTOM - ROW_TOP
     local row_height = math.floor((available_height - (ROW_GAP * (#active - 1))) / #active)
@@ -213,10 +214,10 @@ local function draw_arrangement()
         screen.text(get_lane_label(lane_id))
 
         -- Tile the duty cycle pattern across the shared time axis
-        local cycle_w = BAR_WIDTH * (ci.cycle_beats / max_cycle_beats)
+        local cycle_w = BAR_WIDTH * (ci.cycle_beats / window_beats)
         local play_w = cycle_w * (ci.play_loops / ci.total_loops)
         local rest_w = cycle_w - play_w
-        local num_tiles = math.ceil(max_cycle_beats / ci.cycle_beats)
+        local num_tiles = math.ceil(window_beats / ci.cycle_beats)
 
         for tile = 0, num_tiles - 1 do
             local tile_x = MARGIN_LEFT + tile * cycle_w
