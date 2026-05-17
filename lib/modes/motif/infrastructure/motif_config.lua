@@ -103,9 +103,10 @@ local BAR_WIDTH = 128 - MARGIN_LEFT - MARGIN_RIGHT
 
 local function get_active_lanes()
     local active = {}
+    if not _seeker or not _seeker.lanes then return active end
     for i = 1, 16 do
         local lane = _seeker.lanes[i]
-        if lane.playing then
+        if lane and lane.playing then
             table.insert(active, { id = i, lane = lane })
         end
     end
