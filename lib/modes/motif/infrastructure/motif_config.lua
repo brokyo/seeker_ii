@@ -180,6 +180,23 @@ local function draw_arrangement()
         return
     end
 
+    -- Shared time axis: find the longest cycle in beats
+    local max_cycle_beats = 0
+    local lane_cycles = {}
+    for _, entry in ipairs(active) do
+        local play_loops, rest_loops, total_loops, motif_dur = get_cycle_info(entry.lane)
+        local cycle_beats = total_loops * motif_dur
+        if cycle_beats > max_cycle_beats then max_cycle_beats = cycle_beats end
+        lane_cycles[entry.id] = {
+            play_loops = play_loops,
+            rest_loops = rest_loops,
+            total_loops = total_loops,
+            motif_dur = motif_dur,
+            cycle_beats = cycle_beats,
+        }
+    end
+    if max_cycle_beats <= 0 then max_cycle_beats = 1 end
+
     local available_height = ROW_BOTTOM - ROW_TOP
     local row_height = math.floor((available_height - (ROW_GAP * (#active - 1))) / #active)
     row_height = math.min(row_height, 12)
@@ -189,76 +206,82 @@ local function draw_arrangement()
         local lane_id = entry.id
         local y = ROW_TOP + (idx - 1) * (row_height + ROW_GAP)
         local is_selected = (lane_id == selected_lane)
+        local ci = lane_cycles[lane_id]
 
         -- Label
         screen.level(is_selected and 15 or 5)
         screen.move(2, y + row_height - 1)
         screen.text(get_lane_label(lane_id))
 
-        -- Duty cycle bar
-        local play_loops, rest_loops, total_loops, _ = get_cycle_info(lane)
-        local play_frac = play_loops / total_loops
-        local play_w = math.floor(BAR_WIDTH * play_frac)
-        local rest_w = BAR_WIDTH - play_w
+        -- Tile the duty cycle pattern across the shared time axis
+        local cycle_w = BAR_WIDTH * (ci.cycle_beats / max_cycle_beats)
+        local play_w = cycle_w * (ci.play_loops / ci.total_loops)
+        local rest_w = cycle_w - play_w
+        local num_tiles = math.ceil(max_cycle_beats / ci.cycle_beats)
 
-        -- Play portion: filled
-        screen.level(is_selected and 8 or 4)
-        screen.rect(MARGIN_LEFT, y, play_w, row_height)
-        screen.fill()
+        for tile = 0, num_tiles - 1 do
+            local tile_x = MARGIN_LEFT + tile * cycle_w
 
-        -- Rest portion: outlined
-        if rest_w > 0 then
-            screen.level(is_selected and 4 or 2)
-            screen.rect(MARGIN_LEFT + play_w, y, rest_w, row_height)
-            screen.stroke()
-        end
+            -- Clip to bar bounds
+            if tile_x >= MARGIN_LEFT + BAR_WIDTH then break end
 
-        -- Stage and loop tick marks within the play portion
-        local loops_accum = 0
-        for _, s in ipairs(lane.stages) do
-            if s.active then
-                local stage_loops = s.effective_loops or s.loops
-                -- Loop ticks (short, dim)
-                for lp = 1, stage_loops - 1 do
-                    local tick_frac = (loops_accum + lp) / total_loops
-                    local tick_x = MARGIN_LEFT + math.floor(tick_frac * BAR_WIDTH)
-                    screen.level(is_selected and 12 or 6)
-                    screen.move(tick_x, y + row_height - 2)
-                    screen.line(tick_x, y + row_height)
-                    screen.stroke()
-                end
-                loops_accum = loops_accum + stage_loops
-                -- Stage boundary (tall, brighter) — skip if at play/rest border
-                if loops_accum < play_loops then
-                    local stage_frac = loops_accum / total_loops
-                    local stage_x = MARGIN_LEFT + math.floor(stage_frac * BAR_WIDTH)
-                    screen.level(is_selected and 15 or 8)
-                    screen.move(stage_x, y)
-                    screen.line(stage_x, y + row_height)
+            -- Play portion: filled
+            local pw = math.min(play_w, MARGIN_LEFT + BAR_WIDTH - tile_x)
+            if pw > 0 then
+                screen.level(is_selected and 8 or 4)
+                screen.rect(tile_x, y, pw, row_height)
+                screen.fill()
+            end
+
+            -- Rest portion: outlined
+            local rest_x = tile_x + play_w
+            if rest_w > 0 and rest_x < MARGIN_LEFT + BAR_WIDTH then
+                local rw = math.min(rest_w, MARGIN_LEFT + BAR_WIDTH - rest_x)
+                if rw > 0 then
+                    screen.level(is_selected and 4 or 2)
+                    screen.rect(rest_x, y, rw, row_height)
                     screen.stroke()
                 end
             end
-        end
 
-        -- Rest loop ticks (short, dim, within rest portion)
-        if rest_loops > 1 then
-            for r = 1, rest_loops - 1 do
-                local tick_frac = (play_loops + r) / total_loops
-                local tick_x = MARGIN_LEFT + math.floor(tick_frac * BAR_WIDTH)
+            -- Stage boundary ticks within play portion
+            local loops_accum = 0
+            for _, s in ipairs(lane.stages) do
+                if s.active then
+                    local stage_loops = s.effective_loops or s.loops
+                    loops_accum = loops_accum + stage_loops
+                    if loops_accum < ci.play_loops then
+                        local tick_x = tile_x + cycle_w * (loops_accum / ci.total_loops)
+                        if tick_x > MARGIN_LEFT and tick_x < MARGIN_LEFT + BAR_WIDTH then
+                            screen.level(is_selected and 12 or 6)
+                            screen.move(tick_x, y)
+                            screen.line(tick_x, y + row_height)
+                            screen.stroke()
+                        end
+                    end
+                end
+            end
+
+            -- Cycle boundary (dim vertical line between tiles)
+            if tile > 0 then
                 screen.level(is_selected and 6 or 3)
-                screen.move(tick_x, y + row_height - 2)
-                screen.line(tick_x, y + row_height)
+                screen.move(tile_x, y)
+                screen.line(tile_x, y + row_height)
                 screen.stroke()
             end
         end
 
-        -- Position marker
+        -- Position marker (repeats in each tile)
         local pos = get_cycle_position(lane)
-        local marker_x = MARGIN_LEFT + math.floor(pos * BAR_WIDTH)
-        screen.level(15)
-        screen.move(marker_x, y)
-        screen.line(marker_x, y + row_height)
-        screen.stroke()
+        for tile = 0, num_tiles - 1 do
+            local marker_x = MARGIN_LEFT + math.floor((tile + pos) * cycle_w)
+            if marker_x >= MARGIN_LEFT and marker_x <= MARGIN_LEFT + BAR_WIDTH then
+                screen.level(15)
+                screen.move(marker_x, y)
+                screen.line(marker_x, y + row_height)
+                screen.stroke()
+            end
+        end
 
         -- Selection bracket
         if is_selected then
