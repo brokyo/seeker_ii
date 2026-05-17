@@ -500,7 +500,15 @@ local function create_grid_ui()
                 end
                 _seeker.ui_state.set_current_section(next_section)
               else
-                _seeker.ui_state.set_current_section("DRUMS_TIMING")
+                local current = _seeker.ui_state.get_current_section()
+                local is_drums_section = false
+                for _, s in ipairs(DRUMS_LANE_SECTIONS) do
+                  if current == s then is_drums_section = true; break end
+                end
+                if current == "DRUMS_HOME" then is_drums_section = true end
+                if not is_drums_section then
+                  _seeker.ui_state.set_current_section("DRUMS_TIMING")
+                end
               end
               local section = _seeker.ui_state.get_current_section()
               local drums_sections = _seeker.drums_type and _seeker.drums_type.sections
