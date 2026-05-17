@@ -30,21 +30,26 @@ local function init_lane_state(lane_id)
   end
 end
 
-function StepGrid.get_steps(lane_id)
+local function ensure_state(lane_id)
+  if not step_state[lane_id] then init_lane_state(lane_id) end
   return step_state[lane_id]
 end
 
+function StepGrid.get_steps(lane_id)
+  return ensure_state(lane_id)
+end
+
 function StepGrid.get_step(lane_id, step_index)
-  return step_state[lane_id][step_index]
+  return ensure_state(lane_id)[step_index]
 end
 
 function StepGrid.toggle_step(lane_id, step_index)
-  local s = step_state[lane_id][step_index]
+  local s = ensure_state(lane_id)[step_index]
   s.active = not s.active
 end
 
 function StepGrid.set_step_field(lane_id, step_index, field, value)
-  step_state[lane_id][step_index][field] = value
+  ensure_state(lane_id)[step_index][field] = value
 end
 
 StepGrid.selected_step = {}
@@ -140,12 +145,11 @@ end
 function StepGrid.apply_motif(lane_id)
   local lane = _seeker.lanes[lane_id]
   if not lane then return end
-  if not step_state[lane_id] then init_lane_state(lane_id) end
 
   local local_index = lane_id - LaneMap.OFFSETS.drums
   local row_start = (local_index - 1) * ROWS_PER_LANE + 1
 
-  local events, duration = StepGrid.build_motif(step_state[lane_id], {
+  local events, duration = StepGrid.build_motif(ensure_state(lane_id), {
     length       = get_length(lane_id),
     division     = get_division(lane_id),
     gate_pct     = get_gate_pct(lane_id),
@@ -214,7 +218,7 @@ local function create_grid_ui()
       local local_index = lane_id - LaneMap.OFFSETS.drums
       local row_start = (local_index - 1) * ROWS_PER_LANE + 1
       local length = get_length(lane_id)
-      local steps = step_state[lane_id]
+      local steps = ensure_state(lane_id)
       local current_step = get_current_step(lane_id)
 
       for i = 1, MAX_STEPS do
