@@ -114,7 +114,7 @@ function Drums.init()
         gate_pct     = StepState.get_gate_pct(lane_id),
         swing        = params:get("lane_" .. lane_id .. "_drum_swing") / 100,
         probability  = params:get("lane_" .. lane_id .. "_drum_probability"),
-        default_note = StepState.get_default_note(),
+        default_note = StepState.get_default_note(lane_id),
         row_start    = row_start,
       })
 
@@ -156,7 +156,12 @@ local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
 
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 15)
+    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 16)
+
+    params:add_number("lane_" .. lane_id .. "_drum_base_octave", "Base Octave", 1, 7, 4)
+    params:set_action("lane_" .. lane_id .. "_drum_base_octave", function()
+      StepState.apply_motif(lane_id)
+    end)
 
     params:add_number("lane_" .. lane_id .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. lane_id .. "_drum_length", function()

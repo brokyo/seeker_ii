@@ -113,6 +113,7 @@ local function create_timing_screen()
     local lane_id = get_drums_lane()
     self.name = lane_label(lane_id) .. " Timing"
     self.params = {
+      { id = "lane_" .. lane_id .. "_drum_base_octave" },
       { id = "lane_" .. lane_id .. "_drum_length" },
       { id = "lane_" .. lane_id .. "_drum_division" },
       { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
@@ -156,7 +157,7 @@ local function create_step_screen()
     local layer_label = viewing_resp and "Resp" or "Call"
     local step_label = layer_label .. " " .. step .. (s.active and " *" or " o")
 
-    local default_note = _step_state.get_default_note()
+    local default_note = _step_state.get_default_note(lane_id)
     local midi = s.note or default_note
     local note_idx, octave = midi_to_note_and_octave(midi)
 
@@ -312,7 +313,7 @@ local function apply_note_change()
   local s = _step_state.get_active_step(lane_id, _step_state.get_selected_step(lane_id))
   if not s then return end
   local midi = note_and_octave_to_midi(params:get("drum_step_note"), params:get("drum_step_octave"))
-  local default_note = _step_state.get_default_note()
+  local default_note = _step_state.get_default_note(lane_id)
   s.note = (midi == default_note) and nil or midi
   if not _step_state.is_viewing_response(lane_id) then
     _step_state.snapshot_genesis(lane_id)
