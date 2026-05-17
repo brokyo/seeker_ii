@@ -190,7 +190,7 @@ local function draw_arrangement()
 
     local available_height = ROW_BOTTOM - ROW_TOP
     local row_height = math.floor((available_height - (ROW_GAP * (#active - 1))) / #active)
-    row_height = math.min(row_height, 12)
+    row_height = math.min(row_height, 4)
 
     local px_per_beat = BAR_WIDTH / WINDOW_BEATS
 
