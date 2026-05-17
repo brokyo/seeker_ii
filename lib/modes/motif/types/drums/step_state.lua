@@ -63,6 +63,7 @@ local response_state = {}
 local cr_enabled = {}
 local cr_strategy = {}
 local cr_playing_response = {}
+local cr_editing_response = {}
 
 local RESPONSE_STRATEGIES = {"Invert", "Echo", "Mirror", "Resolve"}
 StepState.RESPONSE_STRATEGIES = RESPONSE_STRATEGIES
@@ -106,6 +107,10 @@ function StepState.get_cr_strategy_name(lane_id)
   return RESPONSE_STRATEGIES[StepState.get_cr_strategy(lane_id)]
 end
 
+function StepState.set_cr_strategy(lane_id, val)
+  cr_strategy[lane_id] = val
+end
+
 function StepState.cycle_cr_strategy(lane_id)
   local current = StepState.get_cr_strategy(lane_id)
   cr_strategy[lane_id] = (current % #RESPONSE_STRATEGIES) + 1
@@ -118,6 +123,19 @@ end
 
 function StepState.set_playing_response(lane_id, value)
   cr_playing_response[lane_id] = value
+end
+
+function StepState.is_viewing_response(lane_id)
+  if cr_editing_response[lane_id] then return true end
+  return cr_playing_response[lane_id] or false
+end
+
+function StepState.set_viewing_response(lane_id, value)
+  cr_editing_response[lane_id] = value
+end
+
+function StepState.is_editing_response(lane_id)
+  return cr_editing_response[lane_id] or false
 end
 
 ------------------------------------------------------------------------

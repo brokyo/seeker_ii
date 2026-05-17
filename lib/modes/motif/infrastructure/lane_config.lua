@@ -501,7 +501,7 @@ local function create_grid_ui()
                 _seeker.ui_state.set_current_section(next_section)
               else
                 local current = _seeker.ui_state.get_current_section()
-                if current == "DRUMS_HOME" then
+                if current == "DRUMS_HOME" or current == "DRUMS_RESPONSE" then
                   _seeker.ui_state.set_current_section("DRUMS_TIMING")
                 else
                   local is_drums_section = false

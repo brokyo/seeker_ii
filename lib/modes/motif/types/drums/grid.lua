@@ -125,17 +125,11 @@ local function create_grid_ui()
       layers.ui[10][row_start] = cr_on and GridConstants.BRIGHTNESS.HIGH or GridConstants.BRIGHTNESS.DIM
       layers.ui[10][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.LOW) or GridConstants.BRIGHTNESS.OFF
 
-      -- Col 11: response strategy indicator
-      if cr_on then
-        local strat = _step_state.get_cr_strategy(lane_id)
-        -- Brightness encodes strategy: DIM=1, LOW=2, MEDIUM=3, HIGH=4
-        local strat_brightness = ({GridConstants.BRIGHTNESS.DIM, GridConstants.BRIGHTNESS.LOW, GridConstants.BRIGHTNESS.MEDIUM, GridConstants.BRIGHTNESS.HIGH})[strat] or GridConstants.BRIGHTNESS.DIM
-        layers.ui[11][row_start] = strat_brightness
-        layers.ui[11][row_start + 1] = GridConstants.BRIGHTNESS.OFF
-      else
-        layers.ui[11][row_start] = GridConstants.BRIGHTNESS.OFF
-        layers.ui[11][row_start + 1] = GridConstants.BRIGHTNESS.OFF
-      end
+      -- Col 11: response screen button
+      local on_resp_screen = _seeker.ui_state.get_current_section() == "DRUMS_RESPONSE"
+        and _seeker.ui_state.get_focused_lane() == lane_id
+      layers.ui[11][row_start] = on_resp_screen and GridConstants.BRIGHTNESS.FULL or (cr_on and GridConstants.BRIGHTNESS.DIM or GridConstants.BRIGHTNESS.OFF)
+      layers.ui[11][row_start + 1] = GridConstants.BRIGHTNESS.OFF
     end
   end
 
@@ -158,13 +152,13 @@ local function create_grid_ui()
       if x == 10 and y == row_start then
         _step_state.toggle_cr(lane_id)
         _step_state.apply_motif(lane_id)
-      elseif x == 11 and y == row_start and _step_state.is_cr_enabled(lane_id) then
-        _step_state.cycle_cr_strategy(lane_id)
-        _step_state.apply_motif(lane_id)
+        _seeker.ui_state.set_focused_lane(lane_id)
+        rebuild_current_drums_screen()
+      elseif x == 11 and y == row_start then
+        _seeker.ui_state.set_focused_lane(lane_id)
+        _seeker.ui_state.set_current_section("DRUMS_RESPONSE")
+        rebuild_current_drums_screen()
       end
-
-      _seeker.ui_state.set_focused_lane(lane_id)
-      rebuild_current_drums_screen()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
       return
     end

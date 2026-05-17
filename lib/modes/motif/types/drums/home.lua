@@ -119,8 +119,6 @@ local function create_timing_screen()
       { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
-      { id = "lane_" .. lane_id .. "_drum_cr_call_loops" },
-      { id = "lane_" .. lane_id .. "_drum_cr_resp_loops" },
     }
   end
 
@@ -233,6 +231,45 @@ local function create_mutation_screen()
 end
 
 ------------------------------------------------------------------------
+-- DRUMS_RESPONSE: call/response strategy, loop counts, edit toggle
+------------------------------------------------------------------------
+
+local function create_response_screen()
+  local norns_ui = NornsUI.new({
+    id = "DRUMS_RESPONSE",
+    name = "Response",
+    description = "Call/response settings. Strategy selects how the response is generated. Toggle Edit Response to program the response pattern on the grid.",
+    params = {}
+  })
+
+  norns_ui.rebuild_params = function(self)
+    local lane_id = get_drums_lane()
+    local strategy_name = _step_state.get_cr_strategy_name(lane_id)
+    self.name = lane_label(lane_id) .. " Response (" .. strategy_name .. ")"
+    self.params = {
+      { id = "lane_" .. lane_id .. "_drum_cr_strategy" },
+      { id = "lane_" .. lane_id .. "_drum_cr_call_loops" },
+      { id = "lane_" .. lane_id .. "_drum_cr_resp_loops" },
+      { id = "lane_" .. lane_id .. "_drum_cr_edit_resp" },
+    }
+  end
+
+  local original_enter = norns_ui.enter
+  norns_ui.enter = function(self)
+    self:rebuild_params()
+    original_enter(self)
+  end
+
+  local original_draw_resp = norns_ui.draw
+  norns_ui.draw = function(self)
+    original_draw_resp(self)
+    draw_hold_overlay()
+  end
+
+  return norns_ui
+end
+
+------------------------------------------------------------------------
 -- Virtual params for per-step editing
 ------------------------------------------------------------------------
 
@@ -313,6 +350,7 @@ function DrumsHome.init()
   local timing_screen = create_timing_screen()
   local step_screen = create_step_screen()
   local mutation_screen = create_mutation_screen()
+  local response_screen = create_response_screen()
 
   return {
     screen = step_screen,
@@ -320,6 +358,7 @@ function DrumsHome.init()
       DRUMS_HOME = step_screen,
       DRUMS_TIMING = timing_screen,
       DRUMS_MUTATION = mutation_screen,
+      DRUMS_RESPONSE = response_screen,
     }
   }
 end
