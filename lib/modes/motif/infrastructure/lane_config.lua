@@ -502,6 +502,12 @@ local function create_grid_ui()
               else
                 _seeker.ui_state.set_current_section("DRUMS_TIMING")
               end
+              local section = _seeker.ui_state.get_current_section()
+              local drums_sections = _seeker.drums_type and _seeker.drums_type.sections
+              if drums_sections and drums_sections[section] and drums_sections[section].rebuild_params then
+                drums_sections[section]:rebuild_params()
+                drums_sections[section]:filter_active_params()
+              end
             else
               _seeker.ui_state.set_current_section("LANE_CONFIG")
             end
