@@ -140,6 +140,7 @@ end
 function StepGrid.apply_motif(lane_id)
   local lane = _seeker.lanes[lane_id]
   if not lane then return end
+  if not step_state[lane_id] then init_lane_state(lane_id) end
 
   local local_index = lane_id - LaneMap.OFFSETS.drums
   local row_start = (local_index - 1) * ROWS_PER_LANE + 1
