@@ -163,15 +163,14 @@ end
 
 local function strategy_mirror(call, response, length, lane_id)
   local scale = theory.get_scale()
-  local root = scale[1] or 60
-  local default_note = StepState.get_default_note(lane_id)
+  local center = StepState.get_default_note(lane_id)
   for i = 1, length do
     response[i].active = call[i].active
     response[i].velocity = call[i].velocity
     response[i].ratchet = call[i].ratchet
-    local src_note = call[i].note or default_note
-    local interval = src_note - root
-    local mirrored = root - interval
+    local src_note = call[i].note or center
+    local interval = src_note - center
+    local mirrored = center - interval
     local best = scale[1]
     for _, sn in ipairs(scale) do
       if math.abs(sn - mirrored) < math.abs(best - mirrored) then
@@ -183,25 +182,16 @@ local function strategy_mirror(call, response, length, lane_id)
 end
 
 local function strategy_resolve(call, response, length, lane_id)
-  local scale = theory.get_scale()
-  local root = scale[1] or 60
-  -- Find root in the octave closest to the voice note
-  local voice = StepState.get_default_note(lane_id)
-  local resolve_note = root
-  for _, sn in ipairs(scale) do
-    if sn % 12 == root % 12 and math.abs(sn - voice) < math.abs(resolve_note - voice) then
-      resolve_note = sn
-    end
-  end
+  local default_note = StepState.get_default_note(lane_id)
 
   for i = 1, length do
     response[i].active = call[i].active
     response[i].velocity = call[i].velocity
     response[i].ratchet = call[i].ratchet
     if i == length then
-      response[i].note = resolve_note
+      response[i].note = default_note
     else
-      response[i].note = call[i].note or voice
+      response[i].note = call[i].note
     end
   end
 end
