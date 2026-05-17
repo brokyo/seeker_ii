@@ -139,11 +139,9 @@ end
 -- Params
 ------------------------------------------------------------------------
 
-local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
-
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("dialogue")) do
-    params:add_group("lane_" .. lane_id .. "_dialogue_step", "LANE " .. lane_id .. " DRUM STEPS", 12)
+    params:add_group("lane_" .. lane_id .. "_dialogue_step", "LANE " .. lane_id .. " DRUM STEPS", 13)
 
     params:add_number("lane_" .. lane_id .. "_dialogue_base_octave", "Base Octave", 1, 7, 4)
     params:set_action("lane_" .. lane_id .. "_dialogue_base_octave", function()
@@ -157,8 +155,14 @@ function create_params()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_option("lane_" .. lane_id .. "_dialogue_division", "Division", DIVISION_OPTIONS, 5)
-    params:set_action("lane_" .. lane_id .. "_dialogue_division", function()
+    params:add_option("lane_" .. lane_id .. "_dialogue_interval", "Interval", StepState.interval_options, 2)
+    params:set_action("lane_" .. lane_id .. "_dialogue_interval", function()
+      StepState.apply_motif(lane_id)
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    end)
+
+    params:add_option("lane_" .. lane_id .. "_dialogue_modifier", "Modifier", StepState.modifier_options, StepState.DEFAULT_MODIFIER_INDEX)
+    params:set_action("lane_" .. lane_id .. "_dialogue_modifier", function()
       StepState.apply_motif(lane_id)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)

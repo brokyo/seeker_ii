@@ -52,24 +52,10 @@ local function create_grid_ui()
     layout = { x = 1, y = 1, width = 11, height = 8 }
   })
 
+  grid_ui.long_press_threshold = 0.15
+
   grid_ui.draw = function(self, layers)
     local lane_ids = LaneMap.lanes_for_mode("dialogue")
-
-    -- Find held key for charge-up animation
-    local hold_lane, hold_step, hold_progress
-    for key_id, press in pairs(self.press_state.pressed_keys) do
-      local kx, ky = key_id:match("(%d+),(%d+)")
-      if kx then
-        local hl, hs = xy_to_lane_step(tonumber(kx), tonumber(ky))
-        if hl then
-          hold_lane = hl
-          hold_step = hs
-          hold_progress = (util.time() - press.start_time) / self.long_press_threshold
-          if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-        end
-      end
-      break
-    end
 
     for _, lane_id in ipairs(lane_ids) do
       local local_index = lane_id - LaneMap.OFFSETS.dialogue
@@ -101,13 +87,6 @@ local function create_grid_ui()
             brightness = is_resp and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.HIGH
           else
             brightness = GridConstants.BRIGHTNESS.LOW
-          end
-
-          if hold_lane == lane_id and hold_step == i and hold_progress then
-            local charge = math.min(hold_progress, 1.0)
-            local charge_brightness = GridConstants.BRIGHTNESS.LOW +
-              math.floor(charge * (GridConstants.BRIGHTNESS.FULL - GridConstants.BRIGHTNESS.LOW))
-            brightness = math.max(brightness, charge_brightness)
           end
 
           layers.ui[col][row] = brightness
@@ -188,7 +167,11 @@ local function create_grid_ui()
     if z == 1 then
       self:key_down(key_id)
       if step <= length then
+        _seeker.ui_state.set_focused_lane(lane_id)
+        _step_state.selected_step[lane_id] = step
         _step_state.held_step = { lane_id = lane_id, step = step }
+        _seeker.ui_state.set_current_section("DIALOGUE_HOME")
+        rebuild_current_dialogue_screen()
       end
       _seeker.ui_state.register_activity()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
@@ -199,26 +182,18 @@ local function create_grid_ui()
     self:key_release(key_id)
     _step_state.held_step = nil
 
-    if step <= length then
-      if was_long then
-        _seeker.ui_state.set_focused_lane(lane_id)
-        _step_state.selected_step[lane_id] = step
-        _seeker.ui_state.set_current_section("DIALOGUE_HOME")
-        rebuild_current_dialogue_screen()
+    if step <= length and not was_long then
+      local is_resp = _step_state.is_viewing_response(lane_id)
+      if is_resp then
+        _step_state.get_response_steps(lane_id)[step].active = not _step_state.get_response_steps(lane_id)[step].active
+        _step_state.mark_response_manual(lane_id)
+        _step_state.snapshot_response_genesis(lane_id)
       else
-        local is_resp = _step_state.is_viewing_response(lane_id)
-        if is_resp then
-          _step_state.get_response_steps(lane_id)[step].active = not _step_state.get_response_steps(lane_id)[step].active
-          _step_state.mark_response_manual(lane_id)
-          _step_state.snapshot_response_genesis(lane_id)
-        else
-          _step_state.toggle_step(lane_id, step)
-          _step_state.snapshot_genesis(lane_id)
-        end
-        _step_state.apply_motif(lane_id)
-        _seeker.ui_state.set_focused_lane(lane_id)
-        rebuild_current_dialogue_screen()
+        _step_state.toggle_step(lane_id, step)
+        _step_state.snapshot_genesis(lane_id)
       end
+      _step_state.apply_motif(lane_id)
+      rebuild_current_dialogue_screen()
     end
 
     if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end

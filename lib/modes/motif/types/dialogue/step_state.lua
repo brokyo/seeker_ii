@@ -15,11 +15,11 @@ StepState.MAX_COLS = MAX_COLS
 StepState.ROWS_PER_LANE = ROWS_PER_LANE
 StepState.MAX_STEPS = MAX_STEPS
 
-local DIVISION_OPTIONS = {"1/4", "1/3", "1/2", "2/3", "1", "3/2", "2", "3", "4"}
-local DIVISION_VALUES = {0.25, 1/3, 0.5, 2/3, 1, 1.5, 2, 3, 4}
+local TimingUtils = include("lib/utils/timing_utils")
 
-StepState.DIVISION_OPTIONS = DIVISION_OPTIONS
-StepState.DIVISION_VALUES = DIVISION_VALUES
+StepState.interval_options = TimingUtils.interval_options
+StepState.modifier_options = TimingUtils.modifier_options
+StepState.DEFAULT_MODIFIER_INDEX = TimingUtils.DEFAULT_MODIFIER_INDEX
 
 ------------------------------------------------------------------------
 -- Call State (the programmed pattern)
@@ -347,7 +347,12 @@ function StepState.get_length(lane_id)
 end
 
 function StepState.get_division(lane_id)
-  return DIVISION_VALUES[params:get("lane_" .. lane_id .. "_dialogue_division")]
+  local interval = params:string("lane_" .. lane_id .. "_dialogue_interval")
+  local modifier = params:string("lane_" .. lane_id .. "_dialogue_modifier")
+  local beats = TimingUtils.interval_to_beats(interval)
+  if beats <= 0 then return 1 end
+  local mult = TimingUtils.modifier_to_value(modifier)
+  return beats * mult
 end
 
 function StepState.get_gate_pct(lane_id)

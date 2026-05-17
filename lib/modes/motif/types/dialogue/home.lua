@@ -73,31 +73,6 @@ local function lane_label(lane_id)
 end
 
 ------------------------------------------------------------------------
--- Hold indicator overlay
-------------------------------------------------------------------------
-
-local function draw_hold_overlay()
-  local held = _step_state and _step_state.held_step
-  if not held then return end
-  local grid_comp = _seeker.dialogue_type and _seeker.dialogue_type.grid and _seeker.dialogue_type.grid.grid
-  if not grid_comp then return end
-  local press = grid_comp.press_state.pressed_keys[string.format("%d,%d",
-    ((held.step - 1) % 8) + 1,
-    (held.lane_id - LaneMap.OFFSETS.dialogue - 1) * 2 + 1 + math.floor((held.step - 1) / 8))]
-  if not press then return end
-  local progress = math.min((util.time() - press.start_time) / grid_comp.long_press_threshold, 1.0)
-  local bar_width = math.floor(progress * 128)
-  screen.level(math.floor(progress * 15))
-  screen.rect(0, 0, bar_width, 2)
-  screen.fill()
-  if progress >= 1.0 then
-    screen.level(15)
-    screen.move(64, 30)
-    screen.text_center(lane_label(held.lane_id) .. " Step " .. held.step)
-  end
-end
-
-------------------------------------------------------------------------
 -- DIALOGUE_TIMING: division, gate, swing, probability
 ------------------------------------------------------------------------
 
@@ -115,7 +90,8 @@ local function create_timing_screen()
     self.params = {
       { id = "lane_" .. lane_id .. "_dialogue_base_octave" },
       { id = "lane_" .. lane_id .. "_dialogue_length" },
-      { id = "lane_" .. lane_id .. "_dialogue_division" },
+      { id = "lane_" .. lane_id .. "_dialogue_interval" },
+      { id = "lane_" .. lane_id .. "_dialogue_modifier" },
       { id = "lane_" .. lane_id .. "_dialogue_gate_length", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_dialogue_swing", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_dialogue_probability", arc_multi_float = {10, 5, 1} },
@@ -126,12 +102,6 @@ local function create_timing_screen()
   norns_ui.enter = function(self)
     self:rebuild_params()
     original_enter(self)
-  end
-
-  local original_draw_timing = norns_ui.draw
-  norns_ui.draw = function(self)
-    original_draw_timing(self)
-    draw_hold_overlay()
   end
 
   return norns_ui
@@ -181,12 +151,6 @@ local function create_step_screen()
     original_enter(self)
   end
 
-  local original_draw_step = norns_ui.draw
-  norns_ui.draw = function(self)
-    original_draw_step(self)
-    draw_hold_overlay()
-  end
-
   return norns_ui
 end
 
@@ -219,12 +183,6 @@ local function create_mutation_screen()
     original_enter(self)
   end
 
-  local original_draw_mutation = norns_ui.draw
-  norns_ui.draw = function(self)
-    original_draw_mutation(self)
-    draw_hold_overlay()
-  end
-
   return norns_ui
 end
 
@@ -253,12 +211,6 @@ local function create_call_screen()
   norns_ui.enter = function(self)
     self:rebuild_params()
     original_enter(self)
-  end
-
-  local original_draw_call = norns_ui.draw
-  norns_ui.draw = function(self)
-    original_draw_call(self)
-    draw_hold_overlay()
   end
 
   return norns_ui
@@ -290,12 +242,6 @@ local function create_response_screen()
   norns_ui.enter = function(self)
     self:rebuild_params()
     original_enter(self)
-  end
-
-  local original_draw_resp = norns_ui.draw
-  norns_ui.draw = function(self)
-    original_draw_resp(self)
-    draw_hold_overlay()
   end
 
   return norns_ui
