@@ -1,5 +1,5 @@
 -- home.lua
--- Drums screen sections. Lane button cycles Timing/Config.
+-- Drums screen sections. Lane button cycles Timing/Mutation/Config.
 -- Long-press a step on the grid to open per-step editor (DRUMS_HOME).
 
 local NornsUI = include("lib/ui/base/norns_ui")
@@ -9,11 +9,10 @@ local theory = include("lib/modes/motif/core/theory")
 
 local DrumsHome = {}
 
--- StepGrid ref is passed from init.lua to avoid the Norns include() double-instance bug.
-local _step_grid = nil
+local _step_state = nil
 
-function DrumsHome.set_step_grid_ref(ref)
-  _step_grid = ref
+function DrumsHome.set_step_state_ref(ref)
+  _step_state = ref
 end
 
 ------------------------------------------------------------------------
@@ -78,15 +77,15 @@ end
 ------------------------------------------------------------------------
 
 local function draw_hold_overlay()
-  local held = _step_grid and _step_grid.held_step
+  local held = _step_state and _step_state.held_step
   if not held then return end
-  local grid_ui = _seeker.drums_type and _seeker.drums_type.step_grid and _seeker.drums_type.step_grid.grid
-  if not grid_ui then return end
-  local press = grid_ui.press_state.pressed_keys[string.format("%d,%d",
+  local grid_comp = _seeker.drums_type and _seeker.drums_type.grid and _seeker.drums_type.grid.grid
+  if not grid_comp then return end
+  local press = grid_comp.press_state.pressed_keys[string.format("%d,%d",
     ((held.step - 1) % 8) + 1,
     (held.lane_id - LaneMap.OFFSETS.drums - 1) * 2 + 1 + math.floor((held.step - 1) / 8))]
   if not press then return end
-  local progress = math.min((util.time() - press.start_time) / grid_ui.long_press_threshold, 1.0)
+  local progress = math.min((util.time() - press.start_time) / grid_comp.long_press_threshold, 1.0)
   local bar_width = math.floor(progress * 128)
   screen.level(math.floor(progress * 15))
   screen.rect(0, 0, bar_width, 2)
@@ -152,9 +151,11 @@ local function create_step_screen()
 
   norns_ui.rebuild_params = function(self)
     local lane_id = get_drums_lane()
-    local step = _step_grid.get_selected_step(lane_id)
-    local s = _step_grid.get_step(lane_id, step)
-    local step_label = "Step " .. step .. (s.active and " *" or " o")
+    local step = _step_state.get_selected_step(lane_id)
+    local s = _step_state.get_active_step(lane_id, step)
+    local viewing_resp = _step_state.is_viewing_response(lane_id)
+    local layer_label = viewing_resp and "Resp" or "Call"
+    local step_label = layer_label .. " " .. step .. (s.active and " *" or " o")
 
     local voice_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
     local scale = theory.get_scale()
@@ -236,15 +237,17 @@ end
 local function apply_note_change()
   local lane_id = get_focused_drums_lane()
   if not lane_id then return end
-  local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
+  local s = _step_state.get_active_step(lane_id, _step_state.get_selected_step(lane_id))
   if not s then return end
   local midi = note_and_octave_to_midi(params:get("drum_step_note"), params:get("drum_step_octave"))
   local voice_note = params:get("lane_" .. lane_id .. "_drum_voice_note")
   local scale = theory.get_scale()
   local voice_midi = scale[math.max(1, math.min(voice_note, #scale))]
   s.note = (midi == voice_midi) and nil or midi
-  _step_grid.snapshot_genesis(lane_id)
-  _step_grid.apply_motif(lane_id)
+  if not _step_state.is_viewing_response(lane_id) then
+    _step_state.snapshot_genesis(lane_id)
+  end
+  _step_state.apply_motif(lane_id)
 end
 
 local function create_step_edit_params()
@@ -271,11 +274,13 @@ local function create_step_edit_params()
   params:set_action("drum_step_velocity", function(value)
     local lane_id = get_focused_drums_lane()
     if not lane_id then return end
-    local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
+    local s = _step_state.get_active_step(lane_id, _step_state.get_selected_step(lane_id))
     if s then
       s.velocity = value
-      _step_grid.snapshot_genesis(lane_id)
-      _step_grid.apply_motif(lane_id)
+      if not _step_state.is_viewing_response(lane_id) then
+        _step_state.snapshot_genesis(lane_id)
+      end
+      _step_state.apply_motif(lane_id)
     end
   end)
 
@@ -283,11 +288,13 @@ local function create_step_edit_params()
   params:set_action("drum_step_ratchet", function(value)
     local lane_id = get_focused_drums_lane()
     if not lane_id then return end
-    local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
+    local s = _step_state.get_active_step(lane_id, _step_state.get_selected_step(lane_id))
     if s then
       s.ratchet = value
-      _step_grid.snapshot_genesis(lane_id)
-      _step_grid.apply_motif(lane_id)
+      if not _step_state.is_viewing_response(lane_id) then
+        _step_state.snapshot_genesis(lane_id)
+      end
+      _step_state.apply_motif(lane_id)
     end
   end)
 end
