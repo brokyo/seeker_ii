@@ -67,7 +67,7 @@ local cr_editing_response = {}
 local cr_editing_call = {}
 local cr_response_manual = {}
 
-local RESPONSE_STRATEGIES = {"Invert", "Echo", "Mirror", "Resolve"}
+local RESPONSE_STRATEGIES = {"Complement", "Sequence", "Invert", "Resolve", "Rotate"}
 StepState.RESPONSE_STRATEGIES = RESPONSE_STRATEGIES
 
 local function init_response_steps(lane_id)
@@ -142,7 +142,7 @@ end
 -- Response Strategies
 ------------------------------------------------------------------------
 
-local function strategy_invert(call, response, length)
+local function strategy_complement(call, response, length)
   for i = 1, length do
     response[i].active = not call[i].active
     response[i].note = call[i].note
@@ -151,7 +151,7 @@ local function strategy_invert(call, response, length)
   end
 end
 
-local function strategy_echo(call, response, length)
+local function strategy_sequence(call, response, length)
   for i = 1, length do
     local src = ((i - 2) % length) + 1
     response[i].active = call[src].active
@@ -161,7 +161,7 @@ local function strategy_echo(call, response, length)
   end
 end
 
-local function strategy_mirror(call, response, length, lane_id)
+local function strategy_invert(call, response, length, lane_id)
   local scale = theory.get_scale()
   local center = StepState.get_default_note(lane_id)
   for i = 1, length do
@@ -182,17 +182,42 @@ local function strategy_mirror(call, response, length, lane_id)
 end
 
 local function strategy_resolve(call, response, length, lane_id)
+  local scale = theory.get_scale()
   local default_note = StepState.get_default_note(lane_id)
+
+  -- Find the default note's position in the scale
+  local tonic_pos = 1
+  for si, sn in ipairs(scale) do
+    if sn == default_note then tonic_pos = si; break end
+    if sn > default_note then tonic_pos = math.max(1, si - 1); break end
+  end
+
+  -- How many steps form the scalar run (2-4 depending on length)
+  local run_length = math.max(2, math.min(4, math.floor(length / 3)))
 
   for i = 1, length do
     response[i].active = call[i].active
     response[i].velocity = call[i].velocity
     response[i].ratchet = call[i].ratchet
-    if i == length then
-      response[i].note = default_note
+
+    local steps_from_end = length - i
+    if steps_from_end < run_length then
+      local scale_offset = steps_from_end
+      local pos = math.max(1, math.min(tonic_pos + scale_offset, #scale))
+      response[i].note = scale[pos]
     else
       response[i].note = call[i].note
     end
+  end
+end
+
+local function strategy_rotate(call, response, length)
+  for i = 1, length do
+    response[i].active = call[i].active
+    response[i].velocity = call[i].velocity
+    response[i].ratchet = call[i].ratchet
+    local note_src = (i % length) + 1
+    response[i].note = call[note_src].note
   end
 end
 
@@ -204,13 +229,15 @@ function StepState.generate_response(lane_id)
   local strategy = StepState.get_cr_strategy(lane_id)
 
   if strategy == 1 then
-    strategy_invert(call, response, length)
+    strategy_complement(call, response, length)
   elseif strategy == 2 then
-    strategy_echo(call, response, length)
+    strategy_sequence(call, response, length)
   elseif strategy == 3 then
-    strategy_mirror(call, response, length, lane_id)
+    strategy_invert(call, response, length, lane_id)
   elseif strategy == 4 then
     strategy_resolve(call, response, length, lane_id)
+  elseif strategy == 5 then
+    strategy_rotate(call, response, length)
   end
 
   StepState.snapshot_response_genesis(lane_id)
