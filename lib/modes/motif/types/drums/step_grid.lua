@@ -53,6 +53,7 @@ function StepGrid.set_step_field(lane_id, step_index, field, value)
 end
 
 StepGrid.selected_step = {}
+StepGrid.held_step = nil
 
 function StepGrid.get_selected_step(lane_id)
   return StepGrid.selected_step[lane_id] or 1
@@ -218,6 +219,7 @@ local function create_grid_ui()
           hold_lane = hl
           hold_step = hs
           hold_progress = (util.time() - press.start_time) / self.long_press_threshold
+          if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
         end
       end
       break
@@ -274,6 +276,9 @@ local function create_grid_ui()
 
     if z == 1 then
       self:key_down(key_id)
+      if step <= length then
+        StepGrid.held_step = { lane_id = lane_id, step = step }
+      end
       _seeker.ui_state.register_activity()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
       return
@@ -281,12 +286,14 @@ local function create_grid_ui()
 
     local was_long = self:is_long_press(key_id)
     self:key_release(key_id)
+    StepGrid.held_step = nil
 
     if step <= length then
       if was_long then
         _seeker.ui_state.set_focused_lane(lane_id)
         StepGrid.selected_step[lane_id] = step
         _seeker.ui_state.set_current_section("DRUMS_HOME")
+        rebuild_current_drums_screen()
       else
         StepGrid.toggle_step(lane_id, step)
         StepGrid.apply_motif(lane_id)

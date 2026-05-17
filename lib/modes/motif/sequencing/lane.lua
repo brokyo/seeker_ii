@@ -692,21 +692,12 @@ function Lane:on_note_on(event)
     -- Play engine using instrument from params
     local instrument = self:get_instrument()
     if instrument then
-      -- Get ADSR/pan values from event if it's playback, otherwise from current params
-      local attack, decay, sustain, release, pan
-      if event.is_playback then
-        attack = event.attack
-        decay = event.decay
-        sustain = event.sustain
-        release = event.release
-        pan = event.pan
-      else
-        attack = params:get("lane_" .. self.id .. "_attack")
-        decay = params:get("lane_" .. self.id .. "_decay")
-        sustain = params:get("lane_" .. self.id .. "_sustain")
-        release = params:get("lane_" .. self.id .. "_release")
-        pan = params:get("lane_" .. self.id .. "_pan")
-      end
+      -- Get ADSR/pan from event if present, otherwise from lane params
+      local attack = event.attack or params:get("lane_" .. self.id .. "_attack")
+      local decay = event.decay or params:get("lane_" .. self.id .. "_decay")
+      local sustain = event.sustain or params:get("lane_" .. self.id .. "_sustain")
+      local release = event.release or params:get("lane_" .. self.id .. "_release")
+      local pan = event.pan or params:get("lane_" .. self.id .. "_pan")
       
       _seeker.skeys:on({
         name = instrument,

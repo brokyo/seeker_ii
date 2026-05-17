@@ -74,6 +74,31 @@ local function lane_label(lane_id)
 end
 
 ------------------------------------------------------------------------
+-- Hold indicator overlay
+------------------------------------------------------------------------
+
+local function draw_hold_overlay()
+  local held = _step_grid and _step_grid.held_step
+  if not held then return end
+  local grid_ui = _seeker.drums_type and _seeker.drums_type.step_grid and _seeker.drums_type.step_grid.grid
+  if not grid_ui then return end
+  local press = grid_ui.press_state.pressed_keys[string.format("%d,%d",
+    ((held.step - 1) % 8) + 1,
+    (held.lane_id - LaneMap.OFFSETS.drums - 1) * 2 + 1 + math.floor((held.step - 1) / 8))]
+  if not press then return end
+  local progress = math.min((util.time() - press.start_time) / grid_ui.long_press_threshold, 1.0)
+  local bar_width = math.floor(progress * 128)
+  screen.level(math.floor(progress * 15))
+  screen.rect(0, 0, bar_width, 2)
+  screen.fill()
+  if progress >= 1.0 then
+    screen.level(15)
+    screen.move(64, 30)
+    screen.text_center(lane_label(held.lane_id) .. " Step " .. held.step)
+  end
+end
+
+------------------------------------------------------------------------
 -- DRUMS_TIMING: length, division, voice note, gate length
 ------------------------------------------------------------------------
 
@@ -100,6 +125,12 @@ local function create_timing_screen()
   norns_ui.enter = function(self)
     self:rebuild_params()
     original_enter(self)
+  end
+
+  local original_draw_timing = norns_ui.draw
+  norns_ui.draw = function(self)
+    original_draw_timing(self)
+    draw_hold_overlay()
   end
 
   return norns_ui
@@ -145,6 +176,12 @@ local function create_step_screen()
   norns_ui.enter = function(self)
     self:rebuild_params()
     original_enter(self)
+  end
+
+  local original_draw_step = norns_ui.draw
+  norns_ui.draw = function(self)
+    original_draw_step(self)
+    draw_hold_overlay()
   end
 
   return norns_ui
