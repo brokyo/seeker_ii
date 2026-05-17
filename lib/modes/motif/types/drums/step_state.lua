@@ -331,7 +331,13 @@ end
 
 function StepState.get_default_note()
   local scale = theory.get_scale()
-  return scale[1] or 60
+  local root_pc = scale[1] % 12
+  local target = root_pc + 48
+  for _, sn in ipairs(scale) do
+    if sn == target then return sn end
+    if sn > target then return sn end
+  end
+  return target
 end
 
 ------------------------------------------------------------------------
