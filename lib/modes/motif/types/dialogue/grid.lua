@@ -152,10 +152,23 @@ local function create_grid_ui()
 
       if x == 10 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
+        if _step_state.is_editing_call(lane_id) then
+          _step_state.set_editing_call(lane_id, false)
+        else
+          _step_state.set_editing_call(lane_id, true)
+        end
         _seeker.ui_state.set_current_section("DIALOGUE_CALL")
         rebuild_current_dialogue_screen()
       elseif x == 11 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
+        if not _step_state.is_cr_enabled(lane_id) then
+          params:set("lane_" .. lane_id .. "_dialogue_cr_active", 2)
+        end
+        if _step_state.is_editing_response(lane_id) then
+          _step_state.set_editing_response(lane_id, false)
+        else
+          _step_state.set_editing_response(lane_id, true)
+        end
         _seeker.ui_state.set_current_section("DIALOGUE_RESPONSE")
         rebuild_current_dialogue_screen()
       end
