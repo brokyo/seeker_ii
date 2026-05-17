@@ -152,27 +152,11 @@ local function create_grid_ui()
 
       if x == 10 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
-        local on_call = _seeker.ui_state.get_current_section() == "DIALOGUE_CALL"
-          and _seeker.ui_state.get_focused_lane() == lane_id
-        if on_call then
-          _step_state.set_editing_call(lane_id, false)
-          _seeker.ui_state.set_current_section("DIALOGUE_TIMING")
-        else
-          _step_state.set_editing_call(lane_id, true)
-          _seeker.ui_state.set_current_section("DIALOGUE_CALL")
-        end
+        _seeker.ui_state.set_current_section("DIALOGUE_CALL")
         rebuild_current_dialogue_screen()
       elseif x == 11 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
-        local on_resp = _seeker.ui_state.get_current_section() == "DIALOGUE_RESPONSE"
-          and _seeker.ui_state.get_focused_lane() == lane_id
-        if on_resp then
-          _step_state.set_editing_response(lane_id, false)
-          _seeker.ui_state.set_current_section("DIALOGUE_TIMING")
-        else
-          _step_state.set_editing_response(lane_id, true)
-          _seeker.ui_state.set_current_section("DIALOGUE_RESPONSE")
-        end
+        _seeker.ui_state.set_current_section("DIALOGUE_RESPONSE")
         rebuild_current_dialogue_screen()
       end
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
