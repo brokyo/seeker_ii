@@ -97,7 +97,9 @@ local selected_lane = 1
 local MARGIN_LEFT = 18
 local MARGIN_RIGHT = 4
 local ROW_TOP = 2
-local ROW_BOTTOM = 44
+local ROW_BOTTOM = 40
+local RIBBON_TOP = 42
+local RIBBON_HEIGHT = 3
 local ROW_GAP = 2
 local BAR_WIDTH = 128 - MARGIN_LEFT - MARGIN_RIGHT
 
@@ -270,11 +272,48 @@ local function draw_arrangement()
         end
     end
 
-    -- Now line (spans all lanes)
+    -- Now line (spans all lanes + ribbon)
     screen.level(15)
     screen.move(NOW_X, ROW_TOP - 1)
-    screen.line(NOW_X, ROW_TOP + (#active * (row_height + ROW_GAP)) - ROW_GAP)
+    screen.line(NOW_X, RIBBON_TOP + RIBBON_HEIGHT)
     screen.stroke()
+
+    -- Density ribbon: each column shows how many lanes are sounding at that time
+    if #active > 1 then
+        for col = 0, BAR_WIDTH - 1 do
+            local screen_x = MARGIN_LEFT + col
+            local density = 0
+
+            for _, entry in ipairs(active) do
+                local lane = entry.lane
+                local play_loops, _, total_loops, motif_dur = get_cycle_info(lane)
+                local cycle_beats = total_loops * motif_dur
+                if cycle_beats <= 0 then cycle_beats = 1 end
+                local play_beats = play_loops * motif_dur
+
+                local pos = get_cycle_position(lane)
+                local pos_beats = pos * cycle_beats
+                local origin = NOW_X - pos_beats * px_per_beat
+
+                -- Where in the cycle does this column land?
+                local beat_at_col = (screen_x - origin) / px_per_beat
+                local beat_in_cycle = beat_at_col % cycle_beats
+                if beat_in_cycle < 0 then beat_in_cycle = beat_in_cycle + cycle_beats end
+
+                if beat_in_cycle < play_beats then
+                    density = density + 1
+                end
+            end
+
+            local brightness = math.floor((density / #active) * 12)
+            if brightness > 0 then
+                screen.level(brightness)
+                screen.move(screen_x, RIBBON_TOP)
+                screen.line(screen_x, RIBBON_TOP + RIBBON_HEIGHT)
+                screen.stroke()
+            end
+        end
+    end
 end
 
 ---------------------------------------------------------------
