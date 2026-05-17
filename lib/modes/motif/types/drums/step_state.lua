@@ -113,12 +113,6 @@ function StepState.set_cr_strategy(lane_id, val)
   cr_strategy[lane_id] = val
 end
 
-function StepState.cycle_cr_strategy(lane_id)
-  local current = StepState.get_cr_strategy(lane_id)
-  cr_strategy[lane_id] = (current % #RESPONSE_STRATEGIES) + 1
-  StepState.generate_response(lane_id)
-end
-
 function StepState.is_playing_response(lane_id)
   return cr_playing_response[lane_id] or false
 end
@@ -143,10 +137,6 @@ function StepState.set_editing_call(lane_id, value)
   if value then cr_editing_response[lane_id] = false end
 end
 
--- Keep for backward compat with home.lua param action
-function StepState.set_viewing_response(lane_id, value)
-  StepState.set_editing_response(lane_id, value)
-end
 
 ------------------------------------------------------------------------
 -- Response Strategies
@@ -251,14 +241,6 @@ function StepState.get_active_step(lane_id, step_index)
   return StepState.get_active_steps(lane_id)[step_index]
 end
 
-function StepState.toggle_active_step(lane_id, step_index)
-  local steps = StepState.get_active_steps(lane_id)
-  steps[step_index].active = not steps[step_index].active
-end
-
-function StepState.set_active_step_field(lane_id, step_index, field, value)
-  StepState.get_active_steps(lane_id)[step_index][field] = value
-end
 
 ------------------------------------------------------------------------
 -- Selected Step
@@ -299,10 +281,6 @@ end
 
 function StepState.mark_response_manual(lane_id)
   cr_response_manual[lane_id] = true
-end
-
-function StepState.is_response_manual(lane_id)
-  return cr_response_manual[lane_id] or false
 end
 
 function StepState.snapshot_response_genesis(lane_id)
