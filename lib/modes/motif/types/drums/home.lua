@@ -99,14 +99,14 @@ local function draw_hold_overlay()
 end
 
 ------------------------------------------------------------------------
--- DRUMS_TIMING: length, division, voice note, gate length
+-- DRUMS_TIMING: division, gate, swing, probability
 ------------------------------------------------------------------------
 
 local function create_timing_screen()
   local norns_ui = NornsUI.new({
     id = "DRUMS_TIMING",
     name = "Timing",
-    description = "Step timing: division and gate length.",
+    description = "Step timing: division, gate, swing, probability.",
     params = {}
   })
 
@@ -118,6 +118,8 @@ local function create_timing_screen()
       { id = "lane_" .. lane_id .. "_drum_division" },
       { id = "lane_" .. lane_id .. "_drum_voice_note" },
       { id = "lane_" .. lane_id .. "_drum_gate_length", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_swing", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_drum_probability", arc_multi_float = {10, 5, 1} },
     }
   end
 
@@ -137,14 +139,14 @@ local function create_timing_screen()
 end
 
 ------------------------------------------------------------------------
--- DRUMS_HOME: per-step editor (note, octave, velocity)
+-- DRUMS_HOME: per-step editor (note, octave, velocity, ratchet)
 ------------------------------------------------------------------------
 
 local function create_step_screen()
   local norns_ui = NornsUI.new({
     id = "DRUMS_HOME",
     name = "Step",
-    description = "Per-step note, octave, and velocity.",
+    description = "Per-step note, octave, velocity, and ratchet.",
     params = {}
   })
 
@@ -163,12 +165,14 @@ local function create_step_screen()
     params:set("drum_step_note", note_idx, true)
     params:set("drum_step_octave", octave, true)
     params:set("drum_step_velocity", s.velocity, true)
+    params:set("drum_step_ratchet", s.ratchet or 1, true)
 
     self.name = lane_label(lane_id) .. " " .. step_label
     self.params = {
       { id = "drum_step_note" },
       { id = "drum_step_octave" },
       { id = "drum_step_velocity" },
+      { id = "drum_step_ratchet" },
     }
   end
 
@@ -205,7 +209,7 @@ local function apply_note_change()
 end
 
 local function create_step_edit_params()
-  params:add_group("drum_step_edit", "DRUM STEP EDIT", 3)
+  params:add_group("drum_step_edit", "DRUM STEP EDIT", 4)
 
   params:add_number("drum_step_note", "Note", 1, 12, 1,
     function(param)
@@ -231,6 +235,17 @@ local function create_step_edit_params()
     local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
     if s then
       s.velocity = value
+      _step_grid.apply_motif(lane_id)
+    end
+  end)
+
+  params:add_number("drum_step_ratchet", "Ratchet", 1, 8, 1)
+  params:set_action("drum_step_ratchet", function(value)
+    local lane_id = get_focused_drums_lane()
+    if not lane_id then return end
+    local s = _step_grid.get_step(lane_id, _step_grid.get_selected_step(lane_id))
+    if s then
+      s.ratchet = value
       _step_grid.apply_motif(lane_id)
     end
   end)

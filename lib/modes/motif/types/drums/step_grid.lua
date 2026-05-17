@@ -26,7 +26,7 @@ local step_state = {}
 local function init_lane_state(lane_id)
   step_state[lane_id] = {}
   for i = 1, MAX_STEPS do
-    step_state[lane_id][i] = { active = false, note = nil, velocity = 100 }
+    step_state[lane_id][i] = { active = false, note = nil, velocity = 100, ratchet = 1 }
   end
 end
 
@@ -108,31 +108,46 @@ function StepGrid.build_motif(steps, p)
   local events = {}
   local length = p.length
   local division = p.division
-  local gate = math.min(p.gate_pct * division, division * 0.95)
+  local gate_pct = p.gate_pct
+  local swing = p.swing or 0
+  local probability = p.probability
 
   for i = 1, length do
     local s = steps[i]
     if s.active then
       local note = s.note or p.default_note
-      local time = (i - 1) * division
+      local base_time = (i - 1) * division
       local col = ((i - 1) % MAX_COLS) + 1
       local row = p.row_start + math.floor((i - 1) / MAX_COLS)
 
-      events[#events + 1] = {
-        time = time,
-        type = "note_on",
-        note = note,
-        velocity = s.velocity,
-        x = col,
-        y = row,
-        step = i,
-      }
-      events[#events + 1] = {
-        time = time + gate,
-        type = "note_off",
-        note = note,
-        step = i,
-      }
+      if i % 2 == 0 and swing > 0 then
+        base_time = base_time + swing * division * 0.5
+      end
+
+      local ratchet_count = s.ratchet or 1
+      local ratchet_interval = division / ratchet_count
+      local gate = math.min(gate_pct * division, ratchet_interval * 0.9)
+
+      for r = 1, ratchet_count do
+        local time = base_time + (r - 1) * ratchet_interval
+
+        events[#events + 1] = {
+          time = time,
+          type = "note_on",
+          note = note,
+          velocity = s.velocity,
+          probability = probability < 100 and probability or nil,
+          x = col,
+          y = row,
+          step = i,
+        }
+        events[#events + 1] = {
+          time = time + gate,
+          type = "note_off",
+          note = note,
+          step = i,
+        }
+      end
     end
   end
 
@@ -154,6 +169,8 @@ function StepGrid.apply_motif(lane_id)
     length       = get_length(lane_id),
     division     = get_division(lane_id),
     gate_pct     = get_gate_pct(lane_id),
+    swing        = params:get("lane_" .. lane_id .. "_drum_swing") / 100,
+    probability  = params:get("lane_" .. lane_id .. "_drum_probability"),
     default_note = get_voice_note(lane_id),
     row_start    = row_start,
   })
@@ -314,7 +331,7 @@ end
 
 local function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 4)
+    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 7)
 
     params:add_number("lane_" .. lane_id .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. lane_id .. "_drum_length", function()
@@ -343,6 +360,24 @@ local function create_params()
     params:set_action("lane_" .. lane_id .. "_drum_gate_length", function()
       StepGrid.apply_motif(lane_id)
     end)
+
+    params:add_number("lane_" .. lane_id .. "_drum_swing", "Swing", 0, 100, 0,
+      function(param) return param:get() .. "%" end)
+    params:set_action("lane_" .. lane_id .. "_drum_swing", function()
+      StepGrid.apply_motif(lane_id)
+    end)
+
+    params:add_number("lane_" .. lane_id .. "_drum_probability", "Probability", 0, 100, 100,
+      function(param) return param:get() .. "%" end)
+    params:set_action("lane_" .. lane_id .. "_drum_probability", function()
+      StepGrid.apply_motif(lane_id)
+    end)
+
+    params:add_number("lane_" .. lane_id .. "_drum_reseed", "Reseed Every", 0, 32, 0,
+      function(param)
+        local v = param:get()
+        return v == 0 and "off" or (v .. " loops")
+      end)
   end
 end
 
