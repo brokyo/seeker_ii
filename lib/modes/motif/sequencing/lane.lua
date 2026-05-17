@@ -1267,6 +1267,10 @@ function Lane:clear()
   params:set("lane_" .. self.id .. "_swing", 0)
   params:set("lane_" .. self.id .. "_offset", 0)
   params:set("lane_" .. self.id .. "_tape_duration", 0)  -- "Free"
+  params:set("lane_" .. self.id .. "_rest_loops", 0)
+  self.resting = false
+  self.rest_loops_remaining = 0
+  self.last_motif_duration = nil
 end
 
 ---------------------------------------------------------
