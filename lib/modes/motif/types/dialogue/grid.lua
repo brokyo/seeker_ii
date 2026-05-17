@@ -1,12 +1,12 @@
 -- grid.lua
--- Drum grid UI. Cols 1-8: step grid (follows playback). Col 9: gap.
+-- Dialogue grid UI. Cols 1-8: step grid (follows playback). Col 9: gap.
 -- Col 10: call/response toggle. Col 11: response strategy cycle.
 
 local GridUI = include("lib/ui/base/grid_ui")
 local GridConstants = include("lib/grid/constants")
 local LaneMap = include("lib/lanes/lane_map")
 
-local DrumsGrid = {}
+local DialogueGrid = {}
 
 local MAX_COLS = 8
 local ROWS_PER_LANE = 2
@@ -14,7 +14,7 @@ local MAX_STEPS = MAX_COLS * ROWS_PER_LANE
 
 local _step_state = nil
 
-function DrumsGrid.set_step_state_ref(ref)
+function DialogueGrid.set_step_state_ref(ref)
   _step_state = ref
 end
 
@@ -22,7 +22,7 @@ local function xy_to_lane_step(x, y)
   if x < 1 or x > MAX_COLS or y < 1 or y > 8 then return nil, nil end
   local local_index = math.ceil(y / ROWS_PER_LANE)
   if local_index < 1 or local_index > 4 then return nil, nil end
-  local lane_id = LaneMap.to_flat("drums", local_index)
+  local lane_id = LaneMap.to_flat("dialogue", local_index)
   local row_start = (local_index - 1) * ROWS_PER_LANE + 1
   local row_offset = y - row_start
   local step = row_offset * MAX_COLS + x
@@ -34,12 +34,12 @@ local function y_to_lane_id(y)
   if y < 1 or y > 8 then return nil end
   local local_index = math.ceil(y / ROWS_PER_LANE)
   if local_index < 1 or local_index > 4 then return nil end
-  return LaneMap.to_flat("drums", local_index)
+  return LaneMap.to_flat("dialogue", local_index)
 end
 
-local function rebuild_current_drums_screen()
+local function rebuild_current_dialogue_screen()
   local section = _seeker.ui_state.get_current_section()
-  local sections = _seeker.drums_type and _seeker.drums_type.sections
+  local sections = _seeker.dialogue_type and _seeker.dialogue_type.sections
   if sections and sections[section] and sections[section].rebuild_params then
     sections[section]:rebuild_params()
     sections[section]:filter_active_params()
@@ -48,12 +48,12 @@ end
 
 local function create_grid_ui()
   local grid_ui = GridUI.new({
-    id = "DRUMS_STEP_GRID",
+    id = "DIALOGUE_STEP_GRID",
     layout = { x = 1, y = 1, width = 11, height = 8 }
   })
 
   grid_ui.draw = function(self, layers)
-    local lane_ids = LaneMap.lanes_for_mode("drums")
+    local lane_ids = LaneMap.lanes_for_mode("dialogue")
 
     -- Find held key for charge-up animation
     local hold_lane, hold_step, hold_progress
@@ -72,7 +72,7 @@ local function create_grid_ui()
     end
 
     for _, lane_id in ipairs(lane_ids) do
-      local local_index = lane_id - LaneMap.OFFSETS.drums
+      local local_index = lane_id - LaneMap.OFFSETS.dialogue
       local row_start = (local_index - 1) * ROWS_PER_LANE + 1
       local length = _step_state.get_length(lane_id)
       local cr_on = _step_state.is_cr_enabled(lane_id)
@@ -123,12 +123,12 @@ local function create_grid_ui()
       -- Col 10: call screen button
       local focused_lane = _seeker.ui_state.get_focused_lane()
       local current_section = _seeker.ui_state.get_current_section()
-      local on_call_screen = current_section == "DRUMS_CALL" and focused_lane == lane_id
+      local on_call_screen = current_section == "DIALOGUE_CALL" and focused_lane == lane_id
       layers.ui[10][row_start] = on_call_screen and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.DIM
       layers.ui[10][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.LOW or GridConstants.BRIGHTNESS.MEDIUM) or GridConstants.BRIGHTNESS.OFF
 
       -- Col 11: response screen button
-      local on_resp_screen = current_section == "DRUMS_RESPONSE" and focused_lane == lane_id
+      local on_resp_screen = current_section == "DIALOGUE_RESPONSE" and focused_lane == lane_id
       layers.ui[11][row_start] = on_resp_screen and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.DIM
       layers.ui[11][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.LOW) or GridConstants.BRIGHTNESS.OFF
     end
@@ -147,33 +147,33 @@ local function create_grid_ui()
       if z == 0 then return end
       local lane_id = y_to_lane_id(y)
       if not lane_id then return end
-      local local_index = lane_id - LaneMap.OFFSETS.drums
+      local local_index = lane_id - LaneMap.OFFSETS.dialogue
       local row_start = (local_index - 1) * ROWS_PER_LANE + 1
 
       if x == 10 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
-        local on_call = _seeker.ui_state.get_current_section() == "DRUMS_CALL"
+        local on_call = _seeker.ui_state.get_current_section() == "DIALOGUE_CALL"
           and _seeker.ui_state.get_focused_lane() == lane_id
         if on_call then
           _step_state.set_editing_call(lane_id, false)
-          _seeker.ui_state.set_current_section("DRUMS_TIMING")
+          _seeker.ui_state.set_current_section("DIALOGUE_TIMING")
         else
           _step_state.set_editing_call(lane_id, true)
-          _seeker.ui_state.set_current_section("DRUMS_CALL")
+          _seeker.ui_state.set_current_section("DIALOGUE_CALL")
         end
-        rebuild_current_drums_screen()
+        rebuild_current_dialogue_screen()
       elseif x == 11 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
-        local on_resp = _seeker.ui_state.get_current_section() == "DRUMS_RESPONSE"
+        local on_resp = _seeker.ui_state.get_current_section() == "DIALOGUE_RESPONSE"
           and _seeker.ui_state.get_focused_lane() == lane_id
         if on_resp then
           _step_state.set_editing_response(lane_id, false)
-          _seeker.ui_state.set_current_section("DRUMS_TIMING")
+          _seeker.ui_state.set_current_section("DIALOGUE_TIMING")
         else
           _step_state.set_editing_response(lane_id, true)
-          _seeker.ui_state.set_current_section("DRUMS_RESPONSE")
+          _seeker.ui_state.set_current_section("DIALOGUE_RESPONSE")
         end
-        rebuild_current_drums_screen()
+        rebuild_current_dialogue_screen()
       end
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
       return
@@ -206,8 +206,8 @@ local function create_grid_ui()
       if was_long then
         _seeker.ui_state.set_focused_lane(lane_id)
         _step_state.selected_step[lane_id] = step
-        _seeker.ui_state.set_current_section("DRUMS_HOME")
-        rebuild_current_drums_screen()
+        _seeker.ui_state.set_current_section("DIALOGUE_HOME")
+        rebuild_current_dialogue_screen()
       else
         local is_resp = _step_state.is_viewing_response(lane_id)
         if is_resp then
@@ -220,7 +220,7 @@ local function create_grid_ui()
         end
         _step_state.apply_motif(lane_id)
         _seeker.ui_state.set_focused_lane(lane_id)
-        rebuild_current_drums_screen()
+        rebuild_current_dialogue_screen()
       end
     end
 
@@ -230,10 +230,10 @@ local function create_grid_ui()
   return grid_ui
 end
 
-function DrumsGrid.init()
+function DialogueGrid.init()
   return {
     grid = create_grid_ui()
   }
 end
 
-return DrumsGrid
+return DialogueGrid

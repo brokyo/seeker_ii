@@ -1,37 +1,37 @@
 -- init.lua
--- Drums type module entry point.
+-- Dialogue type module entry point.
 -- Wires step state, mutation, grid, home, and perform modules.
 -- Call/response uses the lane stage system: stage 1 = call, stage 2 = response.
 
-local Drums = {}
+local Dialogue = {}
 
-local DrumsType = include("lib/modes/motif/types/drums/type")
+local DialogueType = include("lib/modes/motif/types/dialogue/type")
 local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 local LaneMap = include("lib/lanes/lane_map")
 local theory = include("lib/modes/motif/core/theory")
 local musicutil = require('musicutil')
 
-local StepState = include("lib/modes/motif/types/drums/step_state")
-local Mutation = include("lib/modes/motif/types/drums/mutation")
-local DrumsGrid = include("lib/modes/motif/types/drums/grid")
-local DrumsHome = include("lib/modes/motif/types/drums/home")
-local DrumsPerform = include("lib/modes/motif/types/drums/perform")
+local StepState = include("lib/modes/motif/types/dialogue/step_state")
+local Mutation = include("lib/modes/motif/types/dialogue/mutation")
+local DialogueGrid = include("lib/modes/motif/types/dialogue/grid")
+local DialogueHome = include("lib/modes/motif/types/dialogue/home")
+local DialoguePerform = include("lib/modes/motif/types/dialogue/perform")
 
-function Drums.init()
+function Dialogue.init()
   local instance = {
     sections = {},
-    type = DrumsType,
+    type = DialogueType,
   }
 
-  DrumsGrid.set_step_state_ref(StepState)
-  DrumsHome.set_step_state_ref(StepState)
+  DialogueGrid.set_step_state_ref(StepState)
+  DialogueHome.set_step_state_ref(StepState)
 
   StepState.init()
   create_params()
 
-  instance.grid = DrumsGrid.init()
-  instance.home = DrumsHome.init()
-  instance.perform = DrumsPerform.init()
+  instance.grid = DialogueGrid.init()
+  instance.home = DialogueHome.init()
+  instance.perform = DialoguePerform.init()
   instance.step_state = StepState
 
   if instance.home.sections then
@@ -45,7 +45,7 @@ function Drums.init()
   end
 
   local function lane_start_row(lane_id)
-    local local_index = lane_id - LaneMap.OFFSETS.drums
+    local local_index = lane_id - LaneMap.OFFSETS.dialogue
     return (local_index - 1) * 2 + 1
   end
 
@@ -53,7 +53,7 @@ function Drums.init()
     prepare_stage = function(lane, stage)
       local lane_id = lane.id
       local length = StepState.get_length(lane_id)
-      local local_index = lane_id - LaneMap.OFFSETS.drums
+      local local_index = lane_id - LaneMap.OFFSETS.dialogue
       local row_start = (local_index - 1) * 2 + 1
 
       -- Stage 1 = call, stage 2 = response
@@ -71,13 +71,13 @@ function Drums.init()
       end
 
       -- Apply mutation if configured
-      local half_cycle = params:get("lane_" .. lane_id .. "_drum_reseed")
+      local half_cycle = params:get("lane_" .. lane_id .. "_dialogue_reseed")
       local steps
 
       if half_cycle > 0 then
-        local displace = params:get("lane_" .. lane_id .. "_drum_mutate_displace")
-        local pitch = params:get("lane_" .. lane_id .. "_drum_mutate_pitch")
-        local density = params:get("lane_" .. lane_id .. "_drum_mutate_density")
+        local displace = params:get("lane_" .. lane_id .. "_dialogue_mutate_displace")
+        local pitch = params:get("lane_" .. lane_id .. "_dialogue_mutate_pitch")
+        local density = params:get("lane_" .. lane_id .. "_dialogue_mutate_density")
 
         local loop_count = StepState.get_mutation_loop_count(lane_id)
         local depth = Mutation.triangle_depth(loop_count, half_cycle)
@@ -99,8 +99,8 @@ function Drums.init()
         length       = length,
         division     = StepState.get_division(lane_id),
         gate_pct     = StepState.get_gate_pct(lane_id),
-        swing        = params:get("lane_" .. lane_id .. "_drum_swing") / 100,
-        probability  = params:get("lane_" .. lane_id .. "_drum_probability"),
+        swing        = params:get("lane_" .. lane_id .. "_dialogue_swing") / 100,
+        probability  = params:get("lane_" .. lane_id .. "_dialogue_probability"),
         default_note = StepState.get_default_note(lane_id),
         row_start    = row_start,
       })
@@ -110,11 +110,11 @@ function Drums.init()
     end,
 
     is_muted = function(lane_id)
-      return DrumsPerform.is_muted(lane_id)
+      return DialoguePerform.is_muted(lane_id)
     end,
 
     get_velocity_multiplier = function(lane_id)
-      return DrumsPerform.get_velocity_multiplier(lane_id)
+      return DialoguePerform.get_velocity_multiplier(lane_id)
     end,
 
     note_positions = function(lane, note, event)
@@ -142,47 +142,47 @@ end
 local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
 
 function create_params()
-  for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 12)
+  for _, lane_id in ipairs(LaneMap.lanes_for_mode("dialogue")) do
+    params:add_group("lane_" .. lane_id .. "_dialogue_step", "LANE " .. lane_id .. " DRUM STEPS", 12)
 
-    params:add_number("lane_" .. lane_id .. "_drum_base_octave", "Base Octave", 1, 7, 4)
-    params:set_action("lane_" .. lane_id .. "_drum_base_octave", function()
+    params:add_number("lane_" .. lane_id .. "_dialogue_base_octave", "Base Octave", 1, 7, 4)
+    params:set_action("lane_" .. lane_id .. "_dialogue_base_octave", function()
       StepState.apply_motif(lane_id)
     end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_length", "Length", 1, 16, 8)
-    params:set_action("lane_" .. lane_id .. "_drum_length", function()
+    params:add_number("lane_" .. lane_id .. "_dialogue_length", "Length", 1, 16, 8)
+    params:set_action("lane_" .. lane_id .. "_dialogue_length", function()
       StepState.snapshot_genesis(lane_id)
       StepState.apply_motif(lane_id)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_option("lane_" .. lane_id .. "_drum_division", "Division", DIVISION_OPTIONS, 5)
-    params:set_action("lane_" .. lane_id .. "_drum_division", function()
+    params:add_option("lane_" .. lane_id .. "_dialogue_division", "Division", DIVISION_OPTIONS, 5)
+    params:set_action("lane_" .. lane_id .. "_dialogue_division", function()
       StepState.apply_motif(lane_id)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_gate_length", "Gate Length", 1, 100, 50,
+    params:add_number("lane_" .. lane_id .. "_dialogue_gate_length", "Gate Length", 1, 100, 50,
       function(param) return param:get() .. "%" end)
-    params:set_action("lane_" .. lane_id .. "_drum_gate_length", function()
+    params:set_action("lane_" .. lane_id .. "_dialogue_gate_length", function()
       StepState.apply_motif(lane_id)
     end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_swing", "Swing", 0, 100, 0,
+    params:add_number("lane_" .. lane_id .. "_dialogue_swing", "Swing", 0, 100, 0,
       function(param) return param:get() .. "%" end)
-    params:set_action("lane_" .. lane_id .. "_drum_swing", function()
+    params:set_action("lane_" .. lane_id .. "_dialogue_swing", function()
       StepState.apply_motif(lane_id)
     end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_probability", "Probability", 0, 100, 100,
+    params:add_number("lane_" .. lane_id .. "_dialogue_probability", "Probability", 0, 100, 100,
       function(param) return param:get() .. "%" end)
-    params:set_action("lane_" .. lane_id .. "_drum_probability", function()
+    params:set_action("lane_" .. lane_id .. "_dialogue_probability", function()
       StepState.apply_motif(lane_id)
     end)
 
-    params:add_option("lane_" .. lane_id .. "_drum_cr_active", "Call/Response", {"Off", "On"}, 1)
-    params:set_action("lane_" .. lane_id .. "_drum_cr_active", function(val)
+    params:add_option("lane_" .. lane_id .. "_dialogue_cr_active", "Call/Response", {"Off", "On"}, 1)
+    params:set_action("lane_" .. lane_id .. "_dialogue_cr_active", function(val)
       local now_on = val == 2
       local was_on = StepState.is_cr_enabled(lane_id)
       if was_on == now_on then return end
@@ -200,8 +200,8 @@ function create_params()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_option("lane_" .. lane_id .. "_drum_cr_strategy", "Response", StepState.RESPONSE_STRATEGIES, 1)
-    params:set_action("lane_" .. lane_id .. "_drum_cr_strategy", function(val)
+    params:add_option("lane_" .. lane_id .. "_dialogue_cr_strategy", "Response", StepState.RESPONSE_STRATEGIES, 1)
+    params:set_action("lane_" .. lane_id .. "_dialogue_cr_strategy", function(val)
       if StepState.is_cr_enabled(lane_id) then
         StepState.set_cr_strategy(lane_id, val)
         StepState.generate_response(lane_id)
@@ -210,21 +210,21 @@ function create_params()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_reseed", "Mutate Cycle", 0, 32, 0,
+    params:add_number("lane_" .. lane_id .. "_dialogue_reseed", "Mutate Cycle", 0, 32, 0,
       function(param)
         local v = param:get()
         return v == 0 and "off" or (v .. " loops")
       end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_mutate_displace", "Mut: Displace", 0, 100, 0,
+    params:add_number("lane_" .. lane_id .. "_dialogue_mutate_displace", "Mut: Displace", 0, 100, 0,
       function(param) return param:get() .. "%" end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_mutate_pitch", "Mut: Pitch", 0, 100, 0,
+    params:add_number("lane_" .. lane_id .. "_dialogue_mutate_pitch", "Mut: Pitch", 0, 100, 0,
       function(param) return param:get() .. "%" end)
 
-    params:add_number("lane_" .. lane_id .. "_drum_mutate_density", "Mut: Density", 0, 100, 0,
+    params:add_number("lane_" .. lane_id .. "_dialogue_mutate_density", "Mut: Density", 0, 100, 0,
       function(param) return param:get() .. "%" end)
   end
 end
 
-return Drums
+return Dialogue

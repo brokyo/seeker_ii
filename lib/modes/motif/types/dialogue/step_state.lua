@@ -1,5 +1,5 @@
 -- step_state.lua
--- Data layer for drum step sequencer.
+-- Data layer for dialogue step sequencer.
 -- Call + response state, genesis snapshots, response strategies, and the pure motif builder.
 
 local LaneMap = include("lib/lanes/lane_map")
@@ -335,21 +335,21 @@ end
 ------------------------------------------------------------------------
 
 function StepState.get_length(lane_id)
-  return params:get("lane_" .. lane_id .. "_drum_length")
+  return params:get("lane_" .. lane_id .. "_dialogue_length")
 end
 
 function StepState.get_division(lane_id)
-  return DIVISION_VALUES[params:get("lane_" .. lane_id .. "_drum_division")]
+  return DIVISION_VALUES[params:get("lane_" .. lane_id .. "_dialogue_division")]
 end
 
 function StepState.get_gate_pct(lane_id)
-  return params:get("lane_" .. lane_id .. "_drum_gate_length") / 100
+  return params:get("lane_" .. lane_id .. "_dialogue_gate_length") / 100
 end
 
 function StepState.get_default_note(lane_id)
   local scale = theory.get_scale()
   local root_pc = scale[1] % 12
-  local octave = lane_id and params:get("lane_" .. lane_id .. "_drum_base_octave") or 4
+  local octave = lane_id and params:get("lane_" .. lane_id .. "_dialogue_base_octave") or 4
   local target = root_pc + octave * 12
   for _, sn in ipairs(scale) do
     if sn == target then return sn end
@@ -437,15 +437,15 @@ function StepState.apply_motif(lane_id)
   local lane = _seeker.lanes[lane_id]
   if not lane then return end
 
-  local local_index = lane_id - LaneMap.OFFSETS.drums
+  local local_index = lane_id - LaneMap.OFFSETS.dialogue
   local row_start = (local_index - 1) * ROWS_PER_LANE + 1
 
   local events, duration = StepState.build_motif(ensure_state(lane_id), {
     length       = StepState.get_length(lane_id),
     division     = StepState.get_division(lane_id),
     gate_pct     = StepState.get_gate_pct(lane_id),
-    swing        = params:get("lane_" .. lane_id .. "_drum_swing") / 100,
-    probability  = params:get("lane_" .. lane_id .. "_drum_probability"),
+    swing        = params:get("lane_" .. lane_id .. "_dialogue_swing") / 100,
+    probability  = params:get("lane_" .. lane_id .. "_dialogue_probability"),
     default_note = StepState.get_default_note(lane_id),
     row_start    = row_start,
   })
@@ -468,7 +468,7 @@ end
 ------------------------------------------------------------------------
 
 function StepState.init()
-  for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
+  for _, lane_id in ipairs(LaneMap.lanes_for_mode("dialogue")) do
     init_lane_steps(lane_id)
     init_response_steps(lane_id)
   end

@@ -46,9 +46,9 @@ GridModeRegistry.MODES = {
         default_section = "LANE_CONFIG",
         path = "lib/grid/layouts/keyboard_mode",
       },
-      drums = {
+      dialogue = {
         button = { x = 16, y = 3 },
-        default_section = "DRUMS_HOME",
+        default_section = "DIALOGUE_HOME",
         path = "lib/grid/layouts/keyboard_mode",
       },
     },
@@ -66,8 +66,9 @@ GridModeRegistry.MODES = {
       "SAMPLER_PLAYBACK", "SAMPLER_CLEAR", "SAMPLER_VELOCITY", "SAMPLER_PERFORM",
       -- Composer sub-mode
       "COMPOSER_LIVE", "COMPOSER_PLAYBACK", "COMPOSER_VOICE", "COMPOSER_PARAMS", "COMPOSER_RANDOMIZE",
-      -- Drums sub-mode
-      "DRUMS_HOME", "DRUMS_PATTERN", "DRUMS_TIMING",
+      -- Dialogue sub-mode
+      "DIALOGUE_HOME", "DIALOGUE_TIMING", "DIALOGUE_MUTATION",
+      "DIALOGUE_CALL", "DIALOGUE_RESPONSE",
     },
   },
 
@@ -89,8 +90,8 @@ for mode_id, config in pairs(GridModeRegistry.MODES) do
         _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "composer" }
       elseif section:sub(1, 8) == "SAMPLER_" then
         _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "sampler" }
-      elseif section:sub(1, 6) == "DRUMS_" then
-        _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "drums" }
+      elseif section:sub(1, 9) == "DIALOGUE_" then
+        _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "dialogue" }
       elseif section:sub(1, 5) == "TAPE_" then
         _section_to_sub_mode[section] = { mode = mode_id, sub_mode = "tape" }
       end

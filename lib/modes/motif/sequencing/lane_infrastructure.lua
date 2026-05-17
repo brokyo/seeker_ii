@@ -120,7 +120,7 @@ local function create_basic_lane_params(i)
     params:add_group("lane_" .. i .. "_infrastructure", label .. " CORE", 7)
 
     -- Motif type is fixed per lane based on sub-mode assignment
-    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Drums", "Sampler", "Composer"}, 1)
+    params:add_option("lane_" .. i .. "_motif_type", "Motif Type", {"Tape", "Dialogue", "Sampler", "Composer"}, 1)
 
     -- File selector for loading audio samples into softcut buffers
     params:add_binary("lane_" .. i .. "_load_sample", "Load Sample", "trigger", 0)

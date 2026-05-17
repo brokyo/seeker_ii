@@ -245,7 +245,7 @@ function Lane:play(opts)
     self.playing = true
     -- Sync stage config from params before starting
     self:sync_all_stages_from_params()
-    -- Reset motif to genesis state (drums are parameter-driven, skip genesis reset)
+    -- Reset motif to genesis state (dialogue is parameter-driven, skip genesis reset)
     if motif_type ~= 2 then
       self:reset_motif()
     end
@@ -402,7 +402,7 @@ function Lane:schedule_stage(stage_index, start_time, resume_from)
                 sustain = event.sustain,
                 release = event.release,
                 pan = event.pan,
-                -- Drums mode: raw CV voltage
+                -- Dialogue mode: raw CV voltage
                 voltage = event.voltage,
                 -- Sampler mode values
                 fade_time = event.fade_time,

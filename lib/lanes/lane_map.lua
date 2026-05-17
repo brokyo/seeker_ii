@@ -1,6 +1,6 @@
 -- lane_map.lua
 -- Maps sub-modes to dedicated lane ranges.
--- Tape=1-4, Composer=5-8, Sampler=9-12, Drums=13-16 (reserved).
+-- Tape=1-4, Composer=5-8, Sampler=9-12, Dialogue=13-16.
 
 local LaneMap = {}
 
@@ -11,12 +11,12 @@ LaneMap.OFFSETS = {
   tape     = 0,
   composer = 4,
   sampler  = 8,
-  drums    = 12,
+  dialogue    = 12,
 }
 
 LaneMap.MOTIF_TYPES = {
   tape     = 1,
-  drums    = 2,
+  dialogue    = 2,
   sampler  = 3,
   composer = 4,
 }
@@ -25,7 +25,7 @@ LaneMap.ACTIVE_LANE_COUNT = {
   tape     = 4,
   composer = 4,
   sampler  = 2,
-  drums    = 4,
+  dialogue    = 4,
 }
 
 function LaneMap.active_lanes_for_mode(sub_mode)
@@ -40,7 +40,7 @@ function LaneMap.from_flat(lane_id)
   if lane_id <= 4 then return "tape", lane_id
   elseif lane_id <= 8 then return "composer", lane_id - 4
   elseif lane_id <= 12 then return "sampler", lane_id - 8
-  else return "drums", lane_id - 12
+  else return "dialogue", lane_id - 12
   end
 end
 

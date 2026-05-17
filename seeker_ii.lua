@@ -34,7 +34,7 @@ local mx_samples = include("lib/modes/motif/infrastructure/voices/mx_samples")
 -- Motif Types
 local Tape = include("lib/modes/motif/types/tape/init")
 local Sampler = include("lib/modes/motif/types/sampler/init")
-local Drums = include("lib/modes/motif/types/drums/init")
+local Dialogue = include("lib/modes/motif/types/dialogue/init")
 
 -- Mode Types
 local WTape = include("lib/modes/wtape/init")
@@ -54,7 +54,7 @@ _seeker = {
   lanes = {},
   num_lanes = LaneMap.ACTIVE_LANES,
   lane_map = LaneMap,
-  last_focused = { tape = 1, composer = 5, sampler = 9, drums = 13 },
+  last_focused = { tape = 1, composer = 5, sampler = 9, dialogue = 13 },
   ui_state = nil,
   screen_ui = nil,
   grid_ui = nil,
@@ -114,7 +114,7 @@ function init()
   -- Motif Types
   _seeker.tape = Tape.init()
   _seeker.sampler_type = Sampler.init()
-  _seeker.drums_type = Drums.init()
+  _seeker.dialogue_type = Dialogue.init()
 
   -- Mode Types
   _seeker.composer_mode = ComposerMode.init()
@@ -171,8 +171,8 @@ function init()
   end
 
   -- Initialize drum motifs now that lanes exist (needs non-zero duration to play)
-  for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    _seeker.drums_type.apply_motif(lane_id)
+  for _, lane_id in ipairs(LaneMap.lanes_for_mode("dialogue")) do
+    _seeker.dialogue_type.apply_motif(lane_id)
   end
 
   -- Tape lane 1 defaults: MX Samples epiano

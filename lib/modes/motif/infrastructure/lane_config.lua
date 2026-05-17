@@ -34,7 +34,7 @@ end
 
 -- Motif type constants
 local MOTIF_TYPE_TAPE = 1
-local MOTIF_TYPE_DRUMS = 2
+local MOTIF_TYPE_DIALOGUE = 2
 local MOTIF_TYPE_SAMPLER = 3
 local MOTIF_TYPE_COMPOSER = 4
 
@@ -302,8 +302,8 @@ local function create_screen_ui()
             self.description = base .. "\n\nTape: Record and loop live performances with overdub layering."
         elseif motif_type == MOTIF_TYPE_COMPOSER then
             self.description = base .. "\n\nComposer: Generate chord progressions with algorithmic patterns."
-        elseif motif_type == MOTIF_TYPE_DRUMS then
-            self.description = base .. "\n\nDrums: Trigger step sequencer with configurable pattern length."
+        elseif motif_type == MOTIF_TYPE_DIALOGUE then
+            self.description = base .. "\n\nDialogue: Step sequencer with configurable pattern length."
         elseif motif_type == MOTIF_TYPE_SAMPLER then
             self.description = base .. "\n\nSampler: Chop and sequence audio samples across 16 pads."
         else
@@ -358,7 +358,7 @@ local function create_screen_ui()
             table.insert(param_table, { separator = true, title = "Global Envelope" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_attack", arc_multi_float = {0.5, 0.1, 0.01} })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_sampler_release", arc_multi_float = {0.5, 0.1, 0.01} })
-        else -- Tape/Composer/Drums: voice routing configuration
+        else -- Tape/Composer/Dialogue: voice routing configuration
             table.insert(param_table, { separator = true, title = "Voice Routing" })
             table.insert(param_table, { id = "lane_" .. lane_idx .. "_visible_voice" })
 
@@ -488,36 +488,36 @@ local function create_grid_ui()
                 _seeker.ui_state.set_current_section("COMPOSER_VOICE")
               end
             elseif motif_type == 2 then
-              local DRUMS_LANE_SECTIONS = {"DRUMS_TIMING", "DRUMS_MUTATION", "LANE_CONFIG"}
+              local DIALOGUE_LANE_SECTIONS = {"DIALOGUE_TIMING", "DIALOGUE_MUTATION", "LANE_CONFIG"}
               if was_focused then
                 local current = _seeker.ui_state.get_current_section()
-                local next_section = DRUMS_LANE_SECTIONS[1]
-                for i, s in ipairs(DRUMS_LANE_SECTIONS) do
+                local next_section = DIALOGUE_LANE_SECTIONS[1]
+                for i, s in ipairs(DIALOGUE_LANE_SECTIONS) do
                   if current == s then
-                    next_section = DRUMS_LANE_SECTIONS[(i % #DRUMS_LANE_SECTIONS) + 1]
+                    next_section = DIALOGUE_LANE_SECTIONS[(i % #DIALOGUE_LANE_SECTIONS) + 1]
                     break
                   end
                 end
                 _seeker.ui_state.set_current_section(next_section)
               else
                 local current = _seeker.ui_state.get_current_section()
-                if current == "DRUMS_HOME" or current == "DRUMS_CALL" or current == "DRUMS_RESPONSE" then
-                  _seeker.ui_state.set_current_section("DRUMS_TIMING")
+                if current == "DIALOGUE_HOME" or current == "DIALOGUE_CALL" or current == "DIALOGUE_RESPONSE" then
+                  _seeker.ui_state.set_current_section("DIALOGUE_TIMING")
                 else
-                  local is_drums_section = false
-                  for _, s in ipairs(DRUMS_LANE_SECTIONS) do
-                    if current == s then is_drums_section = true; break end
+                  local is_dialogue_section = false
+                  for _, s in ipairs(DIALOGUE_LANE_SECTIONS) do
+                    if current == s then is_dialogue_section = true; break end
                   end
-                  if not is_drums_section then
-                    _seeker.ui_state.set_current_section("DRUMS_TIMING")
+                  if not is_dialogue_section then
+                    _seeker.ui_state.set_current_section("DIALOGUE_TIMING")
                   end
                 end
               end
               local section = _seeker.ui_state.get_current_section()
-              local drums_sections = _seeker.drums_type and _seeker.drums_type.sections
-              if drums_sections and drums_sections[section] and drums_sections[section].rebuild_params then
-                drums_sections[section]:rebuild_params()
-                drums_sections[section]:filter_active_params()
+              local dialogue_sections = _seeker.dialogue_type and _seeker.dialogue_type.sections
+              if dialogue_sections and dialogue_sections[section] and dialogue_sections[section].rebuild_params then
+                dialogue_sections[section]:rebuild_params()
+                dialogue_sections[section]:filter_active_params()
               end
             else
               _seeker.ui_state.set_current_section("LANE_CONFIG")
