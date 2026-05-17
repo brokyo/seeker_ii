@@ -76,9 +76,8 @@ local function create_grid_ui()
       local row_start = (local_index - 1) * ROWS_PER_LANE + 1
       local length = _step_state.get_length(lane_id)
       local cr_on = _step_state.is_cr_enabled(lane_id)
-      local is_resp = cr_on and _step_state.is_playing_response(lane_id)
+      local is_resp = _step_state.is_viewing_response(lane_id)
 
-      -- Grid follows playback: show response steps when response is playing
       local steps
       if is_resp then
         steps = _step_state.get_response_steps(lane_id)
@@ -153,11 +152,27 @@ local function create_grid_ui()
 
       if x == 10 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
-        _seeker.ui_state.set_current_section("DRUMS_CALL")
+        local on_call = _seeker.ui_state.get_current_section() == "DRUMS_CALL"
+          and _seeker.ui_state.get_focused_lane() == lane_id
+        if on_call then
+          _step_state.set_editing_call(lane_id, false)
+          _seeker.ui_state.set_current_section("DRUMS_TIMING")
+        else
+          _step_state.set_editing_call(lane_id, true)
+          _seeker.ui_state.set_current_section("DRUMS_CALL")
+        end
         rebuild_current_drums_screen()
       elseif x == 11 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
-        _seeker.ui_state.set_current_section("DRUMS_RESPONSE")
+        local on_resp = _seeker.ui_state.get_current_section() == "DRUMS_RESPONSE"
+          and _seeker.ui_state.get_focused_lane() == lane_id
+        if on_resp then
+          _step_state.set_editing_response(lane_id, false)
+          _seeker.ui_state.set_current_section("DRUMS_TIMING")
+        else
+          _step_state.set_editing_response(lane_id, true)
+          _seeker.ui_state.set_current_section("DRUMS_RESPONSE")
+        end
         rebuild_current_drums_screen()
       end
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
@@ -194,10 +209,11 @@ local function create_grid_ui()
         _seeker.ui_state.set_current_section("DRUMS_HOME")
         rebuild_current_drums_screen()
       else
-        -- Toggle on whichever layer is currently showing (follows playback)
-        local is_resp = _step_state.is_cr_enabled(lane_id) and _step_state.is_playing_response(lane_id)
+        local is_resp = _step_state.is_viewing_response(lane_id)
         if is_resp then
           _step_state.get_response_steps(lane_id)[step].active = not _step_state.get_response_steps(lane_id)[step].active
+          _step_state.mark_response_manual(lane_id)
+          _step_state.snapshot_response_genesis(lane_id)
         else
           _step_state.toggle_step(lane_id, step)
           _step_state.snapshot_genesis(lane_id)

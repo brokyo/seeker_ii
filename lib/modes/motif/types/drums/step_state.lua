@@ -65,6 +65,7 @@ local cr_strategy = {}
 local cr_playing_response = {}
 local cr_editing_response = {}
 local cr_editing_call = {}
+local cr_response_manual = {}
 
 local RESPONSE_STRATEGIES = {"Invert", "Echo", "Mirror", "Resolve"}
 StepState.RESPONSE_STRATEGIES = RESPONSE_STRATEGIES
@@ -173,24 +174,21 @@ end
 local function strategy_mirror(call, response, length, lane_id)
   local scale = theory.get_scale()
   local root = scale[1] or 60
+  local voice_note = StepState.get_voice_note(lane_id)
   for i = 1, length do
     response[i].active = call[i].active
     response[i].velocity = call[i].velocity
     response[i].ratchet = call[i].ratchet
-    if call[i].note then
-      local interval = call[i].note - root
-      local mirrored = root - interval
-      -- Snap to nearest scale tone
-      local best = scale[1]
-      for _, sn in ipairs(scale) do
-        if math.abs(sn - mirrored) < math.abs(best - mirrored) then
-          best = sn
-        end
+    local src_note = call[i].note or voice_note
+    local interval = src_note - root
+    local mirrored = root - interval
+    local best = scale[1]
+    for _, sn in ipairs(scale) do
+      if math.abs(sn - mirrored) < math.abs(best - mirrored) then
+        best = sn
       end
-      response[i].note = best
-    else
-      response[i].note = nil
     end
+    response[i].note = best
   end
 end
 
@@ -213,12 +211,13 @@ local function strategy_resolve(call, response, length, lane_id)
     if i == length then
       response[i].note = resolve_note
     else
-      response[i].note = call[i].note
+      response[i].note = call[i].note or voice
     end
   end
 end
 
 function StepState.generate_response(lane_id)
+  cr_response_manual[lane_id] = false
   local call = ensure_state(lane_id)
   local response = ensure_response(lane_id)
   local length = StepState.get_length(lane_id)
@@ -293,9 +292,17 @@ function StepState.snapshot_genesis(lane_id)
   genesis[lane_id] = StepState.deep_copy_steps(ensure_state(lane_id))
   mutation_loop_count[lane_id] = 0
   cycle_counter[lane_id] = 0
-  if cr_enabled[lane_id] then
+  if cr_enabled[lane_id] and not cr_response_manual[lane_id] then
     StepState.generate_response(lane_id)
   end
+end
+
+function StepState.mark_response_manual(lane_id)
+  cr_response_manual[lane_id] = true
+end
+
+function StepState.is_response_manual(lane_id)
+  return cr_response_manual[lane_id] or false
 end
 
 function StepState.snapshot_response_genesis(lane_id)
