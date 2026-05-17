@@ -187,13 +187,12 @@ function create_params()
       local was_on = StepState.is_cr_enabled(lane_id)
       if was_on == now_on then return end
       StepState.toggle_cr(lane_id)
-      -- Activate/deactivate stage 2 via the lane stage system
+      params:set("lane_" .. lane_id .. "_stage_2_active", now_on and 2 or 1, true)
+      if now_on then
+        params:set("lane_" .. lane_id .. "_stage_2_reset_motif", 2, true)
+      end
       local lane = _seeker.lanes[lane_id]
       if lane then
-        lane.stages[2].active = now_on
-        if now_on then
-          lane.stages[2].reset_motif = true
-        end
         lane:sync_all_stages_from_params()
       end
       StepState.apply_motif(lane_id)
