@@ -64,6 +64,7 @@ local cr_enabled = {}
 local cr_strategy = {}
 local cr_playing_response = {}
 local cr_editing_response = {}
+local cr_editing_call = {}
 
 local RESPONSE_STRATEGIES = {"Invert", "Echo", "Mirror", "Resolve"}
 StepState.RESPONSE_STRATEGIES = RESPONSE_STRATEGIES
@@ -126,16 +127,24 @@ function StepState.set_playing_response(lane_id, value)
 end
 
 function StepState.is_viewing_response(lane_id)
+  if cr_editing_call[lane_id] then return false end
   if cr_editing_response[lane_id] then return true end
   return cr_playing_response[lane_id] or false
 end
 
-function StepState.set_viewing_response(lane_id, value)
+function StepState.set_editing_response(lane_id, value)
   cr_editing_response[lane_id] = value
+  if value then cr_editing_call[lane_id] = false end
 end
 
-function StepState.is_editing_response(lane_id)
-  return cr_editing_response[lane_id] or false
+function StepState.set_editing_call(lane_id, value)
+  cr_editing_call[lane_id] = value
+  if value then cr_editing_response[lane_id] = false end
+end
+
+-- Keep for backward compat with home.lua param action
+function StepState.set_viewing_response(lane_id, value)
+  StepState.set_editing_response(lane_id, value)
 end
 
 ------------------------------------------------------------------------

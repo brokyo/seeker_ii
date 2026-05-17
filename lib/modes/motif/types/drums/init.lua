@@ -156,7 +156,7 @@ local DIVISION_OPTIONS = StepState.DIVISION_OPTIONS
 
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("drums")) do
-    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 14)
+    params:add_group("lane_" .. lane_id .. "_drum_step", "LANE " .. lane_id .. " DRUM STEPS", 16)
 
     params:add_number("lane_" .. lane_id .. "_drum_length", "Length", 1, 16, 8)
     params:set_action("lane_" .. lane_id .. "_drum_length", function()
@@ -199,6 +199,17 @@ function create_params()
       StepState.apply_motif(lane_id)
     end)
 
+    params:add_option("lane_" .. lane_id .. "_drum_cr_active", "Call/Response", {"Off", "On"}, 1)
+    params:set_action("lane_" .. lane_id .. "_drum_cr_active", function(val)
+      local was_on = StepState.is_cr_enabled(lane_id)
+      local now_on = val == 2
+      if was_on ~= now_on then
+        StepState.toggle_cr(lane_id)
+        StepState.apply_motif(lane_id)
+      end
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    end)
+
     params:add_option("lane_" .. lane_id .. "_drum_cr_strategy", "Response", StepState.RESPONSE_STRATEGIES, 1)
     params:set_action("lane_" .. lane_id .. "_drum_cr_strategy", function(val)
       cr_strategy_cache[lane_id] = val
@@ -213,9 +224,15 @@ function create_params()
     params:add_number("lane_" .. lane_id .. "_drum_cr_call_loops", "Call Loops", 1, 16, 1)
     params:add_number("lane_" .. lane_id .. "_drum_cr_resp_loops", "Resp Loops", 1, 16, 1)
 
-    params:add_option("lane_" .. lane_id .. "_drum_cr_edit_resp", "Edit Response", {"Call", "Response"}, 1)
+    params:add_option("lane_" .. lane_id .. "_drum_cr_edit_call", "Edit Call", {"Auto", "Locked"}, 1)
+    params:set_action("lane_" .. lane_id .. "_drum_cr_edit_call", function(val)
+      StepState.set_editing_call(lane_id, val == 2)
+      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
+    end)
+
+    params:add_option("lane_" .. lane_id .. "_drum_cr_edit_resp", "Edit Response", {"Auto", "Locked"}, 1)
     params:set_action("lane_" .. lane_id .. "_drum_cr_edit_resp", function(val)
-      StepState.set_viewing_response(lane_id, val == 2)
+      StepState.set_editing_response(lane_id, val == 2)
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 

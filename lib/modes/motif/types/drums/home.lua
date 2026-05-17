@@ -231,14 +231,51 @@ local function create_mutation_screen()
 end
 
 ------------------------------------------------------------------------
--- DRUMS_RESPONSE: call/response strategy, loop counts, edit toggle
+-- DRUMS_CALL: call config, loop count, edit toggle
+------------------------------------------------------------------------
+
+local function create_call_screen()
+  local norns_ui = NornsUI.new({
+    id = "DRUMS_CALL",
+    name = "Call",
+    description = "Call pattern settings. Edit Call locks the grid to show the call pattern.",
+    params = {}
+  })
+
+  norns_ui.rebuild_params = function(self)
+    local lane_id = get_drums_lane()
+    self.name = lane_label(lane_id) .. " Call"
+    self.params = {
+      { id = "lane_" .. lane_id .. "_drum_cr_active" },
+      { id = "lane_" .. lane_id .. "_drum_cr_call_loops" },
+      { id = "lane_" .. lane_id .. "_drum_cr_edit_call" },
+    }
+  end
+
+  local original_enter = norns_ui.enter
+  norns_ui.enter = function(self)
+    self:rebuild_params()
+    original_enter(self)
+  end
+
+  local original_draw_call = norns_ui.draw
+  norns_ui.draw = function(self)
+    original_draw_call(self)
+    draw_hold_overlay()
+  end
+
+  return norns_ui
+end
+
+------------------------------------------------------------------------
+-- DRUMS_RESPONSE: response strategy, loop count, edit toggle
 ------------------------------------------------------------------------
 
 local function create_response_screen()
   local norns_ui = NornsUI.new({
     id = "DRUMS_RESPONSE",
     name = "Response",
-    description = "Call/response settings. Strategy selects how the response is generated. Toggle Edit Response to program the response pattern on the grid.",
+    description = "Response pattern settings. Strategy selects how the response is generated. Edit Response locks the grid to show the response pattern.",
     params = {}
   })
 
@@ -248,7 +285,6 @@ local function create_response_screen()
     self.name = lane_label(lane_id) .. " Response (" .. strategy_name .. ")"
     self.params = {
       { id = "lane_" .. lane_id .. "_drum_cr_strategy" },
-      { id = "lane_" .. lane_id .. "_drum_cr_call_loops" },
       { id = "lane_" .. lane_id .. "_drum_cr_resp_loops" },
       { id = "lane_" .. lane_id .. "_drum_cr_edit_resp" },
     }
@@ -350,6 +386,7 @@ function DrumsHome.init()
   local timing_screen = create_timing_screen()
   local step_screen = create_step_screen()
   local mutation_screen = create_mutation_screen()
+  local call_screen = create_call_screen()
   local response_screen = create_response_screen()
 
   return {
@@ -358,6 +395,7 @@ function DrumsHome.init()
       DRUMS_HOME = step_screen,
       DRUMS_TIMING = timing_screen,
       DRUMS_MUTATION = mutation_screen,
+      DRUMS_CALL = call_screen,
       DRUMS_RESPONSE = response_screen,
     }
   }

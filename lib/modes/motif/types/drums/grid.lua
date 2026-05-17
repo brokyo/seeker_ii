@@ -121,15 +121,17 @@ local function create_grid_ui()
       layers.ui[9][row_start] = GridConstants.BRIGHTNESS.OFF
       layers.ui[9][row_start + 1] = GridConstants.BRIGHTNESS.OFF
 
-      -- Col 10: call/response toggle
-      layers.ui[10][row_start] = cr_on and GridConstants.BRIGHTNESS.HIGH or GridConstants.BRIGHTNESS.DIM
-      layers.ui[10][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.LOW) or GridConstants.BRIGHTNESS.OFF
+      -- Col 10: call screen button
+      local focused_lane = _seeker.ui_state.get_focused_lane()
+      local current_section = _seeker.ui_state.get_current_section()
+      local on_call_screen = current_section == "DRUMS_CALL" and focused_lane == lane_id
+      layers.ui[10][row_start] = on_call_screen and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.DIM
+      layers.ui[10][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.LOW or GridConstants.BRIGHTNESS.MEDIUM) or GridConstants.BRIGHTNESS.OFF
 
       -- Col 11: response screen button
-      local on_resp_screen = _seeker.ui_state.get_current_section() == "DRUMS_RESPONSE"
-        and _seeker.ui_state.get_focused_lane() == lane_id
-      layers.ui[11][row_start] = on_resp_screen and GridConstants.BRIGHTNESS.FULL or (cr_on and GridConstants.BRIGHTNESS.DIM or GridConstants.BRIGHTNESS.OFF)
-      layers.ui[11][row_start + 1] = GridConstants.BRIGHTNESS.OFF
+      local on_resp_screen = current_section == "DRUMS_RESPONSE" and focused_lane == lane_id
+      layers.ui[11][row_start] = on_resp_screen and GridConstants.BRIGHTNESS.FULL or GridConstants.BRIGHTNESS.DIM
+      layers.ui[11][row_start + 1] = cr_on and (is_resp and GridConstants.BRIGHTNESS.MEDIUM or GridConstants.BRIGHTNESS.LOW) or GridConstants.BRIGHTNESS.OFF
     end
   end
 
@@ -150,9 +152,8 @@ local function create_grid_ui()
       local row_start = (local_index - 1) * ROWS_PER_LANE + 1
 
       if x == 10 and y == row_start then
-        _step_state.toggle_cr(lane_id)
-        _step_state.apply_motif(lane_id)
         _seeker.ui_state.set_focused_lane(lane_id)
+        _seeker.ui_state.set_current_section("DRUMS_CALL")
         rebuild_current_drums_screen()
       elseif x == 11 and y == row_start then
         _seeker.ui_state.set_focused_lane(lane_id)
