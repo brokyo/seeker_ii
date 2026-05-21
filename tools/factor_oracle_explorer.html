@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factor Oracle Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface2: #0f3460;
+    --accent: #e94560;
+    --accent2: #53d8fb;
+    --text: #eee;
+    --muted: #888;
+    --green: #4ecdc4;
+    --orange: #f7b731;
+    --suffix-color: #e94560;
+    --factor-color: #7c6caf;
+    --forward-color: #4ecdc4;
+    --chain-color: #f7b731;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    padding: 2rem; max-width: 1200px; margin: 0 auto;
+  }
+
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; color: var(--accent2); }
+  h2 { font-size: 1.1rem; margin: 2.5rem 0 1rem; color: var(--accent2); border-bottom: 1px solid var(--surface2); padding-bottom: 0.5rem; }
+  h3 { font-size: 0.95rem; margin: 1.5rem 0 0.75rem; color: var(--accent2); }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 2rem; }
+  .section { background: var(--surface); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+
+  button {
+    font-family: inherit; font-size: 0.8rem; padding: 0.4rem 1rem;
+    border: 1px solid var(--surface2); background: var(--surface2); color: var(--text);
+    border-radius: 4px; cursor: pointer; transition: background 0.15s;
+  }
+  button:hover { background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: 0.3; cursor: default; }
+  button:disabled:hover { background: var(--surface2); border-color: var(--surface2); }
+  button.active { background: var(--accent); border-color: var(--accent); }
+  .btn-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+  .graph-container { background: var(--bg); border-radius: 6px; overflow-x: auto; margin: 1rem 0; }
+  .graph-container svg { display: block; }
+
+  .explanation {
+    font-size: 0.85rem; line-height: 1.7; min-height: 2.5rem;
+    padding: 1rem; background: var(--bg); border-radius: 6px;
+    border-left: 3px solid var(--accent); margin: 1rem 0;
+  }
+  .explanation strong { color: var(--accent2); }
+  .explanation em { color: var(--orange); font-style: normal; }
+
+  .step-indicator { color: var(--muted); font-size: 0.8rem; }
+
+  .info-box {
+    background: var(--bg); border-radius: 6px; padding: 0.75rem 1rem;
+    font-size: 0.8rem; color: var(--muted); margin: 0.75rem 0;
+    border-left: 3px solid var(--accent2);
+  }
+  .info-box strong { color: var(--accent2); }
+
+  .legend { display: flex; gap: 1.5rem; font-size: 0.75rem; color: var(--muted); margin: 0.5rem 0; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 0.35rem; }
+  .legend-line { width: 24px; height: 2px; }
+  .legend-line.forward { background: var(--forward-color); }
+  .legend-line.suffix { background: var(--suffix-color); border-top: 2px dashed var(--suffix-color); height: 0; }
+  .legend-line.factor { background: var(--factor-color); border-top: 2px dotted var(--factor-color); height: 0; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+  .legend-swatch.chain { background: var(--chain-color); opacity: 0.5; }
+
+  /* Code panel */
+  .split-view { display: flex; gap: 1rem; margin: 1rem 0; }
+  .split-view > div { flex: 1; min-width: 0; }
+  .code-panel {
+    background: #0d0d1a; border-radius: 6px; padding: 0.75rem;
+    font-size: 0.7rem; line-height: 1.8; overflow-x: auto;
+    max-height: 320px; overflow-y: auto;
+  }
+  .code-line {
+    padding: 0 0.5rem; border-radius: 2px;
+    white-space: pre; transition: background 0.2s;
+  }
+  .code-line.active { background: #e9456033; }
+  .code-line .kw { color: var(--accent); }
+  .code-line .fn { color: var(--accent2); }
+  .code-line .cm { color: #555; }
+  .code-line .str { color: var(--green); }
+  .code-line .num { color: var(--orange); }
+
+  /* State inspector */
+  .state-inspector {
+    background: var(--bg); border-radius: 6px; padding: 1rem;
+    font-size: 0.8rem; margin: 1rem 0; min-height: 80px;
+  }
+  .state-inspector .label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; margin-bottom: 0.25rem; }
+  .state-inspector .row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .state-inspector .item { }
+  .state-inspector .item-label { color: var(--muted); font-size: 0.7rem; }
+  .state-inspector .item-value { color: var(--text); }
+  .state-inspector .chain { color: var(--chain-color); }
+  .state-inspector .transition-list { margin-top: 0.5rem; }
+  .state-inspector .trans-entry {
+    display: inline-block; background: var(--surface2); padding: 0.15rem 0.5rem;
+    border-radius: 3px; margin: 0.15rem 0.15rem; font-size: 0.7rem;
+  }
+  .trans-entry.is-forward { border-left: 2px solid var(--forward-color); }
+  .trans-entry.is-factor { border-left: 2px solid var(--factor-color); }
+
+  /* Walker */
+  .walker-panel {
+    background: var(--bg); border-radius: 6px; padding: 1rem;
+    font-size: 0.8rem; margin: 1rem 0;
+  }
+  .walker-state { font-size: 0.9rem; margin-bottom: 0.5rem; }
+  .walker-options { margin: 0.75rem 0; }
+  .walker-option {
+    display: inline-block; padding: 0.3rem 0.75rem; margin: 0.2rem;
+    border-radius: 4px; cursor: pointer; font-size: 0.75rem; transition: all 0.15s;
+  }
+  .walker-option.forward-opt { background: #4ecdc422; border: 1px solid var(--forward-color); color: var(--forward-color); }
+  .walker-option.suffix-opt { background: #e9456022; border: 1px solid var(--suffix-color); color: var(--suffix-color); }
+  .walker-option:hover { transform: scale(1.05); filter: brightness(1.3); }
+  .walker-output {
+    display: flex; gap: 0.25rem; flex-wrap: wrap; margin: 0.75rem 0;
+    min-height: 2rem; align-items: center;
+  }
+  .walker-beat {
+    background: var(--surface2); padding: 0.2rem 0.5rem; border-radius: 4px;
+    font-size: 0.7rem;
+  }
+  .walker-beat.jumped { background: #e9456044; border: 1px solid var(--accent); }
+  .walker-beat.current { background: var(--accent2); color: var(--bg); }
+
+  /* Piano keyboard */
+  .piano { display: flex; position: relative; height: 120px; margin: 1rem 0; user-select: none; }
+  .piano-key {
+    border: 1px solid #333; border-radius: 0 0 4px 4px; cursor: pointer;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 8px; font-size: 0.65rem; color: var(--muted); transition: background 0.1s;
+  }
+  .piano-key.white { background: #ddd; width: 48px; height: 120px; z-index: 1; }
+  .piano-key.black { background: #222; width: 30px; height: 75px; margin-left: -15px; margin-right: -15px; z-index: 2; color: #666; }
+  .piano-key.white:hover { background: #fff; }
+  .piano-key.black:hover { background: #444; }
+  .piano-key.playing { background: var(--accent) !important; }
+
+  .beat-slices { display: flex; gap: 0.25rem; flex-wrap: wrap; min-height: 2.5rem; align-items: stretch; margin: 0.75rem 0; }
+  .beat-slice {
+    background: var(--surface2); padding: 0.3rem 0.5rem; border-radius: 6px;
+    font-size: 0.7rem; cursor: pointer; transition: background 0.15s;
+    border: 1px solid transparent; min-width: 40px; text-align: center; line-height: 1.4;
+  }
+  .beat-slice:hover { border-color: var(--accent); }
+  .beat-slice.highlight { background: var(--green); color: var(--bg); }
+  .beat-slice.playing { background: var(--accent); }
+  .beat-slice.active-input { border-color: var(--accent2); }
+  .beat-slice .beat-label { color: var(--muted); font-size: 0.6rem; display: block; }
+  .beat-slice .beat-notes { color: var(--text); }
+
+  .slider-group { display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0; }
+  .slider-group label { font-size: 0.8rem; color: var(--muted); min-width: 60px; }
+  .slider-group input[type="range"] { flex: 1; max-width: 300px; accent-color: var(--accent); }
+  .slider-group .value { font-size: 0.8rem; color: var(--accent2); min-width: 55px; }
+
+  .duration-btns { display: flex; gap: 0.25rem; margin: 0.5rem 0; align-items: center; }
+  .duration-btns button { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+  .duration-btns button.selected { background: var(--accent2); border-color: var(--accent2); color: var(--bg); }
+
+  .piano-roll { background: var(--bg); border-radius: 6px; margin: 1rem 0; overflow-x: auto; }
+  .piano-roll canvas { display: block; border-radius: 6px; }
+
+  .collapsible-header { cursor: pointer; display: flex; align-items: center; gap: 0.5rem; }
+  .collapsible-header::before { content: '\25B6'; font-size: 0.7rem; transition: transform 0.2s; }
+  .collapsible-header.open::before { transform: rotate(90deg); }
+  .collapsible-body { display: none; padding-top: 1rem; }
+  .collapsible-body.open { display: block; }
+  .collapsible-body pre { background: var(--bg); padding: 1rem; border-radius: 6px; font-size: 0.75rem; overflow-x: auto; line-height: 1.5; }
+
+  .empty-state { color: var(--muted); font-size: 0.8rem; font-style: italic; }
+
+  @media (max-width: 800px) {
+    .split-view { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Factor Oracle Explorer</h1>
+<p class="subtitle">An interactive guide to beat-slice factor oracles for music generation. From IRCAM's OMax/ImproteK to your sequencer.</p>
+
+<!-- ========== PART 1: CONSTRUCTION ========== -->
+<h2>Part 1: Building the Oracle</h2>
+
+<div class="section">
+  <p style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+    A 6-beat motif. Each beat has its own rhythm. The oracle sees each beat as a <strong>pitch-class set</strong> — {C,E} regardless of whether it's two eighths or three sixteenths.
+  </p>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-line forward"></div> Forward</div>
+    <div class="legend-item"><div class="legend-line suffix"></div> Suffix link</div>
+    <div class="legend-item"><div class="legend-line factor"></div> Factor link</div>
+    <div class="legend-item"><div class="legend-swatch chain"></div> Suffix chain (equivalence class)</div>
+  </div>
+
+  <div class="split-view">
+    <div>
+      <div class="graph-container" id="explainer-graph"></div>
+      <div id="state-inspector" class="state-inspector">
+        <div class="label">Click a state in the graph to inspect it</div>
+      </div>
+    </div>
+    <div>
+      <div class="code-panel" id="code-panel"></div>
+    </div>
+  </div>
+
+  <div class="explanation" id="explainer-text">
+    Press <strong>Next</strong> to start building the oracle, one beat at a time.
+  </div>
+
+  <div class="btn-row">
+    <button id="explainer-prev" disabled>Prev</button>
+    <button id="explainer-next">Next</button>
+    <button id="explainer-play-original">Play Motif</button>
+    <span class="step-indicator" id="explainer-step-label">Step 0 / 10</span>
+  </div>
+</div>
+
+<!-- ========== PART 2: WALKING ========== -->
+<h2>Part 2: Walking the Oracle</h2>
+
+<div class="section">
+  <p style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+    Step through generation manually. At each state you choose: follow a forward transition, or jump via suffix link to a state that shares context. <strong>You</strong> are the fidelity knob.
+  </p>
+
+  <div class="graph-container" id="walker-graph"></div>
+
+  <div class="walker-panel" id="walker-panel">
+    <div class="walker-state" id="walker-state">Current state: <strong>0</strong> (start)</div>
+    <div class="label" style="color: var(--muted); font-size: 0.7rem;">Available moves:</div>
+    <div class="walker-options" id="walker-options"></div>
+    <div style="margin-top: 0.75rem;">
+      <div class="label" style="color: var(--muted); font-size: 0.7rem;">Output so far:</div>
+      <div class="walker-output" id="walker-output">
+        <span class="empty-state">Make your first move...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button id="walker-reset">Reset Walk</button>
+    <button id="walker-play" disabled>Play Output</button>
+    <button id="walker-stop">Stop</button>
+  </div>
+</div>
+
+<!-- ========== PART 3: SANDBOX ========== -->
+<h2>Part 3: Build Your Own</h2>
+
+<div class="section">
+  <p style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+    Build a motif beat by beat. Select a beat, choose a note duration, then click piano keys.
+  </p>
+
+  <div class="btn-row" style="margin-bottom: 0.5rem;">
+    <span style="font-size: 0.8rem; color: var(--muted);">Presets:</span>
+    <button class="preset-btn" data-preset="melody1">Scalar melody</button>
+    <button class="preset-btn" data-preset="arpeggio">Arpeggio</button>
+    <button class="preset-btn" data-preset="syncopated">Syncopated</button>
+    <button class="preset-btn" data-preset="chordal">Chordal</button>
+    <button id="sandbox-clear">Clear</button>
+  </div>
+
+  <div style="font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0.25rem;">Note duration:</div>
+  <div class="duration-btns" id="duration-btns">
+    <button data-dur="0.25" class="selected">1/16</button>
+    <button data-dur="0.5">1/8</button>
+    <button data-dur="1">1/4</button>
+    <button data-dur="2">1/2</button>
+  </div>
+
+  <div class="piano" id="sandbox-piano"></div>
+
+  <div class="btn-row" style="margin-bottom: 0.5rem;">
+    <button id="add-beat-btn">+ Add Beat</button>
+    <button id="remove-beat-btn">- Remove Beat</button>
+    <span style="font-size: 0.75rem; color: var(--muted);" id="beat-count-label">0 beats</span>
+  </div>
+
+  <div class="beat-slices" id="sandbox-beats">
+    <span class="empty-state">Click "+ Add Beat" then click piano keys...</span>
+  </div>
+
+  <div class="graph-container" id="sandbox-graph"></div>
+
+  <div class="slider-group">
+    <label>Fidelity</label>
+    <input type="range" id="fidelity-slider" min="0" max="100" value="30">
+    <span class="value" id="fidelity-value">0.30</span>
+  </div>
+
+  <div class="slider-group">
+    <label>Length</label>
+    <input type="range" id="length-slider" min="2" max="24" value="8">
+    <span class="value" id="length-value">8 beats</span>
+  </div>
+
+  <div class="btn-row" style="margin-top: 1rem;">
+    <button id="sandbox-generate">Generate</button>
+    <button id="sandbox-play-original">Play Original</button>
+    <button id="sandbox-play-generated" disabled>Play Generated</button>
+    <button id="sandbox-stop">Stop</button>
+  </div>
+
+  <div style="font-size: 0.8rem; color: var(--muted); margin-top: 1rem;">Generated continuation:</div>
+  <div class="beat-slices" id="sandbox-generated">
+    <span class="empty-state">Hit Generate to create a continuation...</span>
+  </div>
+
+  <div class="piano-roll"><canvas id="piano-roll-canvas" width="900" height="200"></canvas></div>
+</div>
+
+<!-- ========== SEEKER INTEGRATION ========== -->
+<h2 class="collapsible-header" id="integration-toggle">Seeker Integration Notes</h2>
+<div class="collapsible-body" id="integration-body">
+  <div class="section">
+    <pre>
+-- The oracle operates on beat slices, not individual notes.
+-- Each slice = all events within one beat.
+-- Equivalence = same pitch classes, ignoring rhythm.
+-- Generation concatenates whole beat slices,
+-- preserving internal timing automatically.
+
+-- Params: fidelity (0-100), length (beats to generate)
+-- Triangle-wave entropy envelope from Dialogue
+-- controls per-beat mutation depth after oracle output.
+    </pre>
+  </div>
+</div>
+
+<p style="font-size: 0.75rem; color: var(--muted); margin-top: 2rem; text-align: center;">
+  Based on Allauzen, Crochemore &amp; Raffinot (1999), Assayag &amp; Dubnov (OMax),
+  and Nika &amp; Chemillier (ImproteK, IRCAM).
+</p>
+
+<script>
+// ============================================================
+// FACTOR ORACLE ALGORITHM
+// ============================================================
+
+function createOracle() {
+  return {
+    numStates: 1,
+    transitions: [{}],
+    suffixLink: [-1],
+    lrs: [0],
+    sequence: []
+  };
+}
+
+function addSymbol(oracle, symbol) {
+  var newState = oracle.numStates;
+  oracle.numStates = oracle.numStates + 1;
+  oracle.transitions[newState] = {};
+  oracle.suffixLink[newState] = 0;
+  oracle.lrs[newState] = 0;
+  oracle.sequence.push(symbol);
+
+  oracle.transitions[newState - 1][symbol] = newState;
+
+  var k = oracle.suffixLink[newState - 1];
+  var factorLinks = [];
+
+  while (k !== -1 && oracle.transitions[k][symbol] === undefined) {
+    oracle.transitions[k][symbol] = newState;
+    factorLinks.push(k);
+    k = oracle.suffixLink[k];
+  }
+
+  if (k === -1) {
+    oracle.suffixLink[newState] = 0;
+    oracle.lrs[newState] = 0;
+  } else {
+    var target = oracle.transitions[k][symbol];
+    oracle.suffixLink[newState] = target;
+    oracle.lrs[newState] = Math.min(oracle.lrs[k] + 1, oracle.lrs[target] + 1);
+  }
+
+  return { state: newState, factorLinks: factorLinks, k: k };
+}
+
+function getSuffixChain(oracle, state) {
+  var chain = [state];
+  var current = state;
+  while (oracle.suffixLink[current] > 0) {
+    current = oracle.suffixLink[current];
+    chain.push(current);
+  }
+  return chain;
+}
+
+function generate(oracle, numSteps, fidelity) {
+  var output = [];
+  var currentState = 0;
+  var attempts = 0;
+  while (output.length < numSteps && attempts < numSteps * 4) {
+    attempts++;
+    var transitions = oracle.transitions[currentState];
+    var symbols = Object.keys(transitions);
+    if (symbols.length === 0) {
+      currentState = oracle.suffixLink[currentState] > 0 ? oracle.suffixLink[currentState] : 0;
+      continue;
+    }
+    var jumped = false;
+    if (Math.random() < fidelity && oracle.suffixLink[currentState] > 0) {
+      var st = oracle.suffixLink[currentState];
+      var stSyms = Object.keys(oracle.transitions[st]);
+      if (stSyms.length > 0) {
+        currentState = st;
+        transitions = oracle.transitions[st];
+        symbols = stSyms;
+        jumped = true;
+      }
+    }
+    var chosen = symbols[Math.floor(Math.random() * symbols.length)];
+    currentState = transitions[chosen];
+    output.push({ state: currentState, symbol: chosen, jumped: jumped });
+  }
+  return output;
+}
+
+// ============================================================
+// MUSIC HELPERS
+// ============================================================
+
+var NOTE_NAMES = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+function midiToName(m) { return NOTE_NAMES[m%12] + (Math.floor(m/12)-1); }
+function midiToShortName(m) { return NOTE_NAMES[m%12]; }
+function midiToFreq(m) { return 440 * Math.pow(2, (m-69)/12); }
+
+function slicePitchKey(notes) {
+  var pcs = {};
+  for (var i = 0; i < notes.length; i++) pcs[notes[i].note % 12] = true;
+  var sorted = Object.keys(pcs).map(Number);
+  sorted.sort(function(a,b){return a-b;});
+  return sorted.join(',');
+}
+function pitchKeyToLabel(key) {
+  if (!key || key === '') return 'rest';
+  return key.split(',').map(function(pc){return NOTE_NAMES[parseInt(pc)];}).join('+');
+}
+function sliceToShortLabel(slice) {
+  if (!slice.notes || slice.notes.length === 0) return 'rest';
+  var names = [];
+  for (var i = 0; i < slice.notes.length; i++) names.push(midiToShortName(slice.notes[i].note));
+  return names.join('+');
+}
+
+// ============================================================
+// SVG GRAPH RENDERING
+// ============================================================
+
+function renderOracleGraph(container, oracle, options) {
+  options = options || {};
+  var highlightState = options.highlightState;
+  var highlightPath = options.highlightPath || [];
+  var showFactorLinks = options.showFactorLinks !== false;
+  var statesBuilt = options.statesBuilt || oracle.numStates;
+  var newFactorLinks = options.newFactorLinks || [];
+  var highlightSuffix = options.highlightSuffix;
+  var sliceLabels = options.sliceLabels || null;
+  var suffixChain = options.suffixChain || [];
+  var walkerState = options.walkerState;
+  var clickable = options.clickable || false;
+  var onClickState = options.onClickState || null;
+
+  var nodeRadius = 24;
+  var nodeSpacing = 90;
+  var paddingX = 50;
+  var svgWidth = Math.max(paddingX * 2 + statesBuilt * nodeSpacing, 400);
+  var svgHeight = 240;
+  var nodeY = svgHeight / 2 + 10;
+  function nodeX(s) { return paddingX + s * nodeSpacing; }
+
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="'+svgWidth+'" height="'+svgHeight+'" viewBox="0 0 '+svgWidth+' '+svgHeight+'">';
+  svg += '<defs>';
+  svg += '<marker id="af" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#4ecdc4"/></marker>';
+  svg += '<marker id="as" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#e94560"/></marker>';
+  svg += '<marker id="afk" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#7c6caf"/></marker>';
+  svg += '</defs>';
+
+  // Suffix chain highlight (background glow)
+  for (var ci = 0; ci < suffixChain.length; ci++) {
+    var cs = suffixChain[ci];
+    if (cs < statesBuilt) {
+      svg += '<circle cx="'+nodeX(cs)+'" cy="'+nodeY+'" r="'+(nodeRadius+6)+'" fill="none" stroke="#f7b731" stroke-width="2" opacity="0.4" stroke-dasharray="4,2"/>';
+    }
+  }
+
+  // Suffix links
+  for (var s = 1; s < statesBuilt; s++) {
+    var sl = oracle.suffixLink[s];
+    if (sl >= 0 && sl !== s) {
+      var x1 = nodeX(s), x2 = nodeX(sl);
+      var dist = Math.abs(s - sl);
+      var arcH = 25 + dist * 14;
+      var isHL = (highlightSuffix && highlightSuffix.from === s && highlightSuffix.to === sl);
+      var inChain = false;
+      for (var ci = 0; ci < suffixChain.length; ci++) {
+        if (suffixChain[ci] === s) { inChain = true; break; }
+      }
+      var op = isHL ? '1' : (inChain ? '0.8' : '0.35');
+      var sw = isHL ? '2.5' : (inChain ? '2' : '1.5');
+      svg += '<path d="M'+x1+','+(nodeY-nodeRadius)+' Q'+((x1+x2)/2)+','+(nodeY-nodeRadius-arcH)+' '+x2+','+(nodeY-nodeRadius)+'" fill="none" stroke="#e94560" stroke-width="'+sw+'" stroke-dasharray="6,3" opacity="'+op+'" marker-end="url(#as)"/>';
+    }
+  }
+
+  // Factor links
+  if (showFactorLinks) {
+    for (var s = 0; s < statesBuilt; s++) {
+      var trans = oracle.transitions[s];
+      for (var sym in trans) {
+        var tgt = trans[sym];
+        if (tgt < statesBuilt && tgt !== s + 1) {
+          var x1 = nodeX(s), x2 = nodeX(tgt);
+          if (x2 > x1 && (tgt-s) > 1) {
+            var dist = tgt - s;
+            var arcH = 20 + dist * 10;
+            var isNew = false;
+            for (var fi = 0; fi < newFactorLinks.length; fi++) { if (newFactorLinks[fi]===s) {isNew=true;break;} }
+            svg += '<path d="M'+x1+','+(nodeY+nodeRadius)+' Q'+((x1+x2)/2)+','+(nodeY+nodeRadius+arcH)+' '+x2+','+(nodeY+nodeRadius)+'" fill="none" stroke="#7c6caf" stroke-width="1.5" stroke-dasharray="3,3" opacity="'+(isNew?'0.8':'0.2')+'" marker-end="url(#afk)"/>';
+          }
+        }
+      }
+    }
+  }
+
+  // Forward transitions
+  for (var s = 0; s < statesBuilt - 1; s++) {
+    var x1 = nodeX(s)+nodeRadius, x2 = nodeX(s+1)-nodeRadius;
+    var inPath = false;
+    for (var pi=0;pi<highlightPath.length;pi++){if(highlightPath[pi]===s){inPath=true;break;}}
+    svg += '<line x1="'+x1+'" y1="'+nodeY+'" x2="'+x2+'" y2="'+nodeY+'" stroke="#4ecdc4" stroke-width="'+(inPath?'2.5':'2')+'" opacity="'+(inPath?'1':'0.6')+'" marker-end="url(#af)"/>';
+  }
+
+  // Nodes
+  for (var s = 0; s < statesBuilt; s++) {
+    var cx = nodeX(s);
+    var isHL = (highlightState === s);
+    var isWalker = (walkerState === s);
+    var inPath = false;
+    for (var pi=0;pi<highlightPath.length;pi++){if(highlightPath[pi]===s){inPath=true;break;}}
+    var inChain = false;
+    for (var ci=0;ci<suffixChain.length;ci++){if(suffixChain[ci]===s){inChain=true;break;}}
+
+    var fill = isWalker ? '#f7b731' : isHL ? '#e94560' : inPath ? '#0f3460' : inChain ? '#2a1f3e' : '#16213e';
+    var stroke = isWalker ? '#f7b731' : isHL ? '#e94560' : inPath ? '#53d8fb' : inChain ? '#f7b731' : '#4ecdc4';
+    var textCol = (isWalker || isHL) ? '#fff' : '#eee';
+
+    if (clickable) {
+      svg += '<circle cx="'+cx+'" cy="'+nodeY+'" r="'+nodeRadius+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="2" style="cursor:pointer" data-state="'+s+'"/>';
+    } else {
+      svg += '<circle cx="'+cx+'" cy="'+nodeY+'" r="'+nodeRadius+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="2"/>';
+    }
+
+    var label = s === 0 ? '∅' : (sliceLabels && sliceLabels[s-1] ? sliceLabels[s-1] : pitchKeyToLabel(oracle.sequence[s-1]));
+    if (label.length > 6) label = label.substring(0,5)+'…';
+    svg += '<text x="'+cx+'" y="'+(nodeY+4)+'" text-anchor="middle" fill="'+textCol+'" font-size="11" font-family="inherit" style="pointer-events:none">'+label+'</text>';
+    svg += '<text x="'+cx+'" y="'+(nodeY+nodeRadius+16)+'" text-anchor="middle" fill="#666" font-size="10" font-family="inherit" style="pointer-events:none">'+s+'</text>';
+  }
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+
+  if (clickable && onClickState) {
+    var circles = container.querySelectorAll('circle[data-state]');
+    for (var i = 0; i < circles.length; i++) {
+      circles[i].addEventListener('click', function(e) {
+        onClickState(parseInt(e.target.getAttribute('data-state')));
+      });
+    }
+  }
+}
+
+// ============================================================
+// CODE PANEL
+// ============================================================
+
+var CODE_LINES = [
+  {t:'<span class="kw">function</span> <span class="fn">addSymbol</span>(oracle, symbol)',id:'fn'},
+  {t:'  newState = oracle.numStates',id:'new'},
+  {t:'  oracle.numStates = numStates + 1',id:'inc'},
+  {t:'  <span class="cm">// Forward transition from previous state</span>',id:'c1'},
+  {t:'  transitions[newState - 1][symbol] = newState',id:'fwd'},
+  {t:'',id:''},
+  {t:'  <span class="cm">// Walk suffix links backward</span>',id:'c2'},
+  {t:'  k = suffixLink[newState - 1]',id:'kinit'},
+  {t:'',id:''},
+  {t:'  <span class="kw">while</span> k != -1 <span class="kw">and</span> transitions[k][symbol] == nil',id:'while'},
+  {t:'    <span class="cm">// No transition on this symbol — create factor link</span>',id:'c3'},
+  {t:'    transitions[k][symbol] = newState  <span class="cm">← factor link</span>',id:'factor'},
+  {t:'    k = suffixLink[k]  <span class="cm">← keep walking back</span>',id:'kwalk'},
+  {t:'  <span class="kw">end</span>',id:'wend'},
+  {t:'',id:''},
+  {t:'  <span class="kw">if</span> k == -1 <span class="cm">-- bottomed out, no match</span>',id:'if1'},
+  {t:'    suffixLink[newState] = <span class="num">0</span>',id:'sl0'},
+  {t:'  <span class="kw">else</span> <span class="cm">-- found existing transition</span>',id:'else1'},
+  {t:'    target = transitions[k][symbol]',id:'target'},
+  {t:'    suffixLink[newState] = target  <span class="cm">← longest match</span>',id:'slset'},
+  {t:'    lrs[newState] = min(lrs[k]+1, lrs[target]+1)',id:'lrs'},
+  {t:'  <span class="kw">end</span>',id:'end1'},
+  {t:'<span class="kw">end</span>',id:'endfn'},
+];
+
+function renderCodePanel(activeIds) {
+  var el = document.getElementById('code-panel');
+  var html = '';
+  for (var i = 0; i < CODE_LINES.length; i++) {
+    var line = CODE_LINES[i];
+    var isActive = false;
+    if (activeIds) {
+      for (var j = 0; j < activeIds.length; j++) {
+        if (activeIds[j] === line.id) { isActive = true; break; }
+      }
+    }
+    html += '<div class="code-line' + (isActive ? ' active' : '') + '">' + line.t + '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ============================================================
+// STATE INSPECTOR
+// ============================================================
+
+function renderStateInspector(oracle, state, slices) {
+  var el = document.getElementById('state-inspector');
+  if (state === undefined || state === null || state >= oracle.numStates) {
+    el.innerHTML = '<div class="label">Click a state in the graph to inspect it</div>';
+    return;
+  }
+
+  var chain = getSuffixChain(oracle, state);
+  var chainLabels = chain.map(function(s) {
+    if (s === 0) return '0 (∅)';
+    return s + ' (' + pitchKeyToLabel(oracle.sequence[s-1]) + ')';
+  });
+
+  var trans = oracle.transitions[state];
+  var transHTML = '';
+  for (var sym in trans) {
+    var tgt = trans[sym];
+    var isForward = (tgt === state + 1);
+    var cls = isForward ? 'is-forward' : 'is-factor';
+    var label = pitchKeyToLabel(sym);
+    transHTML += '<span class="trans-entry '+cls+'">' + label + ' → state ' + tgt + '</span> ';
+  }
+  if (!transHTML) transHTML = '<span style="color:var(--muted)">none (dead end)</span>';
+
+  var sliceInfo = '';
+  if (state > 0 && slices && slices[state - 1]) {
+    var s = slices[state - 1];
+    var noteDescs = [];
+    for (var i = 0; i < s.notes.length; i++) {
+      var n = s.notes[i];
+      var d = n.duration <= 0.25 ? '16th' : n.duration <= 0.5 ? '8th' : n.duration <= 1 ? 'qtr' : 'half';
+      noteDescs.push(midiToShortName(n.note) + ' ' + d + ' @' + n.offset.toFixed(2));
+    }
+    sliceInfo = noteDescs.join(', ');
+  }
+
+  var html = '<div class="row">';
+  html += '<div class="item"><div class="item-label">State</div><div class="item-value">' + state + '</div></div>';
+  html += '<div class="item"><div class="item-label">Pitch key</div><div class="item-value">' + (state === 0 ? '∅' : pitchKeyToLabel(oracle.sequence[state-1])) + '</div></div>';
+  html += '<div class="item"><div class="item-label">Suffix link</div><div class="item-value">' + oracle.suffixLink[state] + '</div></div>';
+  html += '<div class="item"><div class="item-label">LRS</div><div class="item-value">' + oracle.lrs[state] + '</div></div>';
+  html += '</div>';
+
+  if (sliceInfo) {
+    html += '<div style="margin-bottom:0.5rem"><span class="item-label">Rhythm: </span><span class="item-value">' + sliceInfo + '</span></div>';
+  }
+
+  html += '<div class="item-label">Suffix chain (equivalence class):</div>';
+  html += '<div class="chain" style="margin-bottom:0.5rem">' + chainLabels.join(' → ') + '</div>';
+
+  html += '<div class="item-label">Outgoing transitions:</div>';
+  html += '<div class="transition-list">' + transHTML + '</div>';
+
+  el.innerHTML = html;
+}
+
+// ============================================================
+// TONE.JS AUDIO
+// ============================================================
+
+var synth = null;
+var playbackTimeouts = null;
+function ensureSynth() {
+  if (!synth) {
+    synth = new Tone.PolySynth(Tone.Synth, {
+      oscillator:{type:'triangle'}, envelope:{attack:0.02,decay:0.3,sustain:0.2,release:0.5}, volume:-8
+    }).toDestination();
+  }
+}
+function stopPlayback() {
+  if (playbackTimeouts) { for (var i=0;i<playbackTimeouts.length;i++) clearTimeout(playbackTimeouts[i]); playbackTimeouts=null; }
+  if (synth) synth.releaseAll();
+}
+function playSlices(slices, bpm, onBeat, onDone) {
+  ensureSynth(); stopPlayback(); Tone.start();
+  var bd = 60/bpm; playbackTimeouts = []; var tb = 0;
+  for (var b=0;b<slices.length;b++) {
+    var sl = slices[b], bs = tb;
+    (function(bi,bst){var t=setTimeout(function(){if(onBeat)onBeat(bi);},bst*bd*1000);playbackTimeouts.push(t);})(b,bs);
+    if (sl.notes) {
+      for (var n=0;n<sl.notes.length;n++) {
+        (function(note,st){var t=setTimeout(function(){synth.triggerAttackRelease(midiToFreq(note.note),note.duration*bd);},st*bd*1000);playbackTimeouts.push(t);})(sl.notes[n],bs+(sl.notes[n].offset||0));
+      }
+    }
+    tb += 1;
+  }
+  var endT=setTimeout(function(){if(onDone)onDone();},tb*bd*1000+300);playbackTimeouts.push(endT);
+}
+
+// ============================================================
+// EXPLAINER DATA
+// ============================================================
+
+var EXPLAINER_SLICES = [
+  {notes:[{note:60,offset:0,duration:0.5},{note:64,offset:0.5,duration:0.5}]},
+  {notes:[{note:67,offset:0,duration:1}]},
+  {notes:[{note:64,offset:0,duration:0.25},{note:60,offset:0.25,duration:0.25},{note:64,offset:0.5,duration:0.5}]},
+  {notes:[{note:62,offset:0,duration:0.5},{note:64,offset:0.5,duration:0.5}]},
+  {notes:[{note:67,offset:0,duration:1}]},
+  {notes:[{note:64,offset:0,duration:0.5},{note:60,offset:0.5,duration:0.5}]}
+];
+var EXPLAINER_KEYS = [];
+for (var i=0;i<EXPLAINER_SLICES.length;i++) EXPLAINER_KEYS.push(slicePitchKey(EXPLAINER_SLICES[i].notes));
+
+var EXPLAINER_LABELS = [];
+for (var i=0;i<EXPLAINER_SLICES.length;i++) EXPLAINER_LABELS.push(sliceToShortLabel(EXPLAINER_SLICES[i]));
+
+var explainerOracle = createOracle();
+var explainerStep = 0;
+var explainerBuildResults = [null];
+var inspectedState = null;
+
+var EXPLAINER_STEPS = [
+  { text:'<strong>State 0</strong> — the empty origin. The algorithm will add one beat at a time and wire up connections.', build:false, code:[] },
+  { text:'Beat 1: <strong>C+E</strong> (two eighths). Create state 1, add forward transition 0→1. Walk back from suffixLink[0] = -1. Bottomed out, so suffixLink[1] = 0.', build:true, code:['fn','new','inc','fwd','kinit','while','if1','sl0','endfn'] },
+  { text:'Beat 2: <strong>G</strong> (quarter). Forward 1→2. Walk back: k = suffixLink[1] = 0. Does state 0 have a transition on "7" (G)? No. So create <em>factor link</em> 0→2 on G. Then k = suffixLink[0] = -1. Bottomed out. suffixLink[2] = 0.', build:true, code:['fwd','kinit','while','factor','kwalk','if1','sl0'] },
+  { text:'Beat 3: <strong>E+C+E</strong> (three 16ths). Pitch classes = {C,E} = same key as beat 1! Forward 2→3. Walk back: k = suffixLink[2] = 0. Does state 0 have transition on "0,4"? Yes — it points to state 1 (from the forward link we created in step 1). So we <em>stop the while loop</em>. suffixLink[3] = <strong>1</strong>. The oracle now knows: state 3 shares pitch-class context with state 1, even though their rhythms are totally different.', build:true, code:['fwd','kinit','while','else1','target','slset','lrs'] },
+  { text:'Beat 4: <strong>D+E</strong> (two eighths). Pitch key "2,4". Forward 3→4. Walk back: k = suffixLink[3] = 1. Does state 1 have transition on "2,4"? No — factor link 1→4. k = suffixLink[1] = 0. Does state 0 have transition on "2,4"? No — factor link 0→4. k = -1. Bottomed out. suffixLink[4] = 0.', build:true, code:['fwd','kinit','while','factor','kwalk','factor','kwalk','if1','sl0'] },
+  { text:'Beat 5: <strong>G</strong> (quarter). Same as beat 2. Forward 4→5. Walk back: k = suffixLink[4] = 0. Does state 0 have transition on "7"? Yes — points to state 2 (the factor link from step 2). suffixLink[5] = <strong>2</strong>.', build:true, code:['fwd','kinit','while','else1','target','slset','lrs'] },
+  { text:'Beat 6: <strong>E+C</strong> (two eighths). Pitch key "0,4" — same as beats 1 and 3. Forward 5→6. Walk back: k = suffixLink[5] = 2. Does state 2 have transition on "0,4"? Yes — it points to state 3 (the forward link from step 3). So suffixLink[6] = <strong>3</strong>, not 1. <em>The suffix link goes to the longest match.</em> State 6 preceded by G (state 5), and state 3 was also preceded by G (state 2). The shared context is "G then {C,E}", which is longer than just "{C,E}". State 1 only shares the pitch class itself.', build:true, code:['fwd','kinit','while','else1','target','slset','lrs'] },
+  { text:'<strong>The complete oracle.</strong> Click any state to inspect it. Look at the suffix chains — state 6\'s chain is 6 → 3 → 1 → 0. All three {C,E} beats are reachable by chaining, but each suffix link captures a different length of shared context.', build:false, code:[] },
+  { text:'<strong>Why longest match matters:</strong> When the walker is at state 6 and takes the suffix link, it lands at state 3 — not state 1. From state 3 it continues forward (state 4: D+E). That\'s a more coherent continuation because the preceding context (G) was the same. Jumping all the way to state 1 would lose that context. But the walker <em>can</em> chain: 6→3→1 takes two hops and reaches the loosest match.', build:false, code:[] },
+  { text:'Now head to <strong>Part 2</strong> below to walk the oracle yourself. At each state you\'ll see all available moves — forward transitions and suffix link jumps. You choose which to take.', build:false, code:[] },
+];
+
+function buildExplainerUpToStep(target) {
+  explainerOracle = createOracle();
+  explainerBuildResults = [null];
+  var bi = 0;
+  for (var i = 0; i < EXPLAINER_STEPS.length && i <= target; i++) {
+    if (EXPLAINER_STEPS[i].build) {
+      var r = addSymbol(explainerOracle, EXPLAINER_KEYS[bi]);
+      bi++;
+      explainerBuildResults[r.state] = r;
+    }
+  }
+}
+
+function updateExplainer() {
+  var step = EXPLAINER_STEPS[explainerStep];
+  document.getElementById('explainer-prev').disabled = explainerStep === 0;
+  document.getElementById('explainer-next').disabled = explainerStep >= EXPLAINER_STEPS.length - 1;
+  document.getElementById('explainer-step-label').textContent = 'Step ' + explainerStep + ' / ' + (EXPLAINER_STEPS.length-1);
+  document.getElementById('explainer-text').innerHTML = step.text;
+
+  renderCodePanel(step.code);
+
+  var hlState, newFL = [], hlSuffix, chain = [];
+  if (step.build) {
+    var si = 0;
+    for (var i=0;i<=explainerStep;i++) if(EXPLAINER_STEPS[i].build) si++;
+    hlState = si;
+    if (explainerBuildResults[si]) newFL = explainerBuildResults[si].factorLinks;
+    if (explainerOracle.suffixLink[si] > 0) hlSuffix = {from:si,to:explainerOracle.suffixLink[si]};
+    chain = getSuffixChain(explainerOracle, si);
+  } else if (inspectedState !== null) {
+    hlState = inspectedState;
+    chain = getSuffixChain(explainerOracle, inspectedState);
+  }
+
+  renderOracleGraph(document.getElementById('explainer-graph'), explainerOracle, {
+    highlightState: hlState,
+    statesBuilt: explainerOracle.numStates,
+    newFactorLinks: newFL,
+    highlightSuffix: hlSuffix,
+    showFactorLinks: true,
+    sliceLabels: EXPLAINER_LABELS,
+    suffixChain: chain,
+    clickable: true,
+    onClickState: function(s) {
+      inspectedState = s;
+      renderStateInspector(explainerOracle, s, EXPLAINER_SLICES);
+      var c = getSuffixChain(explainerOracle, s);
+      renderOracleGraph(document.getElementById('explainer-graph'), explainerOracle, {
+        highlightState: s,
+        statesBuilt: explainerOracle.numStates,
+        showFactorLinks: true,
+        sliceLabels: EXPLAINER_LABELS,
+        suffixChain: c,
+        clickable: true,
+        onClickState: arguments.callee
+      });
+    }
+  });
+
+  if (inspectedState !== null && !step.build) {
+    renderStateInspector(explainerOracle, inspectedState, EXPLAINER_SLICES);
+  } else if (step.build) {
+    var si = 0;
+    for (var i=0;i<=explainerStep;i++) if(EXPLAINER_STEPS[i].build) si++;
+    renderStateInspector(explainerOracle, si, EXPLAINER_SLICES);
+  }
+}
+
+document.getElementById('explainer-next').addEventListener('click', function() {
+  if (explainerStep < EXPLAINER_STEPS.length-1) { explainerStep++; inspectedState=null; buildExplainerUpToStep(explainerStep); updateExplainer(); }
+});
+document.getElementById('explainer-prev').addEventListener('click', function() {
+  if (explainerStep > 0) { explainerStep--; inspectedState=null; buildExplainerUpToStep(explainerStep); updateExplainer(); }
+});
+document.getElementById('explainer-play-original').addEventListener('click', function() { playSlices(EXPLAINER_SLICES, 140); });
+
+// ============================================================
+// WALKER (Part 2)
+// ============================================================
+
+var walkerOracle = createOracle();
+for (var i=0;i<EXPLAINER_KEYS.length;i++) addSymbol(walkerOracle, EXPLAINER_KEYS[i]);
+
+var walkerState = 0;
+var walkerOutput = [];
+
+function updateWalker() {
+  var stateEl = document.getElementById('walker-state');
+  var optEl = document.getElementById('walker-options');
+  var outEl = document.getElementById('walker-output');
+  document.getElementById('walker-play').disabled = walkerOutput.length === 0;
+
+  var label = walkerState === 0 ? '∅ (start)' : pitchKeyToLabel(walkerOracle.sequence[walkerState-1]);
+  stateEl.innerHTML = 'Current state: <strong>' + walkerState + '</strong> (' + label + ')';
+
+  // Build options
+  var html = '';
+  var trans = walkerOracle.transitions[walkerState];
+  var symbols = Object.keys(trans);
+
+  if (symbols.length > 0) {
+    html += '<div style="font-size:0.7rem;color:var(--muted);margin-bottom:0.25rem">Forward transitions:</div>';
+    for (var i = 0; i < symbols.length; i++) {
+      var sym = symbols[i];
+      var tgt = trans[sym];
+      var isForward = (tgt === walkerState + 1);
+      html += '<div class="walker-option forward-opt" data-type="forward" data-target="'+tgt+'" data-symbol="'+sym+'">';
+      html += pitchKeyToLabel(sym) + ' → state ' + tgt;
+      if (isForward) html += ' <span style="font-size:0.6rem">(next in original)</span>';
+      html += '</div>';
+    }
+  } else {
+    html += '<div style="color:var(--muted);font-size:0.75rem">No outgoing transitions (dead end)</div>';
+  }
+
+  var sl = walkerOracle.suffixLink[walkerState];
+  if (sl > 0) {
+    var chain = getSuffixChain(walkerOracle, walkerState);
+    html += '<div style="font-size:0.7rem;color:var(--muted);margin-top:0.5rem;margin-bottom:0.25rem">Suffix link (jump to shared context):</div>';
+    html += '<div class="walker-option suffix-opt" data-type="suffix" data-target="'+sl+'">';
+    html += 'Jump to state ' + sl + ' (' + pitchKeyToLabel(walkerOracle.sequence[sl-1]) + ')';
+    html += '</div>';
+    if (chain.length > 2) {
+      html += '<div style="font-size:0.65rem;color:var(--muted);margin-top:0.25rem">Full chain: ' + chain.join(' → ') + '</div>';
+    }
+  }
+
+  if (symbols.length === 0 && sl > 0) {
+    html += '<div style="color:var(--orange);font-size:0.75rem;margin-top:0.5rem">Dead end — must take suffix link to continue</div>';
+  } else if (symbols.length === 0 && sl <= 0) {
+    html += '<div style="color:var(--orange);font-size:0.75rem;margin-top:0.5rem">Dead end, no suffix link — will restart from state 0</div>';
+    html += '<div class="walker-option suffix-opt" data-type="restart" data-target="0">Restart from ∅</div>';
+  }
+
+  optEl.innerHTML = html;
+
+  // Bind click handlers
+  var opts = optEl.querySelectorAll('.walker-option');
+  for (var i = 0; i < opts.length; i++) {
+    opts[i].addEventListener('click', function(e) {
+      var el = e.currentTarget;
+      var type = el.dataset.type;
+      var target = parseInt(el.dataset.target);
+
+      if (type === 'suffix' || type === 'restart') {
+        walkerState = target;
+        updateWalker();
+        return;
+      }
+
+      // Forward/factor transition — produces output
+      var symbol = el.dataset.symbol;
+      walkerState = target;
+      walkerOutput.push({
+        state: target,
+        symbol: symbol,
+        jumped: false,
+        sourceSlice: EXPLAINER_SLICES[target - 1]
+      });
+
+      // Play the note
+      ensureSynth(); Tone.start();
+      if (EXPLAINER_SLICES[target-1]) {
+        var sl = EXPLAINER_SLICES[target-1];
+        for (var n=0;n<sl.notes.length;n++) {
+          synth.triggerAttackRelease(midiToFreq(sl.notes[n].note), 0.3);
+        }
+      }
+
+      updateWalker();
+    });
+  }
+
+  // Output display
+  if (walkerOutput.length === 0) {
+    outEl.innerHTML = '<span class="empty-state">Make your first move...</span>';
+  } else {
+    var ohtml = '';
+    for (var i = 0; i < walkerOutput.length; i++) {
+      var wo = walkerOutput[i];
+      var lbl = pitchKeyToLabel(wo.symbol);
+      ohtml += '<span class="walker-beat">' + lbl + ' <span style="color:var(--muted);font-size:0.6rem">['+wo.state+']</span></span>';
+    }
+    outEl.innerHTML = ohtml;
+  }
+
+  // Render graph with walker position
+  var path = [];
+  for (var i=0;i<walkerOutput.length;i++) path.push(walkerOutput[i].state);
+
+  renderOracleGraph(document.getElementById('walker-graph'), walkerOracle, {
+    showFactorLinks: true,
+    sliceLabels: EXPLAINER_LABELS,
+    walkerState: walkerState,
+    highlightPath: path,
+    suffixChain: walkerOracle.suffixLink[walkerState] > 0 ? getSuffixChain(walkerOracle, walkerState) : []
+  });
+}
+
+document.getElementById('walker-reset').addEventListener('click', function() {
+  walkerState = 0; walkerOutput = []; updateWalker();
+});
+document.getElementById('walker-play').addEventListener('click', function() {
+  if (walkerOutput.length === 0) return;
+  var slices = [];
+  for (var i = 0; i < walkerOutput.length; i++) {
+    slices.push(walkerOutput[i].sourceSlice || {notes:[]});
+  }
+  var beatEls = document.getElementById('walker-output').querySelectorAll('.walker-beat');
+  playSlices(slices, 140, function(idx) {
+    for(var i=0;i<beatEls.length;i++) beatEls[i].classList.remove('current');
+    if(beatEls[idx]) beatEls[idx].classList.add('current');
+  }, function() {
+    for(var i=0;i<beatEls.length;i++) beatEls[i].classList.remove('current');
+  });
+});
+document.getElementById('walker-stop').addEventListener('click', function() { stopPlayback(); });
+
+// ============================================================
+// SANDBOX (Part 3)
+// ============================================================
+
+var sandboxBeats = [];
+var activeBeatIndex = -1;
+var currentDuration = 0.5;
+var sandboxOracle = null;
+var sandboxGenerated = null;
+
+function buildPiano() {
+  var container = document.getElementById('sandbox-piano');
+  container.innerHTML = '';
+  var keys = [
+    {note:60,name:'C',b:false},{note:61,name:'C#',b:true},{note:62,name:'D',b:false},
+    {note:63,name:'Eb',b:true},{note:64,name:'E',b:false},{note:65,name:'F',b:false},
+    {note:66,name:'F#',b:true},{note:67,name:'G',b:false},{note:68,name:'Ab',b:true},
+    {note:69,name:'A',b:false},{note:70,name:'Bb',b:true},{note:71,name:'B',b:false},
+    {note:72,name:'C',b:false}
+  ];
+  for (var i=0;i<keys.length;i++) {
+    var key=keys[i], el=document.createElement('div');
+    el.className='piano-key '+(key.b?'black':'white');
+    el.textContent=key.name; el.dataset.note=key.note;
+    el.addEventListener('mousedown',function(e){
+      var midi=parseInt(e.target.dataset.note);
+      if(activeBeatIndex<0||activeBeatIndex>=sandboxBeats.length)return;
+      var beat=sandboxBeats[activeBeatIndex];
+      var totalOff=0;
+      for(var n=0;n<beat.notes.length;n++) totalOff=Math.max(totalOff,beat.notes[n].offset+beat.notes[n].duration);
+      if(totalOff>=1)totalOff=0;
+      beat.notes.push({note:midi,offset:Math.min(totalOff,0.75),duration:Math.min(currentDuration,1-totalOff)});
+      sandboxGenerated=null; updateSandboxDisplay(); updateSandboxOracle();
+      e.target.classList.add('playing'); ensureSynth(); Tone.start();
+      synth.triggerAttackRelease(midiToFreq(midi),currentDuration*(60/140));
+      setTimeout(function(){e.target.classList.remove('playing');},200);
+    });
+    container.appendChild(el);
+  }
+}
+
+var durBtns=document.getElementById('duration-btns').querySelectorAll('button');
+for(var i=0;i<durBtns.length;i++){durBtns[i].addEventListener('click',function(e){
+  currentDuration=parseFloat(e.target.dataset.dur);
+  var all=document.getElementById('duration-btns').querySelectorAll('button');
+  for(var j=0;j<all.length;j++)all[j].classList.remove('selected');
+  e.target.classList.add('selected');
+});}
+
+document.getElementById('add-beat-btn').addEventListener('click',function(){
+  sandboxBeats.push({notes:[]}); activeBeatIndex=sandboxBeats.length-1;
+  sandboxGenerated=null; updateSandboxDisplay(); updateSandboxOracle();
+});
+document.getElementById('remove-beat-btn').addEventListener('click',function(){
+  if(!sandboxBeats.length)return;
+  if(activeBeatIndex>=0&&activeBeatIndex<sandboxBeats.length)sandboxBeats.splice(activeBeatIndex,1);
+  else sandboxBeats.pop();
+  activeBeatIndex=Math.min(activeBeatIndex,sandboxBeats.length-1);
+  sandboxGenerated=null; updateSandboxDisplay(); updateSandboxOracle();
+});
+
+function updateSandboxDisplay() {
+  var c=document.getElementById('sandbox-beats');
+  document.getElementById('beat-count-label').textContent=sandboxBeats.length+' beat'+(sandboxBeats.length!==1?'s':'');
+  if(!sandboxBeats.length){c.innerHTML='<span class="empty-state">Click "+ Add Beat" then click piano keys...</span>';updateSandboxGenDisplay();return;}
+  c.innerHTML='';
+  for(var b=0;b<sandboxBeats.length;b++){(function(bi){
+    var el=document.createElement('div');
+    el.className='beat-slice'+(bi===activeBeatIndex?' active-input':'');
+    el.innerHTML='<span class="beat-label">Beat '+(bi+1)+'</span><span class="beat-notes">'+sliceToShortLabel(sandboxBeats[bi])+'</span>';
+    el.addEventListener('click',function(){activeBeatIndex=bi;updateSandboxDisplay();});
+    c.appendChild(el);
+  })(b);}
+  updateSandboxGenDisplay();
+}
+
+function updateSandboxOracle() {
+  var c=document.getElementById('sandbox-graph');
+  var ne=0; for(var i=0;i<sandboxBeats.length;i++) if(sandboxBeats[i].notes.length>0) ne++;
+  if(ne<2){c.innerHTML='<p style="padding:2rem;color:#666;font-size:0.8rem">Add notes to at least 2 beats to see the oracle.</p>';sandboxOracle=null;return;}
+  sandboxOracle=createOracle();
+  for(var i=0;i<sandboxBeats.length;i++) addSymbol(sandboxOracle,slicePitchKey(sandboxBeats[i].notes));
+  var labels=[]; for(var i=0;i<sandboxBeats.length;i++) labels.push(sliceToShortLabel(sandboxBeats[i]));
+  renderOracleGraph(c,sandboxOracle,{showFactorLinks:true,sliceLabels:labels});
+}
+
+function updateSandboxGenDisplay() {
+  var c=document.getElementById('sandbox-generated');
+  var pb=document.getElementById('sandbox-play-generated');
+  if(!sandboxGenerated||!sandboxGenerated.length){c.innerHTML='<span class="empty-state">Hit Generate to create a continuation...</span>';pb.disabled=true;drawPianoRoll(sandboxBeats,null);return;}
+  c.innerHTML='';
+  for(var i=0;i<sandboxGenerated.length;i++){
+    var g=sandboxGenerated[i],src=sandboxBeats[g.state-1];
+    var el=document.createElement('div');
+    el.className='beat-slice'+(g.jumped?' highlight':'');
+    el.innerHTML='<span class="beat-label">from '+g.state+'</span><span class="beat-notes">'+(src?sliceToShortLabel(src):'?')+'</span>';
+    c.appendChild(el);
+  }
+  pb.disabled=false;
+  drawPianoRoll(sandboxBeats,sandboxGenerated);
+}
+
+function drawPianoRoll(orig,gen) {
+  var canvas=document.getElementById('piano-roll-canvas'),ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  ctx.fillStyle='#111122';ctx.fillRect(0,0,W,H);
+  if(!orig||!orig.length)return;
+  var all=[];
+  for(var b=0;b<orig.length;b++) for(var n=0;n<orig[b].notes.length;n++) all.push(orig[b].notes[n].note);
+  if(gen) for(var i=0;i<gen.length;i++){var s=orig[gen[i].state-1];if(s)for(var n=0;n<s.notes.length;n++)all.push(s.notes[n].note);}
+  if(!all.length)return;
+  var mn=all[0],mx=all[0]; for(var i=1;i<all.length;i++){if(all[i]<mn)mn=all[i];if(all[i]>mx)mx=all[i];}
+  mn-=2;mx+=2; var nr=mx-mn;
+  var tb=orig.length+(gen?gen.length:0), bw=Math.min((W-60)/tb,80), nh=Math.min((H-40)/nr,14), ox=50, oy=20;
+  ctx.strokeStyle='#222233';ctx.lineWidth=0.5;
+  for(var n=mn;n<=mx;n++){var y=oy+(mx-n)*nh;ctx.beginPath();ctx.moveTo(ox,y);ctx.lineTo(ox+tb*bw,y);ctx.stroke();
+    if(n%12===0||n===mn){ctx.fillStyle='#444';ctx.font='9px monospace';ctx.fillText(midiToName(n),4,y+3);}}
+  ctx.strokeStyle='#333344';for(var b=0;b<=tb;b++){var x=ox+b*bw;ctx.beginPath();ctx.moveTo(x,oy);ctx.lineTo(x,oy+nr*nh);ctx.stroke();}
+  if(gen&&gen.length>0){var dx=ox+orig.length*bw;ctx.strokeStyle='#e9456066';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(dx,oy);ctx.lineTo(dx,oy+nr*nh);ctx.stroke();ctx.setLineDash([]);}
+  for(var b=0;b<orig.length;b++){var bt=orig[b],bx=ox+b*bw;for(var n=0;n<bt.notes.length;n++){var nt=bt.notes[n],x=bx+nt.offset*bw+1,w=nt.duration*bw-2,y=oy+(mx-nt.note)*nh;ctx.fillStyle='#4ecdc4';ctx.fillRect(x,y,Math.max(w,3),nh-2);}}
+  if(gen){for(var i=0;i<gen.length;i++){var g=gen[i],src=orig[g.state-1];if(!src)continue;var bx=ox+(orig.length+i)*bw;for(var n=0;n<src.notes.length;n++){var nt=src.notes[n],x=bx+nt.offset*bw+1,w=nt.duration*bw-2,y=oy+(mx-nt.note)*nh;ctx.fillStyle=g.jumped?'#e94560':'#f7b731';ctx.fillRect(x,y,Math.max(w,3),nh-2);}}}
+}
+
+document.getElementById('fidelity-slider').addEventListener('input',function(e){document.getElementById('fidelity-value').textContent=(parseInt(e.target.value)/100).toFixed(2);});
+document.getElementById('length-slider').addEventListener('input',function(e){document.getElementById('length-value').textContent=e.target.value+' beats';});
+
+document.getElementById('sandbox-generate').addEventListener('click',function(){
+  if(!sandboxOracle||sandboxBeats.length<2)return;
+  sandboxGenerated=generate(sandboxOracle,parseInt(document.getElementById('length-slider').value),parseInt(document.getElementById('fidelity-slider').value)/100);
+  updateSandboxGenDisplay();
+  var path=[]; for(var i=0;i<sandboxGenerated.length;i++)path.push(sandboxGenerated[i].state);
+  var labels=[]; for(var i=0;i<sandboxBeats.length;i++)labels.push(sliceToShortLabel(sandboxBeats[i]));
+  renderOracleGraph(document.getElementById('sandbox-graph'),sandboxOracle,{showFactorLinks:true,highlightPath:path,sliceLabels:labels});
+});
+
+document.getElementById('sandbox-play-original').addEventListener('click',function(){
+  if(!sandboxBeats.length)return;
+  var els=document.getElementById('sandbox-beats').querySelectorAll('.beat-slice');
+  playSlices(sandboxBeats,140,function(i){for(var j=0;j<els.length;j++)els[j].classList.remove('playing');if(els[i])els[i].classList.add('playing');},function(){for(var j=0;j<els.length;j++)els[j].classList.remove('playing');});
+});
+document.getElementById('sandbox-play-generated').addEventListener('click',function(){
+  if(!sandboxGenerated||!sandboxGenerated.length)return;
+  var sl=[]; for(var i=0;i<sandboxGenerated.length;i++) sl.push(sandboxBeats[sandboxGenerated[i].state-1]||{notes:[]});
+  var els=document.getElementById('sandbox-generated').querySelectorAll('.beat-slice');
+  playSlices(sl,140,function(i){for(var j=0;j<els.length;j++)els[j].classList.remove('playing');if(els[i])els[i].classList.add('playing');},function(){for(var j=0;j<els.length;j++)els[j].classList.remove('playing');});
+});
+document.getElementById('sandbox-stop').addEventListener('click',function(){stopPlayback();});
+document.getElementById('sandbox-clear').addEventListener('click',function(){sandboxBeats=[];activeBeatIndex=-1;sandboxGenerated=null;updateSandboxDisplay();updateSandboxOracle();});
+
+var PRESETS = {
+  melody1:[{notes:[{note:60,offset:0,duration:0.5},{note:62,offset:0.5,duration:0.5}]},{notes:[{note:64,offset:0,duration:0.5},{note:65,offset:0.5,duration:0.5}]},{notes:[{note:64,offset:0,duration:0.5},{note:62,offset:0.5,duration:0.5}]},{notes:[{note:60,offset:0,duration:1}]},{notes:[{note:62,offset:0,duration:0.5},{note:64,offset:0.5,duration:0.5}]},{notes:[{note:65,offset:0,duration:0.5},{note:67,offset:0.5,duration:0.5}]},{notes:[{note:64,offset:0,duration:0.5},{note:62,offset:0.5,duration:0.5}]},{notes:[{note:60,offset:0,duration:1}]}],
+  arpeggio:[{notes:[{note:60,offset:0,duration:0.25},{note:64,offset:0.25,duration:0.25},{note:67,offset:0.5,duration:0.25},{note:72,offset:0.75,duration:0.25}]},{notes:[{note:67,offset:0,duration:0.5},{note:64,offset:0.5,duration:0.5}]},{notes:[{note:60,offset:0,duration:0.25},{note:65,offset:0.25,duration:0.25},{note:69,offset:0.5,duration:0.25},{note:72,offset:0.75,duration:0.25}]},{notes:[{note:69,offset:0,duration:0.5},{note:65,offset:0.5,duration:0.5}]},{notes:[{note:60,offset:0,duration:0.25},{note:64,offset:0.25,duration:0.25},{note:67,offset:0.5,duration:0.25},{note:72,offset:0.75,duration:0.25}]},{notes:[{note:72,offset:0,duration:1}]}],
+  syncopated:[{notes:[{note:60,offset:0,duration:0.75}]},{notes:[{note:64,offset:0.5,duration:0.5}]},{notes:[{note:67,offset:0,duration:0.25},{note:65,offset:0.75,duration:0.25}]},{notes:[{note:64,offset:0.25,duration:0.75}]},{notes:[{note:60,offset:0,duration:0.75}]},{notes:[{note:62,offset:0.5,duration:0.5}]},{notes:[{note:67,offset:0,duration:0.25},{note:65,offset:0.75,duration:0.25}]},{notes:[{note:60,offset:0.25,duration:0.75}]}],
+  chordal:[{notes:[{note:60,offset:0,duration:1},{note:64,offset:0,duration:1},{note:67,offset:0,duration:1}]},{notes:[{note:65,offset:0,duration:1},{note:69,offset:0,duration:1}]},{notes:[{note:60,offset:0,duration:1},{note:64,offset:0,duration:1},{note:67,offset:0,duration:1}]},{notes:[{note:62,offset:0,duration:0.5},{note:65,offset:0,duration:0.5},{note:69,offset:0.5,duration:0.5},{note:67,offset:0.5,duration:0.5}]},{notes:[{note:60,offset:0,duration:1},{note:64,offset:0,duration:1},{note:67,offset:0,duration:1}]},{notes:[{note:67,offset:0,duration:1},{note:71,offset:0,duration:1}]}]
+};
+var presetBtns=document.querySelectorAll('.preset-btn');
+for(var i=0;i<presetBtns.length;i++){presetBtns[i].addEventListener('click',function(e){
+  var p=PRESETS[e.target.dataset.preset]; if(!p)return;
+  sandboxBeats=JSON.parse(JSON.stringify(p)); activeBeatIndex=0; sandboxGenerated=null;
+  updateSandboxDisplay(); updateSandboxOracle();
+});}
+
+document.getElementById('integration-toggle').addEventListener('click',function(){this.classList.toggle('open');document.getElementById('integration-body').classList.toggle('open');});
+
+// ============================================================
+// INIT
+// ============================================================
+buildPiano();
+buildExplainerUpToStep(0);
+updateExplainer();
+updateWalker();
+updateSandboxOracle();
+drawPianoRoll([],null);
+</script>
+</body>
+</html>

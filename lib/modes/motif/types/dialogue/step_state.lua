@@ -61,14 +61,10 @@ end
 
 local response_state = {}
 local cr_enabled = {}
-local cr_strategy = {}
 local cr_playing_response = {}
 local cr_editing_response = {}
 local cr_editing_call = {}
 local cr_response_manual = {}
-
-local RESPONSE_STRATEGIES = {"Complement", "Sequence", "Invert", "Resolve", "Rotate"}
-StepState.RESPONSE_STRATEGIES = RESPONSE_STRATEGIES
 
 local function init_response_steps(lane_id)
   response_state[lane_id] = {}
@@ -99,18 +95,6 @@ function StepState.toggle_cr(lane_id)
   if cr_enabled[lane_id] then
     StepState.generate_response(lane_id)
   end
-end
-
-function StepState.get_cr_strategy(lane_id)
-  return cr_strategy[lane_id] or 1
-end
-
-function StepState.get_cr_strategy_name(lane_id)
-  return RESPONSE_STRATEGIES[StepState.get_cr_strategy(lane_id)]
-end
-
-function StepState.set_cr_strategy(lane_id, val)
-  cr_strategy[lane_id] = val
 end
 
 function StepState.is_playing_response(lane_id)
@@ -147,107 +131,11 @@ end
 
 
 ------------------------------------------------------------------------
--- Response Strategies
+-- Response Generation (oracle-based, handled in prepare_stage)
 ------------------------------------------------------------------------
-
-local function strategy_complement(call, response, length)
-  for i = 1, length do
-    response[i].active = not call[i].active
-    response[i].note = call[i].note
-    response[i].velocity = call[i].velocity
-    response[i].ratchet = call[i].ratchet
-  end
-end
-
-local function strategy_sequence(call, response, length)
-  for i = 1, length do
-    local src = ((i - 2) % length) + 1
-    response[i].active = call[src].active
-    response[i].note = call[src].note
-    response[i].velocity = call[src].velocity
-    response[i].ratchet = call[src].ratchet
-  end
-end
-
-local function strategy_invert(call, response, length, lane_id)
-  local scale = theory.get_scale()
-  local center = StepState.get_default_note(lane_id)
-  for i = 1, length do
-    response[i].active = call[i].active
-    response[i].velocity = call[i].velocity
-    response[i].ratchet = call[i].ratchet
-    local src_note = call[i].note or center
-    local interval = src_note - center
-    local mirrored = center - interval
-    local best = scale[1]
-    for _, sn in ipairs(scale) do
-      if math.abs(sn - mirrored) < math.abs(best - mirrored) then
-        best = sn
-      end
-    end
-    response[i].note = best
-  end
-end
-
-local function strategy_resolve(call, response, length, lane_id)
-  local scale = theory.get_scale()
-  local default_note = StepState.get_default_note(lane_id)
-
-  -- Find the default note's position in the scale
-  local tonic_pos = 1
-  for si, sn in ipairs(scale) do
-    if sn == default_note then tonic_pos = si; break end
-    if sn > default_note then tonic_pos = math.max(1, si - 1); break end
-  end
-
-  -- How many steps form the scalar run (2-4 depending on length)
-  local run_length = math.max(2, math.min(4, math.floor(length / 3)))
-
-  for i = 1, length do
-    response[i].active = call[i].active
-    response[i].velocity = call[i].velocity
-    response[i].ratchet = call[i].ratchet
-
-    local steps_from_end = length - i
-    if steps_from_end < run_length then
-      local scale_offset = steps_from_end
-      local pos = math.max(1, math.min(tonic_pos + scale_offset, #scale))
-      response[i].note = scale[pos]
-    else
-      response[i].note = call[i].note
-    end
-  end
-end
-
-local function strategy_rotate(call, response, length)
-  for i = 1, length do
-    response[i].active = call[i].active
-    response[i].velocity = call[i].velocity
-    response[i].ratchet = call[i].ratchet
-    local note_src = (i % length) + 1
-    response[i].note = call[note_src].note
-  end
-end
 
 function StepState.generate_response(lane_id)
   cr_response_manual[lane_id] = false
-  local call = ensure_state(lane_id)
-  local response = ensure_response(lane_id)
-  local length = StepState.get_length(lane_id)
-  local strategy = StepState.get_cr_strategy(lane_id)
-
-  if strategy == 1 then
-    strategy_complement(call, response, length)
-  elseif strategy == 2 then
-    strategy_sequence(call, response, length)
-  elseif strategy == 3 then
-    strategy_invert(call, response, length, lane_id)
-  elseif strategy == 4 then
-    strategy_resolve(call, response, length, lane_id)
-  elseif strategy == 5 then
-    strategy_rotate(call, response, length)
-  end
-
   StepState.snapshot_response_genesis(lane_id)
 end
 

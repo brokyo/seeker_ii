@@ -10,6 +10,7 @@ local lane_handlers = include("lib/modes/motif/sequencing/lane_handlers")
 local LaneMap = include("lib/lanes/lane_map")
 local theory = include("lib/modes/motif/core/theory")
 local musicutil = require('musicutil')
+local Extend = include("lib/modes/motif/core/extend")
 
 local StepState = include("lib/modes/motif/types/dialogue/step_state")
 local Mutation = include("lib/modes/motif/types/dialogue/mutation")
@@ -56,46 +57,10 @@ function Dialogue.init()
       local local_index = lane_id - LaneMap.OFFSETS.dialogue
       local row_start = (local_index - 1) * 2 + 1
 
-      -- Stage 1 = call, stage 2 = response
       local use_response = StepState.is_cr_enabled(lane_id) and stage.id == 2
       StepState.set_playing_response(lane_id, use_response)
 
-      local source_genesis
-      local source_steps
-      if use_response then
-        source_genesis = StepState.get_response_genesis(lane_id)
-        source_steps = StepState.get_response_steps(lane_id)
-      else
-        source_genesis = StepState.get_genesis(lane_id)
-        source_steps = StepState.get_steps(lane_id)
-      end
-
-      -- Apply mutation if configured
-      local half_cycle = params:get("lane_" .. lane_id .. "_dialogue_reseed")
-      local steps
-
-      if half_cycle > 0 then
-        local displace = params:get("lane_" .. lane_id .. "_dialogue_mutate_displace")
-        local pitch = params:get("lane_" .. lane_id .. "_dialogue_mutate_pitch")
-        local density = params:get("lane_" .. lane_id .. "_dialogue_mutate_density")
-
-        local loop_count = StepState.get_mutation_loop_count(lane_id)
-        local depth = Mutation.triangle_depth(loop_count, half_cycle)
-        StepState.increment_mutation_loop(lane_id)
-
-        if depth > 0 and (displace > 0 or pitch > 0 or density > 0) then
-          local scale = theory.get_scale()
-          steps = Mutation.mutate_steps(source_genesis, depth, {
-            displace = displace, pitch = pitch, density = density,
-          }, lane_id, StepState.get_cycle_counter(lane_id), scale, length, StepState.deep_copy_steps)
-        else
-          steps = source_steps
-        end
-      else
-        steps = source_steps
-      end
-
-      local events, duration = StepState.build_motif(steps, {
+      local build_params = {
         length       = length,
         division     = StepState.get_division(lane_id),
         gate_pct     = StepState.get_gate_pct(lane_id),
@@ -103,10 +68,78 @@ function Dialogue.init()
         probability  = params:get("lane_" .. lane_id .. "_dialogue_probability"),
         default_note = StepState.get_default_note(lane_id),
         row_start    = row_start,
-      })
+      }
 
-      lane.motif.events = events
-      lane.motif.duration = duration
+      if use_response then
+        -- Build call events, then oracle-generate the response
+        local call_genesis = StepState.get_genesis(lane_id)
+        local call_events, call_duration = StepState.build_motif(call_genesis, build_params)
+
+        local fidelity = params:get("lane_" .. lane_id .. "_dialogue_extend_fidelity") / 100
+        local entropy = params:get("lane_" .. lane_id .. "_dialogue_extend_entropy") / 100
+
+        local slice_data = Extend.slice_events(call_events, call_duration)
+        if #slice_data.slices >= 2 then
+          local context = Extend.build_oracle(slice_data)
+          local num_beats = math.floor(call_duration)
+          local gen_events, gen_duration = Extend.generate(context, num_beats, fidelity, {})
+
+          -- Apply triangle-wave mutation
+          local half_cycle = params:get("lane_" .. lane_id .. "_dialogue_reseed")
+          if entropy > 0 and half_cycle > 0 then
+            local loop_count = StepState.get_mutation_loop_count(lane_id)
+            local depth = Extend.triangle_depth(loop_count, half_cycle)
+            StepState.increment_mutation_loop(lane_id)
+            if depth > 0 then
+              local scale = theory.get_scale()
+              Extend.mutate_events(gen_events, depth, {
+                pitch = entropy * 100,
+                density = entropy * 50,
+                displace = entropy * 30,
+              }, scale)
+            end
+          end
+
+          lane.motif.events = gen_events
+          lane.motif.duration = gen_duration
+        else
+          local events, duration = StepState.build_motif(call_genesis, build_params)
+          lane.motif.events = events
+          lane.motif.duration = duration
+        end
+      else
+        -- Call stage: use step grid with existing mutation system
+        local source_genesis = StepState.get_genesis(lane_id)
+        local source_steps = StepState.get_steps(lane_id)
+
+        local half_cycle = params:get("lane_" .. lane_id .. "_dialogue_reseed")
+        local steps
+
+        if half_cycle > 0 then
+          local displace = params:get("lane_" .. lane_id .. "_dialogue_mutate_displace")
+          local pitch = params:get("lane_" .. lane_id .. "_dialogue_mutate_pitch")
+          local density = params:get("lane_" .. lane_id .. "_dialogue_mutate_density")
+
+          local loop_count = StepState.get_mutation_loop_count(lane_id)
+          local depth = Mutation.triangle_depth(loop_count, half_cycle)
+          StepState.increment_mutation_loop(lane_id)
+
+          if depth > 0 and (displace > 0 or pitch > 0 or density > 0) then
+            local scale = theory.get_scale()
+            steps = Mutation.mutate_steps(source_genesis, depth, {
+              displace = displace, pitch = pitch, density = density,
+            }, lane_id, StepState.get_cycle_counter(lane_id), scale, length, StepState.deep_copy_steps)
+          else
+            steps = source_steps
+          end
+        else
+          steps = source_steps
+        end
+
+        local events, duration = StepState.build_motif(steps, build_params)
+        lane.motif.events = events
+        lane.motif.duration = duration
+      end
     end,
 
     is_muted = function(lane_id)
@@ -141,7 +174,7 @@ end
 
 function create_params()
   for _, lane_id in ipairs(LaneMap.lanes_for_mode("dialogue")) do
-    params:add_group("lane_" .. lane_id .. "_dialogue_step", "LANE " .. lane_id .. " DRUM STEPS", 13)
+    params:add_group("lane_" .. lane_id .. "_dialogue_step", "LANE " .. lane_id .. " DRUM STEPS", 14)
 
     params:add_number("lane_" .. lane_id .. "_dialogue_base_octave", "Base Octave", 1, 7, 4)
     params:set_action("lane_" .. lane_id .. "_dialogue_base_octave", function()
@@ -203,15 +236,11 @@ function create_params()
       if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
     end)
 
-    params:add_option("lane_" .. lane_id .. "_dialogue_cr_strategy", "Response", StepState.RESPONSE_STRATEGIES, 1)
-    params:set_action("lane_" .. lane_id .. "_dialogue_cr_strategy", function(val)
-      if StepState.is_cr_enabled(lane_id) then
-        StepState.set_cr_strategy(lane_id, val)
-        StepState.generate_response(lane_id)
-        StepState.apply_motif(lane_id)
-      end
-      if _seeker.screen_ui then _seeker.screen_ui.set_needs_redraw() end
-    end)
+    params:add_number("lane_" .. lane_id .. "_dialogue_extend_fidelity", "Extend Fidelity", 0, 100, 30,
+      function(param) return param:get() .. "%" end)
+
+    params:add_number("lane_" .. lane_id .. "_dialogue_extend_entropy", "Extend Entropy", 0, 100, 0,
+      function(param) return param:get() .. "%" end)
 
     params:add_number("lane_" .. lane_id .. "_dialogue_reseed", "Mutate Cycle", 0, 32, 0,
       function(param)

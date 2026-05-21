@@ -4,6 +4,7 @@
 
 local musicutil = require('musicutil')
 local theory = include('lib/modes/motif/core/theory')
+local Extend = include('lib/modes/motif/core/extend')
 
 local transforms = {}
 
@@ -31,6 +32,45 @@ transforms.available = {
     end
   },
   
+  extend = {
+    name = "Extend",
+    ui_name = "Extend",
+    ui_order = 3,
+    description = "Factor oracle continuation.\n\nLearns beat-level patterns from the motif and generates new material by recombining real fragments. Every output fragment existed in the original — the ordering is new.\n\nFidelity: How much it recombines vs replays.\nEntropy: How much notes drift over time.\nMutate Cycle: How quickly entropy breathes in and out (0 = off).",
+    fn = function(events, lane_id, stage_id)
+      local prefix = "lane_" .. lane_id .. "_stage_" .. stage_id
+      local fidelity = params:get(prefix .. "_extend_fidelity") / 100
+      local entropy = params:get(prefix .. "_extend_entropy") / 100
+      local reseed = params:get(prefix .. "_extend_reseed")
+
+      local lane = _seeker.lanes[lane_id]
+      local duration = lane.motif:get_duration()
+
+      local slice_data = Extend.slice_events(events, duration)
+      if #slice_data.slices < 2 then return events end
+      local context = Extend.build_oracle(slice_data)
+
+      local num_beats = math.floor(duration)
+      local gen_events, gen_duration = Extend.generate(context, num_beats, fidelity, {})
+
+      if entropy > 0 and reseed > 0 then
+        local stage = lane.stages[lane.current_stage_index]
+        local loop_count = stage and stage.current_loop or 0
+        local depth = Extend.triangle_depth(loop_count, reseed)
+        if depth > 0 then
+          local scale = theory.get_scale()
+          Extend.mutate_events(gen_events, depth, {
+            pitch = entropy * 100,
+            density = entropy * 50,
+            displace = entropy * 30,
+          }, scale)
+        end
+      end
+
+      return gen_events
+    end
+  },
+
   overdub_filter = {
     name = "Overdub Filter",
     ui_name = "Overdub Filter",
@@ -87,7 +127,7 @@ transforms.available = {
   resonate = {
     name = "Resonate",
     ui_name = "Harmonize",
-    ui_order = 3,
+    ui_order = 4,
     description = "Layer harmonic intervals over notes.\n\nSub Octave: One octave below.\nFifth Above: Perfect fifth.\nOctave Above: One octave up.\n\nEach has independent chance and volume. Timing and velocity are subtly humanized.",
     fn = function(events, lane_id, stage_id)
       -- Helper function to convert option to chance percentage
@@ -298,219 +338,10 @@ transforms.available = {
     end
   },
 
-  echo = {
-    name = "Echo",
-    ui_name = "Echo",
-    ui_order = 4,
-    description = "Cascading repetitions with decay.\n\nDirection: Pitch movement (None/Up/Down by scale degree).\nRepeats: Number of echoes per note.\nDecay: Volume reduction per echo.\nTime: Delay between echoes (clock-synced).",
-    fn = function(events, lane_id, stage_id)
-      local repeats = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_repeats")
-      local decay = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_decay") / 100
-      local time_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_time")
-      local direction_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_echo_direction")
-
-      -- Convert time option to beat fraction
-      local time_map = {1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4, 8}
-      local echo_time = time_map[time_option] or 1/8
-
-      -- Direction: 1=None, 2=Up, 3=Down
-      local scale_degree_step = 0
-      if direction_option == 2 then scale_degree_step = 1
-      elseif direction_option == 3 then scale_degree_step = -1
-      end
-
-      local result = {}
-
-      for _, event in ipairs(events) do
-        -- Copy original event
-        local new_event = {}
-        for k, v in pairs(event) do
-          new_event[k] = v
-        end
-        table.insert(result, new_event)
-
-        -- Generate echoes for note_on events
-        if event.type == "note_on" then
-          local current_velocity = event.velocity
-          local current_note = event.note
-
-          for i = 1, repeats do
-            -- Decay velocity
-            current_velocity = math.floor(current_velocity * (1 - decay))
-            if current_velocity < 10 then break end
-
-            -- Transpose echo pitch by scale degree
-            if scale_degree_step ~= 0 then
-              current_note = theory.transpose_by_scale_degrees(current_note, scale_degree_step)
-            end
-
-            -- Create echo note_on
-            local echo_on = {}
-            for k, v in pairs(event) do
-              if k ~= "generation" then
-                echo_on[k] = v
-              end
-            end
-            echo_on.time = event.time + (echo_time * i)
-            echo_on.note = current_note
-            echo_on.velocity = current_velocity
-            table.insert(result, echo_on)
-          end
-        elseif event.type == "note_off" then
-          -- Generate matching note_offs for echoes
-          local current_note = event.note
-
-          for i = 1, repeats do
-            if scale_degree_step ~= 0 then
-              current_note = theory.transpose_by_scale_degrees(current_note, scale_degree_step)
-            end
-
-            local echo_off = {}
-            for k, v in pairs(event) do
-              if k ~= "generation" then
-                echo_off[k] = v
-              end
-            end
-            echo_off.time = event.time + (echo_time * i)
-            echo_off.note = current_note
-            table.insert(result, echo_off)
-          end
-        end
-      end
-
-      -- Sort by time
-      table.sort(result, function(a, b) return a.time < b.time end)
-
-      return result
-    end
-  },
-
-  drift = {
-    name = "Drift",
-    ui_name = "Drift",
-    ui_order = 5,
-    description = "Subtle melodic variation.\n\nNotes randomly wander by scale degrees while preserving the original melody's shape.\n\nStability: How much stays fixed (High=90%, Medium=75%, Low=50%, Very Low=25%).\nRange: How far notes can wander (1-7 scale degrees).",
-    fn = function(events, lane_id, stage_id)
-      local stability_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_drift_stability")
-      local range_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_drift_range")
-
-      -- Stability: 1=Very Low (25% fixed), 2=Low (50% fixed), 3=Medium (75% fixed), 4=High (90% fixed)
-      local drift_chance_map = {0.75, 0.50, 0.25, 0.10}
-      local drift_chance = drift_chance_map[stability_option] or 0.50
-
-      -- Range: 1-7 scale degrees (up to an octave)
-      local max_drift_degrees = range_option
-
-      -- Collect note_on events to determine which will drift
-      local note_on_indices = {}
-      for i, event in ipairs(events) do
-        if event.type == "note_on" then
-          table.insert(note_on_indices, i)
-        end
-      end
-
-      -- Decide which notes drift and by how much
-      local drift_amounts = {}
-      for _, idx in ipairs(note_on_indices) do
-        if math.random() < drift_chance then
-          -- Random direction and amount within range
-          local amount = math.random(1, max_drift_degrees)
-          if math.random() < 0.5 then amount = -amount end
-          drift_amounts[idx] = amount
-        else
-          drift_amounts[idx] = 0
-        end
-      end
-
-      -- Build result with drifted notes
-      local result = {}
-      local note_drift_map = {}  -- Track drift for matching note_offs
-
-      for i, event in ipairs(events) do
-        local new_event = {}
-        for k, v in pairs(event) do
-          new_event[k] = v
-        end
-
-        if event.type == "note_on" and drift_amounts[i] and drift_amounts[i] ~= 0 then
-          local new_note = theory.transpose_by_scale_degrees(event.note, drift_amounts[i])
-          note_drift_map[event.note] = new_note
-          new_event.note = new_note
-        elseif event.type == "note_off" and note_drift_map[event.note] then
-          new_event.note = note_drift_map[event.note]
-          note_drift_map[event.note] = nil  -- Clear after use
-        end
-
-        table.insert(result, new_event)
-      end
-
-      return result
-    end
-  },
-
-  ripple = {
-    name = "Ripple",
-    ui_name = "Ripple",
-    ui_order = 6,
-    description = "A ghost copy of the entire phrase.\n\nDelay: How far behind the ripple plays.\nVolume: How quiet the ripple is.\nTranspose: Pitch offset in scale degrees.\n\nCreates depth and atmosphere. Pairs well with octave-down or fifth-up transposition.",
-    fn = function(events, lane_id, stage_id)
-      local delay_option = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ripple_delay")
-      local volume = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ripple_volume") / 100
-      local transpose_degrees = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ripple_transpose")
-
-      -- Convert delay option to beat fraction
-      local delay_map = {1/16, 1/8, 1/4, 1/2, 1, 2}
-      local delay_time = delay_map[delay_option] or 1/4
-
-      local result = {}
-
-      -- Add all original events
-      for _, event in ipairs(events) do
-        local new_event = {}
-        for k, v in pairs(event) do
-          new_event[k] = v
-        end
-        table.insert(result, new_event)
-      end
-
-      -- Add delayed copy of all events (the ripple)
-      for _, event in ipairs(events) do
-        local ripple_event = {}
-        for k, v in pairs(event) do
-          if k ~= "generation" then
-            ripple_event[k] = v
-          end
-        end
-
-        -- Time shift
-        ripple_event.time = event.time + delay_time
-
-        -- Transpose and velocity adjust for note events
-        if event.type == "note_on" then
-          if transpose_degrees ~= 0 then
-            ripple_event.note = theory.transpose_by_scale_degrees(event.note, transpose_degrees)
-          end
-          ripple_event.velocity = math.floor(event.velocity * volume)
-        elseif event.type == "note_off" then
-          if transpose_degrees ~= 0 then
-            ripple_event.note = theory.transpose_by_scale_degrees(event.note, transpose_degrees)
-          end
-        end
-
-        table.insert(result, ripple_event)
-      end
-
-      -- Sort by time
-      table.sort(result, function(a, b) return a.time < b.time end)
-
-      return result
-    end
-  },
-
   transpose = {
     name = "Transpose",
     ui_name = "Transpose",
-    ui_order = 7,
+    ui_order = 5,
     description = "Shift all notes by scale degrees.\n\nPositive values move up the scale, negative down. Notes stay in key. +1 = next scale note, +7 = one octave up in a 7-note scale.\n\nUse across stages for chord progressions or melodic variation.",
     fn = function(events, lane_id, stage_id)
       local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_transpose_amount")
@@ -535,182 +366,10 @@ transforms.available = {
     end
   },
   
-  rotate = {
-    name = "Rotate",
-    ui_name = "Rotate",
-    ui_order = 8,
-    description = "Rotate note order in time.\n\nNotes shift position while keeping original rhythmic slots. Amount sets how many positions to rotate.\n\nCreates melodic permutations from the same material.",
-    fn = function(events, lane_id, stage_id)
-      local amount = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_rotate_amount")
-      
-      -- Collect just the note events
-      local notes = {}
-      for _, event in ipairs(events) do
-        if event.type == "note_on" then
-          table.insert(notes, event.note)
-        end
-      end
-      
-      -- Calculate rotation (handle wraparound)
-      local note_count = #notes
-      if note_count == 0 then return events end
-      
-      amount = amount % note_count
-      if amount < 0 then
-        amount = note_count + amount
-      end
-      
-      -- Create lookup table for rotated notes
-      local note_map = {}
-      for i, note in ipairs(notes) do
-        local new_pos = ((i - 1 + amount) % note_count) + 1
-        note_map[note] = notes[new_pos]
-      end
-      
-      -- Apply rotation to events
-      local result = {}
-      for _, event in ipairs(events) do
-        local new_event = {}
-        for k, v in pairs(event) do
-          new_event[k] = v
-        end
-        
-        if event.type == "note_on" or event.type == "note_off" then
-          new_event.note = note_map[event.note]
-        end
-        
-        table.insert(result, new_event)
-      end
-      
-      return result
-    end
-  },
-  
-  reverse = {
-    name = "Reverse",
-    ui_name = "Reverse",
-    ui_order = 9,
-    description = "Play the motif backwards.\n\nNotes play in reverse order while preserving their individual durations. The last note becomes first.\n\nClassic technique for retrograde variations.",
-    fn = function(events, lane_id, stage_id)
-      -- First pass: collect note_on/note_off pairs and their durations
-      local notes = {}
-      local total_duration = 0
-      
-      for i, event in ipairs(events) do
-        if event.type == "note_on" then
-          notes[#notes + 1] = {
-            note = event.note,
-            velocity = event.velocity,
-            start_time = event.time,
-            duration = nil -- Will be filled when we find note_off
-          }
-        elseif event.type == "note_off" then
-          -- Find matching note_on
-          for _, note in ipairs(notes) do
-            if note.note == event.note and note.duration == nil then
-              note.duration = event.time - note.start_time
-              break
-            end
-          end
-        end
-        -- Track total duration for any non-note events
-        if event.time > total_duration then
-          total_duration = event.time
-        end
-      end
-      
-      -- Second pass: create reversed events
-      local result = {}
-      for i = #notes, 1, -1 do
-        local note = notes[i]
-        local new_start = total_duration - (note.start_time + note.duration)
-        
-        -- Add note_on
-        table.insert(result, {
-          type = "note_on",
-          time = new_start,
-          note = note.note,
-          velocity = note.velocity
-        })
-        
-        -- Add note_off
-        table.insert(result, {
-          type = "note_off",
-          time = new_start + note.duration,
-          note = note.note
-        })
-      end
-      
-      -- Add any non-note events at their relative positions
-      for _, event in ipairs(events) do
-        if event.type ~= "note_on" and event.type ~= "note_off" then
-          local new_event = {}
-          for k, v in pairs(event) do
-            new_event[k] = v
-          end
-          new_event.time = total_duration - event.time
-          table.insert(result, new_event)
-        end
-      end
-      
-      -- Sort by time
-      table.sort(result, function(a, b) return a.time < b.time end)
-      
-      return result
-    end
-  },
-
-  skip = {
-    name = "Skip",
-    ui_name = "Skip",
-    ui_order = 10,
-    description = "Play every Nth note.\n\nInterval: Play every 2nd, 3rd, 4th note, etc.\nOffset: Which note in the pattern to start from.\n\nThins out busy passages or creates rhythmic variations.",
-    fn = function(events, lane_id, stage_id)
-      local n = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_interval")
-      local offset = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_skip_offset")
-      
-      -- First collect note_on events to determine which notes to keep
-      local notes_to_keep = {}
-      local note_index = 0
-      
-      for _, event in ipairs(events) do
-        if event.type == "note_on" then
-          if (note_index + offset) % n == 0 then
-            notes_to_keep[event.note] = true
-          end
-          note_index = note_index + 1
-        end
-      end
-      
-      -- Create new sequence keeping only the selected notes
-      local result = {}
-      for _, event in ipairs(events) do
-        if event.type == "note_on" or event.type == "note_off" then
-          if notes_to_keep[event.note] then
-            local new_event = {}
-            for k, v in pairs(event) do
-              new_event[k] = v
-            end
-            table.insert(result, new_event)
-          end
-        else
-          -- Keep non-note events
-          local new_event = {}
-          for k, v in pairs(event) do
-            new_event[k] = v
-          end
-          table.insert(result, new_event)
-        end
-      end
-      
-      return result
-    end
-  },
-
   hosono = {
     name = "Hosono",
     ui_name = "Hosono",
-    ui_order = 11,
+    ui_order = 6,
     description = "Generative gap material.\n\nDiscards the recorded motif and generates sparse, scale-locked notes from scratch. Different each time the stage plays.\n\nDensity: How many notes per beat.\nRange: Octave spread around the root.\nGate: Note length.\nVelocity: Dynamic range of generated notes.",
     fn = function(events, lane_id, stage_id)
       local prefix = "lane_" .. lane_id .. "_stage_" .. stage_id
@@ -768,153 +427,8 @@ transforms.available = {
     end
   },
 
-  ratchet = {
-    name = "Ratchet",
-    ui_name = "Ratchet",
-    ui_order = 12,
-    description = "Rapid-fire note repeats.\n\nChance: Probability each note ratchets.\nMax Repeats: Upper limit of repeats per note.\nTiming Window: Duration for all repeats.\n\nAdds rhythmic complexity and drive.",
-    fn = function(events, lane_id, stage_id)
-      local repeat_chance = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_chance") / 100
-      local max_repeats = params:get("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_max_repeats")
-      local timing_division_string = params:string("lane_" .. lane_id .. "_stage_" .. stage_id .. "_ratchet_timing")
-      
-      -- Helper function to convert division string to beats (same as eurorack_output.lua)
-      local function division_to_beats(div)
-        -- Handle integer values (1, 2, 3, etc)
-        if tonumber(div) then
-          return tonumber(div)
-        end
-        
-        -- Handle fraction values (1/4, 1/16, etc)
-        local num, den = div:match("(%d+)/(%d+)")
-        if num and den then
-          return tonumber(num)/tonumber(den)
-        end
-        
-        return 0.25 -- default to 1/4 note
-      end
-      
-      local timing_division_beats = division_to_beats(timing_division_string)
-      
-      local result = {}
-      local note_pairs = {}
-      local note_counter = {}  -- Track multiple instances of same note
-      
-      -- First pass: collect note_on/note_off pairs with unique IDs
-      for _, event in ipairs(events) do
-        if event.type == "note_on" then
-          -- Create unique ID for each note occurrence
-          note_counter[event.note] = (note_counter[event.note] or 0) + 1
-          local unique_id = event.note .. "_" .. note_counter[event.note]
-          
-          note_pairs[unique_id] = {
-            note_on = event,
-            note_off = nil,
-            duration = nil,
-            note = event.note,
-            instance = note_counter[event.note]
-          }
-        elseif event.type == "note_off" then
-          -- Find the most recent unmatched note_on for this note
-          local matched_id = nil
-          local highest_instance = 0
-          
-          for id, pair in pairs(note_pairs) do
-            if pair.note == event.note and pair.note_off == nil and pair.instance > highest_instance then
-              matched_id = id
-              highest_instance = pair.instance
-            end
-          end
-          
-          if matched_id then
-            note_pairs[matched_id].note_off = event
-            note_pairs[matched_id].duration = event.time - note_pairs[matched_id].note_on.time
-          end
-        end
-      end
-      
-      -- Second pass: create ratcheted events
-      for unique_id, pair in pairs(note_pairs) do
-        local original_note_on = pair.note_on
-        local original_note_off = pair.note_off
-        local duration = pair.duration or 0.1 -- Default duration if no note_off found
-        
-        -- Decide if this note gets ratcheted
-        if math.random() < repeat_chance then
-          local num_repeats = math.random(1, max_repeats)
-          
-          -- Use burst-style timing like eurorack_output.lua
-          -- timing_division_beats now represents the time window for the entire ratchet burst
-          local ratchet_window = timing_division_beats -- Time window for all ratchets
-          local ratchet_interval = ratchet_window / num_repeats -- Time between each ratchet
-          
-          for i = 0, num_repeats - 1 do
-            local repeat_time = original_note_on.time + (i * ratchet_interval)
-            local repeat_velocity = math.floor(original_note_on.velocity * (1 - i * 0.1)) -- Decay velocity
-            
-            -- Add note_on with all original fields preserved
-            local new_note_on = {}
-            for k, v in pairs(original_note_on) do
-              new_note_on[k] = v
-            end
-            new_note_on.time = repeat_time
-            new_note_on.velocity = math.max(repeat_velocity, 20) -- Minimum velocity
-            table.insert(result, new_note_on)
-            
-            -- Add note_off with all original fields preserved
-            local new_note_off = {}
-            if original_note_off then
-              for k, v in pairs(original_note_off) do
-                new_note_off[k] = v
-              end
-            else
-              -- Create note_off from note_on if none existed
-              for k, v in pairs(original_note_on) do
-                new_note_off[k] = v
-              end
-              new_note_off.type = "note_off"
-              new_note_off.velocity = nil -- note_off doesn't have velocity
-            end
-            -- Use a shorter, fixed duration for ratchets based on interval
-            new_note_off.time = repeat_time + (ratchet_interval * 0.8) -- 80% of interval
-            table.insert(result, new_note_off)
-          end
-        else
-          -- Keep original note unchanged with all fields preserved
-          local new_note_on = {}
-          for k, v in pairs(original_note_on) do
-            new_note_on[k] = v
-          end
-          table.insert(result, new_note_on)
-          
-          if original_note_off then
-            local new_note_off = {}
-            for k, v in pairs(original_note_off) do
-              new_note_off[k] = v
-            end
-            table.insert(result, new_note_off)
-          end
-        end
-      end
-      
-      -- Add any non-note events with all fields preserved
-      for _, event in ipairs(events) do
-        if event.type ~= "note_on" and event.type ~= "note_off" then
-          local new_event = {}
-          for k, v in pairs(event) do
-            new_event[k] = v
-          end
-          table.insert(result, new_event)
-        end
-      end
-      
-      -- Sort by time
-      table.sort(result, function(a, b) return a.time < b.time end)
-      
-      return result
-    end
-  }
 }
+
 
 -- Function to build the ordered list of transform UI names
 function transforms.build_ui_names()
@@ -963,7 +477,4 @@ function transforms.get_description_by_ui_index(ui_index)
   return transforms.available[id] and transforms.available[id].description
 end
 
-return transforms 
-
--- Future Transforms:
--- 1. Simultaneously plays a transposed version of the motif. Only plays a subset of the notes. Contiguous, not random.
+return transforms

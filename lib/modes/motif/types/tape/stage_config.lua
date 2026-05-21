@@ -21,7 +21,7 @@ local config_state = {
 local function create_params()
     local LaneMap = include("lib/lanes/lane_map")
     for _, lane_idx in ipairs(LaneMap.lanes_for_mode("tape")) do
-        params:add_group("lane_" .. lane_idx .. "_tape_transform_stage", "LANE " .. lane_idx .. " TAPE STAGE", 101)
+        params:add_group("lane_" .. lane_idx .. "_tape_transform_stage", "LANE " .. lane_idx .. " TAPE STAGE", 57)
         params:add_number("lane_" .. lane_idx .. "_tape_config_stage", "Stage", 1, 4, 1)
         params:set_action("lane_" .. lane_idx .. "_tape_config_stage", function(value)
             config_state.selected_stage = value
@@ -40,6 +40,11 @@ local function create_params()
 
             -- Stage volume provided by lane_infrastructure (lane_X_stage_Y_volume)
 
+            -- Extend Params
+            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_extend_fidelity", "Fidelity", 0, 100, 30, function(param) return param:get() .. "%" end)
+            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_extend_entropy", "Entropy", 0, 100, 0, function(param) return param:get() .. "%" end)
+            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_extend_reseed", "Mutate Cycle", 0, 32, 0, function(param) local v = param:get(); return v == 0 and "off" or (v .. " loops") end)
+
             -- Tape Transform Params (Overdub Filter, Harmonize, etc.)
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_mode", "Filter Mode", {"Up to", "Only", "Except"}, 1)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_overdub_filter_round", "Filter Round", 1, 10, 1)
@@ -52,35 +57,8 @@ local function create_params()
             params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_chance", "Octave Above Chance", {"Off", "Low", "Medium", "High", "Always"}, 3)
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_harmonize_octave_above_volume", "Octave Above Volume", 0, 100, 50, function(param) return param.value .. "%" end)
 
-            -- Echo Params
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_direction", "Direction", {"None", "Up", "Down"}, 1)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_repeats", "Repeats", 1, 4, 2)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_decay", "Decay", 0, 100, 30, function(param) return param.value .. "%" end)
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_time", "Time", {"1/32", "1/16", "1/8", "1/4", "1/2", "1", "2", "4", "8"}, 3)
-
-            -- Drift Params
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_stability", "Stability", {"Very Low", "Low", "Medium", "High"}, 3)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_range", "Range", 1, 7, 1)
-
-            -- Ripple Params
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_delay", "Delay", {"1/16", "1/8", "1/4", "1/2", "1", "2"}, 3)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_volume", "Volume", 0, 100, 50, function(param) return param.value .. "%" end)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_transpose", "Transpose", -16, 16, -7)
-
             -- Transpose Params
             params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transpose_amount", "Transpose Amount", -16, 16, 1)
-
-            -- Rotate Params
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_rotate_amount", "Rotate Amount", -12, 12, 1)
-
-            -- Skip Params
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_interval", "Skip Interval", 2, 8, 2)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_offset", "Skip Offset", 0, 7, 0)
-
-            -- Ratchet Params
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_chance", "Ratchet Chance", 0, 100, 90, function(param) return param.value .. "%" end)
-            params:add_number("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats", "Max Repeats", 1, 8, 3)
-            params:add_option("lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing", "Timing Window", {"1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1", "2", "3", "4", "5", "6", "7", "8"}, 15)
         end
     end
 end

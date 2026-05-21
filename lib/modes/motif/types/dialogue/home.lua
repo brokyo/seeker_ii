@@ -224,16 +224,16 @@ local function create_response_screen()
   local norns_ui = NornsUI.new({
     id = "DIALOGUE_RESPONSE",
     name = "Response",
-    description = "Response pattern settings. Strategy selects how the response is generated. Edit Response locks the grid to show the response pattern.",
+    description = "Response settings. The oracle generates responses by recombining fragments of the call pattern. Fidelity controls how much it recombines.",
     params = {}
   })
 
   norns_ui.rebuild_params = function(self)
     local lane_id = get_dialogue_lane()
-    local strategy_name = _step_state.get_cr_strategy_name(lane_id)
-    self.name = lane_label(lane_id) .. " Response (" .. strategy_name .. ")"
+    self.name = lane_label(lane_id) .. " Response (Oracle)"
     self.params = {
-      { id = "lane_" .. lane_id .. "_dialogue_cr_strategy" },
+      { id = "lane_" .. lane_id .. "_dialogue_extend_fidelity", arc_multi_float = {10, 5, 1} },
+      { id = "lane_" .. lane_id .. "_dialogue_extend_entropy", arc_multi_float = {10, 5, 1} },
       { id = "lane_" .. lane_id .. "_stage_2_loops" },
     }
   end

@@ -66,6 +66,20 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
   if transform_type == "None" then
     -- No additional parameters
 
+  elseif transform_type == "Extend" then
+    table.insert(param_table, { separator = true, title = "Extend Config" })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_extend_fidelity",
+      arc_multi_float = {10, 5, 1}
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_extend_entropy",
+      arc_multi_float = {10, 5, 1}
+    })
+    table.insert(param_table, {
+      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_extend_reseed"
+    })
+
   elseif transform_type == "Overdub Filter" then
     table.insert(param_table, { separator = true, title = "Overdub Filter Config" })
     table.insert(param_table, {
@@ -99,76 +113,10 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
       arc_multi_float = {10, 5, 1}
     })
 
-  elseif transform_type == "Echo" then
-    table.insert(param_table, { separator = true, title = "Echo Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_direction"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_repeats"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_decay",
-      arc_multi_float = {10, 5, 1}
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_echo_time"
-    })
-
-  elseif transform_type == "Drift" then
-    table.insert(param_table, { separator = true, title = "Drift Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_stability"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_drift_range"
-    })
-
-  elseif transform_type == "Ripple" then
-    table.insert(param_table, { separator = true, title = "Ripple Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_delay"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_volume",
-      arc_multi_float = {10, 5, 1}
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ripple_transpose"
-    })
-
   elseif transform_type == "Transpose" then
     table.insert(param_table, { separator = true, title = "Transpose Config" })
     table.insert(param_table, {
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_transpose_amount"
-    })
-
-  elseif transform_type == "Rotate" then
-    table.insert(param_table, { separator = true, title = "Rotate Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_rotate_amount"
-    })
-
-  elseif transform_type == "Skip" then
-    table.insert(param_table, { separator = true, title = "Skip Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_interval"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_skip_offset"
-    })
-
-  elseif transform_type == "Ratchet" then
-    table.insert(param_table, { separator = true, title = "Ratchet Config" })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_chance",
-      arc_multi_float = {10, 5, 1}
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_max_repeats"
-    })
-    table.insert(param_table, {
-      id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_ratchet_timing"
     })
 
   elseif transform_type == "Hosono" then
@@ -194,8 +142,6 @@ function TapeTransform.rebuild_params(ui, lane_idx, stage_idx)
       id = "lane_" .. lane_idx .. "_stage_" .. stage_idx .. "_hosono_division"
     })
 
-  elseif transform_type == "Reverse" then
-    -- No additional parameters
   end
 
   -- Config section with reset and loop count
