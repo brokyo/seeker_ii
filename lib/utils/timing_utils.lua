@@ -7,10 +7,10 @@ local TimingUtils = {}
 TimingUtils.interval_options = {"Off", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "48", "64"}
 
 -- Modifier options (multiply interval by this value)
-TimingUtils.modifier_options = {"1/64", "1/32", "1/24", "1/23", "1/22", "1/21", "1/20", "1/19", "1/18", "1/17", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1/φ", "1", "φ", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "48", "64"}
+TimingUtils.modifier_options = {"1/64", "1/32", "1/24", "1/23", "1/22", "1/21", "1/20", "1/19", "1/18", "1/17", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1/phi", "1", "phi", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "48", "64"}
 
 -- Sync options (comprehensive list including fractions, used by OSC)
-TimingUtils.sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1/φ", "1", "φ", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
+TimingUtils.sync_options = {"Off", "1/32", "1/24", "1/16", "1/15", "1/14", "1/13", "1/12", "1/11", "1/10", "1/9", "1/8", "1/7", "1/6", "1/5", "1/4", "1/3", "1/2", "1/phi", "1", "phi", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "32", "40", "48", "56", "64", "128", "256"}
 
 -- Clock offset options (beat offset for phase alignment)
 TimingUtils.offset_options = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
@@ -21,8 +21,8 @@ TimingUtils.DEFAULT_MODIFIER_INDEX = 27
 -- Convert division string to beats (handles fractions like "1/4" and whole numbers)
 function TimingUtils.division_to_beats(div)
     if div == "Off" then return 0 end
-    if div == "φ" then return (1 + math.sqrt(5)) / 2 end
-    if div == "1/φ" then return (math.sqrt(5) - 1) / 2 end
+    if div == "phi" then return (1 + math.sqrt(5)) / 2 end
+    if div == "1/phi" then return (math.sqrt(5) - 1) / 2 end
 
     if tonumber(div) then
         return tonumber(div)
@@ -38,8 +38,8 @@ end
 
 -- Convert modifier string to numeric multiplier
 function TimingUtils.modifier_to_value(modifier)
-    if modifier == "φ" then return (1 + math.sqrt(5)) / 2 end
-    if modifier == "1/φ" then return (math.sqrt(5) - 1) / 2 end
+    if modifier == "phi" then return (1 + math.sqrt(5)) / 2 end
+    if modifier == "1/phi" then return (math.sqrt(5) - 1) / 2 end
 
     if tonumber(modifier) then
         return tonumber(modifier)
