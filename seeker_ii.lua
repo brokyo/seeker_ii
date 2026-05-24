@@ -197,6 +197,15 @@ function init()
   -- Start grid redraw clock LAST after everything is initialized
   _seeker.grid_ui.start()
 
+  -- Patch params menu to use Roboto so φ renders
+  local params_menu = require 'core/menu/params'
+  local _original_redraw = params_menu.redraw
+  params_menu.redraw = function()
+    screen.font_face(4)
+    screen.font_size(8)
+    _original_redraw()
+  end
+
   print('⌬ Seeker Online')
 end
 
